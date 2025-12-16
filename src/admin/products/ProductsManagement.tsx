@@ -162,6 +162,11 @@ export const ProductsManagement: React.FC = () => {
     return category ? category.nameAr : 'غير محدد';
   };
 
+  const getCategoryLevel = (categoryId: string) => {
+    const category = categories.find((c) => c.id === categoryId);
+    return typeof category?.level === 'number' ? category.level : null;
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center h-96">
@@ -336,10 +341,21 @@ export const ProductsManagement: React.FC = () => {
                             <p className="text-sm text-slate-500 dark:text-slate-400">
                               {product.nameEn}
                             </p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              ID: {product.id}
+                            </p>
                           </div>
                         </td>
                         <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
-                          {getCategoryName(product.categoryId)}
+                          <div>
+                            <p>{getCategoryName(product.categoryId)}</p>
+                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                              Category ID: {product.categoryId}
+                              {getCategoryLevel(product.categoryId) !== null
+                                ? ` • Level: ${getCategoryLevel(product.categoryId)}`
+                                : ''}
+                            </p>
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <span
@@ -387,6 +403,8 @@ export const ProductsManagement: React.FC = () => {
           setParentCategoryId(undefined);
         }}
         onSave={handleSaveCategory}
+        documentId={editingCategory?.id}
+        documentLevel={editingCategory?.level}
         initialData={
           editingCategory
             ? {
@@ -416,6 +434,7 @@ export const ProductsManagement: React.FC = () => {
           setEditingProduct(null);
         }}
         onSave={handleSaveProduct}
+        documentId={editingProduct?.id}
         initialData={
           editingProduct
             ? {

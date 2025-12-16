@@ -5,6 +5,12 @@ service cloud.firestore {
     // --------------------------------------------
     // Shared helpers
     // --------------------------------------------
+    function isAdminUser() {
+      return request.auth != null
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
     function isOwnerCreate() {
       return request.auth != null && request.resource.data.userId == request.auth.uid;
     }
@@ -143,6 +149,22 @@ service cloud.firestore {
     match /categories/{categoryId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // Admin-managed product categories (used in Admin > Products)
+    match /productCategories/{categoryId} {
+      // Read is public so app/homepage can list categories
+      allow read: if true;
+      // Writes limited to authenticated admins
+      allow create, update, delete: if isAdminUser();
+    }
+
+    // Admin-managed product templates (used in Admin > Products)
+    match /productTemplates/{templateId} {
+      // Read is public so app can render product template catalogs
+      allow read: if true;
+      // Writes limited to authenticated admins
+      allow create, update, delete: if isAdminUser();
     }
 
     // Products (top-level)

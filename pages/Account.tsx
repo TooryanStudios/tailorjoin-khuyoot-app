@@ -30,6 +30,14 @@ export const Account = () => {
   // --- Logic & Effects (Kept Intact) ---
   useEffect(() => {
      if (!user) return;
+     if (isEditing) return;
+     setName(user?.name || '');
+     setPhone(user?.phone || '');
+     setRegion(user?.region || '');
+  }, [user, isEditing]);
+
+  useEffect(() => {
+     if (!user) return;
      if (user.role === 'tailor') { navigate('/tailor-account', { replace: true }); return; }
      if (user.role === 'boutique') { navigate('/boutique-account', { replace: true }); return; }
      if (user.role === 'shop') { navigate('/shop-account', { replace: true }); return; }
@@ -87,23 +95,24 @@ export const Account = () => {
      }
   };
 
+  useEffect(() => {
+     if (user) return;
+     try {
+        const params = new URLSearchParams(location.search || '');
+        const openAuth = params.get('openAuth');
+        const mode = params.get('mode') === 'register' ? 'register' : 'login';
+        const loginPhone = params.get('loginPhone');
+        if (loginPhone) {
+           localStorage.setItem('prefillLoginPhone', loginPhone);
+        }
+        if (openAuth === '1') {
+           toggleAuthModal(true, mode as any);
+        }
+     } catch {}
+  }, [user, location.search, toggleAuthModal]);
+
   // --- Guest View (Modern Card) ---
   if (!user) {
-      // If query requests opening auth modal, do so and prefill phone
-      useEffect(() => {
-         try {
-            const params = new URLSearchParams(location.search || '');
-            const openAuth = params.get('openAuth');
-            const mode = params.get('mode') === 'register' ? 'register' : 'login';
-            const loginPhone = params.get('loginPhone');
-            if (loginPhone) {
-               localStorage.setItem('prefillLoginPhone', loginPhone);
-            }
-            if (openAuth === '1') {
-               toggleAuthModal(true, mode as any);
-            }
-         } catch {}
-      }, [location.search]);
     return (
       <div className="min-h-[85vh] flex items-center justify-center px-4 relative overflow-hidden">
         {/* Abstract Background */}

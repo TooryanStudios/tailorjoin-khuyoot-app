@@ -13,45 +13,47 @@
     <!-- Security Headers -->
         <meta http-equiv="Content-Security-Policy" 
           content="default-src 'self'; 
-           script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com; 
-           script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net;
+           script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com; 
+           script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
            style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
            img-src 'self' data: blob: https: http:; 
            font-src 'self' https://fonts.gstatic.com;
            frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
-           connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com;
+           connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com;
            worker-src 'self' blob:;">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     
-    <title>خيوط - Khuyoot | منصة تفصيل الملابس</title>
+    <title>Khuyoot | خيوط - منصة تفصيل الملابس</title>
     
     <!-- Canonical URL -->
-    <link rel="canonical" href="https://www.khuyoot.app/" />
+    <link rel="canonical" href="https://khuyoot.app" />
     
     <!-- SEO & Social Media Meta Tags -->
-    <meta name="description" content="منصة خيوط تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب بجودة عالية وأسعار منافسة">
+    <meta name="description" content="منصة تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب">
     <meta name="keywords" content="خياطة, تفصيل, ملابس, خياط, مصمم أزياء, خيوط, عمان">
     <meta name="author" content="Khuyoot">
     
     <!-- Open Graph / Facebook -->
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://www.khuyoot.app/">
-    <meta property="og:title" content="خيوط - Khuyoot | منصة تفصيل الملابس">
+    <meta property="og:url" content="https://khuyoot.app">
+    <meta property="og:title" content="Khuyoot | خيوط - منصة تفصيل الملابس">
     <meta property="og:description" content="منصة تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب">
-    <meta property="og:image" content="https://www.khuyoot.app/og/khuyoot-og.jpg">
+    <meta property="og:image" content="https://khuyoot.app/og-image.png">
     <meta property="og:image:width" content="1200">
     <meta property="og:image:height" content="630">
-    <meta property="og:site_name" content="خيوط - Khuyoot">
+    <meta property="og:site_name" content="Khuyoot | خيوط">
     <meta property="og:locale" content="ar_OM">
+    <meta property="og:image:alt" content="Khuyoot | خيوط - منصة تفصيل الملابس">
     
-    <!-- Twitter -->
+    <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image">
     <meta name="twitter:site" content="@khuyoot_app">
-    <meta name="twitter:url" content="https://www.khuyoot.app/">
-    <meta name="twitter:title" content="خيوط - Khuyoot | منصة تفصيل الملابس">
+    <meta name="twitter:url" content="https://khuyoot.app">
+    <meta name="twitter:title" content="Khuyoot | خيوط - منصة تفصيل الملابس">
     <meta name="twitter:description" content="منصة تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب">
-    <meta name="twitter:image" content="https://www.khuyoot.app/og/khuyoot-og.jpg">
+    <meta name="twitter:image" content="https://khuyoot.app/og-image.png">
+    <meta name="twitter:image:alt" content="Khuyoot | خيوط - منصة تفصيل الملابس">
         <!-- HashRouter compatibility: redirect clean paths to hash-based routes -->
         <script>
           (function() {
@@ -68,9 +70,6 @@
             }
           })();
         </script>
-    
-    <!-- WhatsApp -->
-    <meta property="og:image:alt" content="خيوط - منصة تفصيل الملابس">
 
     <!-- DEV: Forcefully remove any active Service Workers and manifest to prevent Workbox from intercepting Vite dev requests -->
     <script>
@@ -100,6 +99,27 @@
           }
           originalWarn.apply(console, args);
         };
+        
+        // Suppress share-modal.js errors (some environments inject/load it)
+        const originalError = console.error;
+        console.error = function(...args) {
+          if (args[0]?.toString?.()?.includes?.('share-modal')) {
+            return; // Suppress share-modal errors
+          }
+          originalError.apply(console, args);
+        };
+
+        // Also suppress uncaught runtime errors coming specifically from share-modal.js
+        window.addEventListener('error', function (event) {
+          try {
+            const filename = event?.filename || '';
+            if (filename && filename.includes('share-modal')) {
+              event.preventDefault();
+            }
+          } catch {
+            // no-op
+          }
+        });
       }
     </script>
     
@@ -296,7 +316,7 @@
     }
     </script>
 
-    <link rel="stylesheet" href="/index.css">
+    
 
     <!-- ميتاداتا و أيقونة الـ PWA يجب أن تكون داخل الـ head -->
     <meta name="mobile-web-app-capable" content="yes">

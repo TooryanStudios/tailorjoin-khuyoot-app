@@ -78,6 +78,9 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
               {node.nameEn}
             </span>
           </div>
+          <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+            ID: {node.id} • Level: {node.level}
+          </p>
           {node.productsCount !== undefined && (
             <p className="text-xs text-slate-500 dark:text-slate-400">
               {node.productsCount} منتج

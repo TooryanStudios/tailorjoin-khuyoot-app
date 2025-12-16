@@ -8,6 +8,7 @@ interface ProductTemplateFormProps {
   onClose: () => void;
   onSave: (data: ProductTemplateFormData) => Promise<void>;
   initialData?: ProductTemplateFormData;
+  documentId?: string;
   title: string;
 }
 
@@ -16,6 +17,7 @@ export const ProductTemplateForm: React.FC<ProductTemplateFormProps> = ({
   onClose,
   onSave,
   initialData,
+  documentId,
   title
 }) => {
   const [formData, setFormData] = useState<ProductTemplateFormData>({
@@ -195,6 +197,8 @@ export const ProductTemplateForm: React.FC<ProductTemplateFormProps> = ({
     );
   };
 
+  const selectedCategory = categories.find((c) => c.id === formData.categoryId);
+
   if (!isOpen) return null;
 
   return (
@@ -202,9 +206,16 @@ export const ProductTemplateForm: React.FC<ProductTemplateFormProps> = ({
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl w-full max-w-3xl max-h-[90vh] overflow-hidden">
         {/* الرأس */}
         <div className="flex items-center justify-between p-6 border-b border-slate-200 dark:border-slate-700">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
-            {title}
-          </h2>
+          <div>
+            <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
+              {title}
+            </h2>
+            {documentId && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                ID: {documentId}
+              </p>
+            )}
+          </div>
           <button
             onClick={onClose}
             className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
@@ -221,6 +232,12 @@ export const ProductTemplateForm: React.FC<ProductTemplateFormProps> = ({
               <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
                 التصنيف <span className="text-red-500">*</span>
               </label>
+              {formData.categoryId && (
+                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2">
+                  Category ID: {formData.categoryId}
+                  {typeof selectedCategory?.level === 'number' ? ` • Level: ${selectedCategory.level}` : ''}
+                </p>
+              )}
               <select
                 value={formData.categoryId}
                 onChange={(e) => setFormData(prev => ({ ...prev, categoryId: e.target.value }))}

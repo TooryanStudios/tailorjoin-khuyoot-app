@@ -186,8 +186,31 @@ export const firebaseService = {
   
   async login(email: string, pass: string): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
-    const credential = await signInWithEmailAndPassword(auth, email, pass);
-    return mapFirebaseUser(credential.user);
+    
+    // Retry logic for network issues
+    const maxRetries = 2;
+    let lastError: any = null;
+    
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+      try {
+        const credential = await signInWithEmailAndPassword(auth, email, pass);
+        return mapFirebaseUser(credential.user);
+      } catch (error: any) {
+        lastError = error;
+        
+        // Only retry on network errors
+        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
+          console.warn(`🔄 Login attempt ${attempt + 1} failed due to network, retrying...`);
+          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
+          continue;
+        }
+        
+        // Don't retry for other errors
+        throw error;
+      }
+    }
+    
+    throw lastError;
   },
 
   async register(email: string, pass: string, name: string, role: UserRole, merchantInfo?: any): Promise<User> {

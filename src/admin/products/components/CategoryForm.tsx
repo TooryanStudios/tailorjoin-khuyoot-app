@@ -8,6 +8,8 @@ interface CategoryFormProps {
   onClose: () => void;
   onSave: (data: CategoryFormData) => Promise<void>;
   initialData?: CategoryFormData;
+  documentId?: string;
+  documentLevel?: number;
   title: string;
 }
 
@@ -16,6 +18,8 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({
   onClose,
   onSave,
   initialData,
+  documentId,
+  documentLevel,
   title
 }) => {
   const [categories, setCategories] = useState<Category[]>([]);
@@ -187,6 +191,13 @@ export const CategoryForm: React.FC<CategoryFormProps> = ({
             <h2 className="text-2xl font-bold text-slate-800 dark:text-white">
               {title}
             </h2>
+            {(documentId || documentLevel !== undefined) && (
+              <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                {documentId ? <>ID: {documentId}</> : null}
+                {documentId && documentLevel !== undefined ? ' • ' : null}
+                {documentLevel !== undefined ? <>Level: {documentLevel}</> : null}
+              </p>
+            )}
             {initialData?.nameAr && (
               <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
                 {initialData.nameAr} ({initialData.nameEn})

@@ -574,7 +574,8 @@ export const AdminApp = () => {
   };
 
   // شاشة تحميل أثناء التحقق من المصادقة
-  if (isCheckingAuth || loading) {
+  // Avoid blocking the whole admin UI when global `loading` is toggled by non-auth flows.
+  if (isCheckingAuth || (loading && user === null)) {
     return (
       <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-[#050817] to-slate-900 flex items-center justify-center">
         <div className="text-center">

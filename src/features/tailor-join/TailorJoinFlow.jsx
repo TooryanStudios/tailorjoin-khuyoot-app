@@ -1,9 +1,9 @@
 // Strict schema compliance, specialization semantics, object URL previews with cleanup,
 // improved errors, and safer lastSubmission behavior.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { db, storage } from '../../../services/firebase';
 import { firebaseService } from '../../../services/firebase';
@@ -244,9 +244,53 @@ export default function TailorJoinFlow() {
     const params = useParams();
     const location = useLocation();
     const { appSettings } = useApp();
-    const productCategories = (appSettings && Array.isArray(appSettings.productCategories) && appSettings.productCategories.length > 0)
-        ? appSettings.productCategories
-        : [{ id: 'dishdasha', name: 'Dishdasha' }];
+
+    // Load hierarchical categories from Firestore (used for gender-specific level-2 filtering)
+    const [firestoreProductCategories, setFirestoreProductCategories] = useState(null);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesError, setCategoriesError] = useState(null);
+
+    const loadCategories = async () => {
+        setCategoriesLoading(true);
+        setCategoriesError(null);
+        try {
+            if (!firebaseService?.isInitialized?.()) {
+                setFirestoreProductCategories([]);
+                return;
+            }
+            const snap = await getDocs(query(collection(db, 'productCategories'), orderBy('order', 'asc')));
+            const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setFirestoreProductCategories(cats);
+        } catch (e) {
+            console.error('Failed to load productCategories from Firestore:', e);
+            setCategoriesError('فشل تحميل التصنيفات. Failed to load categories.');
+            setFirestoreProductCategories([]);
+        } finally {
+            setCategoriesLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        const init = async () => {
+            await loadCategories();
+            if (cancelled) return;
+        };
+        init();
+        return () => { cancelled = true; };
+    }, []);
+
+    const baseProductCategories = useMemo(() => {
+        if (Array.isArray(firestoreProductCategories) && firestoreProductCategories.length > 0) return firestoreProductCategories;
+        if (appSettings && Array.isArray(appSettings.productCategories) && appSettings.productCategories.length > 0) return appSettings.productCategories;
+        return [{ id: 'dishdasha', name: 'Dishdasha' }];
+    }, [firestoreProductCategories, appSettings]);
+
+    const getCategoryDisplayName = (cat) => {
+        if (!cat) return '';
+        return String(cat.nameAr || cat.name || cat.nameEn || cat.title || cat.id || '').trim();
+    };
+
     const defaultPw = (appSettings && appSettings.tailorDefaultPassword) ? appSettings.tailorDefaultPassword : '123456';
 
     // Parse step from URL params, default to 0 (welcome), clamp to 1-3 when present
@@ -325,6 +369,88 @@ export default function TailorJoinFlow() {
     const [products, setProducts] = useState([]);
     const [productPreviews, setProductPreviews] = useState({}); // localId -> array of object URLs
     const previewUrlsRef = useRef({ board: null, products: {} });
+
+    const selectedGender = (Array.isArray(formData?.specializationOptions) && formData.specializationOptions.length > 0)
+        ? formData.specializationOptions[0]
+        : '';
+
+    const productCategories = useMemo(() => {
+        // If categories come from settings (flat list), keep existing behavior.
+        const looksHierarchical = (baseProductCategories || []).some(c => Object.prototype.hasOwnProperty.call(c || {}, 'level') || Object.prototype.hasOwnProperty.call(c || {}, 'parentId'));
+        if (!looksHierarchical) {
+            return (baseProductCategories || []).map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+        }
+
+        const byId = new Map();
+        for (const c of (baseProductCategories || [])) {
+            if (c && c.id) byId.set(c.id, c);
+        }
+
+        const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+        const matchGenderRoot = (c, gender) => {
+            const ar = norm(c?.nameAr);
+            const en = norm(c?.nameEn);
+            if (gender === 'male') {
+                return ar.includes(norm('الملابس الرجالية')) || ar.includes(norm('ملابس رجالية')) || en.includes('men');
+            }
+            if (gender === 'female') {
+                return ar.includes(norm('الملابس النسائية')) || ar.includes(norm('ملابس نسائية')) || en.includes('women') || en.includes('female');
+            }
+            return false;
+        };
+
+        const root = (baseProductCategories || []).find(c => matchGenderRoot(c, selectedGender));
+        const rootId = root?.id || null;
+
+        const isDescendantOf = (catId, ancestorId) => {
+            if (!ancestorId || !catId) return false;
+            const visited = new Set();
+            let current = byId.get(catId);
+            while (current && current.parentId) {
+                if (visited.has(current.id)) return false;
+                visited.add(current.id);
+                if (current.parentId === ancestorId) return true;
+                current = byId.get(current.parentId);
+            }
+            return false;
+        };
+
+        const level2 = (baseProductCategories || [])
+            .filter(c => (c?.isActive !== false))
+            .filter(c => {
+                const level = typeof c?.level === 'number' ? c.level : parseInt(c?.level, 10);
+                return level === 2;
+            })
+            .filter(c => {
+                if (!rootId) return true;
+                return isDescendantOf(c.id, rootId);
+            })
+            .sort((a, b) => {
+                const ao = typeof a?.order === 'number' ? a.order : 0;
+                const bo = typeof b?.order === 'number' ? b.order : 0;
+                return ao - bo;
+            })
+            .map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+
+        return level2.length > 0 ? level2 : (baseProductCategories || []).map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+    }, [baseProductCategories, selectedGender]);
+
+    const prevGenderRef = useRef('');
+    useEffect(() => {
+        if (!selectedGender) return;
+        if (prevGenderRef.current === selectedGender) return;
+        prevGenderRef.current = selectedGender;
+        const allowed = new Set((productCategories || []).map(c => c.id));
+        setProducts(list => list.map(p => (p.category && !allowed.has(p.category)) ? ({ ...p, category: '' }) : p));
+    }, [selectedGender, productCategories]);
+
+    const categoryNameById = useMemo(() => {
+        const map = new Map();
+        for (const c of (baseProductCategories || [])) {
+            if (c && c.id) map.set(c.id, getCategoryDisplayName(c));
+        }
+        return map;
+    }, [baseProductCategories]);
 
     // Sync step state from URL params
     useEffect(() => {
@@ -842,8 +968,7 @@ export default function TailorJoinFlow() {
                     uploadIssues.push({ productName: p.name || '', files: failedFiles });
                 }
                 const catId = p.category || 'dishdasha';
-                const catEntry = (appSettings.productCategories || []).find(c => c.id === catId);
-                const categoryLabel = catEntry?.name || catId;
+                const categoryLabel = categoryNameById.get(catId) || catId;
 
                 const productDoc = {
                     id: productId,
@@ -1148,14 +1273,32 @@ export default function TailorJoinFlow() {
 
                                                     <div className="flex-1">
                                                         <div className="relative">
-                                                            <select
-                                                                value={p.category}
-                                                                onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].category = e.target.value; return c; })}
-                                                                className="block w-full rounded-lg border-0 bg-gray-100 dark:bg-gray-800 py-2.5 px-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-600"
-                                                            >
-                                                                <option value="">{t('category_label')}...</option>
-                                                                {productCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                                                            </select>
+                                                            {categoriesLoading ? (
+                                                                <div className="flex items-center justify-center py-2.5 px-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
+                                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                                                    <span className="ml-2 text-xs text-gray-500">Loading...</span>
+                                                                </div>
+                                                            ) : categoriesError ? (
+                                                                <div className="text-center py-2 px-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={loadCategories}
+                                                                        className="text-xs text-red-600 dark:text-red-400 font-semibold hover:underline"
+                                                                    >
+                                                                        Retry
+                                                                    </button>
+                                                                </div>
+                                                            ) : (
+                                                                <select
+                                                                    value={p.category}
+                                                                    onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].category = e.target.value; return c; })}
+                                                                    className="block w-full rounded-lg border-0 bg-gray-100 dark:bg-gray-800 py-2.5 px-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-600"
+                                                                    disabled={productCategories.length === 0}
+                                                                >
+                                                                    <option value="">{productCategories.length === 0 ? (selectedGender ? 'لا توجد تصنيفات' : 'اختر التخصص أولاً') : t('category_label')}...</option>
+                                                                    {productCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
+                                                                </select>
+                                                            )}
                                                         </div>
                                                     </div>
                                                 </div>

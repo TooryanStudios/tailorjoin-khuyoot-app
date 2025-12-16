@@ -1,5 +1,6 @@
 
 import React from 'react';
+import './src/styles/global.css';
 import { HashRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider } from './context/AppContext';

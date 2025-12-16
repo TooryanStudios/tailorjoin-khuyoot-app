@@ -196,6 +196,29 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       setIsAuthModalOpen(false);
       console.log('✅ Auth modal closed after login');
     } catch (error: any) {
+      // Dev-only fallback: if Firebase Auth is blocked (extensions/CSP/proxy), allow mock login on localhost
+      const isLocalDev = (() => {
+        try {
+          if (import.meta?.env?.DEV) return true;
+          const host = typeof window !== 'undefined' ? window.location?.hostname : '';
+          return host === 'localhost' || host === '127.0.0.1';
+        } catch {
+          return false;
+        }
+      })();
+
+      if (isLocalDev && error?.code === 'auth/network-request-failed') {
+        console.warn('⚠️ Firebase Auth network failed on localhost; falling back to mock login for development.');
+        try {
+          const userData = await mockLogin(email);
+          setUser(userData);
+          setIsAuthModalOpen(false);
+          return;
+        } catch (fallbackError) {
+          console.error('Mock login fallback also failed', fallbackError);
+        }
+      }
+
       console.error("❌ Login failed", error);
       alert(getFirebaseErrorMessage(error));
     } finally {
