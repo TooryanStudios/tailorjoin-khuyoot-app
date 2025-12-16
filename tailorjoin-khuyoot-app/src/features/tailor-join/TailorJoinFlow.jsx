@@ -1,9 +1,9 @@
 // Strict schema compliance, specialization semantics, object URL previews with cleanup,
 // improved errors, and safer lastSubmission behavior.
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useLocation } from 'react-router-dom';
-import { doc, setDoc, collection, serverTimestamp } from 'firebase/firestore';
+import { doc, setDoc, collection, serverTimestamp, getDocs, query, orderBy } from 'firebase/firestore';
 import { createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { db, storage } from '../../services/firebase';
 import { firebaseService } from '../../services/firebase';
@@ -169,9 +169,8 @@ function buildUserDoc({ uid, formData, boardImageUrl, profileImageUrl }) {
         acceptingOrders: true,
 
         // Location
-        serviceAreas: formData.region ? [formData.region] : [],
+        serviceAreas: [],
         location: formData.location || '',
-        region: formData.region || '',
         coordinates: { lat: 0, lng: 0 },
 
         // Specialization (schema expects gender-like values)
@@ -244,9 +243,52 @@ export default function TailorJoinFlow() {
     const params = useParams();
     const location = useLocation();
     const { appSettings } = useApp();
-    const productCategories = (appSettings && Array.isArray(appSettings.productCategories) && appSettings.productCategories.length > 0)
-        ? appSettings.productCategories
-        : [{ id: 'dishdasha', name: 'Dishdasha' }];
+
+    // Load hierarchical categories from Firestore (used for gender-specific level-2 filtering)
+    const [firestoreProductCategories, setFirestoreProductCategories] = useState(null);
+    const [categoriesLoading, setCategoriesLoading] = useState(true);
+    const [categoriesError, setCategoriesError] = useState(null);
+
+    const loadCategories = async () => {
+        setCategoriesLoading(true);
+        setCategoriesError(null);
+        try {
+            if (!firebaseService?.isInitialized?.()) {
+                setFirestoreProductCategories([]);
+                return;
+            }
+            const snap = await getDocs(query(collection(db, 'productCategories'), orderBy('order', 'asc')));
+            const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+            setFirestoreProductCategories(cats);
+        } catch (e) {
+            console.error('Failed to load productCategories from Firestore:', e);
+            setCategoriesError('فشل تحميل التصنيفات. Failed to load categories.');
+            setFirestoreProductCategories([]);
+        } finally {
+            setCategoriesLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        let cancelled = false;
+        const init = async () => {
+            await loadCategories();
+            if (cancelled) return;
+        };
+        init();
+        return () => { cancelled = true; };
+    }, []);
+
+    const baseProductCategories = useMemo(() => {
+        if (Array.isArray(firestoreProductCategories) && firestoreProductCategories.length > 0) return firestoreProductCategories;
+        if (appSettings && Array.isArray(appSettings.productCategories) && appSettings.productCategories.length > 0) return appSettings.productCategories;
+        return [{ id: 'dishdasha', name: 'Dishdasha' }];
+    }, [firestoreProductCategories, appSettings]);
+
+    const getCategoryDisplayName = (cat) => {
+        if (!cat) return '';
+        return String(cat.nameAr || cat.name || cat.nameEn || cat.title || cat.id || '').trim();
+    };
     const defaultPw = (appSettings && appSettings.tailorDefaultPassword) ? appSettings.tailorDefaultPassword : '123456';
 
     // Parse step from URL params, default to 0 (welcome), clamp to 1-3 when present
@@ -258,41 +300,11 @@ export default function TailorJoinFlow() {
     const [success, setSuccess] = useState(false);
     const [uploadWarnings, setUploadWarnings] = useState([]);
     const [lang, setLang] = useState('ar');
-    // We handle RTL via a wrapper div, but keeping these for specific overrides if needed
     const isRtl = lang === 'ar';
     const [lastSubmission, setLastSubmission] = useState(null);
-    const [autoRestored, setAutoRestored] = useState(false);
+    const [imagePreview, setImagePreview] = useState(null);
+    const [accountCreated, setAccountCreated] = useState(false);
 
-    const restoreFromSnapshot = (snapshot) => {
-        if (!snapshot) return;
-        const lsForm = snapshot.formData || {};
-        setFormData(prev => ({
-            ...prev,
-            phone: lsForm.phone || prev.phone,
-            shopName: lsForm.shopName || prev.shopName,
-            email: lsForm.email || prev.email,
-            region: lsForm.region || prev.region,
-            location: lsForm.location || prev.location,
-            specializationOptions: Array.isArray(lsForm.specializationOptions) ? lsForm.specializationOptions : prev.specializationOptions,
-            preferredLanguage: lsForm.preferredLanguage || prev.preferredLanguage,
-            accountKind: lsForm.accountKind || prev.accountKind,
-            acceptingOrders: typeof lsForm.acceptingOrders === 'boolean' ? lsForm.acceptingOrders : prev.acceptingOrders,
-        }));
-        if (snapshot.uid) setUid(snapshot.uid);
-        if (snapshot.boardImageUrl) {
-            setUploads(prev => ({ ...prev, boardPreviewUrl: snapshot.boardImageUrl }));
-        }
-        if (Array.isArray(snapshot.products) && snapshot.products.length > 0) {
-            const restored = snapshot.products.map(p => ({
-                localId: `restored_${p.localId || Math.random().toString(36).slice(2, 8)}`,
-                name: p.name || '',
-                price: p.price ?? '',
-                images: [],
-                category: p.category || '',
-            }));
-            setProducts(restored);
-        }
-    };
     const [isOnline, setIsOnline] = useState(typeof navigator !== 'undefined' ? navigator.onLine : true);
 
     // Step state synced from URL (0 = welcome screen)
@@ -306,13 +318,12 @@ export default function TailorJoinFlow() {
         email: '',
         password: '',
         confirmPassword: '',
-        region: '',
-        location: '',
         specializationOptions: [], // only ['male'] or ['female']
         preferredLanguage: 'ar',
         notificationPreferences: { email: true, sms: true, push: true, whatsapp: true },
         accountKind: 'tailor',
         acceptingOrders: true,
+        location: ''
     });
 
     const [uploads, setUploads] = useState({
@@ -326,12 +337,155 @@ export default function TailorJoinFlow() {
     const [productPreviews, setProductPreviews] = useState({}); // localId -> array of object URLs
     const previewUrlsRef = useRef({ board: null, products: {} });
 
+    const selectedGender = (Array.isArray(formData?.specializationOptions) && formData.specializationOptions.length > 0)
+        ? formData.specializationOptions[0]
+        : '';
+
+    const filteredProductCategories = useMemo(() => {
+        // If categories come from settings (flat list), keep existing behavior.
+        const looksHierarchical = (baseProductCategories || []).some(c => Object.prototype.hasOwnProperty.call(c || {}, 'level') || Object.prototype.hasOwnProperty.call(c || {}, 'parentId'));
+        if (!looksHierarchical) {
+            return (baseProductCategories || []).map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+        }
+
+        const byId = new Map();
+        for (const c of (baseProductCategories || [])) {
+            if (c && c.id) byId.set(c.id, c);
+        }
+
+        const norm = (v) => String(v || '').trim().toLowerCase().replace(/\s+/g, '');
+        const matchGenderRoot = (c, gender) => {
+            const ar = norm(c?.nameAr);
+            const en = norm(c?.nameEn);
+            if (gender === 'male') {
+                return ar.includes(norm('الملابس الرجالية')) || ar.includes(norm('ملابس رجالية')) || en.includes('men');
+            }
+            if (gender === 'female') {
+                return ar.includes(norm('الملابس النسائية')) || ar.includes(norm('ملابس نسائية')) || en.includes('women') || en.includes('female');
+            }
+            return false;
+        };
+
+        const root = (baseProductCategories || []).find(c => matchGenderRoot(c, selectedGender));
+        const rootId = root?.id || null;
+
+        const isDescendantOf = (catId, ancestorId) => {
+            if (!ancestorId || !catId) return false;
+            const visited = new Set();
+            let current = byId.get(catId);
+            while (current && current.parentId) {
+                if (visited.has(current.id)) return false;
+                visited.add(current.id);
+                if (current.parentId === ancestorId) return true;
+                current = byId.get(current.parentId);
+            }
+            return false;
+        };
+
+        const level2 = (baseProductCategories || [])
+            .filter(c => (c?.isActive !== false))
+            .filter(c => {
+                const level = typeof c?.level === 'number' ? c.level : parseInt(c?.level, 10);
+                return level === 2;
+            })
+            .filter(c => {
+                if (!rootId) return true; // fallback when we can't find the root
+                return isDescendantOf(c.id, rootId);
+            })
+            .sort((a, b) => {
+                const ao = typeof a?.order === 'number' ? a.order : 0;
+                const bo = typeof b?.order === 'number' ? b.order : 0;
+                return ao - bo;
+            })
+            .map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+
+        return level2.length > 0 ? level2 : (baseProductCategories || []).map(c => ({ id: c.id, name: getCategoryDisplayName(c) }));
+    }, [baseProductCategories, selectedGender]);
+
+    // Clear selected product categories if they become invalid after gender selection changes
+    const prevGenderRef = useRef('');
+    useEffect(() => {
+        if (!selectedGender) return;
+        if (prevGenderRef.current === selectedGender) return;
+        prevGenderRef.current = selectedGender;
+        const allowed = new Set((filteredProductCategories || []).map(c => c.id));
+        setProducts(list => list.map(p => (p.category && !allowed.has(p.category)) ? ({ ...p, category: '' }) : p));
+    }, [selectedGender, filteredProductCategories]);
+
+    const categoryNameById = useMemo(() => {
+        const map = new Map();
+        for (const c of (baseProductCategories || [])) {
+            if (c && c.id) map.set(c.id, getCategoryDisplayName(c));
+        }
+        return map;
+    }, [baseProductCategories]);
+
+    const productCategories = filteredProductCategories;
+
+    // --- NEW: AUTO-SAVE & AUTO-LOAD LOGIC ---
+
+    // 1. Auto-Load from LocalStorage on Mount
+    useEffect(() => {
+        // Attempt to load current draft first
+        const savedDraft = localStorage.getItem('tailorJoin_draft');
+        if (savedDraft) {
+            try {
+                const parsed = JSON.parse(savedDraft);
+                // Restore form fields
+                if (parsed.formData) setFormData(prev => ({ ...prev, ...parsed.formData }));
+                // Restore UID
+                if (parsed.uid) setUid(parsed.uid);
+                // Restore Products (Note: Files are lost, we restore text data only)
+                if (Array.isArray(parsed.products)) {
+                    setProducts(parsed.products.map(p => ({
+                        localId: p.localId || `restored_${Date.now()}_${Math.random()}`,
+                        name: p.name || '',
+                        price: p.price || '',
+                        category: p.category || '',
+                        images: [] // Important: Files cannot be restored from localStorage
+                    })));
+                }
+            } catch (e) {
+                console.error("Error restoring draft:", e);
+            }
+        } else {
+            // Fallback: Check for last successful submission snapshot
+            const rawLastSub = localStorage.getItem('tailorJoinLastSubmission');
+            if (rawLastSub) {
+                try {
+                    setLastSubmission(JSON.parse(rawLastSub));
+                } catch {}
+            }
+        }
+    }, []);
+
+    // 2. Auto-Save to LocalStorage on Change
+    useEffect(() => {
+        // Save text data only (exclude Files and ObjectURLs)
+        const draftData = {
+            formData,
+            uid,
+            products: products.map(p => ({
+                localId: p.localId,
+                name: p.name,
+                price: p.price,
+                category: p.category,
+                // We track image count to warn user if they lost images due to refresh
+                imageCount: (p.images || []).length 
+            })),
+            timestamp: Date.now()
+        };
+        localStorage.setItem('tailorJoin_draft', JSON.stringify(draftData));
+    }, [formData, products, uid]);
+
+    // --- END AUTO-SAVE LOGIC ---
+
     // Sync step state from URL params
     useEffect(() => {
-        if (urlStep && urlStep !== step) {
+        if (urlStep !== null && urlStep !== step) {
             setStep(urlStep);
         }
-    }, [urlStep, step]);
+    }, [urlStep]);
 
     // Auto-dismiss error after 5s
     useEffect(() => {
@@ -352,6 +506,13 @@ export default function TailorJoinFlow() {
         };
     }, []);
 
+    // Reset progress bar when revisiting step 3 after completion
+    useEffect(() => {
+        if (step === 3 && success) {
+            setSubmitProgress({ percent: 0, message: '' });
+        }
+    }, [step, success]);
+
     // Cleanup object URLs on unmount
     useEffect(() => {
         return () => {
@@ -364,50 +525,34 @@ export default function TailorJoinFlow() {
         };
     }, []);
 
-    // Load last submission snapshot
+    // Restore board image preview URL if file exists but preview is missing
     useEffect(() => {
-        try {
-            const raw = localStorage.getItem('tailorJoinLastSubmission');
-            if (raw) setLastSubmission(JSON.parse(raw));
-        } catch {
-            setLastSubmission(null);
+        if (uploads.boardImageFile && !uploads.boardPreviewUrl) {
+            const url = URL.createObjectURL(uploads.boardImageFile);
+            previewUrlsRef.current.board = url;
+            setUploads(prev => ({ ...prev, boardPreviewUrl: url }));
         }
-    }, []);
+    }, [uploads.boardImageFile, uploads.boardPreviewUrl]);
 
-    // Auto-restore saved data if present
+    // Restore product image previews if files exist but previews are missing
     useEffect(() => {
-        if (!lastSubmission || autoRestored) return;
-        if (step === 0) {
-            setStep(1);
-        }
-        restoreFromSnapshot(lastSubmission);
-        setAutoRestored(true);
-    }, [lastSubmission, step, autoRestored]);
+        products.forEach(p => {
+            if (p.images && p.images.length > 0 && (!productPreviews[p.localId] || productPreviews[p.localId].length === 0)) {
+                const urls = p.images.map(file => URL.createObjectURL(file));
+                previewUrlsRef.current.products[p.localId] = urls;
+                setProductPreviews(prev => ({ ...prev, [p.localId]: urls }));
+            }
+        });
+    }, [products]);
 
     const resetToFirstPage = () => {
-        navigate('/join-tailor/step-1');
-        setSuccess(false);
-        setUploadWarnings([]);
-        setSubmitProgress({ percent: 0, message: '' });
-        setUid('');
-        if (previewUrlsRef.current.board) {
-            URL.revokeObjectURL(previewUrlsRef.current.board);
-            previewUrlsRef.current.board = null;
-        }
-        setUploads({ boardImageFile: null, boardImageUrl: '', profileImageUrl: '', boardPreviewUrl: null });
-        Object.keys(previewUrlsRef.current.products).forEach(k => {
-            (previewUrlsRef.current.products[k] || []).forEach(url => URL.revokeObjectURL(url));
-        });
-        previewUrlsRef.current.products = {};
-        setProducts([]);
-        setProductPreviews({});
-        setFormData({
-            phone: '', shopName: '', email: '', region: '', location: '', specializationOptions: [], preferredLanguage: lang,
-            notificationPreferences: { email: true, sms: true, push: true, whatsapp: true }, accountKind: 'tailor', acceptingOrders: true,
-        });
+        // Clear draft
+        localStorage.removeItem('tailorJoin_draft');
+        navigate('/join-tailor/1');
+        window.location.reload(); // Hard reload to clear all states cleanly
     };
 
-    const goAddMoreProducts = () => { setSuccess(false); navigate('/join-tailor/step-2'); };
+    const goAddMoreProducts = () => { setSuccess(false); navigate('/join-tailor/2'); };
 
     const nextStep = () => {
         const nextStepNum = Math.min(3, step + 1);
@@ -422,27 +567,28 @@ export default function TailorJoinFlow() {
             return;
         }
         const prevStepNum = Math.max(1, step - 1);
-        navigate(`/join-tailor/step-${prevStepNum}`);
+        setStep(prevStepNum);
+        navigate(`/join-tailor/${prevStepNum}`);
     };
 
     const t = (key) => {
         const dict = {
             title: { ar: 'انضم لعائلة خيوط', en: 'Join the Khuyoot family' },
-            subtitle: { ar: 'أنشئ معرضك الإلكتروني في دقائق', en: 'Create your online showroom in minutes' },
+            subtitle: { ar: '', en: '' },
             welcome_title: { ar: 'انضم لعائلة خيوط', en: 'Welcome to Khuyoot' },
-            welcome_desc: { ar: 'أنشئ معرضك الإلكتروني في دقائق', en: 'Join the largest tailor platform. Register your shop and start showcasing products to thousands of customers.' },
+            welcome_desc: { ar: '', en: '' },
             welcome_start: { ar: 'ابدأ التسجيل', en: 'Start Registration' },
             offline_banner: { ar: 'لا يوجد اتصال بالانترنت. بعض الخطوات ستتوقف حتى تعود الشبكة.', en: 'You are offline. Some steps are paused until connectivity returns.' },
             offline_submit: { ar: 'لا يمكن الإرسال بدون اتصال. تأكد من الشبكة ثم أعد المحاولة.', en: 'Submission requires an internet connection. Check your network and retry.' },
             account_tailor: { ar: 'خياط', en: 'Tailor' },
+            business_type_label: { ar: 'ما هو نوع نشاطك؟', en: 'What is your business type?' },
             account_shop: { ar: 'محل أقمشة', en: 'Fabric Shop' },
             account_boutique: { ar: 'بوتيك', en: 'Boutique' },
             phone_label: { ar: 'رقم الهاتف', en: 'Phone Number' },
             phone_placeholder: { ar: '9XXXXXXX', en: '9XXXXXXX' },
             shop_label: { ar: 'اسم المحل', en: 'Shop Name' },
             email_label: { ar: 'الايميل (اختياري)', en: 'Email (Optional)' },
-            region_label: { ar: 'المنطقة', en: 'Region' },
-            location_label: { ar: 'الموقع', en: 'Location' },
+            location_label: { ar: 'الموقع (اختياري)', en: 'Location (Optional)' },
             specialization_label: { ar: 'التخصص', en: 'Specialization' },
             male: { ar: 'رجالي', en: 'Male' },
             female: { ar: 'نسائي', en: 'Female' },
@@ -497,12 +643,15 @@ export default function TailorJoinFlow() {
             email_short: { ar: 'الايميل', en: 'Email' },
             email_temp_label: { ar: 'ايميل مؤقت', en: 'Temp Email' },
             account_type_label: { ar: 'النوع', en: 'Type' },
-            region_value_label: { ar: 'المنطقة', en: 'Region' },
             not_specified: { ar: 'غير محدد', en: 'N/A' },
             none: { ar: 'لا يوجد', en: 'None' },
             board_image_label: { ar: 'صورة الواجهة', en: 'Cover Img' },
             storage_label: { ar: 'المسار', en: 'Path' },
             products_header: { ar: 'المنتجات', en: 'Products' },
+            products_preview: { ar: 'معاينة المنتجات', en: 'Products Preview' },
+            currency: { ar: 'ريال', en: 'OMR' },
+            more_images: { ar: 'صورة إضافية', en: 'more' },
+            update_account: { ar: 'تحديث الحساب', en: 'Update Account' },
         };
         return (dict[key] && dict[key][lang]) || key;
     };
@@ -528,12 +677,13 @@ export default function TailorJoinFlow() {
         if (!formData.shopName || !formData.shopName.trim()) {
             errors.push('اسم المحل مطلوب / Shop name required');
         }
-        // Board image required only if none is already available as preview
-        if (!uploads.boardImageFile && !uploads.boardPreviewUrl) {
-            errors.push('صورة لوحة المحل مطلوبة / Board image required');
+        if (!formData.specializationOptions || formData.specializationOptions.length === 0) {
+            errors.push('التخصص مطلوب / Specialization is required');
         }
-        if (!formData.location || !formData.location.trim()) {
-            errors.push('الموقع مطلوب / Location is required');
+        // Board image required. NOTE: If restoring from draft, File object is lost.
+        // We warn user if File is missing.
+        if (!uploads.boardImageFile && !uploads.boardPreviewUrl) {
+            errors.push('صورة لوحة المحل مطلوبة (يرجى إعادة الرفع في حال التحديث) / Board image required (re-upload if refreshed)');
         }
         return errors;
     };
@@ -553,9 +703,13 @@ export default function TailorJoinFlow() {
             } else if (Number(p.price) < 0) {
                 errors.push(`منتج ${idx + 1}: السعر يجب أن يكون صفر أو أكثر / Product ${idx + 1}: Price must be 0 or more`);
             }
+            
+            // Check for images. Files are lost on refresh, so we must explicitly check if empty.
             if (!p.images || p.images.length === 0) {
-                errors.push(`منتج ${idx + 1}: أضف صورة واحدة على الأقل / Product ${idx + 1}: Add at least one image`);
+                // If it looks like a restored product, give a specific helpful error
+                errors.push(`منتج ${idx + 1}: الصور مفقودة (يرجى إعادة رفعها) / Product ${idx + 1}: Images lost, please re-upload`);
             }
+            
             if (!p.category || !p.category.trim()) {
                 errors.push(`منتج ${idx + 1}: اختر التصنيف / Product ${idx + 1}: Choose a category`);
             }
@@ -566,13 +720,23 @@ export default function TailorJoinFlow() {
     const handleSubmitStep1 = async (e) => {
         e.preventDefault();
         setError(null);
+        
         const errors = validateStep1();
-        if (errors.length > 0) { setError(errors.join('\n')); return; }
-        const userRef = doc(collection(db, 'users'));
-        const newUid = userRef.id;
-        setUid(newUid);
+        if (errors.length > 0) {
+            setError(errors.join('\n'));
+            try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch {}
+            return;
+        }
+        
+        // If UID doesn't exist yet, create a placeholder one for storage paths
+        if (!uid) {
+            const userRef = doc(collection(db, 'users'));
+            setUid(userRef.id);
+        }
+        
         const normalized = normalizePhone(formData.phone);
         setFormData(prev => ({ ...prev, phone: normalized }));
+        
         nextStep();
     };
 
@@ -722,8 +886,11 @@ export default function TailorJoinFlow() {
         const effectiveUid = userUid || uid;
         const imageUrls = [];
         const failedFiles = [];
-        for (const file of productFiles) {
+        const totalImages = productFiles.length;
+        for (let imgIdx = 0; imgIdx < productFiles.length; imgIdx++) {
+            const file = productFiles[imgIdx];
             try {
+                setSubmitProgress(prev => ({ ...prev, message: `${productName} - image ${imgIdx + 1}/${totalImages}...` }));
                 const { blob, error } = await compressImage(file);
                 const shouldUseCompressed = !!blob && !error;
                 if (!shouldUseCompressed && error) {
@@ -773,6 +940,8 @@ export default function TailorJoinFlow() {
 
             const currentUser = firebaseService.auth?.currentUser || null;
             let authUid = currentUser?.uid || '';
+            
+            // Check for existing user if not logged in
             if (!currentUser) {
                 try {
                     if (firebaseService.isInitialized()) {
@@ -829,21 +998,23 @@ export default function TailorJoinFlow() {
             if (!profileUrl) { delete userDoc.profileImage; }
             await setDoc(doc(db, 'users', authUid), userDoc, { merge: true });
 
-            setSubmitProgress({ percent: 40, message: 'Uploading Products...' });
+            setSubmitProgress({ percent: 40, message: `Uploading Products (0/${products.length})...` });
             const productCount = products.length;
             const progressPerProduct = 50 / productCount;
             for (let i = 0; i < products.length; i++) {
                 const p = products[i];
                 const productRef = doc(collection(db, `users/${authUid}/products`));
                 const productId = productRef.id;
-                setSubmitProgress(prev => ({ percent: Math.min(40 + (i * progressPerProduct), 90), message: `Product: ${p.name}...` }));
+                const imageCount = (p.images || []).length;
+                setSubmitProgress(prev => ({ percent: Math.min(40 + (i * progressPerProduct), 90), message: `${p.name} (${i + 1}/${productCount}) - ${imageCount} images...` }));
+                
                 const { imageUrls, failedFiles } = await handleUploadProductImages(p.images, productId, p.name, authUid);
+                
                 if (failedFiles && failedFiles.length > 0) {
                     uploadIssues.push({ productName: p.name || '', files: failedFiles });
                 }
                 const catId = p.category || 'dishdasha';
-                const catEntry = (appSettings.productCategories || []).find(c => c.id === catId);
-                const categoryLabel = catEntry?.name || catId;
+                const categoryLabel = categoryNameById.get(catId) || catId;
 
                 const productDoc = {
                     id: productId,
@@ -857,7 +1028,7 @@ export default function TailorJoinFlow() {
                     tailorName: effectiveFormData.shopName || '',
                     rating: 0,
                     likes: 0,
-                    location: effectiveFormData.location || effectiveFormData.region || '',
+                    location: effectiveFormData.location || '',
                     duration: '',
                     categoryId: catId,
                     category: categoryLabel,
@@ -869,12 +1040,18 @@ export default function TailorJoinFlow() {
             }
 
             setSubmitProgress({ percent: 100, message: 'Done!' });
+            // Clear local draft upon success
+            localStorage.removeItem('tailorJoin_draft');
+            
             try {
+                // Keep a historical snapshot
                 const localSnapshot = { uid, formData: effectiveFormData, boardImageUrl: boardUrl, profileImageUrl: profileUrl, products: products.map(p => ({ localId: p.localId, name: p.name, price: p.price, imageCount: (p.images || []).length })), createdAt: Date.now() };
                 localStorage.setItem('tailorJoinLastSubmission', JSON.stringify(localSnapshot));
             } catch { }
+            
             setUploadWarnings(uploadIssues);
             setSuccess(true);
+            setAccountCreated(true); // Mark that account was created for button text update
         } catch (err) {
             setError(err.message || 'Error occurred');
         } finally {
@@ -920,7 +1097,9 @@ export default function TailorJoinFlow() {
                 <div className="flex flex-col md:flex-row items-center justify-between mb-8 gap-4">
                     <div>
                         <h1 className="text-4xl font-black text-gray-900 dark:text-white mb-1 tracking-tight">{t('title')}</h1>
-                        <p className="text-gray-500 dark:text-gray-400 font-medium">{t('subtitle')}</p>
+                        {t('حيث يبدأ الإلهام') && (
+                            <p className="text-gray-500 dark:text-gray-400 font-medium">{t('حيث يبدأ الإلهام')}</p>
+                        )}
                     </div>
                     <div className="flex bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-gray-700">
                         {['ar', 'en'].map(l => (
@@ -972,16 +1151,21 @@ export default function TailorJoinFlow() {
                         {/* WELCOME SCREEN */}
                         {step === 0 && (
                             <div className="text-center py-10 animate-fade-in-up">
-                                <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600 shadow-inner">
-                                    <Icons.Store />
-                                </div>
-                                <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">{t('welcome_title')}</h2>
-                                <p className="text-lg text-gray-600 dark:text-gray-300 mb-10 max-w-md mx-auto leading-relaxed">
-                                    {t('welcome_desc')}
-                                </p>
+                                {/* Brand logo */}
+                                <img
+                                    src="/branding/khuyoot-logo.jpg"
+                                    alt="Khuyoot"
+                                    className="h-16 sm:h-20 mx-auto mb-8 rounded-lg object-contain"
+                                />
+
+                                {t('welcome_desc') && (
+                                    <p className="text-lg text-gray-600 mb-10 max-w-md mx-auto leading-relaxed">
+                                        {t('الموقع قيد التجربة حاليًا. يمكنك التسجيل الآن وإضافة منتجاتك، وسنقوم بإبلاغك عند الإطلاق الرسمي. شكراً لدعمك!')}
+                                    </p>
+                                )}
                                 <button
                                     onClick={() => { setStep(1); navigate('/join-tailor/1'); }}
-                                    className="px-10 py-4 bg-indigo-600 text-white text-lg font-bold rounded-2xl hover:bg-indigo-700 transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none"
+                                    className="px-10 py-4 bg-indigo-600 text-white text-lg font-bold rounded-2xl hover:bg-indigo-700 transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-indigo-200"
                                 >
                                     {t('welcome_start')}
                                 </button>
@@ -991,27 +1175,19 @@ export default function TailorJoinFlow() {
                         {/* STEP 1: SHOP INFO */}
                         {step === 1 && (
                             <form onSubmit={handleSubmitStep1} className="space-y-6 animate-fade-in">
-                                {lastSubmission && (
-                                    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl p-4 flex flex-wrap gap-3 items-center justify-between">
-                                        <div className="text-sm text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-2">
-                                            <Icons.Check />
-                                            {t('saved_last_banner')}
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <button type="button" onClick={() => restoreFromSnapshot(lastSubmission)} className="text-xs font-bold text-indigo-600 bg-white dark:bg-gray-700 dark:text-indigo-300 px-4 py-2 rounded-xl shadow-sm hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors">{t('restore_data')}</button>
-                                            <button type="button" onClick={() => { localStorage.removeItem('tailorJoinLastSubmission'); setLastSubmission(null); }} className="text-xs font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 px-2 py-2 transition-colors">{t('clear_saved')}</button>
-                                        </div>
+                                <div>
+                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('business_type_label')}
+                                        <span className="text-red-500">*</span>
+                                    </label>
+                                    <div className="grid grid-cols-3 gap-2 p-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600">
+                                        {[{ key: 'tailor', label: t('account_tailor') }, { key: 'shop', label: t('account_shop') }, { key: 'boutique', label: t('account_boutique') }].map(a => (
+                                            <button key={a.key} type="button" onClick={() => setFormData(p => ({ ...p, accountKind: a.key }))}
+                                                className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${formData.accountKind === a.key ? 'bg-white dark:bg-gray-600 text-indigo-600 shadow-sm transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50'}`}>
+                                                {a.label}
+                                            </button>
+                                        ))}
                                     </div>
-                                )}
-
-                                {/* Account Type Tabs */}
-                                <div className="grid grid-cols-3 gap-2 p-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600">
-                                    {[{ key: 'tailor', label: t('account_tailor') }, { key: 'shop', label: t('account_shop') }, { key: 'boutique', label: t('account_boutique') }].map(a => (
-                                        <button key={a.key} type="button" onClick={() => setFormData(p => ({ ...p, accountKind: a.key }))}
-                                            className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${formData.accountKind === a.key ? 'bg-white dark:bg-gray-600 text-indigo-600 shadow-sm transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50'}`}>
-                                            {a.label}
-                                        </button>
-                                    ))}
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1025,19 +1201,20 @@ export default function TailorJoinFlow() {
                                     />
                                 </div>
 
-                                <InputField
-                                    label={t('location_label')} icon={Icons.Location} required
-                                    type="text" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} disabled={loading}
-                                />
-
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                    <InputField
+                                        label={t('location_label')} icon={Icons.Location}
+                                        type="text" value={formData.location} onChange={(e) => setFormData(p => ({ ...p, location: e.target.value }))} disabled={loading}
+                                    />
                                     <InputField label={t('email_label')} icon={Icons.Mail} type="email" value={formData.email} onChange={(e) => setFormData(p => ({ ...p, email: e.target.value }))} disabled={loading} />
-                                    <InputField label={t('region_label')} type="text" value={formData.region} onChange={(e) => setFormData(p => ({ ...p, region: e.target.value }))} disabled={loading} />
                                 </div>
 
                                 {/* Gender Selection */}
                                 <div>
-                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{t('specialization_label')}</label>
+                                    <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                        {t('طبيعة التخصص')}
+                                        <span className="text-red-500">*</span>
+                                    </label>
                                     <div className="flex gap-4">
                                         {['male', 'female'].map(opt => (
                                             <button key={opt} type="button" onClick={() => setFormData(p => ({ ...p, specializationOptions: p.specializationOptions.includes(opt) ? [] : [opt] }))}
@@ -1051,8 +1228,10 @@ export default function TailorJoinFlow() {
                                 <ImageUpload label={t('board_label')} onChange={(e) => handleBoardImageChange(e)} previewUrl={uploads.boardPreviewUrl} accept={ACCEPTED_IMAGE_TYPES} subtext={t('supported_formats_short')} />
 
                                 <div className="flex justify-between items-center pt-6">
-                                    <button type="button" onClick={prevStep} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">{t('back')}</button>
-                                    <button type="submit" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2 transform active:scale-95">
+                                    {step > 1 && (
+                                        <button type="button" onClick={prevStep} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">{t('back')}</button>
+                                    )}
+                                    <button type="submit" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2 transform active:scale-95 ml-auto">
                                         {t('next')} <Icons.ArrowRight flip={isRtl} />
                                     </button>
                                 </div>
@@ -1074,8 +1253,8 @@ export default function TailorJoinFlow() {
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                                     {products.map((p, idx) => (
-                                        <div key={p.localId} className="group relative bg-white dark:bg-gray-700/40 rounded-3xl border border-gray-100 dark:border-gray-600 p-5 shadow-sm hover:shadow-lg transition-all duration-300 hover:-translate-y-1">
-                                            <button onClick={() => removeProduct(p.localId)} className="absolute top-3 right-3 p-2 bg-white dark:bg-gray-800 rounded-full text-red-500 shadow-md opacity-0 group-hover:opacity-100 transition-opacity z-10 hover:bg-red-50 dark:hover:bg-red-900/30 transform hover:scale-110">
+                                        <div key={p.localId} className="group relative bg-white dark:bg-gray-700/40 rounded-3xl border-2 border-indigo-200 dark:border-indigo-800 p-5 shadow-md hover:shadow-xl hover:border-indigo-400 transition-all duration-300 hover:-translate-y-1">
+                                            <button onClick={() => removeProduct(p.localId)} className="absolute top-3 right-3 p-2 bg-white dark:bg-gray-800 rounded-full text-red-500 shadow-md transition-all z-10 hover:bg-red-50 dark:hover:bg-red-900/30 transform hover:scale-110">
                                                 <Icons.Trash />
                                             </button>
 
@@ -1088,20 +1267,38 @@ export default function TailorJoinFlow() {
                                                         <div className="flex flex-col items-center justify-center text-gray-400">
                                                             <div className="p-2 bg-white dark:bg-gray-700 rounded-full shadow-sm mb-2"><Icons.Upload /></div>
                                                             <span className="text-xs font-semibold">{t('add_image')}</span>
+                                                            {/* VISUAL WARNING IF RESTORED BUT MISSING IMAGES */}
+                                                            {(!p.images || p.images.length === 0) && (
+                                                                <span className="text-[10px] text-red-500 font-bold mt-1">Image Required</span>
+                                                            )}
                                                         </div>
                                                     ) : (
                                                         <div className="grid grid-cols-4 gap-2">
                                                             {/* Main Cover Image */}
                                                             <div className="col-span-4 h-40 rounded-xl overflow-hidden relative group/img">
-                                                                <img src={productPreviews[p.localId][0]} className="w-full h-full object-cover" alt="cover" />
-                                                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity">
+                                                                {productPreviews[p.localId][0] ? (
+                                                                    <img src={productPreviews[p.localId][0]} className="w-full h-full object-cover cursor-pointer" alt="cover" onClick={(e) => { e.preventDefault(); setImagePreview(productPreviews[p.localId][0]); }} />
+                                                                ) : (
+                                                                    <div className="w-full h-full flex items-center justify-center text-gray-400 bg-gray-100 dark:bg-gray-700">
+                                                                        <Icons.Upload />
+                                                                    </div>
+                                                                )}
+                                                                {productPreviews[p.localId][0] && (
+                                                                    <button onClick={(e) => { e.preventDefault(); const urls = [...productPreviews[p.localId]]; urls.splice(0, 1); setProductPreviews(prev => ({ ...prev, [p.localId]: urls })); setProducts(list => { const copy = [...list]; const idx = copy.findIndex(pr => pr.localId === p.localId); if (idx !== -1) { const files = [...(copy[idx].images || [])]; files.splice(0, 1); copy[idx].images = files; } return copy; }); }} className="absolute top-2 right-2 w-7 h-7 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity shadow-lg z-10">
+                                                                        <Icons.X />
+                                                                    </button>
+                                                                )}
+                                                                <div className="absolute inset-0 bg-black/20 flex items-center justify-center opacity-0 group-hover/img:opacity-100 transition-opacity pointer-events-none">
                                                                     <span className="text-white text-xs font-bold bg-black/50 px-2 py-1 rounded-full">Cover</span>
                                                                 </div>
                                                             </div>
                                                             {/* Thumbnails */}
-                                                            {productPreviews[p.localId].slice(1, 4).map((url, i) => (
-                                                                <div key={i} className="h-16 rounded-lg overflow-hidden relative">
-                                                                    <img src={url} className="w-full h-full object-cover" alt="thumb" />
+                                                            {productPreviews[p.localId].slice(1, 4).filter(Boolean).map((url, i) => (
+                                                                <div key={i} className="h-16 rounded-lg overflow-hidden relative group/thumb">
+                                                                    <img src={url} className="w-full h-full object-cover cursor-pointer" alt="thumb" onClick={(e) => { e.preventDefault(); setImagePreview(url); }} />
+                                                                    <button onClick={(e) => { e.preventDefault(); const imgIndex = i + 1; const urls = [...productPreviews[p.localId]]; urls.splice(imgIndex, 1); setProductPreviews(prev => ({ ...prev, [p.localId]: urls })); setProducts(list => { const copy = [...list]; const idx = copy.findIndex(pr => pr.localId === p.localId); if (idx !== -1) { const files = [...(copy[idx].images || [])]; files.splice(imgIndex, 1); copy[idx].images = files; } return copy; }); }} className="absolute top-1 right-1 w-5 h-5 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center opacity-0 group-hover/thumb:opacity-100 transition-opacity shadow-md z-10">
+                                                                        <Icons.X />
+                                                                    </button>
                                                                 </div>
                                                             ))}
                                                             {/* Add More Button / Counter */}
@@ -1118,46 +1315,72 @@ export default function TailorJoinFlow() {
                                             </div>
 
                                             <div className="space-y-4">
-                                                <div className="group/input relative">
+                                                <div className="relative">
+                                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{t('product_name_ph')}</label>
                                                     <input
                                                         type="text"
-                                                        placeholder=" "
+                                                        placeholder={t('product_name_ph')}
                                                         value={p.name}
                                                         onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].name = e.target.value; return c; })}
-                                                        className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-semibold"
+                                                        className="block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-semibold"
                                                     />
-                                                    <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-indigo-600 rtl:origin-[100%]">
-                                                        {t('product_name_ph')}
-                                                    </label>
                                                 </div>
 
-                                                <div className="flex gap-4">
-                                                    <div className="relative flex-1 group/input">
+                                                <div className="relative">
+                                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-1">{t('price_ph')}</label>
+                                                    <div className="relative">
                                                         <input
                                                             type="number"
-                                                            placeholder=" "
+                                                            placeholder={t('price_ph')}
                                                             value={p.price}
                                                             onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].price = e.target.value; return c; })}
-                                                            className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-mono"
+                                                            className="block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 pr-12 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-mono"
                                                         />
-                                                        <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-indigo-600 rtl:origin-[100%]">
-                                                            {t('price_ph')}
-                                                        </label>
                                                         <span className="absolute right-0 rtl:left-0 rtl:right-auto bottom-2 text-xs font-bold text-gray-400">OMR</span>
                                                     </div>
+                                                </div>
 
-                                                    <div className="flex-1">
-                                                        <div className="relative">
-                                                            <select
-                                                                value={p.category}
-                                                                onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].category = e.target.value; return c; })}
-                                                                className="block w-full rounded-lg border-0 bg-gray-100 dark:bg-gray-800 py-2.5 px-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-600"
-                                                            >
-                                                                <option value="">{t('category_label')}...</option>
-                                                                {productCategories.map(cat => <option key={cat.id} value={cat.id}>{cat.name}</option>)}
-                                                            </select>
+                                                <div>
+                                                    <label className="block text-xs font-semibold text-gray-500 dark:text-gray-400 mb-2">{t('category_label')}</label>
+                                                    
+                                                    {categoriesLoading ? (
+                                                        <div className="flex items-center justify-center py-8 text-gray-400">
+                                                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-indigo-600"></div>
+                                                            <span className="ml-3 text-sm">جاري تحميل التصنيفات... Loading categories...</span>
                                                         </div>
-                                                    </div>
+                                                    ) : categoriesError ? (
+                                                        <div className="text-center py-6 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-200 dark:border-red-800">
+                                                            <p className="text-sm text-red-600 dark:text-red-400 mb-3">{categoriesError}</p>
+                                                            <button
+                                                                type="button"
+                                                                onClick={loadCategories}
+                                                                className="px-4 py-2 bg-red-600 text-white text-xs font-bold rounded-lg hover:bg-red-700 transition-colors"
+                                                            >
+                                                                إعادة المحاولة Retry
+                                                            </button>
+                                                        </div>
+                                                    ) : productCategories.length === 0 ? (
+                                                        <div className="text-center py-6 bg-gray-50 dark:bg-gray-800/50 rounded-xl border border-gray-200 dark:border-gray-700">
+                                                            <p className="text-sm text-gray-500 dark:text-gray-400">
+                                                                {selectedGender 
+                                                                    ? 'لا توجد تصنيفات متاحة لهذا التخصص. No categories available for this specialization.'
+                                                                    : 'يرجى اختيار طبيعة التخصص أولاً. Please select specialization first.'}
+                                                            </p>
+                                                        </div>
+                                                    ) : (
+                                                        <div className="grid grid-cols-3 gap-2">
+                                                            {productCategories.map(cat => (
+                                                                <button
+                                                                    key={cat.id}
+                                                                    type="button"
+                                                                    onClick={() => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].category = cat.id; return c; })}
+                                                                    className={`py-2 px-3 rounded-lg text-xs font-bold transition-all ${p.category === cat.id ? 'bg-indigo-600 text-white shadow-md' : 'bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700'}`}
+                                                                >
+                                                                    {cat.name}
+                                                                </button>
+                                                            ))}
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -1218,6 +1441,27 @@ export default function TailorJoinFlow() {
                                             </div>
                                         </div>
                                     )}
+
+                                    {/* Product Preview */}
+                                    {products.length > 0 && (
+                                        <div className="mt-6">
+                                            <div className="text-xs text-indigo-400 mb-3 uppercase tracking-wide font-bold">{t('products_preview')}</div>
+                                            <div className="space-y-3">
+                                                {products.map((p, idx) => {
+                                                    const imageCount = (Array.isArray(p.images) && p.images.length) || 0;
+                                                    return (
+                                                        <div key={p.localId} className="bg-white dark:bg-gray-700/40 rounded-xl p-3 border border-indigo-200 dark:border-indigo-800">
+                                                            <div className="font-bold text-gray-900 dark:text-white text-sm truncate">{p.name}</div>
+                                                            <div className="text-xs text-gray-500 dark:text-gray-400">
+                                                                {p.price} {t('currency')} • {p.category}
+                                                                {imageCount > 0 && <span className="text-indigo-500"> • {imageCount} {imageCount === 1 ? 'image' : 'images'}</span>}
+                                                            </div>
+                                                        </div>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
 
                                 {submitProgress.message && (
@@ -1234,7 +1478,7 @@ export default function TailorJoinFlow() {
 
                                 <div className="space-y-4 pt-4">
                                     <button onClick={handleSubmitAll} disabled={loading} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-bold rounded-2xl hover:from-indigo-700 hover:to-indigo-800 shadow-xl shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] text-lg">
-                                        {loading ? t('submitting') : t('submit')}
+                                        {loading ? t('submitting') : (accountCreated ? t('update_account') : t('submit'))}
                                     </button>
                                     <button onClick={prevStep} disabled={loading} className="w-full py-3 text-gray-500 dark:text-gray-400 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 rounded-2xl transition-colors">
                                         {t('back')}
@@ -1248,6 +1492,18 @@ export default function TailorJoinFlow() {
                     &copy; {new Date().getFullYear()} Khuyoot. Secure Registration.
                 </div>
             </div>
+
+            {/* Image Preview Modal */}
+            {imagePreview && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-fade-in" onClick={() => setImagePreview(null)}>
+                    <button onClick={() => setImagePreview(null)} className="absolute top-4 right-4 w-10 h-10 bg-white dark:bg-gray-800 text-gray-900 dark:text-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors z-10">
+                        <Icons.X />
+                    </button>
+                    <div className="max-w-4xl max-h-[90vh] w-full h-full flex items-center justify-center">
+                        <img src={imagePreview} className="max-w-full max-h-full object-contain rounded-xl shadow-2xl" alt="preview" onClick={(e) => e.stopPropagation()} />
+                    </div>
+                </div>
+            )}
         </div>
     );
 }

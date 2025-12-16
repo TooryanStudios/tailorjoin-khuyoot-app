@@ -6,6 +6,16 @@
     <meta name="description" content="انضم كخياط إلى منصة خيوط - Join Khuyoot as a Tailor" />
     <title>انضم كخياط | Join as Tailor - Khuyoot</title>
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+        <!-- Tailwind via CDN to enable utility classes used in components -->
+        <script src="https://cdn.tailwindcss.com"></script>
+        <script>
+            // Configure Tailwind to only use class-based dark mode (we won't add the class).
+            // This prevents automatic OS-level dark mode from affecting this app.
+            window.tailwind = window.tailwind || {};
+            tailwind.config = {
+                darkMode: 'class'
+            };
+        </script>
 </head>
 <body>
     <div id="root"></div>
