@@ -1,0 +1,681 @@
+
+import React, { useState, useEffect } from 'react';
+import { useApp } from '../context/AppContext';
+import { 
+  Shield, Activity, Settings, Save, PenTool, ShoppingCart, 
+  Users, BarChart3, Layers, LogOut, Search, Bell, Menu, X, PlayCircle, Lock,
+  Scissors, Package, FileText, Cpu, Ruler, Archive, ChevronLeft, Database
+} from 'lucide-react';
+import { Button } from '../components/Button';
+import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, MeasurementProfile } from '../types';
+import { getUsers, getTailors, MOCK_ORDERS } from '../services/mockService';
+import { useNavigate } from 'react-router-dom';
+
+type AdminSection = 
+  | 'dashboard' 
+  | 'orders' 
+  | 'tailors' 
+  | 'products' 
+  | 'fabrics' 
+  | 'measurements' 
+  | 'family' 
+  | 'ai' 
+  | 'config' 
+  | 'logs';
+
+export const AdminDashboard = () => {
+  const { appSettings, saveAppSettings, user, logout } = useApp();
+  const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState<AdminSection>('dashboard');
+  const [localSettings, setLocalSettings] = useState<AppSettings>(appSettings);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(true);
+
+  // Data States
+  const [users, setUsers] = useState<User[]>([]);
+  const [tailors, setTailors] = useState<Tailor[]>([]);
+  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  
+  // New Mock Data for CMS
+  const [logs] = useState<SystemLog[]>([
+    { id: '1', action: 'Update', adminName: 'Admin', timestamp: '10:30 AM', details: 'Updated AI model v2.1', type: 'info' },
+    { id: '2', action: 'Ban', adminName: 'Admin', timestamp: 'Yesterday', details: 'Banned user ID u102', type: 'warning' },
+    { id: '3', action: 'Error', adminName: 'System', timestamp: '2 days ago', details: 'Payment gateway timeout', type: 'error' },
+  ]);
+
+  const [fabrics] = useState<Fabric[]>([
+    { id: 'f1', name: 'كتان ياباني فاخر', code: 'LIN-001', type: 'Linen', color: 'White', stock: 150, pricePerMeter: 4.5, image: '' },
+    { id: 'f2', name: 'قطن مصري 100%', code: 'COT-099', type: 'Cotton', color: 'Cream', stock: 80, pricePerMeter: 3.2, image: '' },
+    { id: 'f3', name: 'صوف كشميري', code: 'WOL-X10', type: 'Wool', color: 'Black', stock: 25, pricePerMeter: 12.0, image: '' },
+  ]);
+
+  const [measurements] = useState<MeasurementProfile[]>([
+    { id: 'm1', name: 'قياسات دشداشة قياسية', type: 'dishdasha', metrics: { length: 145, chest: 50, shoulder: 42 } },
+    { id: 'm2', name: 'قياسات عباية واسعة', type: 'abaya', metrics: { length: 150, chest: 55, sleeve: 60 } },
+  ]);
+
+  const [aiModels] = useState<AIModelConfig[]>([
+    { id: 'ai1', name: 'Sketch-to-Realism v2', version: '2.4.1', status: 'active', accuracy: 94.5, lastUpdated: '2023-10-20' },
+    { id: 'ai2', name: 'Fabric-Texture-Mapper', version: '1.0.8', status: 'training', accuracy: 88.2, lastUpdated: '2023-10-25' },
+    { id: 'ai3', name: 'Body-Measurement-Est', version: '0.9.5', status: 'inactive', accuracy: 76.0, lastUpdated: '2023-09-15' },
+  ]);
+
+  useEffect(() => {
+    setLocalSettings(appSettings);
+    getUsers().then(setUsers);
+    getTailors().then(setTailors);
+  }, [appSettings]);
+
+  const handleToggle = (key: keyof AppSettings) => {
+    setLocalSettings(prev => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSaveSettings = async () => {
+    setIsSaving(true);
+    await saveAppSettings(localSettings);
+    setIsSaving(false);
+  };
+
+  const handleLogout = async () => {
+      await logout();
+      navigate('/');
+  };
+
+  // --- COMPONENTS ---
+
+  const SidebarItem = ({ id, icon: Icon, label }: { id: AdminSection, icon: any, label: string }) => (
+    <button 
+      onClick={() => setActiveSection(id)}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
+        activeSection === id 
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
+          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+      }`}
+    >
+      <Icon size={18} />
+      <span className="font-medium text-sm">{label}</span>
+    </button>
+  );
+
+  const StatCard = ({ title, value, icon: Icon, color, subtext }: any) => (
+    <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
+      <div className="flex justify-between items-start mb-4">
+        <div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 font-medium mb-1">{title}</p>
+          <h3 className="text-2xl font-bold text-slate-900 dark:text-white">{value}</h3>
+        </div>
+        <div className={`p-3 rounded-xl ${color} bg-opacity-20`}>
+          <Icon size={20} className={color.replace('bg-', 'text-')} />
+        </div>
+      </div>
+      {subtext && <p className="text-xs text-slate-400">{subtext}</p>}
+    </div>
+  );
+
+  // --- VIEWS ---
+
+  const DashboardView = () => (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        <StatCard title="إجمالي المستخدمين" value={users.length} icon={Users} color="bg-blue-500 text-blue-500" subtext="+12% هذا الشهر" />
+        <StatCard title="الطلبات النشطة" value={orders.filter(o => o.status !== 'delivered').length} icon={ShoppingCart} color="bg-green-500 text-green-500" subtext="إجمالي 450 ر.ع" />
+        <StatCard title="الخياطين" value={tailors.length} icon={Scissors} color="bg-amber-500 text-amber-500" subtext="3 بانتظار الموافقة" />
+        <StatCard title="حالة الذكاء الاصطناعي" value="Online" icon={Cpu} color="bg-purple-500 text-purple-500" subtext="v2.4.1 Active" />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 h-80 flex flex-col">
+            <h3 className="font-bold text-slate-800 dark:text-white mb-4">تحليل المبيعات</h3>
+            <div className="flex-1 flex items-end justify-between gap-2 px-2 pb-2">
+               {[40, 60, 35, 80, 55, 90, 70, 65, 45, 85, 95, 75].map((h, i) => (
+                 <div key={i} className="w-full bg-blue-500/20 hover:bg-blue-500 rounded-t-sm transition-all duration-300 relative group" style={{height: `${h}%`}}>
+                    <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] py-1 px-2 rounded opacity-0 group-hover:opacity-100 transition-opacity">
+                      {h * 10} ر.ع
+                    </div>
+                 </div>
+               ))}
+            </div>
+            <div className="flex justify-between text-[10px] text-slate-400 mt-2">
+               <span>يناير</span><span>ديسمبر</span>
+            </div>
+         </div>
+
+         <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 h-80 overflow-y-auto">
+             <h3 className="font-bold text-slate-800 dark:text-white mb-4">أحدث سجلات النظام</h3>
+             <div className="space-y-4">
+                {logs.map(log => (
+                  <div key={log.id} className="flex gap-3 text-sm">
+                     <div className={`w-2 h-2 rounded-full mt-2 shrink-0 ${log.type === 'error' ? 'bg-red-500' : log.type === 'warning' ? 'bg-yellow-500' : 'bg-blue-500'}`}></div>
+                     <div>
+                        <p className="text-slate-800 dark:text-slate-200 font-medium">{log.action}</p>
+                        <p className="text-xs text-slate-500">{log.details}</p>
+                        <span className="text-[10px] text-slate-400">{log.timestamp} • {log.adminName}</span>
+                     </div>
+                  </div>
+                ))}
+             </div>
+         </div>
+      </div>
+    </div>
+  );
+
+  const OrdersView = () => (
+    <div className="space-y-6">
+       <div className="flex justify-between items-center">
+         <h2 className="text-xl font-bold text-slate-800 dark:text-white">جدول الطلبات</h2>
+         <Button size="sm">تصدير CSV</Button>
+       </div>
+       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+         <table className="w-full text-right text-sm">
+           <thead className="bg-slate-50 dark:bg-slate-900 text-slate-500">
+             <tr>
+               <th className="p-4">رقم الطلب</th>
+               <th className="p-4">المنتج</th>
+               <th className="p-4">الخياط</th>
+               <th className="p-4">السعر</th>
+               <th className="p-4">الحالة</th>
+               <th className="p-4">التاريخ</th>
+             </tr>
+           </thead>
+           <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
+             {orders.map(order => (
+               <tr key={order.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/50">
+                 <td className="p-4 font-mono text-slate-500">#{order.id}</td>
+                 <td className="p-4 font-bold text-slate-800 dark:text-white">{order.productName}</td>
+                 <td className="p-4 text-slate-500">{order.tailorName}</td>
+                 <td className="p-4 text-blue-500 font-bold">{order.price.toFixed(3)} ر.ع</td>
+                 <td className="p-4">
+                   <span className={`px-2 py-1 rounded text-xs font-bold ${
+                     order.status === 'pending' ? 'bg-yellow-100 text-yellow-600' :
+                     order.status === 'delivered' ? 'bg-green-100 text-green-600' :
+                     'bg-blue-100 text-blue-600'
+                   }`}>
+                     {order.status}
+                   </span>
+                 </td>
+                 <td className="p-4 text-slate-500">{order.orderDate}</td>
+               </tr>
+             ))}
+           </tbody>
+         </table>
+       </div>
+    </div>
+  );
+
+  const FabricsView = () => (
+    <div className="space-y-6">
+       <div className="flex justify-between items-center">
+         <h2 className="text-xl font-bold text-slate-800 dark:text-white">مكتبة الأقمشة (Fabric Library)</h2>
+         <Button size="sm">إضافة قماش</Button>
+       </div>
+       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {fabrics.map(fabric => (
+             <div key={fabric.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 relative overflow-hidden group">
+                <div className="absolute top-0 left-0 w-2 h-full bg-blue-500"></div>
+                <div className="pl-4">
+                   <div className="flex justify-between items-start">
+                      <h3 className="font-bold text-slate-800 dark:text-white">{fabric.name}</h3>
+                      <span className="text-xs font-mono bg-slate-100 dark:bg-slate-900 px-2 py-1 rounded">{fabric.code}</span>
+                   </div>
+                   <p className="text-sm text-slate-500 mt-1">{fabric.type} • {fabric.color}</p>
+                   <div className="mt-4 flex items-center justify-between">
+                      <div className="text-center">
+                         <p className="text-xs text-slate-400">المخزون</p>
+                         <p className="font-bold text-blue-600">{fabric.stock}م</p>
+                      </div>
+                      <div className="text-center">
+                         <p className="text-xs text-slate-400">سعر المتر</p>
+                         <p className="font-bold text-green-600">{fabric.pricePerMeter} ر.ع</p>
+                      </div>
+                   </div>
+                </div>
+             </div>
+          ))}
+       </div>
+    </div>
+  );
+
+  const AIView = () => (
+    <div className="space-y-6">
+       <div className="flex justify-between items-center">
+         <h2 className="text-xl font-bold text-slate-800 dark:text-white">نماذج الذكاء الاصطناعي (AI Models)</h2>
+         <Button size="sm">تحديث النماذج</Button>
+       </div>
+       <div className="grid grid-cols-1 gap-4">
+          {aiModels.map(model => (
+             <div key={model.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-5 flex items-center justify-between">
+                <div className="flex items-center gap-4">
+                   <div className={`p-3 rounded-lg ${model.status === 'active' ? 'bg-green-100 text-green-600' : model.status === 'training' ? 'bg-yellow-100 text-yellow-600' : 'bg-slate-100 text-slate-500'}`}>
+                      <Cpu size={24} />
+                   </div>
+                   <div>
+                      <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        {model.name}
+                        <span className="text-xs font-normal text-slate-400 px-2 py-0.5 border border-slate-200 dark:border-slate-600 rounded-full">{model.version}</span>
+                      </h3>
+                      <p className="text-xs text-slate-500 mt-1">آخر تحديث: {model.lastUpdated}</p>
+                   </div>
+                </div>
+                <div className="flex items-center gap-8 text-right">
+                   <div>
+                      <p className="text-xs text-slate-400">الحالة</p>
+                      <p className={`font-bold text-sm ${model.status === 'active' ? 'text-green-500' : model.status === 'training' ? 'text-yellow-500' : 'text-slate-500'}`}>
+                         {model.status.toUpperCase()}
+                      </p>
+                   </div>
+                   <div>
+                      <p className="text-xs text-slate-400">الدقة (Accuracy)</p>
+                      <p className="font-bold text-blue-500">{model.accuracy}%</p>
+                   </div>
+                   <Button variant="outline" size="sm">Configure</Button>
+                </div>
+             </div>
+          ))}
+       </div>
+    </div>
+  );
+
+  const ConfigView = () => (
+    <div className="space-y-6 max-w-3xl">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-bold text-slate-800 dark:text-white">إعدادات النظام العامة</h2>
+        <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400">
+          {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
+          <span>حفظ التغييرات</span>
+        </Button>
+      </div>
+
+      <div className="p-4 rounded-xl border border-dashed border-blue-400 bg-blue-50 dark:bg-blue-900/20 text-sm text-blue-700 dark:text-blue-200">
+        🔍 Debug: تم تحميل مكوّن الإعدادات العامة بنجاح ({new Date().toLocaleString('ar-SA')})
+      </div>
+
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+          {[
+            { key: 'storiesEnabled', label: 'القصص (Stories)', desc: 'تفعيل ميزة القصص للخياطين في الصفحة الرئيسية', icon: PlayCircle, color: 'text-pink-500' },
+            { key: 'designerEnabled', label: 'المصمم الذكي', desc: 'تفعيل أدوات التصميم بالذكاء الاصطناعي', icon: PenTool, color: 'text-purple-500' },
+            { key: 'cartEnabled', label: 'نظام السلة والطلبات', desc: 'إتاحة عمليات الشراء وإدارة الطلبات', icon: ShoppingCart, color: 'text-orange-500' },
+            { key: 'allowNewRegistrations', label: 'التسجيل الجديد', desc: 'السماح للمستخدمين الجدد بإنشاء حسابات', icon: Users, color: 'text-blue-500' },
+            { key: 'maintenanceMode', label: 'وضع الصيانة', desc: 'إغلاق الموقع مؤقتاً لجميع المستخدمين', icon: Lock, color: 'text-red-500' },
+          ].map((item: any) => (
+            <div key={item.key} className="p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+              <div className="flex items-center gap-4">
+                  <div className={`p-2 rounded-lg bg-slate-50 dark:bg-slate-900 ${item.color}`}>
+                    <item.icon size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800 dark:text-white text-sm">{item.label}</p>
+                    <p className="text-xs text-slate-500">{item.desc}</p>
+                  </div>
+              </div>
+              <button 
+                onClick={() => handleToggle(item.key)}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${localSettings[item.key as keyof AppSettings] ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${localSettings[item.key as keyof AppSettings] ? 'translate-x-0' : '-translate-x-6'}`}></div>
+              </button>
+            </div>
+          ))}
+      </div>
+
+      {/* Help Video Settings (placed right under general toggles) */}
+      <div id="help-video-settings" className="bg-white dark:bg-slate-800 rounded-2xl border-2 border-blue-200 dark:border-blue-800 p-6 space-y-4 shadow-sm">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300">جديد</span>
+            إعدادات فيديو المساعدة
+          </h3>
+          <a href="#help-video-settings" className="text-xs text-blue-600">رابط مباشر</a>
+        </div>
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm text-slate-700 dark:text-slate-300">تفعيل زر المساعدة</p>
+            <p className="text-xs text-slate-500">إظهار زر "شاهد" في الصفحات الداعمة</p>
+          </div>
+          <button 
+            onClick={() => setLocalSettings(prev => ({
+              ...prev,
+              helpVideo: { ...(prev.helpVideo || {}), enabled: !(prev.helpVideo?.enabled) }
+            }))}
+            className={`w-12 h-6 rounded-full p-1 transition-colors ${localSettings.helpVideo?.enabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+          >
+            <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${localSettings.helpVideo?.enabled ? 'translate-x-0' : '-translate-x-6'}`}></div>
+          </button>
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">رابط الفيديو (YouTube)</label>
+          <input
+            type="text"
+            value={localSettings.helpVideo?.url || ''}
+            onChange={(e) => setLocalSettings(prev => ({
+              ...prev,
+              helpVideo: { ...(prev.helpVideo || {}), url: e.target.value }
+            }))}
+            placeholder="مثال: https://youtu.be/XXXXXXXX أو https://www.youtube.com/watch?v=XXXXXXX"
+            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">نص الزر</label>
+          <input
+            type="text"
+            value={localSettings.helpVideo?.buttonText || 'شاهد'}
+            onChange={(e) => setLocalSettings(prev => ({
+              ...prev,
+              helpVideo: { ...(prev.helpVideo || {}), buttonText: e.target.value }
+            }))}
+            placeholder="شاهد"
+            className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+        <div className="pt-2">
+          <p className="text-xs text-slate-500">نقوم تلقائياً بتحويل رابط YouTube إلى صيغة مدمجة (embed) آمنة.</p>
+        </div>
+      </div>
+
+      {/* Home Sections Control */}
+      <div className="mt-8">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">مقاطع الصفحة الرئيسية</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+          {[
+            { key: 'heroBanner', label: 'البانر الرئيسي', desc: 'عرض بانر العيد الترويجي في أعلى الصفحة' },
+            { key: 'featuredTailors', label: 'الخياطون المميزون', desc: 'عرض قائمة الخياطين المعتمدين' },
+            { key: 'searchBar', label: 'شريط البحث', desc: 'إظهار خانة البحث في الصفحة الرئيسية' },
+            { key: 'designSection', label: 'قسم المصمم', desc: 'عرض كارت "صمّم تشكيلة خاصة"' },
+            { key: 'adsSection', label: 'قسم الإعلانات', desc: 'عرض كارت الإعلانات الترويجية' },
+            { key: 'categoriesFilter', label: 'تصنيفات المنتجات', desc: 'عرض أزرار التصنيفات (دشاديش، جاكيت، إلخ)' },
+            { key: 'productsGrid', label: 'شبكة المنتجات', desc: 'عرض المنتجات الرئيسية' },
+            { key: 'browseShopsButton', label: 'زر تصفح المحلات', desc: 'عرض زر التصفح السريع للمحلات' },
+            { key: 'installButton', label: 'زر تثبيت التطبيق', desc: 'إظهار زر تثبيت PWA' },
+            { key: 'notificationButton', label: 'زر الإشعارات', desc: 'إظهار زر تفعيل الإشعارات' },
+            { key: 'contactFooter', label: 'تذييل التواصل', desc: 'عرض معلومات التواصل في أسفل الصفحة' },
+          ].map((item) => (
+            <div key={item.key} className="p-4 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+              <div>
+                <p className="font-medium text-slate-800 dark:text-white text-sm">{item.label}</p>
+                <p className="text-xs text-slate-500">{item.desc}</p>
+              </div>
+              <button 
+                onClick={() => {
+                  setLocalSettings(prev => ({
+                    ...prev,
+                    homeSections: {
+                      ...prev.homeSections,
+                      [item.key]: !prev.homeSections?.[item.key as keyof typeof prev.homeSections]
+                    }
+                  }));
+                }}
+                className={`w-12 h-6 rounded-full p-1 transition-colors ${
+                  localSettings.homeSections?.[item.key as keyof typeof localSettings.homeSections] !== false
+                    ? 'bg-green-500' 
+                    : 'bg-slate-300 dark:bg-slate-600'
+                }`}
+              >
+                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${
+                  localSettings.homeSections?.[item.key as keyof typeof localSettings.homeSections] !== false
+                    ? 'translate-x-0' 
+                    : '-translate-x-6'
+                }`}></div>
+              </button>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Hero Banner Content */}
+      <div className="mt-8">
+        <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">محتوى البانر الرئيسي</h3>
+        <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 p-6 space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              رابط الصورة
+            </label>
+            <input
+              type="text"
+              value={localSettings.heroBanner?.image || ''}
+              onChange={(e) => setLocalSettings(prev => ({
+                ...prev,
+                heroBanner: { ...prev.heroBanner, image: e.target.value }
+              }))}
+              placeholder="https://example.com/banner.jpg"
+              className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                الشارة (Badge)
+              </label>
+              <input
+                type="text"
+                value={localSettings.heroBanner?.badge || ''}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  heroBanner: { ...prev.heroBanner, badge: e.target.value }
+                }))}
+                placeholder="موسم مميز"
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                العنوان الرئيسي
+              </label>
+              <input
+                type="text"
+                value={localSettings.heroBanner?.title || ''}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  heroBanner: { ...prev.heroBanner, title: e.target.value }
+                }))}
+                placeholder="تشكيلة العيد"
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              العنوان الفرعي
+            </label>
+            <input
+              type="text"
+              value={localSettings.heroBanner?.subtitle || ''}
+              onChange={(e) => setLocalSettings(prev => ({
+                ...prev,
+                heroBanner: { ...prev.heroBanner, subtitle: e.target.value }
+              }))}
+              placeholder="بين يديك"
+              className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+              الوصف
+            </label>
+            <textarea
+              value={localSettings.heroBanner?.description || ''}
+              onChange={(e) => setLocalSettings(prev => ({
+                ...prev,
+                heroBanner: { ...prev.heroBanner, description: e.target.value }
+              }))}
+              placeholder="أرقى التصاميم العمانية والعصرية..."
+              rows={3}
+              className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                نص الزر
+              </label>
+              <input
+                type="text"
+                value={localSettings.heroBanner?.buttonText || ''}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  heroBanner: { ...prev.heroBanner, buttonText: e.target.value }
+                }))}
+                placeholder="استكشف جاكيتات العيد"
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                رابط الزر (صفحة داخلية)
+              </label>
+              <input
+                type="text"
+                value={localSettings.heroBanner?.buttonLink || ''}
+                onChange={(e) => setLocalSettings(prev => ({
+                  ...prev,
+                  heroBanner: { ...prev.heroBanner, buttonLink: e.target.value }
+                }))}
+                placeholder="/products أو /tailors"
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+          </div>
+
+          <div className="pt-4 border-t border-slate-200 dark:border-slate-700">
+            <p className="text-xs text-slate-500">
+              💡 نصيحة: يمكنك استخدام روابط داخلية مثل: /products, /tailors, /collections, /account
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
+  const PlaceholderView = ({ title, icon: Icon }: any) => (
+    <div className="flex flex-col items-center justify-center h-96 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
+       <div className="w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
+          <Icon size={40} className="opacity-50" />
+       </div>
+       <h3 className="text-lg font-bold text-slate-600 dark:text-slate-300">{title}</h3>
+       <p className="text-sm">هذه الوحدة قيد التطوير حالياً</p>
+    </div>
+  );
+
+  // --- RENDERER ---
+
+  const renderContent = () => {
+    switch(activeSection) {
+      case 'dashboard': return <DashboardView />;
+      case 'orders': return <OrdersView />;
+      case 'tailors': return <PlaceholderView title="إدارة الخياطين" icon={Scissors} />;
+      case 'products': return <PlaceholderView title="إدارة المنتجات (CRUD)" icon={Package} />;
+      case 'fabrics': return <FabricsView />;
+      case 'measurements': return <PlaceholderView title="مكتبة المقاسات" icon={Ruler} />;
+      case 'family': return <PlaceholderView title="ملفات العائلة" icon={Users} />;
+      case 'ai': return <AIView />;
+      case 'config': return <ConfigView />;
+      case 'logs': return <PlaceholderView title="سجلات النظام" icon={FileText} />;
+      default: return <DashboardView />;
+    }
+  };
+
+  // --- ACCESS CONTROL ---
+
+  if (user?.role !== 'admin') {
+     return (
+        <div className="h-screen w-screen bg-[#050817] flex items-center justify-center text-center p-4" dir="rtl">
+           <div className="max-w-md">
+             <Shield size={64} className="mx-auto text-red-500 mb-4" />
+             <h1 className="text-3xl font-bold text-white mb-2">منطقة محظورة</h1>
+             <p className="text-slate-400 mb-6">يجب عليك تسجيل الدخول بحساب مسؤول (Admin) للوصول إلى لوحة التحكم.</p>
+             <Button onClick={() => navigate('/')}>العودة للرئيسية</Button>
+           </div>
+        </div>
+     );
+  }
+
+  return (
+    <div className="flex h-screen bg-slate-50 dark:bg-[#0b1121] text-slate-900 dark:text-slate-100 font-sans overflow-hidden dir-rtl">
+      
+      {/* Sidebar */}
+      <aside className={`w-64 bg-[#050817] text-slate-300 flex-col transition-all duration-300 ${isSidebarOpen ? 'translate-x-0' : 'translate-x-full absolute z-50 h-full'} md:relative md:translate-x-0 md:flex border-l border-white/5`}>
+        <div className="h-16 flex items-center px-6 border-b border-white/10 justify-between">
+          <div className="flex items-center gap-2">
+            <Shield className="text-blue-500" size={24} />
+            <h1 className="text-lg font-bold text-white tracking-wider">KHUYOOT</h1>
+          </div>
+          <button onClick={() => setSidebarOpen(false)} className="md:hidden text-slate-500"><X size={20}/></button>
+        </div>
+        
+        <div className="flex-1 overflow-y-auto py-6 px-3 no-scrollbar">
+          <p className="px-4 text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">الرئيسية</p>
+          <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" />
+          <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" />
+          
+          <p className="px-4 text-[10px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الإدارة</p>
+          <SidebarItem id="tailors" icon={Scissors} label="الخياطين" />
+          <SidebarItem id="products" icon={Package} label="المنتجات" />
+          
+          <p className="px-4 text-[10px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الأصول</p>
+          <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" />
+          <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" />
+          <SidebarItem id="family" icon={Users} label="ملفات العائلة" />
+          
+          <p className="px-4 text-[10px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">النظام</p>
+          <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" />
+          <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" />
+          <SidebarItem id="logs" icon={FileText} label="System Logs" />
+        </div>
+
+        <div className="p-4 border-t border-white/10">
+          <button onClick={handleLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors">
+            <LogOut size={18} />
+            <span className="font-medium text-sm">تسجيل الخروج</span>
+          </button>
+        </div>
+      </aside>
+
+      {/* Main Content Layout */}
+      <div className="flex-1 flex flex-col min-w-0">
+        
+        {/* Top Header */}
+        <header className="h-16 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10">
+           <div className="flex items-center gap-4">
+             <button onClick={() => setSidebarOpen(!isSidebarOpen)} className="md:hidden text-slate-500">
+               <Menu size={24} />
+             </button>
+             <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200 capitalize">
+               {activeSection === 'ai' ? 'AI Configuration' : activeSection}
+             </h2>
+           </div>
+
+           <div className="flex items-center gap-4">
+              <div className="relative hidden md:block">
+                 <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-xs w-64 focus:ring-1 focus:ring-blue-500" />
+                 <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
+              </div>
+              <button className="relative p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+                 <Bell size={20} />
+                 <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+              </button>
+              <div className="flex items-center gap-2 border-r border-slate-200 dark:border-slate-700 pr-4">
+                 <div className="text-left hidden md:block">
+                    <p className="text-xs font-bold text-slate-700 dark:text-white">Admin User</p>
+                    <p className="text-[10px] text-slate-400">Super Admin</p>
+                 </div>
+                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">A</div>
+              </div>
+           </div>
+        </header>
+
+        {/* Content Area */}
+        <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
+          <div className="mb-4 p-4 rounded-xl bg-yellow-100 text-yellow-800 font-bold text-sm text-right">
+            DEBUG: بيرة
+          </div>
+           {renderContent()}
+        </main>
+      </div>
+    </div>
+  );
+};

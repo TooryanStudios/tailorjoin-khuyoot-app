@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تنظيف Service Worker</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            max-width: 600px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+        }
+        h1 {
+            margin: 0 0 20px 0;
+            font-size: 2em;
+        }
+        .status {
+            background: rgba(255, 255, 255, 0.2);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            font-family: monospace;
+            font-size: 14px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        button {
+            background: white;
+            color: #667eea;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+        }
+        .success { color: #4ade80; }
+        .error { color: #f87171; }
+        .info { color: #60a5fa; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧹 تنظيف Service Worker</h1>
+        <p>هذه الصفحة تساعدك على إزالة Service Workers والـ Cache المخزن.</p>
+        
+        <button onclick="cleanAll()">🚀 تنظيف الآن</button>
+        
+        <div class="status" id="status">
+            <div class="info">⏳ جاهز للتنظيف...</div>
+        </div>
+        
+        <button onclick="goHome()" style="background: rgba(255,255,255,0.2); color: white; margin-top: 20px;">
+            العودة للصفحة الرئيسية
+        </button>
+    </div>
+
+    <script>
+        const statusDiv = document.getElementById('status');
+        
+        function log(message, type = 'info') {
+            const time = new Date().toLocaleTimeString('ar-EG');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+            statusDiv.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+            statusDiv.scrollTop = statusDiv.scrollHeight;
+        }
+        
+        async function cleanAll() {
+            statusDiv.innerHTML = '';
+            log('🔧 بدء عملية التنظيف...', 'info');
+            
+            // 1. Unregister Service Workers
+            if ('serviceWorker' in navigator) {
+                try {
+                    const registrations = await navigator.serviceWorker.getRegistrations();
+                    log(`📋 وجدت ${registrations.length} Service Worker`, 'info');
+                    
+                    for (const registration of registrations) {
+                        const success = await registration.unregister();
+                        if (success) {
+                            log(`✅ تم إلغاء تسجيل Service Worker بنجاح`, 'success');
+                        } else {
+                            log(`❌ فشل إلغاء التسجيل`, 'error');
+                        }
+                    }
+                    
+                    if (registrations.length === 0) {
+                        log('✅ لا يوجد Service Workers للإزالة', 'success');
+                    }
+                } catch (error) {
+                    log(`❌ خطأ: ${error.message}`, 'error');
+                }
+            } else {
+                log('⚠️ Service Worker غير مدعوم في هذا المتصفح', 'error');
+            }
+            
+            // 2. Clear Caches
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    log(`📦 وجدت ${cacheNames.length} Cache`, 'info');
+                    
+                    for (const cacheName of cacheNames) {
+                        const success = await caches.delete(cacheName);
+                        if (success) {
+                            log(`✅ تم حذف Cache: ${cacheName}`, 'success');
+                        }
+                    }
+                    
+                    if (cacheNames.length === 0) {
+                        log('✅ لا يوجد Cache للحذف', 'success');
+                    }
+                } catch (error) {
+                    log(`❌ خطأ في حذف Cache: ${error.message}`, 'error');
+                }
+            }
+            
+            // 3. Clear localStorage
+            try {
+                const itemsCount = localStorage.length;
+                localStorage.clear();
+                log(`✅ تم مسح ${itemsCount} عنصر من localStorage`, 'success');
+            } catch (error) {
+                log(`❌ خطأ في مسح localStorage: ${error.message}`, 'error');
+            }
+            
+            // 4. Clear sessionStorage
+            try {
+                sessionStorage.clear();
+                log(`✅ تم مسح sessionStorage`, 'success');
+            } catch (error) {
+                log(`❌ خطأ في مسح sessionStorage: ${error.message}`, 'error');
+            }
+            
+            log('', 'info');
+            log('🎉 تم الانتهاء من التنظيف!', 'success');
+            log('💡 يُنصح بإعادة تحميل الصفحة الآن (F5)', 'info');
+        }
+        
+        function goHome() {
+            window.location.href = '/';
+        }
+        
+        // Auto-run on load if URL has ?auto parameter
+        if (window.location.search.includes('auto')) {
+            window.addEventListener('load', () => {
+                setTimeout(cleanAll, 500);
+            });
+        }
+    </script>
+</body>
+</html>

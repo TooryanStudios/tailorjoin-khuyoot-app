@@ -1,0 +1,55 @@
+<svg width="1200" height="630" viewBox="0 0 1200 630" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background Gradient -->
+  <defs>
+    <linearGradient id="bgGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#2563eb;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#7c3aed;stop-opacity:1" />
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#60a5fa;stop-opacity:0.2" />
+      <stop offset="100%" style="stop-color:#a78bfa;stop-opacity:0.2" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background -->
+  <rect width="1200" height="630" fill="url(#bgGradient)"/>
+  
+  <!-- Decorative Elements -->
+  <circle cx="100" cy="100" r="80" fill="url(#accentGradient)"/>
+  <circle cx="1100" cy="530" r="60" fill="url(#accentGradient)"/>
+  <path d="M 200 500 Q 400 450 600 500 T 1000 500" stroke="rgba(255,255,255,0.1)" stroke-width="2" fill="none"/>
+  <path d="M 100 200 Q 300 150 500 200 T 900 200" stroke="rgba(255,255,255,0.1)" stroke-width="2" fill="none"/>
+  
+  <!-- Needle and Thread Icon -->
+  <g transform="translate(500, 180)">
+    <!-- Thread -->
+    <path d="M -30 -50 Q -10 -30 0 0 Q 10 30 30 50" stroke="white" stroke-width="3" fill="none" opacity="0.8"/>
+    <!-- Needle -->
+    <path d="M 0 -60 L 0 60" stroke="white" stroke-width="4" stroke-linecap="round"/>
+    <ellipse cx="0" cy="-65" rx="3" ry="8" fill="white"/>
+    <path d="M -8 55 L 0 70 L 8 55" fill="white"/>
+  </g>
+  
+  <!-- App Name in Arabic -->
+  <text x="600" y="340" font-family="Arial, sans-serif" font-size="120" font-weight="bold" fill="white" text-anchor="middle">
+    خيوط
+  </text>
+  
+  <!-- App Name in English -->
+  <text x="600" y="400" font-family="Arial, sans-serif" font-size="48" fill="rgba(255,255,255,0.9)" text-anchor="middle">
+    Khuyoot
+  </text>
+  
+  <!-- Tagline -->
+  <text x="600" y="460" font-family="Arial, sans-serif" font-size="32" fill="rgba(255,255,255,0.85)" text-anchor="middle">
+    منصة تفصيل الملابس
+  </text>
+  
+  <!-- Decorative Line -->
+  <line x1="400" y1="490" x2="800" y2="490" stroke="rgba(255,255,255,0.3)" stroke-width="2"/>
+  
+  <!-- Subtitle -->
+  <text x="600" y="540" font-family="Arial, sans-serif" font-size="24" fill="rgba(255,255,255,0.75)" text-anchor="middle">
+    اربط مع أفضل الخياطين والمصممين
+  </text>
+</svg>

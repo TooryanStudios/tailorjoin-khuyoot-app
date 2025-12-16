@@ -1,0 +1,439 @@
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Loader2, RefreshCw } from 'lucide-react';
+import { Category, ProductTemplate, CategoryTreeNode, CategoryFormData, ProductTemplateFormData } from './types';
+import {
+  getAllCategories,
+  buildCategoryTree,
+  createCategory,
+  updateCategory,
+  deleteCategory,
+  getAllProductTemplates,
+  createProductTemplate,
+  updateProductTemplate,
+  deleteProductTemplate
+} from './services';
+import { CategoryForm } from './components/CategoryForm';
+import { ProductTemplateForm } from './components/ProductTemplateForm';
+import { CategoryTreeItem } from './components/CategoryTreeItem';
+
+type TabType = 'categories' | 'templates';
+
+export const ProductsManagement: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<TabType>('categories');
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
+  const [products, setProducts] = useState<ProductTemplate[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<ProductTemplate[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState('');
+
+  // Category Form Modal
+  const [showCategoryForm, setShowCategoryForm] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<Category | null>(null);
+  const [parentCategoryId, setParentCategoryId] = useState<string | undefined>(undefined);
+
+  // Product Form Modal
+  const [showProductForm, setShowProductForm] = useState(false);
+  const [editingProduct, setEditingProduct] = useState<ProductTemplate | null>(null);
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery) {
+      const query = searchQuery.toLowerCase();
+      const filtered = products.filter(
+        (p) =>
+          p.nameAr.toLowerCase().includes(query) ||
+          p.nameEn.toLowerCase().includes(query)
+      );
+      setFilteredProducts(filtered);
+    } else {
+      setFilteredProducts(products);
+    }
+  }, [searchQuery, products]);
+
+  const loadData = async () => {
+    setLoading(true);
+    try {
+      const [allCategories, tree, allProducts] = await Promise.all([
+        getAllCategories(),
+        buildCategoryTree(),
+        getAllProductTemplates()
+      ]);
+      setCategories(allCategories);
+      setCategoryTree(tree);
+      setProducts(allProducts);
+      setFilteredProducts(allProducts);
+    } catch (error) {
+      console.error('خطأ في تحميل البيانات:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Category Handlers
+  const handleAddCategory = (parentId?: string) => {
+    setEditingCategory(null);
+    setParentCategoryId(parentId);
+    setShowCategoryForm(true);
+  };
+
+  const handleEditCategory = (category: Category) => {
+    setEditingCategory(category);
+    setParentCategoryId(undefined);
+    setShowCategoryForm(true);
+  };
+
+  const handleSaveCategory = async (data: CategoryFormData) => {
+    try {
+      if (editingCategory) {
+        await updateCategory(editingCategory.id, data);
+      } else {
+        await createCategory(data);
+      }
+      await loadData();
+      setShowCategoryForm(false);
+      setEditingCategory(null);
+      setParentCategoryId(undefined);
+    } catch (error) {
+      console.error('خطأ في حفظ التصنيف:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteCategory = async (id: string) => {
+    try {
+      await deleteCategory(id);
+      await loadData();
+    } catch (error: any) {
+      console.error('خطأ في حذف التصنيف:', error);
+      alert(error.message || 'حدث خطأ أثناء حذف التصنيف');
+    }
+  };
+
+  // Product Handlers
+  const handleAddProduct = () => {
+    setEditingProduct(null);
+    setShowProductForm(true);
+  };
+
+  const handleEditProduct = (product: ProductTemplate) => {
+    setEditingProduct(product);
+    setShowProductForm(true);
+  };
+
+  const handleSaveProduct = async (data: ProductTemplateFormData) => {
+    try {
+      if (editingProduct) {
+        await updateProductTemplate(editingProduct.id, data);
+      } else {
+        await createProductTemplate(data);
+      }
+      await loadData();
+      setShowProductForm(false);
+      setEditingProduct(null);
+    } catch (error) {
+      console.error('خطأ في حفظ المنتج:', error);
+      throw error;
+    }
+  };
+
+  const handleDeleteProduct = async (id: string) => {
+    const product = products.find(p => p.id === id);
+    const confirmMessage = product 
+      ? `هل أنت متأكد من حذف المنتج "${product.nameAr}" (${product.nameEn})؟\n\nملاحظة: لا يمكن التراجع عن هذا الإجراء.`
+      : 'هل أنت متأكد من حذف هذا المنتج؟\n\nملاحظة: لا يمكن التراجع عن هذا الإجراء.';
+    
+    if (confirm(confirmMessage)) {
+      try {
+        await deleteProductTemplate(id);
+        await loadData();
+      } catch (error: any) {
+        console.error('خطأ في حذف المنتج:', error);
+        alert(error.message || 'حدث خطأ أثناء حذف المنتج');
+      }
+    }
+  };
+
+  const getCategoryName = (categoryId: string) => {
+    const category = categories.find((c) => c.id === categoryId);
+    return category ? category.nameAr : 'غير محدد';
+  };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-96">
+        <Loader2 className="animate-spin text-emerald-500" size={48} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* الرأس */}
+      <div className="flex items-center justify-between">
+        <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
+          إدارة المنتجات
+        </h1>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={loadData}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="تحديث البيانات"
+          >
+            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
+            تحديث
+          </button>
+          <button
+            onClick={() =>
+              activeTab === 'categories' ? handleAddCategory() : handleAddProduct()
+            }
+            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors shadow-sm"
+          >
+            <Plus size={20} />
+            {activeTab === 'categories' ? 'إضافة تصنيف' : 'إضافة منتج'}
+          </button>
+        </div>
+      </div>
+
+      {/* التبويبات */}
+      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
+        <button
+          onClick={() => setActiveTab('categories')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'categories'
+              ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          التصنيفات ({categories.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('templates')}
+          className={`px-6 py-3 font-medium transition-colors ${
+            activeTab === 'templates'
+              ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+          }`}
+        >
+          قوالب المنتجات ({products.length})
+        </button>
+      </div>
+
+      {/* محتوى التبويبات */}
+      {activeTab === 'categories' ? (
+        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
+          <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4">
+            التصنيفات الهرمية
+          </h2>
+          {categoryTree.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-slate-500 dark:text-slate-400 mb-4">
+                لا توجد تصنيفات بعد
+              </p>
+              <button
+                onClick={() => handleAddCategory()}
+                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+              >
+                إضافة أول تصنيف
+              </button>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {categoryTree.map((node) => (
+                <CategoryTreeItem
+                  key={node.id}
+                  node={node}
+                  level={0}
+                  onEdit={handleEditCategory}
+                  onDelete={handleDeleteCategory}
+                  onAddChild={handleAddCategory}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {/* البحث */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
+            <div className="relative">
+              <Search
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                size={20}
+              />
+              <input
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="ابحث عن منتج..."
+                className="w-full pr-10 pl-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
+              />
+            </div>
+          </div>
+
+          {/* قائمة المنتجات */}
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden">
+            {filteredProducts.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-slate-500 dark:text-slate-400 mb-4">
+                  {searchQuery ? 'لا توجد نتائج' : 'لا توجد منتجات بعد'}
+                </p>
+                {!searchQuery && (
+                  <button
+                    onClick={handleAddProduct}
+                    className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+                  >
+                    إضافة أول منتج
+                  </button>
+                )}
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead className="bg-slate-50 dark:bg-slate-700">
+                    <tr>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        الصورة
+                      </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        الاسم
+                      </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        التصنيف
+                      </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        الحالة
+                      </th>
+                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                        الإجراءات
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {filteredProducts.map((product) => (
+                      <tr
+                        key={product.id}
+                        className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                      >
+                        <td className="px-6 py-4">
+                          <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+                            <img
+                              src={product.defaultImage}
+                              alt={product.nameAr}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div>
+                            <p className="font-semibold text-slate-800 dark:text-white">
+                              {product.nameAr}
+                            </p>
+                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                              {product.nameEn}
+                            </p>
+                          </div>
+                        </td>
+                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                          {getCategoryName(product.categoryId)}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span
+                            className={`px-3 py-1 rounded-full text-xs font-medium ${
+                              product.isActive
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                            }`}
+                          >
+                            {product.isActive ? 'مفعل' : 'معطل'}
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditProduct(product)}
+                              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+                            >
+                              تعديل
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProduct(product.id)}
+                              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors"
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* النماذج */}
+      <CategoryForm
+        isOpen={showCategoryForm}
+        onClose={() => {
+          setShowCategoryForm(false);
+          setEditingCategory(null);
+          setParentCategoryId(undefined);
+        }}
+        onSave={handleSaveCategory}
+        initialData={
+          editingCategory
+            ? {
+                nameAr: editingCategory.nameAr,
+                nameEn: editingCategory.nameEn,
+                slug: editingCategory.slug,
+                parentId: editingCategory.parentId,
+                categoryType: editingCategory.categoryType,
+                image: editingCategory.image,
+                icon: editingCategory.icon,
+                descriptionAr: editingCategory.descriptionAr,
+                descriptionEn: editingCategory.descriptionEn,
+                order: editingCategory.order,
+                isActive: editingCategory.isActive
+              }
+            : parentCategoryId
+            ? { parentId: parentCategoryId }
+            : undefined
+        }
+        title={editingCategory ? 'تعديل تصنيف' : 'إضافة تصنيف جديد'}
+      />
+
+      <ProductTemplateForm
+        isOpen={showProductForm}
+        onClose={() => {
+          setShowProductForm(false);
+          setEditingProduct(null);
+        }}
+        onSave={handleSaveProduct}
+        initialData={
+          editingProduct
+            ? {
+                categoryId: editingProduct.categoryId,
+                nameAr: editingProduct.nameAr,
+                nameEn: editingProduct.nameEn,
+                slug: editingProduct.slug,
+                defaultImage: editingProduct.defaultImage,
+                images: editingProduct.images,
+                descriptionAr: editingProduct.descriptionAr,
+                descriptionEn: editingProduct.descriptionEn,
+                order: editingProduct.order,
+                isActive: editingProduct.isActive
+              }
+            : undefined
+        }
+        title={editingProduct ? 'تعديل منتج' : 'إضافة منتج جديد'}
+      />
+    </div>
+  );
+};

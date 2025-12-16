@@ -1,0 +1,2063 @@
+import React, { useState, useEffect, useRef } from 'react';
+import imageCompression from 'browser-image-compression';
+import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star } from 'lucide-react';
+import { User, AgeGroup, PopularRegion } from '../../../types';
+import { firebaseService } from '../../../services/firebase';
+
+export const UsersManagement = () => {
+  const [users, setUsers] = useState<User[]>([]);
+  const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showUpgradeModal, setShowUpgradeModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [userToDelete, setUserToDelete] = useState<User | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [regions, setRegions] = useState<PopularRegion[]>([]);
+  const [migrating, setMigrating] = useState(false);
+  const [showManageProducts, setShowManageProducts] = useState(false);
+  const [userProducts, setUserProducts] = useState<any[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
+  const [productSaving, setProductSaving] = useState<Record<string, boolean>>({});
+  const [newProdUrl, setNewProdUrl] = useState<Record<string, string>>({});
+  const dragRef = useRef<{ productId: string; index: number } | null>(null);
+  const [uploadingProd, setUploadingProd] = useState<Record<string, boolean>>({});
+  const [productCategories, setProductCategories] = useState<Array<{ id: string; name: string }>>([]);
+
+  // Form state for upgrade
+  const [newRole, setNewRole] = useState<'tailor' | 'shop'>('tailor');
+  const [shopType, setShopType] = useState<string>('tailor');
+  const [location, setLocation] = useState('');
+  const [specialization, setSpecialization] = useState('');
+  const [experience, setExperience] = useState('');
+  const [upgrading, setUpgrading] = useState(false);
+
+  // Form state for edit
+  const [editForm, setEditForm] = useState({
+    name: '',
+    email: '',
+    phone: '',
+    loginId: '',
+    region: '',
+    ageGroup: '' as AgeGroup | '',
+    shopType: '' as string,
+    location: '',
+    specialization: '',
+    experience: '',
+    profileImage: '',
+    boardImage: '',
+    bio: '',
+    createdByAdmin: false,
+    requirePasswordChange: false,
+    approvalStatus: 'pending' as string,
+    isFeatured: false
+  });
+  const [cropOpen, setCropOpen] = useState(false);
+  const [cropSrc, setCropSrc] = useState<string>('');
+  const [cropPreview, setCropPreview] = useState<string>('');
+  const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [crop, setCrop] = useState<{ x: number; y: number; size: number }>({ x: 0, y: 0, size: 200 });
+    // Simple square cropper for profile image
+    const openCropper = (src: string) => {
+      setCropSrc(src);
+      setCropOpen(true);
+      setCrop({ x: 0, y: 0, size: 200 });
+    };
+
+    const applyCrop = async () => {
+      try {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.src = cropSrc;
+        await new Promise((res, rej) => {
+          img.onload = () => res(null);
+          img.onerror = rej;
+        });
+        const canvas = cropCanvasRef.current!;
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext('2d')!;
+        ctx.clearRect(0, 0, size, size);
+        // Draw selected square region to canvas
+        ctx.drawImage(
+          img,
+          crop.x,
+          crop.y,
+          crop.size,
+          crop.size,
+          0,
+          0,
+          size,
+          size
+        );
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
+        setEditForm(prev => ({ ...prev, profileImage: dataUrl }));
+        setCropPreview(dataUrl);
+        setCropOpen(false);
+        showToast('✅ تم قص صورة البروفايل', 'success');
+      } catch (err) {
+        console.error('Crop error:', err);
+        showToast('❌ فشل قص الصورة', 'error');
+      }
+    };
+  const [saving, setSaving] = useState(false);
+
+  // Toast notifications (non-blocking)
+  const [toast, setToast] = useState<{ open: boolean; message: string; type: 'success' | 'error' | 'info' }>({ open: false, message: '', type: 'info' });
+  const toastTimer = useRef<number | null>(null);
+
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info', duration = 3500) => {
+    if (toastTimer.current) {
+      window.clearTimeout(toastTimer.current);
+    }
+    setToast({ open: true, message, type });
+    toastTimer.current = window.setTimeout(() => {
+      setToast(prev => ({ ...prev, open: false }));
+      toastTimer.current = null;
+    }, duration);
+  };
+
+  useEffect(() => {
+    loadUsers();
+    loadRegions();
+  }, []);
+
+  useEffect(() => {
+    // Filter users based on search and role filter
+    let filtered = users;
+    
+    // Apply role filter
+    if (roleFilter !== 'all') {
+      filtered = filtered.filter(u => u.role === roleFilter);
+    }
+    
+    // Apply search filter
+    if (searchTerm) {
+      filtered = filtered.filter(u => 
+        u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        u.phone?.includes(searchTerm)
+      );
+    }
+    
+    setFilteredUsers(filtered);
+  }, [searchTerm, roleFilter, users]);
+
+  const loadRegions = async () => {
+    try {
+      const data = await firebaseService.getPopularRegions();
+      setRegions(data.filter(r => r.enabled));
+    } catch (error) {
+      console.error('Error loading regions:', error);
+    }
+  };
+
+  const loadUsers = async () => {
+    setLoading(true);
+    try {
+      // Load from Firebase
+      const data = await firebaseService.getAllUsers();
+      
+      console.log('📥 Loaded users from Firestore:', data.map(u => ({ id: u.id, name: u.name, region: u.region, ageGroup: u.ageGroup })));
+      
+      setUsers(data);
+      setFilteredUsers(data);
+    } catch (error) {
+      console.error('Error loading users:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOpenUpgrade = (user: User) => {
+    setSelectedUser(user);
+    setLocation('');
+    setSpecialization('');
+    setExperience('');
+    setNewRole('tailor');
+    setShopType('tailor');
+    setShowUpgradeModal(true);
+  };
+
+  const handleOpenEdit = (user: User) => {
+    setSelectedUser(user);
+    setEditForm({
+      name: user.name || '',
+      email: user.email || '',
+      phone: user.phone || '',
+      loginId: (user as any).loginId || user.phone || user.email || '',
+      region: user.region || user.location || '',  // Use location as fallback for region
+      ageGroup: user.ageGroup || '',
+      shopType: user.shopType || 'tailor',
+      location: user.location || user.region || '',
+      specialization: user.specialization || '',
+      experience: user.experience || '',
+      profileImage: (user as any).profileImage || '',
+      boardImage: (user as any).boardImage || '',
+      bio: user.bio || '',
+      createdByAdmin: Boolean((user as any).createdByAdmin),
+      requirePasswordChange: Boolean((user as any).requirePasswordChange),
+      approvalStatus: user.approvalStatus || 'pending',
+      isFeatured: Boolean((user as any).isFeatured)
+    });
+    setShowEditModal(true);
+    setShowManageProducts(false);
+    setUserProducts([]);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!selectedUser || !editForm.name.trim() || !editForm.email.trim()) {
+      showToast('⚠️ الاسم والبريد الإلكتروني مطلوبان', 'error');
+      return;
+    }
+    
+    setSaving(true);
+    try {
+      const updateData: Partial<User> = {
+        name: editForm.name.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim() || '',
+        loginId: editForm.loginId?.trim() || '',
+        region: editForm.region || '',
+        // extended fields - always include these fields to ensure they're saved
+        profileImage: editForm.profileImage?.trim() || '',
+        boardImage: editForm.boardImage?.trim() || '',
+        bio: editForm.bio.trim() || '',
+        createdByAdmin: editForm.createdByAdmin,
+        requirePasswordChange: editForm.requirePasswordChange
+      };
+
+      // Add ageGroup only for regular users
+      if (selectedUser.role === 'user') {
+        updateData.ageGroup = editForm.ageGroup || '';
+      }
+
+      // Add merchant fields for tailors/shops
+      if (selectedUser.role === 'tailor' || selectedUser.role === 'shop' || selectedUser.role === 'boutique') {
+        updateData.shopType = editForm.shopType || 'tailor';
+        
+        // Update role based on shopType if it changed
+        if (editForm.shopType) {
+            if (editForm.shopType === 'tailor') {
+                updateData.role = 'tailor';
+            } else {
+                updateData.role = 'shop';
+            }
+        }
+
+        updateData.location = editForm.location.trim() || '';
+        // specialization as gender type: 'male' | 'female'
+        updateData.specialization = editForm.specialization || '';
+        updateData.experience = editForm.experience.trim() || '';
+
+        // Use selected approval status
+        updateData.approvalStatus = (editForm.approvalStatus as any) || 'pending';
+        
+        // Featured status
+        (updateData as any).isFeatured = editForm.isFeatured || false;
+      }
+
+      // Remove undefined values before sending
+      const cleanedData = Object.entries(updateData).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as Partial<User>);
+      
+      console.log('📤 Sending update data:', cleanedData);
+      console.log('👤 User role:', selectedUser.role);
+      console.log('📝 Form data:', editForm);
+
+      // Debug snapshot
+      setDebugInfo(prev => ({
+        ...prev,
+        lastSent: cleanedData,
+        lastRole: selectedUser.role,
+        lastForm: editForm
+      }));
+      
+      await firebaseService.updateUser(selectedUser.id, cleanedData);
+      
+      // Force refresh from Firestore to reflect persisted data
+      console.log('🔄 Reloading users from Firestore after update...');
+      await loadUsers();
+      
+      // Check if the update persisted
+      const updatedUser = users.find(u => u.id === selectedUser.id);
+      console.log('✅ User after reload:', updatedUser);
+      setDebugInfo(prev => ({
+        ...prev,
+        userAfterSave: updatedUser
+      }));
+      
+      setShowEditModal(false);
+      setSelectedUser(null);
+      showToast('✅ تم تحديث البيانات بنجاح!', 'success');
+    } catch (error) {
+      console.error('❌ Error updating user:', error);
+      setDebugInfo(prev => ({
+        ...prev,
+        lastError: error instanceof Error ? error.message : String(error)
+      }));
+      showToast('❌ حدث خطأ أثناء التحديث: ' + (error instanceof Error ? error.message : 'خطأ غير معروف'), 'error');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // --- Per-user products management helpers ---
+  const loadUserProducts = async (uid: string) => {
+    setProductsLoading(true);
+    try {
+      const list = await firebaseService.getProductsByTailorId(uid);
+      setUserProducts(list);
+    } catch (e) {
+      setUserProducts([]);
+    } finally { setProductsLoading(false); }
+  };
+
+  const loadProductCategories = async () => {
+    try {
+      const settings = await firebaseService.getGlobalSettings();
+      const cats = (settings as any).productCategories || [];
+      if (Array.isArray(cats)) setProductCategories(cats.map((c: any) => ({ id: c.id, name: c.name })));
+    } catch (e) { /* ignore */ }
+  };
+
+  const normalizedImages = (p: any): string[] => {
+    if (Array.isArray(p.images) && p.images.length > 0) return p.images.filter(Boolean);
+    if (Array.isArray(p.imageUrls) && p.imageUrls.length > 0) return p.imageUrls.filter(Boolean);
+    if (p.image) return [p.image];
+    return [];
+  };
+
+  const needsNormalization = (p: any) => {
+    const hasImageUrls = Array.isArray(p.imageUrls) && p.imageUrls.length > 0;
+    const hasImages = Array.isArray(p.images) && p.images.length > 0;
+    const missingImage = !p.image;
+    const missingCategoryId = !p.categoryId;
+    const missingCoverIndex = typeof p.coverImageIndex !== 'number';
+    return (hasImageUrls && !hasImages) || missingImage || missingCategoryId || missingCoverIndex;
+  };
+
+  const buildUpdate = (p: any) => {
+    const images: string[] = Array.isArray(p.images) && p.images.length > 0
+      ? p.images
+      : (Array.isArray(p.imageUrls) ? p.imageUrls.filter(Boolean) : []);
+    const image = images[0] || p.image || '';
+    const categoryId = (p.categoryId || (typeof p.category === 'string' ? p.category : '') || 'dishdasha').trim();
+    return { images, image, coverImageIndex: 0, categoryId, updatedAt: new Date().toISOString() } as Partial<any>;
+  };
+
+  const updateProduct = async (p: any, updates: Partial<any>) => {
+    if (!selectedUser) return;
+    await firebaseService.updateProduct(p.id, { tailorId: selectedUser.id, ...updates } as any);
+  };
+
+  const transferImages = async (p: any) => {
+    setProductSaving(prev => ({ ...prev, [p.id]: true }));
+    try {
+      const updates = buildUpdate(p);
+      await updateProduct(p, updates);
+      setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
+    } finally {
+      setProductSaving(prev => ({ ...prev, [p.id]: false }));
+    }
+  };
+
+  const arrayMove = (arr: string[], from: number, to: number) => {
+    const a = arr.slice();
+    const start = from < 0 ? a.length + from : from;
+    if (start < 0 || start >= a.length) return a;
+    const end = to < 0 ? a.length + to : to;
+    if (end < 0 || end >= a.length) return a;
+    const [item] = a.splice(start, 1);
+    a.splice(end, 0, item);
+    return a;
+  };
+
+  const reorderImages = async (p: any, fromIndex: number, toIndex: number) => {
+    const imgs = normalizedImages(p);
+    if (imgs.length === 0) return;
+    const newImages = arrayMove(imgs, fromIndex, toIndex);
+    let newCoverIndex = typeof p.coverImageIndex === 'number' ? p.coverImageIndex : 0;
+    if (fromIndex === newCoverIndex) newCoverIndex = toIndex;
+    else if (fromIndex < newCoverIndex && toIndex >= newCoverIndex) newCoverIndex -= 1;
+    else if (fromIndex > newCoverIndex && toIndex <= newCoverIndex) newCoverIndex += 1;
+    setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImages[newCoverIndex] || '', coverImageIndex: newCoverIndex } : x));
+    await updateProduct(p, { images: newImages, image: newImages[newCoverIndex] || '', coverImageIndex: newCoverIndex });
+  };
+
+  const setAsCover = async (p: any, index: number) => {
+    const imgs = normalizedImages(p);
+    const newImage = imgs[index] || '';
+    setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, image: newImage, coverImageIndex: index, images: imgs } : x));
+    await updateProduct(p, { image: newImage, coverImageIndex: index, images: imgs });
+  };
+
+  const addImageUrl = async (p: any) => {
+    const url = (newProdUrl[p.id] || '').trim();
+    if (!url) return;
+    const imgs = normalizedImages(p);
+    const newImages = [...imgs, url];
+    let coverIndex = typeof p.coverImageIndex === 'number' ? p.coverImageIndex : 0;
+    if (!p.image) coverIndex = 0;
+    setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImages[coverIndex] || '', coverImageIndex: coverIndex } : x));
+    await updateProduct(p, { images: newImages, image: newImages[coverIndex] || '', coverImageIndex: coverIndex });
+    setNewProdUrl(prev => ({ ...prev, [p.id]: '' }));
+  };
+
+  const removeImageAt = async (p: any, idx: number) => {
+    const imgs = normalizedImages(p);
+    if (idx < 0 || idx >= imgs.length) return;
+    const newImages = imgs.filter((_, i) => i !== idx);
+    let coverIndex = typeof p.coverImageIndex === 'number' ? p.coverImageIndex : 0;
+    if (idx < coverIndex) coverIndex -= 1;
+    else if (idx === coverIndex) coverIndex = 0;
+    const newImage = newImages[coverIndex] || '';
+    setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImage, coverImageIndex: coverIndex } : x));
+    await updateProduct(p, { images: newImages, image: newImage, coverImageIndex: coverIndex });
+  };
+
+  const uploadProductImageFile = async (p: any, file: File) => {
+    if (!file || !selectedUser) return;
+    setUploadingProd(prev => ({ ...prev, [p.id]: true }));
+    try {
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+      const path = `users/${selectedUser.id}/products/${p.id}/${fileId}.jpg`;
+      const storageRef = ref(storage, path);
+      await uploadBytes(storageRef, file);
+      const url = await getDownloadURL(storageRef);
+      const imgs = normalizedImages(p);
+      const newImages = [...imgs, url];
+      const coverIndex = typeof p.coverImageIndex === 'number' ? p.coverImageIndex : 0;
+      const newImage = newImages[coverIndex] || '';
+      setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImage, coverImageIndex: coverIndex } : x));
+      await updateProduct(p, { images: newImages, image: newImage, coverImageIndex: coverIndex });
+    } catch (e) {
+      // no-op
+    } finally {
+      setUploadingProd(prev => ({ ...prev, [p.id]: false }));
+    }
+  };
+
+  // Admin Impersonation (Login as user)
+  const handleLoginAsUser = async (user: User) => {
+    try {
+      // Store impersonation intent locally; your app can read this and perform server-side custom token exchange.
+      localStorage.setItem('admin_impersonate_uid', user.id);
+      localStorage.setItem('admin_impersonate_name', user.name || '');
+      showToast(`🔑 ستسجل الدخول كـ ${user.name}. افتح الواجهة العامة للمساعدة.`, 'info');
+      // Optionally navigate to client side in a new tab
+      const clientUrl = `${window.location.origin}/#/`;
+      window.open(clientUrl + '?impersonate=' + encodeURIComponent(user.id), '_blank');
+    } catch (e) {
+      console.error('Error starting impersonation:', e);
+      showToast('❌ تعذر بدء تسجيل الدخول بحساب المستخدم', 'error');
+    }
+  };
+
+  // Send password reset email
+  const handleSendPasswordReset = async (user: User) => {
+    try {
+      if (!user.email) {
+        showToast('⚠️ لا يوجد بريد إلكتروني لهذا المستخدم', 'error');
+        return;
+      }
+      // Prefer service method if available
+      if (typeof (firebaseService as any).sendPasswordReset === 'function') {
+        await (firebaseService as any).sendPasswordReset(user.email);
+      } else {
+        // Fallback to Firebase Auth if service method not present
+        const { getAuth, sendPasswordResetEmail } = await import('firebase/auth');
+        const auth = getAuth();
+        await sendPasswordResetEmail(auth, user.email);
+      }
+      showToast('📧 تم إرسال رابط إعادة تعيين كلمة المرور', 'success');
+    } catch (e) {
+      console.error('Error sending password reset:', e);
+      showToast('❌ فشل إرسال رابط إعادة التعيين', 'error');
+    }
+  };
+
+  const handleMigrateUsers = async () => {
+    setMigrating(true);
+    console.log('\n' + '='.repeat(70));
+    console.log('🚀 KHUYOOT USER SCHEMA MIGRATION V1');
+    console.log('='.repeat(70) + '\n');
+    
+    try {
+      const { Timestamp } = await import('firebase/firestore');
+      let updatedCount = 0;
+      let skippedCount = 0;
+      let errorCount = 0;
+      
+      for (const user of users) {
+        const userAny = user as any;
+        const userId = userAny.id || userAny.uid || '';
+        const isTailor = user.role === 'tailor' || user.role === 'shop' || user.role === 'boutique' || userAny.shopType;
+        
+        console.log(`\n👤 Processing: ${user.name} (${user.role}) [${userId}]`);
+        
+        const updates: any = {};
+        let needsUpdate = false;
+        const now = Timestamp.now();
+        
+        // Helper to add field
+        const addField = (field: string, value: any, log: string) => {
+          if (userAny[field] === undefined) {
+            updates[field] = value;
+            needsUpdate = true;
+            console.log(`  ➕ ${log}`);
+          }
+        };
+        
+        // System fields
+        addField('uid', userId, 'Adding uid');
+        addField('accountStatus', 
+          userAny.blockedByAdmin ? 'banned' : 
+          userAny.approvalStatus === 'approved' ? 'active' : 
+          userAny.approvalStatus === 'rejected' ? 'suspended' : 'pending_review',
+          'Adding accountStatus'
+        );
+        addField('dataVersion', 1, 'Adding dataVersion');
+        
+        // Timestamps
+        addField('createdAt', userAny.joinDate || now, 'Adding createdAt');
+        addField('updatedAt', now, 'Adding updatedAt');
+        addField('lastLoginAt', userAny.createdAt || now, 'Adding lastLoginAt');
+        
+        // Verification
+        addField('isEmailVerified', false, 'Adding isEmailVerified');
+        addField('isPhoneVerified', !!user.phone, 'Adding isPhoneVerified');
+        addField('authProvider', 'password', 'Adding authProvider');
+        addField('passwordUpdatedAt', userAny.createdAt || now, 'Adding passwordUpdatedAt');
+        
+        // Language & Notifications
+        addField('preferredLanguage', 'ar', 'Adding preferredLanguage');
+        addField('notificationPreferences', { email: true, sms: true, push: true, whatsapp: true }, 'Adding notificationPreferences');
+        
+        // Core content fields - Migrate avatar to profileImage
+        if (!userAny.profileImage && userAny.avatar) {
+          updates.profileImage = userAny.avatar;
+          needsUpdate = true;
+          console.log('  ➕ Copying avatar to profileImage');
+        } else if (!userAny.profileImage) {
+          updates.profileImage = '';
+          needsUpdate = true;
+          console.log('  ➕ Adding profileImage');
+        }
+        addField('boardImage', '', 'Adding boardImage');
+        addField('bio', '', 'Adding bio');
+        addField('loginId', user.phone || user.email || '', 'Adding loginId');
+        addField('createdByAdmin', false, 'Adding createdByAdmin');
+        addField('requirePasswordChange', false, 'Adding requirePasswordChange');
+        
+        // Location - Fix region/location inconsistency
+        if (!user.region && user.location) {
+          updates.region = user.location;
+          needsUpdate = true;
+          console.log(`  ➕ Adding region from location: ${user.location}`);
+        } else if (!user.region) {
+          updates.region = '';
+          needsUpdate = true;
+          console.log('  ➕ Adding empty region');
+        }
+        
+        addField('coordinates', { lat: 0, lng: 0 }, 'Adding coordinates');
+        addField('serviceAreas', user.region ? [user.region] : user.location ? [user.location] : [], 'Adding serviceAreas');
+        
+        // Tailor-specific fields
+        if (isTailor) {
+          addField('shopName', user.name || 'محل الخياطة', 'Adding shopName');
+          addField('services', [], 'Adding services');
+          addField('specializations', userAny.specialization ? [userAny.specialization] : [], 'Adding specializations');
+          addField('workingHours', { days: 'السبت - الخميس', from: '09:00', to: '18:00' }, 'Adding workingHours');
+          addField('deliveryAvailable', false, 'Adding deliveryAvailable');
+          addField('homeVisitAvailable', false, 'Adding homeVisitAvailable');
+          addField('verificationStatus', 
+            userAny.approvalStatus === 'approved' ? 'verified' : 
+            userAny.approvalStatus === 'pending' ? 'pending' : 
+            userAny.approvalStatus === 'rejected' ? 'rejected' : 'unverified',
+            'Adding verificationStatus'
+          );
+          addField('businessLicense', '', 'Adding businessLicense');
+          addField('verificationDocuments', [], 'Adding verificationDocuments');
+          addField('socialMedia', { instagram: '', tiktok: '', snapchat: '', website: '' }, 'Adding socialMedia');
+          addField('priceRange', { min: 0, max: 0, currency: 'SAR' }, 'Adding priceRange');
+          addField('acceptingOrders', userAny.accountStatus === 'active', 'Adding acceptingOrders');
+          addField('maxActiveOrders', 10, 'Adding maxActiveOrders');
+          addField('isVisible', userAny.approvalStatus === 'approved', 'Adding isVisible');
+          addField('experience', '', 'Adding experience');
+          addField('approvalStatus', 'approved', 'Adding approvalStatus');
+          addField('location', user.region || '', 'Adding location');
+          addField('specialization', '', 'Adding specialization');
+        }
+        
+        // Regular user fields
+        if (user.role === 'user') {
+          addField('ageGroup', '', 'Adding ageGroup');
+        }
+        
+        // Stats
+        addField('ratingAvg', userAny.rating || 0, 'Adding ratingAvg');
+        addField('ratingCount', userAny.reviewsCount || 0, 'Adding ratingCount');
+        addField('completedOrdersCount', 0, 'Adding completedOrdersCount');
+        
+        // Monetization
+        addField('subscription', { tier: 'free', expiresAt: null }, 'Adding subscription');
+        
+        // Compliance
+        addField('termsAcceptedAt', userAny.createdAt || now, 'Adding termsAcceptedAt');
+        addField('privacyAcceptedAt', userAny.createdAt || now, 'Adding privacyAcceptedAt');
+        addField('reportsCount', 0, 'Adding reportsCount');
+        addField('blockedByAdmin', false, 'Adding blockedByAdmin');
+        
+        if (needsUpdate) {
+          try {
+            await firebaseService.updateUser(user.id, updates);
+            updatedCount++;
+            console.log('  ✅ Updated successfully');
+          } catch (error) {
+            errorCount++;
+            console.error('  ❌ Error:', error);
+          }
+        } else {
+          skippedCount++;
+          console.log('  ⏭️ No updates needed');
+        }
+      }
+      
+      console.log('\n' + '='.repeat(60));
+      console.log('📈 Migration Summary:');
+      console.log('='.repeat(60));
+      console.log(`✅ Updated:  ${updatedCount} users`);
+      console.log(`⏭️ Skipped:  ${skippedCount} users`);
+      console.log(`❌ Errors:   ${errorCount} users`);
+      console.log(`📊 Total:    ${users.length} users`);
+      console.log('='.repeat(60));
+      
+      await loadUsers();
+      showToast(`✅ تم ترحيل ${updatedCount} مستخدم بنجاح!`, 'success', 5000);
+    } catch (error) {
+      console.error('💥 Migration failed:', error);
+      showToast('❌ فشل الترحيل', 'error');
+    } finally {
+      setMigrating(false);
+    }
+  };
+
+  const handleDeleteClick = (user: User) => {
+    if (user.role === 'admin') {
+      showToast('⚠️ لا يمكن حذف حساب المدير', 'error');
+      return;
+    }
+    setUserToDelete(user);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!userToDelete) return;
+    
+    setDeleting(true);
+    try {
+      await firebaseService.deleteUser(userToDelete.id);
+      
+      // Update local state
+      setUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      setFilteredUsers(prev => prev.filter(u => u.id !== userToDelete.id));
+      
+      setShowDeleteModal(false);
+      setUserToDelete(null);
+      showToast('✅ تم حذف المستخدم بنجاح', 'success');
+    } catch (error) {
+      console.error('Error deleting user:', error);
+      showToast('❌ حدث خطأ أثناء الحذف', 'error');
+    } finally {
+      setDeleting(false);
+    }
+  };
+
+  const handleUpgradeUser = async () => {
+    if (!selectedUser || !location.trim()) {
+      showToast('⚠️ الموقع مطلوب', 'error');
+      return;
+    }
+    
+    setUpgrading(true);
+    try {
+      // Update in Firebase
+      await firebaseService.upgradeUserToMerchant(selectedUser.id, {
+        shopType,
+        location: location.trim(),
+        specialization: specialization.trim(),
+        experience: experience.trim()
+      });
+      
+      // Update local state
+      setUsers(prev => 
+        prev.map(u => u.id === selectedUser.id 
+          ? { 
+              ...u, 
+              role: shopType === 'tailor' ? 'tailor' : 'shop',
+              shopType,
+              location: location.trim(),
+              specialization: specialization.trim(),
+              experience: experience.trim(),
+              approvalStatus: 'approved'
+            } 
+          : u
+        )
+      );
+      
+      setShowUpgradeModal(false);
+      setSelectedUser(null);
+      showToast('✅ تم تحويل الحساب بنجاح!', 'success');
+    } catch (error) {
+      console.error('Error upgrading user:', error);
+      showToast('❌ حدث خطأ أثناء التحويل', 'error');
+    } finally {
+      setUpgrading(false);
+    }
+  };
+
+  // =====================
+  // Debug Panel State
+  // =====================
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<{ 
+    regionsCount: number;
+    lastSent?: Partial<User>;
+    lastRole?: string;
+    lastForm?: any;
+    userAfterSave?: User;
+    lastError?: string;
+  }>({ regionsCount: 0 });
+
+  useEffect(() => {
+    setDebugInfo(prev => ({ ...prev, regionsCount: regions.length }));
+  }, [regions]);
+
+  const getShopTypeLabel = (type: string) => {
+    const types: Record<string, string> = {
+      tailor: 'خياط',
+      boutique: 'بوتيك',
+      fabric_store: 'محل أقمشة',
+      sewing_supplies: 'مستلزمات خياطة'
+    };
+    return types[type];
+  };
+
+  const getRoleLabel = (role: string) => {
+    const roles: Record<string, string> = {
+      user: 'مستخدم عادي',
+      tailor: 'تاجر/خياط',
+      admin: 'مدير',
+      shop: 'صاحب محل'
+    };
+    return roles[role] || role;
+  };
+
+  const getAgeGroupLabel = (ageGroup?: AgeGroup | string) => {
+    if (!ageGroup) return '-';
+    const groups: Record<string, string> = {
+      '18-23': '18-23 سنة',
+      '24-30': '24-30 سنة',
+      '31-40': '31-40 سنة',
+      '41-50': '41-50 سنة',
+      '50+': '50+ سنة',
+      'not_specified': 'غير محدد'
+    };
+    return groups[ageGroup] || ageGroup;
+  };
+
+  const stats = {
+    total: users.length,
+    regularUsers: users.filter(u => u.role === 'user').length,
+    merchants: users.filter(u => u.role === 'tailor' || u.role === 'shop').length,
+    admins: users.filter(u => u.role === 'admin').length
+  };
+
+  if (loading) {
+    return <div className="p-8 text-center">جاري التحميل...</div>;
+  }
+
+  return (
+    <div className="p-6 space-y-6">
+      {toast.open && (
+        <div
+          role="status"
+          aria-live="polite"
+          className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-[80] max-w-md w-full rounded-xl p-4 shadow-2xl text-sm transition-all animate-in zoom-in duration-200 ${
+            toast.type === 'success'
+              ? 'bg-emerald-600 text-white'
+              : toast.type === 'error'
+              ? 'bg-red-600 text-white'
+              : 'bg-slate-800 text-white'
+          }`}
+        >
+          <div className="flex items-start gap-3">
+            <div className="flex-1 leading-tight">{toast.message}</div>
+            <button
+              onClick={() => setToast(prev => ({ ...prev, open: false }))}
+              className="ml-2 opacity-90 hover:opacity-100 focus:outline-none"
+              aria-label="إغلاق"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+            إدارة المستخدمين
+          </h2>
+          <p className="text-slate-600 dark:text-slate-400 text-sm">
+            عرض وإدارة جميع المستخدمين وتحويل الحسابات العادية إلى حسابات تجار
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={handleMigrateUsers}
+            disabled={migrating || loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            title="إضافة الحقول المفقودة لجميع المستخدمين"
+          >
+            <RefreshCw size={18} className={migrating ? 'animate-spin' : ''} />
+            <span className="text-sm font-medium">ترحيل البيانات</span>
+          </button>
+          <button
+            onClick={loadUsers}
+            disabled={loading}
+            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+          >
+            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
+            <span className="text-sm font-medium">تحديث</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">إجمالي</p>
+              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">{stats.total}</p>
+            </div>
+            <Users size={24} className="text-blue-500" />
+          </div>
+        </div>
+
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-green-600 dark:text-green-400 font-medium uppercase tracking-wide">عاديين</p>
+              <p className="text-2xl font-bold text-green-700 dark:text-green-300 mt-0.5">{stats.regularUsers}</p>
+            </div>
+            <Users size={24} className="text-green-500" />
+          </div>
+        </div>
+
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium uppercase tracking-wide">تجار</p>
+              <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-0.5">{stats.merchants}</p>
+            </div>
+            <Store size={24} className="text-purple-500" />
+          </div>
+        </div>
+
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[10px] text-red-600 dark:text-red-400 font-medium uppercase tracking-wide">مدراء</p>
+              <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-0.5">{stats.admins}</p>
+            </div>
+            <CheckCircle2 size={24} className="text-red-500" />
+          </div>
+        </div>
+      </div>
+
+      {/* Search Bar and Role Filter */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="relative">
+          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <input
+            type="text"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            placeholder="البحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..."
+            className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+          />
+        </div>
+
+        <div className="relative">
+          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <select
+            value={roleFilter}
+            onChange={(e) => setRoleFilter(e.target.value)}
+            className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white appearance-none cursor-pointer"
+          >
+            <option value="all">جميع المستخدمين</option>
+            <option value="user">مستخدمين عاديين</option>
+            <option value="tailor">خياطين</option>
+            <option value="shop">محلات تجارية</option>
+            <option value="admin">مدراء</option>
+          </select>
+        </div>
+      </div>
+
+      {/* Users List */}
+      <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
+              <tr>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الاسم</th>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">البريد</th>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الهاتف</th>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الدور</th>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">المنطقة</th>
+                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الفئة</th>
+                <th className="text-center px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">إجراءات</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+              {filteredUsers.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
+                    {searchTerm || roleFilter !== 'all' ? 'لا توجد نتائج' : 'لا يوجد مستخدمين'}
+                  </td>
+                </tr>
+              ) : (
+                filteredUsers.map((user, idx) => (
+                  <tr
+                    key={user.id}
+                    className={
+                      `transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 ` +
+                      (idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-900')
+                    }
+                  >
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                          {user.name.charAt(0)}
+                        </div>
+                        <span className="font-medium text-slate-900 dark:text-white text-xs">{user.name}</span>
+                      </div>
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.email}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.phone || '-'}</td>
+                    <td className="px-4 py-2.5">
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
+                        user.role === 'user' 
+                          ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
+                          : user.role === 'admin'
+                          ? 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+                          : 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400'
+                      }`}>
+                        {getRoleLabel(user.role)}
+                        {user.shopType && ` (${getShopTypeLabel(user.shopType)})`}
+                      </span>
+                      
+                      {/* Pending Status Icon */}
+                      {(user.role === 'tailor' || user.role === 'shop') && user.approvalStatus === 'pending' && (
+                        <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 font-medium animate-pulse">
+                          <Clock size={10} />
+                          <span>قيد الانتظار</span>
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.region || user.location || '-'}</td>
+                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
+                      {user.role === 'user' ? getAgeGroupLabel(user.ageGroup) : '-'}
+                    </td>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center justify-end gap-2">
+                        {/* Upgrade Button (Right in RTL) */}
+                        {user.role === 'user' && (
+                          <button
+                            onClick={() => handleOpenUpgrade(user)}
+                            className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                            title="ترقية لتاجر"
+                          >
+                            <Store size={16} />
+                          </button>
+                        )}
+
+                        {/* Edit Button (Middle) */}
+                        <button
+                          onClick={() => handleOpenEdit(user)}
+                          className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                          title="تعديل البيانات"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+
+                        {/* Delete Button (Left in RTL) */}
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={() => handleDeleteClick(user)}
+                            className="p-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                            title="حذف المستخدم"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+            <tfoot>
+              <tr className="bg-slate-100 dark:bg-slate-800">
+                <td colSpan={7} className="px-4 py-2 text-xs text-slate-700 dark:text-slate-300 text-right">
+                  عرض <span className="font-semibold text-slate-900 dark:text-white">{filteredUsers.length}</span> من
+                  {' '}<span className="font-semibold text-slate-900 dark:text-white">{users.length}</span> مستخدمًا
+                </td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      </div>
+
+      {/* Debug Panel */}
+      <div className="mt-4">
+        <button
+          onClick={() => setDebugOpen(v => !v)}
+          className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-slate-50 dark:bg-slate-700 text-slate-700 dark:text-slate-200"
+        >
+          {debugOpen ? 'إخفاء لوحة التشخيص' : 'إظهار لوحة التشخيص'}
+        </button>
+        {debugOpen && (
+          <div className="mt-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-4 text-xs space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-white mb-2">📊 الحالة العامة</div>
+                <div className="space-y-1 text-slate-700 dark:text-slate-300">
+                  <div>عدد المناطق المحملة: <strong className="text-blue-600 dark:text-blue-400">{debugInfo.regionsCount}</strong></div>
+                  <div>تصفية الدور الحالية: <strong className="text-purple-600 dark:text-purple-400">{roleFilter}</strong></div>
+                  <div>عدد المستخدمين: <strong className="text-green-600 dark:text-green-400">{users.length}</strong> | بعد التصفية: <strong className="text-green-600 dark:text-green-400">{filteredUsers.length}</strong></div>
+                </div>
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-white mb-2">📤 آخر بيانات مرسلة</div>
+                <pre className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 overflow-auto max-h-32 text-[10px]">
+  {JSON.stringify({ role: debugInfo.lastRole, sent: debugInfo.lastSent, form: debugInfo.lastForm }, null, 2)}
+                </pre>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-white mb-2">✅ المستخدم بعد الحفظ (من Firestore)</div>
+                <pre className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg p-2 overflow-auto max-h-32 text-[10px]">
+  {JSON.stringify(debugInfo.userAfterSave ? { 
+    id: debugInfo.userAfterSave.id, 
+    name: debugInfo.userAfterSave.name, 
+    region: debugInfo.userAfterSave.region, 
+    ageGroup: debugInfo.userAfterSave.ageGroup 
+  } : null, null, 2)}
+                </pre>
+                {debugInfo.userAfterSave && (
+                  <div className="mt-2 space-y-0.5">
+                    <div className={debugInfo.userAfterSave.region ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                      المنطقة: {debugInfo.userAfterSave.region || '❌ غير محفوظة'}
+                    </div>
+                    <div className={debugInfo.userAfterSave.ageGroup ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}>
+                      الفئة العمرية: {debugInfo.userAfterSave.ageGroup || '❌ غير محفوظة'}
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900 dark:text-white mb-2">🔍 جميع المستخدمين (region & ageGroup)</div>
+                <pre className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2 overflow-auto max-h-32 text-[10px]">
+  {JSON.stringify(users.slice(0, 5).map(u => ({ 
+    name: u.name, 
+    region: u.region, 
+    ageGroup: u.ageGroup 
+  })), null, 2)}
+                </pre>
+                <div className="mt-1 text-slate-500 dark:text-slate-400">(أول 5 مستخدمين)</div>
+              </div>
+            </div>
+
+            {debugInfo.lastError && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg p-3">
+                <div className="font-semibold text-red-900 dark:text-red-200 mb-1">❌ آخر خطأ</div>
+                <div className="text-red-700 dark:text-red-300">{debugInfo.lastError}</div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Upgrade Modal */}
+      {showUpgradeModal && selectedUser && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowUpgradeModal(false)}
+          />
+          
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-lg rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+              تحويل حساب: {selectedUser.name}
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              قم بتعبئة المعلومات التالية لتحويل الحساب من مستخدم عادي إلى تاجر/خياط
+            </p>
+
+              <div className="space-y-4">
+              {/* Shop Type Selection */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  نوع المتجر/الخدمة
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { value: 'tailor', label: 'خياط', icon: Scissors },
+                    { value: 'boutique', label: 'بوتيك', icon: Store },
+                    { value: 'fabric_store', label: 'محل أقمشة', icon: Package },
+                    { value: 'sewing_supplies', label: 'مستلزمات', icon: Package }
+                  ].map(({ value, label, icon: Icon }) => (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setShopType(value as string)}
+                      className={`flex items-center gap-2 p-3 rounded-lg border text-sm transition-all ${
+                        shopType === value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 font-bold'
+                        : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-blue-400'
+                      }`}
+                    >
+                      <Icon size={18} />
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Location */}
+              <div>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  الموقع/المدينة
+                </label>
+                <input
+                  type="text"
+                  value={location}
+                  onChange={(e) => setLocation(e.target.value)}
+                  placeholder="مثال: الخوير، مسقط"
+                  required
+                  className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                />
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
+                  يمكنك تحديد موقع أكثر دقة من المنطقة المختارة
+                </p>
+              </div>
+
+              {/* Specialization & Experience */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    التخصص
+                  </label>
+                  <input
+                    type="text"
+                    value={specialization}
+                    onChange={(e) => setSpecialization(e.target.value)}
+                    placeholder="مثال: دشاديش"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    سنوات الخبرة
+                  </label>
+                  <input
+                    type="text"
+                    value={experience}
+                    onChange={(e) => setExperience(e.target.value)}
+                    placeholder="مثال: 10 سنوات"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white text-sm"
+                  />
+                </div>
+              </div>
+
+              {/* Info Notice */}
+              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle size={20} className="text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+                <p className="text-xs text-blue-700 dark:text-blue-300">
+                  سيتم الموافقة على الحساب تلقائياً لأنك تقوم بالتحويل من لوحة الإدارة. يمكن للتاجر البدء بإضافة منتجاته مباشرة.
+                </p>
+              </div>
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleUpgradeUser}
+                disabled={upgrading || !location}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 disabled:from-slate-400 disabled:to-slate-400 text-white rounded-lg font-medium transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 disabled:shadow-none"
+              >
+                {upgrading ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin" />
+                    جاري التحويل...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    تأكيد التحويل
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowUpgradeModal(false)}
+                disabled={upgrading}
+                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Edit User Modal */}
+      {showEditModal && selectedUser && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowEditModal(false)}
+          />
+          
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+                تعديل بيانات: {selectedUser.name}
+              </h3>
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+              قم بتحديث معلومات المستخدم ({getRoleLabel(selectedUser.role)})
+            </p>
+
+            <div className="space-y-4">
+              {/* Basic Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    الاسم <span className="text-red-500">*</span>
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: name</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+                    required
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    البريد الإلكتروني <span className="text-red-500">*</span>
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: email</span>
+                  </label>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+                    required
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+              </div>
+
+              {/* Media: Profile & Board images (URL + Upload) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    صورة الملف الشخصي (URL)
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: profileImage</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={editForm.profileImage}
+                      onChange={(e) => setEditForm({...editForm, profileImage: e.target.value})}
+                      placeholder="https://example.com/profile.jpg"
+                      className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    />
+                    <label className="px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer text-sm">
+                      رفع
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !selectedUser) return;
+                          try {
+                            // Prefer service method if available
+                            if (typeof (firebaseService as any).uploadUserImage === 'function') {
+                              // compress before upload
+                              const compressed = await imageCompression(file, { maxSizeMB: 0.2, maxWidthOrHeight: 1024, useWebWorker: true });
+                              const url = await (firebaseService as any).uploadUserImage(selectedUser.id, 'profile', compressed);
+                              setEditForm(prev => ({ ...prev, profileImage: url }));
+                              showToast('✅ تم رفع صورة الملف الشخصي', 'success');
+                            } else {
+                              const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                              const storage = getStorage();
+                              const path = `users/${selectedUser.id}/profile_${Date.now()}`;
+                              const storageRef = ref(storage, path);
+                              const compressed = await imageCompression(file, { maxSizeMB: 0.2, maxWidthOrHeight: 1024, useWebWorker: true });
+                              await uploadBytes(storageRef, compressed);
+                              const url = await getDownloadURL(storageRef);
+                              setEditForm(prev => ({ ...prev, profileImage: url }));
+                              showToast('✅ تم رفع صورة الملف الشخصي', 'success');
+                            }
+                          } catch (err) {
+                            console.error('Upload profile image error:', err);
+                            showToast('❌ فشل رفع صورة الملف الشخصي', 'error');
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {editForm.profileImage && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <img src={editForm.profileImage} alt="صورة الملف الشخصي" className="h-16 w-16 rounded-lg object-cover border" />
+                      <button
+                        type="button"
+                        onClick={() => openCropper(editForm.profileImage)}
+                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs"
+                      >
+                        قص
+                      </button>
+                    </div>
+                  )}
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    صورة الواجهة/اللوحة (URL)
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: boardImage</span>
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="url"
+                      value={editForm.boardImage}
+                      onChange={(e) => setEditForm({...editForm, boardImage: e.target.value})}
+                      placeholder="https://example.com/cover.jpg"
+                      className="flex-1 px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    />
+                    <label className="px-3 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg cursor-pointer text-sm">
+                      رفع
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file || !selectedUser) return;
+                          try {
+                            if (typeof (firebaseService as any).uploadUserImage === 'function') {
+                              const compressed = await imageCompression(file, { maxSizeMB: 0.6, maxWidthOrHeight: 1920, useWebWorker: true });
+                              const url = await (firebaseService as any).uploadUserImage(selectedUser.id, 'board', compressed);
+                              setEditForm(prev => ({ ...prev, boardImage: url }));
+                              showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
+                            } else {
+                              const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                              const storage = getStorage();
+                              const path = `users/${selectedUser.id}/board_${Date.now()}`;
+                              const storageRef = ref(storage, path);
+                              const compressed = await imageCompression(file, { maxSizeMB: 0.6, maxWidthOrHeight: 1920, useWebWorker: true });
+                              await uploadBytes(storageRef, compressed);
+                              const url = await getDownloadURL(storageRef);
+                              setEditForm(prev => ({ ...prev, boardImage: url }));
+                              showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
+                            }
+                          } catch (err) {
+                            console.error('Upload board image error:', err);
+                            showToast('❌ فشل رفع صورة الواجهة/اللوحة', 'error');
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                  {editForm.boardImage && (
+                    <div className="mt-2">
+                      <img src={editForm.boardImage} alt="صورة الواجهة/اللوحة" className="h-16 w-28 rounded-lg object-cover border" />
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    رقم الهاتف
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: phone</span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                    placeholder="مثال: +968 9999 9999"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    المنطقة/الولاية
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: region</span>
+                  </label>
+                  <select
+                    value={editForm.region}
+                    onChange={(e) => {
+                      const newRegion = e.target.value;
+                      const oldRegion = editForm.region;
+                      setEditForm({
+                        ...editForm, 
+                        region: newRegion,
+                        // تعيين الموقع تلقائياً ليكون نفس المنطقة فقط إذا كان فارغاً أو يساوي المنطقة القديمة
+                        location: (!editForm.location || editForm.location === oldRegion) ? newRegion : editForm.location
+                      });
+                    }}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  >
+                    <option value="">اختر المنطقة</option>
+                    {regions.map(region => (
+                      <option key={region.id} value={region.name}>{region.name}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Access & Security Controls */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    رقم الدخول (Login ID)
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: loginId</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.loginId}
+                    onChange={(e) => setEditForm({ ...editForm, loginId: e.target.value })}
+                    placeholder="رقم الهاتف أو البريد"
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                  <p className="text-[11px] mt-1 text-slate-500 dark:text-slate-400">نوصي باستخدام رقم الهاتف كمعرّف دخول للخياطين.</p>
+                </div>
+                <div className="flex items-center gap-2 mt-6">
+                  <input
+                    id="createdByAdmin"
+                    type="checkbox"
+                    checked={editForm.createdByAdmin}
+                    onChange={(e) => setEditForm({ ...editForm, createdByAdmin: e.target.checked })}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="createdByAdmin" className="text-sm text-slate-700 dark:text-slate-300">
+                    تم إنشاء الحساب بواسطة الإدارة
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: createdByAdmin</span>
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="flex items-center gap-2">
+                  <input
+                    id="requirePasswordChange"
+                    type="checkbox"
+                    checked={editForm.requirePasswordChange}
+                    onChange={(e) => setEditForm({ ...editForm, requirePasswordChange: e.target.checked })}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                  />
+                  <label htmlFor="requirePasswordChange" className="text-sm text-slate-700 dark:text-slate-300">
+                    طلب تغيير كلمة المرور عند أول تسجيل دخول
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: requirePasswordChange</span>
+                  </label>
+                </div>
+                <div className="text-[11px] text-slate-600 dark:text-slate-400">
+                  بعد اكتمال البروفايل نطلب منهم تغيير الباسورد بأنفسهم. يمكنك إرسال رابط إعادة التعيين من صفحة المستخدم.
+                </div>
+              </div>
+
+              {/* Age Group - Only for regular users */}
+              {selectedUser.role === 'user' && (
+                <div>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                    الفئة العمرية
+                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: ageGroup</span>
+                  </label>
+                  <select
+                    value={editForm.ageGroup}
+                    onChange={(e) => setEditForm({...editForm, ageGroup: e.target.value as AgeGroup})}
+                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  >
+                    <option value="">اختر الفئة العمرية</option>
+                    <option value="18-23">18-23 سنة</option>
+                    <option value="24-30">24-30 سنة</option>
+                    <option value="31-40">31-40 سنة</option>
+                    <option value="41-50">41-50 سنة</option>
+                    <option value="50+">50+ سنة</option>
+                    <option value="not_specified">أفضل عدم التحديد</option>
+                  </select>
+                </div>
+              )}
+
+              {/* Merchant Fields - Only for tailors/shops */}
+              {(selectedUser.role === 'tailor' || selectedUser.role === 'shop') && (
+                <>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">نوع المحل/الخدمة <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: shopType</span></label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'tailor', label: 'خياط' },
+                        { value: 'boutique', label: 'بوتيك' },
+                        { value: 'fabric_store', label: 'محل أقمشة' },
+                        { value: 'sewing_supplies', label: 'مستلزمات خياطة' }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, shopType: opt.value })}
+                          className={`px-3 py-1.5 rounded-lg text-sm border ${editForm.shopType === opt.value ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-500 text-blue-600 dark:text-blue-400 font-bold' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                      موقع المحل <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: location</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.location}
+                      onChange={(e) => setEditForm({...editForm, location: e.target.value})}
+                      placeholder="مثال: الخوير، مسقط"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">التخصص (نسائي/رجالي) <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: specialization</span></label>
+                    <div className="flex gap-2">
+                      {[
+                        { value: 'male', label: 'رجالي' },
+                        { value: 'female', label: 'نسائي' }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, specialization: opt.value })}
+                          className={`px-3 py-1.5 rounded-lg text-sm border ${editForm.specialization === opt.value ? 'bg-purple-50 dark:bg-purple-900/20 border-purple-500 text-purple-700 dark:text-purple-400 font-bold' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                      سنوات الخبرة <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: experience</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={editForm.experience}
+                      onChange={(e) => setEditForm({...editForm, experience: e.target.value})}
+                      placeholder="مثال: 10 سنوات"
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                      نبذة عن المحل <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: bio</span>
+                    </label>
+                    <textarea
+                      value={editForm.bio}
+                      onChange={(e) => setEditForm({...editForm, bio: e.target.value})}
+                      placeholder="اكتب نبذة تعريفية..."
+                      rows={3}
+                      className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white resize-none"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">حالة الحساب <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: approvalStatus</span></label>
+                    <div className="flex flex-wrap gap-2">
+                      {[
+                        { value: 'pending', label: 'قيد الانتظار' },
+                        { value: 'approved', label: 'معتمد' },
+                        { value: 'rejected', label: 'مرفوض' }
+                      ].map(opt => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setEditForm({ ...editForm, approvalStatus: opt.value })}
+                          className={`px-3 py-1.5 rounded-lg text-sm border ${editForm.approvalStatus === opt.value ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-500 text-emerald-700 dark:text-emerald-400 font-bold' : 'bg-slate-50 dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                    <p className="text-xs text-slate-500 mt-1">* يمكنك تغيير حالة الحساب يدوياً. اختر "معتمد" لتفعيل الحساب فوراً.</p>
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={editForm.isFeatured || false}
+                        onChange={(e) => setEditForm({ ...editForm, isFeatured: e.target.checked })}
+                        className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                      />
+                      <span className="text-sm font-bold text-slate-700 dark:text-slate-300">⭐ خياط معتمد (يظهر في الصفحة الرئيسية) <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: isFeatured</span></span>
+                    </label>
+                    <p className="text-xs text-slate-500 mt-1 mr-7">* الخياطون المعتمدون يظهرون في قسم "خياطين معتمدين" في الصفحة الرئيسية</p>
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Actions */}
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handleSaveEdit}
+                disabled={saving || !editForm.name || !editForm.email}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:from-slate-400 disabled:to-slate-400 text-white rounded-lg font-medium transition-all shadow-lg shadow-emerald-500/30 hover:shadow-emerald-500/50 disabled:shadow-none"
+              >
+                {saving ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin" />
+                    جاري الحفظ...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    حفظ التعديلات
+                  </>
+                )}
+              </button>
+              {selectedUser?.email && (
+                <button
+                  onClick={() => selectedUser && handleSendPasswordReset(selectedUser)}
+                  disabled={saving}
+                  className="px-4 py-2.5 bg-amber-100 hover:bg-amber-200 text-amber-700 border border-amber-200 rounded-lg font-medium transition-colors shadow-sm hover:shadow-md"
+                  title="إرسال رابط إعادة تعيين كلمة المرور"
+                >
+                  إرسال إعادة تعيين كلمة المرور
+                </button>
+              )}
+              <button
+                onClick={() => selectedUser && handleLoginAsUser(selectedUser)}
+                disabled={saving}
+                className="px-4 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-indigo-500/30 hover:shadow-indigo-500/50"
+                title="تسجيل الدخول بهذا الحساب للمساعدة"
+              >
+                تسجيل الدخول بهذا الحساب
+              </button>
+              <button
+                onClick={() => setShowEditModal(false)}
+                disabled={saving}
+                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+
+            {/* Manage Products for this shop */}
+            {(selectedUser.role === 'tailor' || selectedUser.role === 'shop' || (selectedUser as any).shopType) && (
+              <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <h4 className="font-bold text-slate-800 dark:text-white">إدارة منتجات المتجر</h4>
+                  <button
+                    onClick={async () => {
+                      const next = !showManageProducts;
+                      setShowManageProducts(next);
+                      if (next && selectedUser) {
+                        await Promise.all([
+                          loadUserProducts(selectedUser.id),
+                          productCategories.length === 0 ? loadProductCategories() : Promise.resolve()
+                        ]);
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg text-sm bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                  >
+                    {showManageProducts ? 'إخفاء' : 'عرض المنتجات'}
+                  </button>
+                </div>
+                {showManageProducts && (
+                  <div className="space-y-3">
+                    {productsLoading ? (
+                      <div className="text-sm text-slate-500">جارٍ التحميل...</div>
+                    ) : userProducts.length === 0 ? (
+                      <div className="text-sm text-slate-500">لا توجد منتجات</div>
+                    ) : (
+                      userProducts.map(p => {
+                        const imgs = normalizedImages(p);
+                        const need = needsNormalization(p);
+                        return (
+                          <div key={p.id} className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
+                            <div className="flex items-center justify-between">
+                              <div className="font-semibold text-slate-800 dark:text-white truncate max-w-[60%]" title={p.name}>{p.name || p.id}</div>
+                              <div className="text-[10px] text-slate-500">{p.id}</div>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 text-sm">
+                              <label className="flex flex-col">
+                                <span className="text-slate-500">الاسم <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: name</span></span>
+                                <input defaultValue={p.name} onBlur={(e)=>{ const v=e.target.value; if(v!==p.name) updateProduct(p, { name: v }); }} className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
+                              </label>
+                              <label className="flex flex-col">
+                                <span className="text-slate-500">السعر <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: price</span></span>
+                                <input type="number" step="0.001" defaultValue={p.price} onBlur={(e)=>{ const v=parseFloat(e.target.value||'0'); if(v!==p.price) updateProduct(p, { price: v }); }} className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
+                              </label>
+                              <label className="flex flex-col">
+                                <span className="text-slate-500">التصنيف <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: categoryId</span></span>
+                                <select
+                                  value={p.categoryId || ''}
+                                  onChange={(e)=> updateProduct(p, { categoryId: e.target.value })}
+                                  className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900"
+                                >
+                                  <option value="">— اختر التصنيف —</option>
+                                  {productCategories.map(cat => (
+                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                  ))}
+                                </select>
+                              </label>
+                            </div>
+                            <div className="flex items-center gap-3 mt-3 text-xs text-slate-600 dark:text-slate-300">
+                              <span>images: {Array.isArray(p.images)? p.images.length : 0}</span>
+                              <span>imageUrls: {Array.isArray(p.imageUrls)? p.imageUrls.length : 0}</span>
+                              <span>image: {p.image ? '✓' : '—'}</span>
+                              <span>coverIndex: {typeof p.coverImageIndex==='number' ? p.coverImageIndex : '—'}</span>
+                              {need && <span className="text-orange-600 font-bold">(بحاجة لتحويل)</span>}
+                            </div>
+                            <div className="mt-3">
+                              <div className="flex gap-2 overflow-x-auto py-1">
+                                {imgs.map((url: string, idx: number) => (
+                                  <div
+                                    key={`${p.id}_${idx}`}
+                                    className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900"
+                                    draggable
+                                    onDragStart={() => { dragRef.current = { productId: p.id, index: idx }; }}
+                                    onDragOver={(e) => e.preventDefault()}
+                                    onDrop={() => {
+                                      if (dragRef.current && dragRef.current.productId === p.id) {
+                                        reorderImages(p, dragRef.current.index, idx);
+                                      }
+                                      dragRef.current = null;
+                                    }}
+                                  >
+                                    <img src={url} alt="img" className="w-full h-full object-cover" />
+                                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
+                                      <button className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 flex items-center justify-center shadow" onClick={() => reorderImages(p, idx, Math.max(0, idx - 1))} title="يسار"><ChevronLeft size={14} /></button>
+                                      <button className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 flex items-center justify-center shadow" onClick={() => reorderImages(p, idx, Math.min(imgs.length - 1, idx + 1))} title="يمين"><ChevronR size={14} /></button>
+                                    </div>
+                                    <button className={`absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center ${p.coverImageIndex===idx ? 'bg-yellow-200 text-yellow-700' : 'bg-white/90 dark:bg-slate-800/90 text-slate-700'}`} onClick={() => setAsCover(p, idx)} title="تعيين كغلاف"><Star size={14} className={p.coverImageIndex===idx ? 'fill-yellow-500 text-yellow-500' : ''} /></button>
+                                    <button className="absolute top-1 left-1 w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 flex items-center justify-center shadow" onClick={() => removeImageAt(p, idx)} title="حذف"><X size={12} /></button>
+                                    {p.coverImageIndex===idx && (<div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">غلاف</div>)}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex items-center gap-2 mt-2">
+                                <input value={newProdUrl[p.id] || ''} onChange={(e)=> setNewProdUrl(prev => ({ ...prev, [p.id]: e.target.value }))} placeholder="رابط صورة جديد" className="flex-1 px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
+                                <button onClick={() => addImageUrl(p)} className="px-3 py-1.5 rounded bg-green-600 text-white text-sm">إضافة</button>
+                                <label className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm cursor-pointer">
+                                  <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=> { const f = e.target.files && e.target.files[0]; if (f) uploadProductImageFile(p, f); (e.currentTarget as HTMLInputElement).value=''; }} />
+                                  <span>{uploadingProd[p.id] ? 'جارٍ الرفع...' : 'رفع صورة'}</span>
+                                </label>
+                              </div>
+                            </div>
+                            <div className="mt-3 flex gap-2">
+                              <button onClick={()=>transferImages(p)} disabled={productSaving[p.id]} className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm">{productSaving[p.id] ? '...' : (need ? 'تحويل الصور للطريقة الجديدة' : 'إعادة ضبط الصور')}</button>
+                            </div>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Debug Panel for User Details */}
+            <div className="mt-6 bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl overflow-hidden">
+              <div className="flex items-center justify-between p-4">
+                <button
+                  onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                  className="flex-1 flex items-center gap-2 hover:opacity-80 transition-opacity"
+                >
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    🔍 معلومات المستخدم التفصيلية (Debug)
+                  </h4>
+                  <ChevronRight size={18} className={`text-slate-600 dark:text-slate-400 transition-transform ${debugPanelOpen ? 'rotate-90' : ''}`} />
+                </button>
+                <button
+                  onClick={async () => {
+                    if (!selectedUser) return;
+                    try {
+                      const refreshedUser = await firebaseService.getUserProfile(selectedUser.id);
+                      if (refreshedUser) {
+                        setSelectedUser(refreshedUser);
+                        showToast('✅ تم تحديث البيانات من Firestore', 'success');
+                      }
+                    } catch (error) {
+                      console.error('Refresh error:', error);
+                      showToast('❌ فشل تحديث البيانات', 'error');
+                    }
+                  }}
+                  className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-lg transition-all"
+                >
+                  🔄 تحديث من DB
+                </button>
+              </div>
+              
+              {debugPanelOpen && (
+              <div className="px-4 pb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                {/* Original User Object */}
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
+                    📦 كائن المستخدم الأصلي (selectedUser) - {Object.keys(selectedUser || {}).length} حقل
+                  </div>
+                  <pre className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 overflow-auto max-h-64 text-[9px] leading-relaxed">
+{JSON.stringify(selectedUser, null, 2)}
+                  </pre>
+                </div>
+
+                {/* Current Edit Form State */}
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
+                    📝 حالة النموذج الحالية (editForm)
+                  </div>
+                  <pre className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 overflow-auto max-h-48 text-[10px] leading-relaxed">
+{JSON.stringify(editForm, null, 2)}
+                  </pre>
+                </div>
+
+                {/* Image URLs Comparison */}
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
+                    🖼️ مقارنة روابط الصور
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-2">
+                    <div>
+                      <span className="text-blue-600 dark:text-blue-400 font-semibold">Profile Image:</span>
+                      <div className="mt-1 break-all text-[9px]">
+                        <div className="text-slate-500">Original: {(selectedUser as any)?.profileImage || '(empty)'}</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 mt-1">Form: {editForm.profileImage || '(empty)'}</div>
+                        <div className="mt-1">
+                          {(selectedUser as any)?.profileImage === editForm.profileImage ? 
+                            <span className="text-green-600">✅ متطابق</span> : 
+                            <span className="text-amber-600">⚠️ مختلف</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                    <div className="border-t border-slate-200 dark:border-slate-700 pt-2">
+                      <span className="text-purple-600 dark:text-purple-400 font-semibold">Board Image:</span>
+                      <div className="mt-1 break-all text-[9px]">
+                        <div className="text-slate-500">Original: {(selectedUser as any)?.boardImage || '(empty)'}</div>
+                        <div className="text-emerald-600 dark:text-emerald-400 mt-1">Form: {editForm.boardImage || '(empty)'}</div>
+                        <div className="mt-1">
+                          {(selectedUser as any)?.boardImage === editForm.boardImage ? 
+                            <span className="text-green-600">✅ متطابق</span> : 
+                            <span className="text-amber-600">⚠️ مختلف</span>
+                          }
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Type Information */}
+                <div>
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
+                    🏷️ معلومات النوع والحالة
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3 space-y-1 text-[10px]">
+                    <div><span className="text-slate-600 dark:text-slate-400">Role Type:</span> <span className="font-mono text-blue-600">{selectedUser?.role}</span></div>
+                    <div><span className="text-slate-600 dark:text-slate-400">Shop Type:</span> <span className="font-mono text-purple-600">{selectedUser?.shopType || 'N/A'}</span></div>
+                    <div><span className="text-slate-600 dark:text-slate-400">Approval Status:</span> <span className="font-mono text-green-600">{selectedUser?.approvalStatus || 'N/A'}</span></div>
+                    <div><span className="text-slate-600 dark:text-slate-400">Created By Admin:</span> <span className="font-mono">{(selectedUser as any)?.createdByAdmin ? '✅ Yes' : '❌ No'}</span></div>
+                    <div><span className="text-slate-600 dark:text-slate-400">Require Password Change:</span> <span className="font-mono">{(selectedUser as any)?.requirePasswordChange ? '✅ Yes' : '❌ No'}</span></div>
+                    <div className="pt-2 border-t border-slate-200 dark:border-slate-700"><span className="text-slate-600 dark:text-slate-400">User ID:</span> <span className="font-mono text-[9px] text-slate-500">{selectedUser?.id}</span></div>
+                  </div>
+                </div>
+                
+                {/* Schema V1 Fields Status */}
+                <div className="md:col-span-2">
+                  <div className="font-semibold text-slate-700 dark:text-slate-300 mb-2 flex items-center gap-1">
+                    🆕 حالة حقول Schema V1
+                  </div>
+                  <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg p-3">
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-[9px]">
+                      {(() => {
+                        const userAny = selectedUser as any;
+                        const v1Fields = [
+                          { name: 'uid', value: userAny?.uid },
+                          { name: 'accountStatus', value: userAny?.accountStatus },
+                          { name: 'dataVersion', value: userAny?.dataVersion },
+                          { name: 'isEmailVerified', value: userAny?.isEmailVerified },
+                          { name: 'isPhoneVerified', value: userAny?.isPhoneVerified },
+                          { name: 'authProvider', value: userAny?.authProvider },
+                          { name: 'preferredLanguage', value: userAny?.preferredLanguage },
+                          { name: 'notificationPreferences', value: userAny?.notificationPreferences },
+                          { name: 'coordinates', value: userAny?.coordinates },
+                          { name: 'serviceAreas', value: userAny?.serviceAreas },
+                          { name: 'shopName', value: userAny?.shopName, tailorOnly: true },
+                          { name: 'services', value: userAny?.services, tailorOnly: true },
+                          { name: 'workingHours', value: userAny?.workingHours, tailorOnly: true, checkValid: (v: any) => v && typeof v === 'object' && v.days },
+                          { name: 'verificationStatus', value: userAny?.verificationStatus, tailorOnly: true },
+                          { name: 'socialMedia', value: userAny?.socialMedia, tailorOnly: true },
+                          { name: 'priceRange', value: userAny?.priceRange, tailorOnly: true },
+                          { name: 'ratingAvg', value: userAny?.ratingAvg },
+                          { name: 'ratingCount', value: userAny?.ratingCount },
+                          { name: 'completedOrdersCount', value: userAny?.completedOrdersCount },
+                          { name: 'subscription', value: userAny?.subscription },
+                        ];
+                        
+                        const isTailor = selectedUser?.role === 'tailor' || selectedUser?.role === 'shop' || selectedUser?.role === 'boutique';
+                        
+                        return v1Fields
+                          .filter(f => !f.tailorOnly || isTailor)
+                          .map(field => {
+                            let exists = field.value !== undefined && field.value !== null;
+                            // Special validation for complex fields
+                            if (exists && field.checkValid) {
+                              exists = field.checkValid(field.value);
+                            }
+                            return (
+                              <div key={field.name} className={`px-2 py-1 rounded ${exists ? 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400' : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'}`} title={exists ? 'موجود' : `مفقود أو غير صالح: ${JSON.stringify(field.value)}`}>
+                                <span className="font-mono">{exists ? '✅' : '❌'} {field.name}</span>
+                              </div>
+                            );
+                          });
+                      })()}
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 space-y-2">
+                      <div className="text-[10px] text-slate-600 dark:text-slate-400">
+                        💡 اضغط على زر "ترحيل البيانات" أعلى الصفحة لإضافة الحقول المفقودة
+                      </div>
+                      <button
+                        onClick={async () => {
+                          if (!selectedUser) return;
+                          const userAny = selectedUser as any;
+                          const updates: any = {};
+                          
+                          // Check workingHours specifically
+                          if (!userAny.workingHours || typeof userAny.workingHours !== 'object' || !userAny.workingHours.days) {
+                            updates.workingHours = { days: 'السبت - الخميس', from: '09:00', to: '18:00' };
+                          }
+                          
+                          if (Object.keys(updates).length > 0) {
+                            try {
+                              await firebaseService.updateUser(selectedUser.id, updates);
+                              showToast('✅ تم إصلاح الحقول المفقودة', 'success');
+                              await loadUsers();
+                              setShowEditModal(false);
+                            } catch (error) {
+                              console.error('Fix error:', error);
+                              showToast('❌ فشل إصلاح الحقول', 'error');
+                            }
+                          } else {
+                            showToast('✅ جميع الحقول موجودة', 'success');
+                          }
+                        }}
+                        className="w-full px-3 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white text-[10px] rounded-lg transition-all"
+                      >
+                        🔧 إصلاح الحقول المفقودة لهذا المستخدم
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+              </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && userToDelete && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div 
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => setShowDeleteModal(false)}
+          />
+          
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                <Trash2 size={24} className="text-red-600 dark:text-red-400" />
+              </div>
+              
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+                حذف المستخدم
+              </h3>
+              
+              <p className="text-slate-600 dark:text-slate-400 mb-6">
+                هل أنت متأكد من رغبتك في حذف المستخدم <span className="font-bold text-slate-900 dark:text-white">{userToDelete.name}</span>؟
+                <br />
+                <span className="text-red-500 text-xs mt-2 block">لا يمكن التراجع عن هذا الإجراء.</span>
+              </p>
+
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={confirmDelete}
+                  disabled={deleting}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-red-500/30 hover:shadow-red-500/50 disabled:opacity-50 disabled:shadow-none"
+                >
+                  {deleting ? (
+                    <>
+                      <RefreshCw size={18} className="animate-spin" />
+                      جاري الحذف...
+                    </>
+                  ) : (
+                    <>
+                      <Trash2 size={18} />
+                      تأكيد الحذف
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowDeleteModal(false)}
+                  disabled={deleting}
+                  className="flex-1 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};

@@ -1,0 +1,271 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // --------------------------------------------
+    // Shared helpers
+    // --------------------------------------------
+    function isOwnerCreate() {
+      return request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+    function isOwnerUpdateOrDelete() {
+      return request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+    }
+    
+    // ============================================================
+    // SELF-SERVICE TAILOR REGISTRATION - NO AUTH YET
+    // Allows tailors to create accounts directly via /join-tailor
+    // ============================================================
+    
+    // Helper: Basic validation for tailor registration
+    function isValidUserDoc() {
+      let data = request.resource.data;
+      return data.role == 'tailor'
+        && data.phone is string
+        && data.phone.size() >= 8
+        && data.shopName is string
+        && data.shopName.size() >= 2
+        && data.name is string
+        && data.name.size() >= 2
+        && data.id is string
+        && data.uid is string
+        && data.createdAt is timestamp;
+    }
+    
+    // Helper: Validate product document schema
+    function isValidProductDoc() {
+      let data = request.resource.data;
+      return (data.currency == 'OMR' || data.currency == 'SAR')
+        // Support both schemas: legacy `imageUrls` and current `images`
+        && ((data.images is list && data.images.size() >= 1) || (data.imageUrls is list && data.imageUrls.size() >= 1))
+        && data.price is number
+        && data.price >= 0;
+    }
+    
+    // (Removed unused helper function for phone uniqueness to avoid warnings.)
+    
+    // ============================================================
+    // COLLECTION GROUP RULES (for subcollection queries across all users)
+    // ============================================================
+    
+    // Allow reading all products from any user's products subcollection (for home page, search, etc.)
+    match /{path=**}/products/{productId} {
+      allow read: if true;
+    }
+    
+    // ============================================================
+    // USERS COLLECTION - Self-Service Tailor Registration
+    // ============================================================
+    match /users/{userId} {
+      // Read: Allow all reads (needed for browsing tailors)
+      allow read: if true;
+      
+      // Create: Authenticated user creating their own document, OR anyone with valid tailor doc
+      allow create: if (request.auth != null && request.auth.uid == userId)
+        || (userId == request.resource.id && isValidUserDoc());
+      
+      // Update: Allow updates (will add proper auth later)
+      allow update: if true;
+      
+      // Delete: Deny
+      allow delete: if false;
+      
+      // Products subcollection
+      match /products/{productId} {
+        allow read: if true;
+        allow create, update: if exists(/databases/$(database)/documents/users/$(userId))
+          && isValidProductDoc();
+        allow delete: if exists(/databases/$(database)/documents/users/$(userId));
+      }
+      
+      // Designs subcollection
+      match /designs/{designId} {
+        allow read, write: if true;
+      }
+      
+      // Client measurements subcollection
+      match /clientMeasurements/{clientId} {
+        allow read, write: if true;
+      }
+      
+      // Measurements subcollection
+      match /measurements/{measurementId} {
+        allow read, write: if true;
+      }
+    }
+    
+    // ============================================================
+    // SYSTEM COLLECTION
+    // ============================================================
+    match /system/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // ============================================================
+    // PUBLIC COLLECTIONS - Open Read Access
+    // ============================================================
+    
+    // Settings (legacy location)
+    match /settings/{document=**} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Popular regions
+    match /popularRegions/{regionId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Reviews
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if true;
+      allow update, delete: if false;
+    }
+    
+    // Ads
+    match /ads/{adId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // Advertisements
+    match /advertisements/{adId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Categories
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Products (top-level)
+    match /products/{productId} {
+      allow read: if true;
+      allow write: if false;
+    }
+
+    // Interactions (likes, wishlist, etc.)
+    match /interactions/{docId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+    match /wishlist/{docId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+    match /likes/{docId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+
+    // Collections currently used by the app (pluralized names)
+    // Wishlists (plural)
+    match /wishlists/{docId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+
+    // Product likes (separate collection)
+    match /productLikes/{docId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+
+    // User-created product collections
+    match /collections/{collectionId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+    
+    // CollectionGroup rules for likes and wishlist
+    match /{path=**}/likes/{likeId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+    match /{path=**}/wishlist/{wishlistId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+
+    // CollectionGroup rules for pluralized wishlists and productLikes
+    match /{path=**}/wishlists/{wishlistId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+    match /{path=**}/productLikes/{likeId} {
+      allow read: if true;
+      allow create: if isOwnerCreate();
+      allow update, delete: if isOwnerUpdateOrDelete();
+    }
+
+    // Portfolios / Portfolio Items
+    match /portfolio/{itemId} {
+      allow read: if true;
+      allow write: if true;
+    }
+    match /portfolioItems/{itemId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    match /portfolios/{portfolioId} {
+      allow read: if true;
+      allow write: if false;
+    }
+    
+    // ============================================================
+    // USER-SPECIFIC COLLECTIONS
+    // ============================================================
+    
+    // Order drafts
+    match /orderDrafts/{draftId} {
+      allow read, write: if true;
+    }
+    
+    // Customizations
+    match /customizations/{customizationId} {
+      allow read, write: if true;
+    }
+    
+    // Orders
+    match /orders/{orderId} {
+      allow read, write: if true;
+    }
+    
+    // Notifications
+    match /notifications/{notificationId} {
+      allow read, write: if true;
+    }
+    
+    // ============================================================
+    // SYSTEM COLLECTIONS
+    // ============================================================
+    
+    // Analytics (future admin-only)
+    match /analytics/{document=**} {
+      allow read, write: if false;
+    }
+    
+    // ============================================================
+    // DENY ALL OTHER COLLECTIONS
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

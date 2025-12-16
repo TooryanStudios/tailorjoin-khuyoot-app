@@ -1,0 +1,111 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    
+    // ===========================================
+    // الدوال المساعدة
+    // ===========================================
+    
+    // التحقق من أن الملف صورة صالحة
+    function isValidImage() {
+      return request.resource.contentType.matches('image/.*') &&
+             request.resource.size > 0 &&
+             request.resource.size < 10 * 1024 * 1024; // حد أقصى عام 10MB
+    }
+    
+    // ===========================================
+    // قواعد عامة - القراءة متاحة للجميع
+    // ===========================================
+    match /{allPaths=**} {
+      allow read: if true;
+    }
+    
+    // ===========================================
+    // صور المنتجات
+    // ===========================================
+    // المسار: products/{tailorId}/{productId}/{size}.webp
+    // مثال: products/user123/product456/thumbnail.webp
+    
+    match /products/{tailorId}/{productId}/{image} {
+      // السماح بالكتابة فقط للخياط صاحب المنتج
+      allow write: if request.auth != null && 
+                     request.auth.uid == tailorId &&
+                     isValidImage();
+      
+      // السماح بالحذف فقط للخياط صاحب المنتج
+      allow delete: if request.auth != null && 
+                      request.auth.uid == tailorId;
+    }
+    
+    // ===========================================
+    // الأفاتار (صور المستخدمين)
+    // ===========================================
+    // المسار: avatars/{userId}.webp
+    
+    match /avatars/{userId} {
+      // السماح بالكتابة فقط لصاحب الحساب
+      allow write: if request.auth != null && 
+                     request.auth.uid == userId &&
+                     isValidImage() &&
+                     request.resource.size < 2 * 1024 * 1024; // حد أقصى 2MB
+    }
+    
+    // ===========================================
+    // صور الغلاف (للخياطين)
+    // ===========================================
+    // المسار: covers/{tailorId}.webp
+    
+    match /covers/{tailorId} {
+      // السماح بالكتابة فقط للخياط
+      allow write: if request.auth != null && 
+                     request.auth.uid == tailorId &&
+                     isValidImage() &&
+                     request.resource.size < 5 * 1024 * 1024; // حد أقصى 5MB
+    }
+    
+    // ===========================================
+    // مسار المستخدمين (انضمام الخياط) - لوحات ومتجات
+    // يستخدمه تدفق الانضمام: users/{uid}/board_[timestamp].jpg
+    // و users/{uid}/products/{productId}/{fileId}.jpg
+    // ملاحظة: يسمح بالكتابة بدون مصادقة أثناء الانضمام الأولي
+    // يُنصح بتقييد ذلك لاحقاً بعد اكتمال النظام
+
+    // مساحة المستخدم العامة (لوحة + منتجات وغيرها ضمن users/{uid}/...)
+    // تغطي الملفات مثل: users/{uid}/board_123.jpg و users/{uid}/products/{productId}/{fileId}.jpg
+    match /users/{userId}/{rest=**} {
+      allow write: if isValidImage();
+    }
+
+    // ===========================================
+    // معرض الأعمال (Portfolio)
+    // ===========================================
+    // المسار: portfolio/{tailorId}/{imageId}.webp
+    
+    match /portfolio/{tailorId}/{imageId} {
+      // السماح بالكتابة فقط للخياط
+      allow write: if request.auth != null && 
+                     request.auth.uid == tailorId &&
+                     isValidImage() &&
+                     request.resource.size < 3 * 1024 * 1024; // حد أقصى 3MB
+      
+      // السماح بالحذف فقط للخياط
+      allow delete: if request.auth != null && 
+                      request.auth.uid == tailorId;
+    }
+    
+    // ===========================================
+    // مكتبة الصور (Image Library) - للمسؤولين
+    // ===========================================
+    // المسار: imageLibrary/{categoryId}/{imageId}
+    
+    match /imageLibrary/{categoryId}/{imageId} {
+      // السماح بالكتابة للمستخدمين المصادق عليهم (سيتم التحقق من دور Admin في التطبيق)
+      allow write: if request.auth != null &&
+                     isValidImage() &&
+                     request.resource.size < 5 * 1024 * 1024; // حد أقصى 5MB
+      
+      // السماح بالحذف للمستخدمين المصادق عليهم
+      allow delete: if request.auth != null;
+    }
+  }
+}

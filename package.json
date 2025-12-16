@@ -1,0 +1,38 @@
+{
+  "name": "khuyoot---خيوط",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "migrate:regions": "tsx scripts/normalizeTailorRegions.ts",
+    "migrate:join-products": "node scripts/migrate_tailor_join_products_fix.js",
+    "migrate:join-products:admin": "node scripts/migrate_tailor_join_products_fix_admin.mjs",
+    "migrate:join-products:admin:dry": "node scripts/migrate_tailor_join_products_fix_admin.mjs --dry",
+    "typecheck": "tsc --noEmit",
+    "generate:og": "node scripts/convertOgImage.mjs"
+  },
+  "dependencies": {
+    "browser-image-compression": "^2.0.2",
+    "firebase": "^12.6.0",
+    "firebase-admin": "^13.6.0",
+    "lucide-react": "^0.555.0",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "react-helmet-async": "^2.0.5",
+    "react-router-dom": "^7.10.1"
+  },
+  "devDependencies": {
+    "@types/node": "^22.14.0",
+    "@vitejs/plugin-react": "^5.0.0",
+    "dotenv": "^17.2.3",
+    "ts-node": "^10.9.2",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.2",
+    "vite": "^6.2.0",
+    "vite-plugin-pwa": "^1.2.0",
+    "workbox-window": "^7.4.0"
+  }
+}

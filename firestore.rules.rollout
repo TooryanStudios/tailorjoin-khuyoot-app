@@ -1,0 +1,98 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============================================================
+    // EARLY ROLLOUT PHASE - NO FIREBASE AUTH YET
+    // Field agent pre-authorizes UIDs before tailor registration
+    // ============================================================
+    
+    // Helper: Check if UID is pre-authorized by field agent
+    function isAllowedUID(uid) {
+      return exists(/databases/$(database)/documents/system/allowedUids/$(uid)) &&
+             get(/databases/$(database)/documents/system/allowedUids/$(uid)).data.enabled == true;
+    }
+    
+    // Helper: Validate user document schema (61 fields)
+    function isValidUserDoc() {
+      let data = request.resource.data;
+      return data.role == 'tailor'
+        && data.loginId == data.phone
+        && data.dataVersion == 1
+        && data.createdByAdmin == false
+        && data.requirePasswordChange == false
+        && data.subscription.tier in ['free', 'basic', 'premium']
+        && data.priceRange.currency == 'OMR'
+        && data.notificationPreferences.email is bool
+        && data.notificationPreferences.sms is bool
+        && data.notificationPreferences.push is bool
+        && data.notificationPreferences.whatsapp is bool
+        && data.profileImage is string
+        && data.boardImage is string
+        && !('_accessKey' in data) // Ensure access key not stored in final doc
+        && data.accountStatus in ['active', 'suspended', 'deleted'];
+    }
+    
+    // Helper: Validate product document schema
+    function isValidProductDoc() {
+      let data = request.resource.data;
+      return data.currency == 'OMR'
+        && data.imageUrls is list
+        && data.price is number
+        && data.price >= 0
+        && !('_accessKey' in data); // Ensure access key not stored
+    }
+    
+    // ============================================================
+    // SYSTEM COLLECTION - Field Agent Management
+    // ============================================================
+    match /system/allowedUids/{uid} {
+      // SECURITY NOTE: This should be managed by Cloud Function or Admin SDK
+      // For rollout phase, deny all public access
+      // Field agent uses Firebase Console or Admin SDK to create these docs
+      allow read, write: if false;
+    }
+    
+    // ============================================================
+    // USERS COLLECTION - Pre-Authorized Tailor Registration
+    // ============================================================
+    match /users/{userId} {
+      // Read: Only if UID is pre-authorized
+      allow read: if isAllowedUID(userId);
+      
+      // Create: Only if UID is pre-authorized AND doc ID matches UID AND passes validation
+      allow create: if isAllowedUID(userId) 
+        && userId == request.resource.id
+        && isValidUserDoc();
+      
+      // Update: Only if UID is pre-authorized AND passes validation
+      allow update: if isAllowedUID(userId)
+        && isValidUserDoc();
+      
+      // Delete: Deny during rollout phase
+      allow delete: if false;
+      
+      // ============================================================
+      // PRODUCTS SUBCOLLECTION
+      // ============================================================
+      match /products/{productId} {
+        // Read: Only if parent UID is pre-authorized
+        allow read: if isAllowedUID(userId);
+        
+        // Create/Update: Only if parent UID is pre-authorized AND passes validation
+        allow create, update: if isAllowedUID(userId)
+          && isValidProductDoc();
+        
+        // Delete: Only if parent UID is pre-authorized
+        allow delete: if isAllowedUID(userId);
+      }
+    }
+    
+    // ============================================================
+    // ALL OTHER COLLECTIONS - Deny During Rollout Phase
+    // ============================================================
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8" />
+
+    <!-- مهم جداً على iOS: إضافة viewport-fit=cover -->
+    <!-- منع zoom لضمان دقة المقاسات في PWA -->
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+    />
+
+    <!-- Security Headers -->
+        <meta http-equiv="Content-Security-Policy" 
+          content="default-src 'self'; 
+           script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com; 
+           script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net;
+           style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
+           img-src 'self' data: blob: https: http:; 
+           font-src 'self' https://fonts.gstatic.com;
+           frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
+           connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com;
+           worker-src 'self' blob:;">
+    <meta http-equiv="X-Content-Type-Options" content="nosniff">
+    <meta name="referrer" content="strict-origin-when-cross-origin">
+    
+    <title>خيوط - Khuyoot | منصة تفصيل الملابس</title>
+    
+    <!-- Canonical URL -->
+    <link rel="canonical" href="https://www.khuyoot.app/" />
+    
+    <!-- SEO & Social Media Meta Tags -->
+    <meta name="description" content="منصة خيوط تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب بجودة عالية وأسعار منافسة">
+    <meta name="keywords" content="خياطة, تفصيل, ملابس, خياط, مصمم أزياء, خيوط, عمان">
+    <meta name="author" content="Khuyoot">
+    
+    <!-- Open Graph / Facebook -->
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://www.khuyoot.app/">
+    <meta property="og:title" content="خيوط - Khuyoot | منصة تفصيل الملابس">
+    <meta property="og:description" content="منصة تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب">
+    <meta property="og:image" content="https://www.khuyoot.app/og/khuyoot-og.jpg">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:site_name" content="خيوط - Khuyoot">
+    <meta property="og:locale" content="ar_OM">
+    
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:site" content="@khuyoot_app">
+    <meta name="twitter:url" content="https://www.khuyoot.app/">
+    <meta name="twitter:title" content="خيوط - Khuyoot | منصة تفصيل الملابس">
+    <meta name="twitter:description" content="منصة تربط العملاء بأفضل الخياطين والمصممين لتفصيل الملابس حسب الطلب">
+    <meta name="twitter:image" content="https://www.khuyoot.app/og/khuyoot-og.jpg">
+        <!-- HashRouter compatibility: redirect clean paths to hash-based routes -->
+        <script>
+          (function() {
+            try {
+              var hasHashRoute = location.hash && location.hash.indexOf('#/') === 0;
+              var path = location.pathname || '/';
+              // If user navigates to /join-tailor (no hash) and we use HashRouter, rewrite to /#/join-tailor
+              if (!hasHashRoute && path !== '/') {
+                var newUrl = location.origin + '/#' + path + (location.search || '') + (location.hash || '');
+                location.replace(newUrl);
+              }
+            } catch (e) {
+              // no-op
+            }
+          })();
+        </script>
+    
+    <!-- WhatsApp -->
+    <meta property="og:image:alt" content="خيوط - منصة تفصيل الملابس">
+
+    <!-- DEV: Forcefully remove any active Service Workers and manifest to prevent Workbox from intercepting Vite dev requests -->
+    <script>
+      (function() {
+        const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+        if (isDev) {
+          if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistrations().then(rs => rs.forEach(r => r.unregister()));
+            if ('caches' in window) {
+              caches.keys().then(names => names.forEach(n => caches.delete(n)));
+            }
+          }
+          // Remove manifest link in development to avoid unnecessary requests
+          const manifestLink = document.querySelector('link[rel="manifest"]');
+          if (manifestLink) manifestLink.remove();
+        }
+      })();
+    </script>
+
+    <!-- Suppress Tailwind CDN warning in console -->
+    <script>
+      if (typeof window !== 'undefined') {
+        const originalWarn = console.warn;
+        console.warn = function(...args) {
+          if (args[0]?.includes?.('cdn.tailwindcss.com should not be used in production')) {
+            return; // Suppress this specific warning
+          }
+          originalWarn.apply(console, args);
+        };
+      }
+    </script>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
+
+    <script>
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              brand: {
+                dark: '#050817',
+                primary: '#3b82f6',
+                accent: '#fbbf24',
+                surface: '#1e293b'
+              }
+            },
+            fontFamily: {
+              sans: ['Cairo', 'sans-serif'],
+            }
+          }
+        }
+      }
+    </script>
+
+    <style>
+      /* تثبيت الحجم ومنع السحب خارج الشاشة */
+      html, body {
+        margin: 0;
+        padding: 0;
+        height: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        background-color: #f8fafc;
+      }
+
+      body {
+        font-family: 'Cairo', sans-serif;
+        color: #0f172a;
+        transition: background-color 0.3s ease, color 0.3s ease;
+        overscroll-behavior-x: none; /* لتخفيف السحب الأفقي */
+      }
+
+      /* الجذر يأخذ ارتفاع الشاشة بالكامل حتى لا يكون في فراغ حوله */
+      #root {
+        min-height: 100vh;
+        background-color: #f8fafc;
+      }
+      
+      /* Dark mode overrides (في حال استخدمت html.classList.add('dark')) */
+      .dark body {
+        background-color: #050817;
+        color: #f8fafc;
+      }
+
+      /* Hide scrollbar for chrome/safari/opera */
+      .no-scrollbar::-webkit-scrollbar {
+        display: none;
+      }
+      /* Hide scrollbar for IE, Edge and Firefox */
+      .no-scrollbar {
+        -ms-overflow-style: none;  /* IE and Edge */
+        scrollbar-width: none;  /* Firefox */
+      }
+
+      /* Fade in animation */
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateY(-10px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-fadeIn {
+        animation: fadeIn 0.3s ease-out;
+      }
+
+      /* Fade in animation for labels */
+      @keyframes fade-in {
+        from {
+          opacity: 0;
+          transform: scale(0.95);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.2s ease-out;
+      }
+
+      /* Gradient animation */
+      @keyframes gradient-x {
+        0%, 100% {
+          background-position: 0% 50%;
+        }
+        50% {
+          background-position: 100% 50%;
+        }
+      }
+      .animate-gradient-x {
+        background-size: 200% 200%;
+        animation: gradient-x 3s ease infinite;
+      }
+
+      /* Pulse animation for icons */
+      @keyframes pulse-icon {
+        0%, 100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+        50% {
+          opacity: 0.8;
+          transform: scale(1.1);
+        }
+      }
+      .animate-pulse-icon {
+        animation: pulse-icon 2s ease-in-out infinite;
+      }
+      
+      /* Scale in animation for modals */
+      @keyframes scale-in {
+        0% {
+          opacity: 0;
+          transform: scale(0.9);
+        }
+        100% {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+      .animate-scale-in {
+        animation: scale-in 0.2s ease-out;
+      }
+
+      @keyframes slide-up {
+        0% {
+          opacity: 0;
+          transform: translateY(100%);
+        }
+        100% {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+      .animate-slide-up {
+        animation: slide-up 0.3s ease-out;
+      }
+
+      @keyframes fade-in {
+        0% {
+          opacity: 0;
+        }
+        100% {
+          opacity: 1;
+        }
+      }
+      .animate-fade-in {
+        animation: fade-in 0.2s ease-out;
+      }
+
+      /* Better mobile scrolling */
+      @media (max-width: 768px) {
+        * {
+          -webkit-tap-highlight-color: transparent;
+        }
+        
+        input, textarea, button {
+          -webkit-appearance: none;
+          appearance: none;
+        }
+      }
+    </style>
+
+    <script type="importmap">
+    {
+      "imports": {
+        "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.1/",
+        "react-router-dom": "https://aistudiocdn.com/react-router-dom@^7.10.1",
+        "react/": "https://aistudiocdn.com/react@^19.2.1/",
+        "react": "https://aistudiocdn.com/react@^19.2.1",
+        "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
+        "firebase/app": "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js",
+        "firebase/auth": "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js",
+        "firebase/firestore": "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js",
+        "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/"
+      }
+    }
+    </script>
+
+    <link rel="stylesheet" href="/index.css">
+
+    <!-- ميتاداتا و أيقونة الـ PWA يجب أن تكون داخل الـ head -->
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="خيوط">
+    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="manifest" href="/manifest.webmanifest">
+  </head>
+
+  <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
+    <div id="root"></div>
+
+    <script type="module" src="/index.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,523 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper Functions
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+    
+    function isAdmin() {
+      return isAuthenticated() && getUserRole() == 'admin';
+    }
+    
+    // Users Collection
+    match /users/{userId} {
+      // القراءة:
+      // - صاحب الحساب يقرأ حسابه
+      // - Admin يقرأ الجميع
+      // الجمهور يمكنه قراءة حسابات الخياطين والمحلات الموافق عليهم لعرضهم في الواجهة
+      // DEBUG: Allow read for all to debug user list
+      allow read: if true;
+      
+      // يمكن إنشاء حساب جديد عند التسجيل
+      allow create: if isAuthenticated();
+      
+      // يمكن للمستخدم تحديث بياناته (ماعدا الدور) أو للآدمن تحديث أي مستخدم
+      // إزالة شرط مطابقة الحقل id لتجنب فشل التحديث عندما لا يكون موجودًا في الوثيقة
+      allow update: if isAdmin()
+                    || (isOwner(userId)
+                        && request.resource.data.role == resource.data.role);
+      
+      // Admin فقط يمكنه حذف المستخدمين
+      allow delete: if isAdmin();
+    }
+
+    // User Designs Subcollection
+    // Allows each authenticated user to manage their own designs under their user document
+    match /users/{userId}/designs/{designId} {
+      // Read/write only by the owner; admins can also read
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId) && request.resource.data.userId == userId;
+      allow update: if isOwner(userId) && resource.data.userId == userId;
+      allow delete: if isOwner(userId) && resource.data.userId == userId;
+    }
+    
+    // Products Collection
+    match /products/{productId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط الخياطين والبوتيكات والمحلات يمكنهم إضافة منتجات
+      allow create: if isAuthenticated() 
+                    && (getUserRole() == 'tailor' 
+                    || getUserRole() == 'boutique' 
+                    || getUserRole() == 'shop');
+      
+      // فقط صاحب المنتج أو Admin يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && (resource.data.tailorId == request.auth.uid || isAdmin());
+      
+      // فقط صاحب المنتج أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.tailorId == request.auth.uid || isAdmin());
+    }
+    
+    // Orders Collection
+    match /orders/{orderId} {
+      // فقط العميل أو الخياط المعني أو Admin يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && (resource.data.customerId == request.auth.uid 
+                  || resource.data.tailorId == request.auth.uid 
+                  || isAdmin());
+      
+      // يمكن للمستخدمين المسجلين إنشاء طلب
+      allow create: if isAuthenticated();
+      
+      // فقط العميل أو الخياط يمكنه تحديث الطلب
+      allow update: if isAuthenticated() 
+                    && (resource.data.customerId == request.auth.uid 
+                    || resource.data.tailorId == request.auth.uid 
+                    || isAdmin());
+      
+      // فقط Admin أو العميل (قبل الموافقة) يمكنه حذف الطلب
+      allow delete: if isAdmin() 
+                    || (isAuthenticated() 
+                    && resource.data.customerId == request.auth.uid 
+                    && !resource.data.acceptedByTailor);
+    }
+    
+    // Tailors/Shops Collection (معلومات المحلات والخياطين)
+    match /shops/{shopId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط المالك أو Admin يمكنه إنشاء/تحديث
+      allow create, update: if isOwner(shopId) || isAdmin();
+      
+      // فقط Admin يمكنه الحذف
+      allow delete: if isAdmin();
+    }
+    
+    // Reviews Collection
+    match /reviews/{reviewId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط المستخدمين المسجلين يمكنهم كتابة مراجعة
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب المراجعة أو Admin يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // فقط صاحب المراجعة أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+    
+    // Notifications Collection
+    match /notifications/{notificationId} {
+      // فقط صاحب الإشعار يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && resource.data.userId == request.auth.uid;
+      
+      // يمكن إنشاء إشعار للمستخدم نفسه أو من النظام
+      allow create: if isAuthenticated();
+      
+      // فقط صاحب الإشعار يمكنه تحديثه (مثلاً لتحديد أنه قرأه)
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب الإشعار يمكنه حذفه
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // App Settings (Admin Only)
+    match /settings/{settingId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط Admin يمكنه التعديل
+      allow write: if isAdmin();
+    }
+    
+    // System Settings
+    match /system/{document} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط Admin يمكنه التعديل
+      allow write: if isAdmin();
+    }
+    
+    // Popular Regions
+    match /popularRegions/{regionId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط Admin يمكنه التعديل
+      allow write: if isAdmin();
+    }
+    
+    // Admin Collections
+    match /admin/{document=**} {
+      // فقط Admin يمكنه الوصول
+      allow read, write: if isAdmin();
+    }
+    
+    // ===========================================
+    // معرض الأعمال (Portfolio)
+    // ===========================================
+    match /portfolio/{itemId} {
+      // الجميع يمكنهم المشاهدة
+      allow read: if true;
+      
+      // فقط صاحب المعرض يمكنه الإضافة
+      allow create: if isAuthenticated() 
+                    && request.resource.data.ownerId == request.auth.uid;
+      
+      // فقط صاحب العنصر يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.ownerId == request.auth.uid;
+      
+      // فقط صاحب العنصر أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.ownerId == request.auth.uid || isAdmin());
+    }
+    
+    // ===========================================
+    // قوائم الأمنيات (Wishlists)
+    // ===========================================
+    match /wishlists/{wishlistId} {
+      // فقط صاحب القائمة يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && resource.data.userId == request.auth.uid;
+      
+      // فقط المستخدم يمكنه إضافة لقائمته
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب القائمة يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // ===========================================
+    // المجموعات (Collections)
+    // ===========================================
+    match /collections/{collectionId} {
+      // الجميع يمكنهم قراءة المجموعات العامة، صاحب المجموعة يقرأ مجموعاته الخاصة
+      allow read: if resource.data.isPublic == true 
+                  || (isAuthenticated() && resource.data.userId == request.auth.uid);
+      
+      // فقط المستخدم يمكنه إنشاء مجموعة
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب المجموعة يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب المجموعة يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // ===========================================
+    // الإعجابات (Product Likes)
+    // ===========================================
+    match /productLikes/{likeId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط المستخدم يمكنه إضافة إعجاب
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب الإعجاب يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // ===========================================
+    // الأقمشة والمواد (Fabric Materials)
+    // ===========================================
+    match /fabrics/{fabricId} {
+      // الجميع يمكنهم القراءة
+      allow read: if true;
+      
+      // فقط المحلات يمكنها إضافة أقمشة
+      allow create: if isAuthenticated() 
+                    && getUserRole() == 'shop'
+                    && request.resource.data.tailorId == request.auth.uid;
+      
+      // فقط صاحب القماش يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.tailorId == request.auth.uid;
+      
+      // فقط صاحب القماش أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.tailorId == request.auth.uid || isAdmin());
+    }
+    
+    // ===========================================
+    // القياسات (Measurements)
+    // ===========================================
+    match /measurements/{measurementId} {
+      // فقط صاحب القياس أو Admin يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // فقط المستخدم يمكنه إضافة قياساته
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب القياس يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب القياس يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // Advertisements Collection
+    match /advertisements/{adId} {
+      // الجميع يمكنهم قراءة الإعلانات
+      allow read: if true;
+      
+      // فقط Admin يمكنه إضافة إعلانات
+      allow create: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل الإعلانات
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف الإعلانات
+      allow delete: if isAdmin();
+    }
+    
+    // Financial Collections
+    
+    // Transactions Collection
+    match /transactions/{transactionId} {
+      // فقط Admin يمكنه قراءة جميع المعاملات
+      allow read: if isAdmin() 
+        || isOwner(resource.data.fromUserId) 
+        || isOwner(resource.data.toUserId);
+      
+      // فقط Admin يمكنه إنشاء معاملات
+      allow create: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل المعاملات
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف المعاملات
+      allow delete: if isAdmin();
+    }
+    
+    // Balances Collection
+    match /balances/{userId} {
+      // المستخدم يمكنه قراءة رصيده أو Admin يقرأ الجميع
+      allow read: if isOwner(userId) || isAdmin();
+      
+      // فقط Admin يمكنه تعديل الأرصدة
+      allow write: if isAdmin();
+    }
+    
+    // Withdrawal Requests Collection
+    match /withdrawal_requests/{requestId} {
+      // المستخدم يمكنه قراءة طلباته أو Admin يقرأ الجميع
+      allow read: if isAdmin() || isOwner(resource.data.userId);
+      
+      // المستخدم يمكنه إنشاء طلب سحب
+      allow create: if isAuthenticated() && request.auth.uid == request.resource.data.userId;
+      
+      // فقط Admin يمكنه تعديل الطلبات (الموافقة/الرفض)
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف الطلبات
+      allow delete: if isAdmin();
+    }
+    
+    // Financial Reports Collection
+    match /financial_reports/{reportId} {
+      // فقط Admin يمكنه قراءة التقارير
+      allow read: if isAdmin();
+      
+      // فقط Admin يمكنه إنشاء التقارير
+      allow create: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل التقارير
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف التقارير
+      allow delete: if isAdmin();
+    }
+    
+    // Financial Settings
+    match /settings/financial {
+      // فقط Admin يمكنه قراءة الإعدادات المالية
+      allow read: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل الإعدادات
+      allow write: if isAdmin();
+    }
+    
+    // Designer Feature Collections
+    
+    // Design Recommendations Collection
+    match /design_recommendations/{recId} {
+      // الجميع يمكنهم قراءة التوصيات النشطة
+      allow read: if true;
+      
+      // فقط Admin يمكنه إنشاء توصيات يدوية
+      allow create: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل التوصيات
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف التوصيات
+      allow delete: if isAdmin();
+    }
+    
+    // Design Analytics Collection
+    match /design_analytics/{eventId} {
+      // فقط Admin يمكنه قراءة التحليلات
+      allow read: if isAdmin();
+      
+      // المستخدمون المسجلون يمكنهم تسجيل أحداث التصميم
+      allow create: if isAuthenticated();
+      
+      // لا يمكن تعديل أو حذف الأحداث
+      allow update, delete: if false;
+    }
+    
+    // User Designs Collection
+    match /user_designs/{designId} {
+      // المستخدم يمكنه قراءة تصاميمه أو Admin يقرأ الجميع
+      allow read: if isAuthenticated() 
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // المستخدم يمكنه إنشاء تصميم جديد
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // المستخدم يمكنه تعديل تصاميمه
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // المستخدم يمكنه حذف تصاميمه
+      allow delete: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+    }
+    
+    // Design Options Collection (for fabric and embroidery options)
+    match /design_options/{optionId} {
+      // الجميع يمكنهم قراءة الخيارات
+      allow read: if true;
+      
+      // فقط Admin يمكنه إضافة خيارات
+      allow create: if isAdmin();
+      
+      // فقط Admin يمكنه تعديل الخيارات
+      allow update: if isAdmin();
+      
+      // فقط Admin يمكنه حذف الخيارات
+      allow delete: if isAdmin();
+    }
+
+    // Measurement Templates (designer garment types and templates)
+    match /measurementTemplates/{templateId} {
+      // السماح بالقراءة للمستخدمين المسجلين
+      allow read: if isAuthenticated();
+
+      // السماح بالكتابة للآدمن فقط
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Admin: Product Categories used by admin products management
+    match /productCategories/{categoryId} {
+      // القراءة متاحة للجميع لعرض الفئات في التطبيق
+      allow read: if true;
+      // الكتابة فقط للآدمن عبر لوحة الإدارة
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Admin: Product Templates used by admin products management
+    match /productTemplates/{templateId} {
+      // القراءة متاحة للجميع
+      allow read: if true;
+      // الكتابة فقط للآدمن
+      allow create, update, delete: if isAdmin();
+    }
+
+    // Image Library: allow READ for authenticated users (designer page), WRITE remains admin-only
+    match /imageLibraryCategories/{docId} {
+      // القراءة للمستخدمين المصادقين
+      allow read: if request.auth != null;
+      // الكتابة للآدمن فقط
+      allow create, update, delete: if isAdmin();
+    }
+
+    match /imageLibraryItems/{docId} {
+      // القراءة للمستخدمين المصادقين
+      allow read: if request.auth != null;
+      // الكتابة للآدمن فقط
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ===========================================
+    // التخصيصات (Customizations)
+    // ===========================================
+    match /customizations/{customizationId} {
+      // فقط صاحب التخصيص أو Admin يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // فقط المستخدم يمكنه إنشاء تخصيص
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب التخصيص يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب التخصيص أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
+    // ===========================================
+    // مسودات الطلبات (Order Drafts)
+    // ===========================================
+    match /orderDrafts/{draftId} {
+      // فقط صاحب المسودة أو Admin يمكنه القراءة
+      allow read: if isAuthenticated() 
+                  && (resource.data.userId == request.auth.uid || isAdmin());
+      
+      // فقط المستخدم يمكنه إنشاء مسودة
+      allow create: if isAuthenticated() 
+                    && request.resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب المسودة يمكنه التعديل
+      allow update: if isAuthenticated() 
+                    && resource.data.userId == request.auth.uid;
+      
+      // فقط صاحب المسودة أو Admin يمكنه الحذف
+      allow delete: if isAuthenticated() 
+                    && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+  }
+}
+
