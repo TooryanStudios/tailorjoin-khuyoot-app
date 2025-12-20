@@ -2,9 +2,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Product } from '../types';
-import { Star, ShoppingBag, MapPin, Clock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
+import { Star, ShoppingBag, MapPin, Clock, ChevronLeft, ChevronRight, Loader2, Trash2 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import ProductActions from './ProductActions';
+import { firebaseService } from '../services/firebase';
 
 interface ProductCardProps {
   product: Product;
@@ -13,14 +14,44 @@ interface ProductCardProps {
   showLegacyBadge?: boolean; // عرض شارة الصور القديمة (للاستخدام في الصفحة الرئيسية)
   legacyBadgeText?: string; // نص الشارة
   legacyBadgeClassName?: string; // فئة الألوان للشارة
+  onDelete?: () => void; // callback when product is deleted
 }
 
-export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid', isOwner = false, showLegacyBadge = false, legacyBadgeText = 'صورة قديمة', legacyBadgeClassName = 'bg-amber-600/90' }) => {
+export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'grid', isOwner = false, showLegacyBadge = false, legacyBadgeText = 'صورة قديمة', legacyBadgeClassName = 'bg-amber-600/90', onDelete }) => {
   const { addToCart, user } = useApp();
   const navigate = useNavigate();
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageLoaded, setImageLoaded] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  // Check if this is an old product (from root products collection)
+  // This flag is set by the backend when fetching products
+  const isOldProduct = React.useMemo(() => {
+    const anyProduct = product as any;
+    return anyProduct._isOldStructure === true;
+  }, [product]);
+
+  const handleDeleteOldProduct = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    if (!confirm('هل أنت متأكد من حذف هذا المنتج من النظام القديم؟')) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await firebaseService.deleteOldProduct(product.id);
+      alert('تم حذف المنتج بنجاح');
+      if (onDelete) onDelete();
+    } catch (error) {
+      console.error('Error deleting old product:', error);
+      alert('فشل حذف المنتج: ' + (error as Error).message);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   // Get all product images - simplified
   const productImages = React.useMemo(() => {
@@ -210,6 +241,22 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
           <Star size={12} className="text-yellow-400 fill-yellow-400" />
           <span className="text-xs text-white font-medium">{product.rating}</span>
         </div>
+
+        {/* Delete button for old products (admin only) */}
+        {user?.role === 'admin' && isOldProduct && (
+          <button
+            onClick={handleDeleteOldProduct}
+            disabled={deleting}
+            className="absolute bottom-2 left-2 w-8 h-8 bg-red-600/90 hover:bg-red-700 backdrop-blur-md rounded-full flex items-center justify-center transition-all z-10 disabled:opacity-50"
+            title="حذف المنتج القديم"
+          >
+            {deleting ? (
+              <Loader2 size={14} className="text-white animate-spin" />
+            ) : (
+              <Trash2 size={14} className="text-white" />
+            )}
+          </button>
+        )}
 
         {/* Image Counter Badge */}
         {productImages.length > 1 && (

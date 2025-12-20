@@ -14,6 +14,8 @@ export interface PersistedDesign {
   fabricSettings: any;
   selections: Record<string, { id: string; name: string; price?: number; thumbnailUrl: string } | null>;
   generatedImage: string | null;
+  tryOnJobId?: string | null;
+  tryOnResultUrl?: string | null;
   createdAt: number;
   updatedAt: number;
 }

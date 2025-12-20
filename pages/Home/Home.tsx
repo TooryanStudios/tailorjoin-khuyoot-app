@@ -45,7 +45,7 @@ export const Home = () => {
   const { user, appSettings, settingsLoaded } = useApp();
   const { showInstallButton, isInstalled, promptInstall } = usePWAInstall();
 
-  console.log('🏠 Home rendering, user:', user?.name, 'role:', user?.role);
+  // Debug rendering log removed
 
   useEffect(() => {
     firebaseService.getProducts(activeCategory).then(setProducts);

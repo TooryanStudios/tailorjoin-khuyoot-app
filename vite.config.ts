@@ -6,11 +6,18 @@ import { VitePWA } from 'vite-plugin-pwa';
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isProduction = mode === 'production';
+    const tryOnApiPort = env.TRYON_API_PORT || '8787';
     
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        proxy: {
+          '/api': {
+            target: `http://localhost:${tryOnApiPort}`,
+            changeOrigin: true,
+          }
+        }
       },
       plugins: [
         react(),
@@ -110,8 +117,7 @@ export default defineConfig(({ mode }) => {
       },
       
       define: {
-        'process.env.API_KEY': JSON.stringify(env.GEMINI_API_KEY),
-        'process.env.GEMINI_API_KEY': JSON.stringify(env.GEMINI_API_KEY)
+        // Never inject any AI keys into the client bundle.
       },
       resolve: {
         alias: {

@@ -12,14 +12,7 @@ export interface DefaultImageOption {
 // دالة للحصول على الصور من Firebase حسب الفئة
 export async function getDefaultImagesForCategory(category: string): Promise<DefaultImageOption[]> {
   try {
-    console.log('🔍 [defaultImages.ts] طلب صور للقسم:', category);
     const images = await getImagesByCategoryName(category);
-    console.log('📸 [defaultImages.ts] عدد الصور المستلمة:', images.length);
-    
-    if (images.length > 0) {
-      console.log('🖼️ [defaultImages.ts] أول صورة:', images[0]);
-    }
-    
     return images.map(img => ({
       id: img.id,
       url: img.imageUrl,

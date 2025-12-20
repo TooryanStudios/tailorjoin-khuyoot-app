@@ -1,3 +1,7 @@
+
+// Designer V2
+
+
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, Upload, Wand2, Check, Share2, ZoomIn, Shirt, Layers, User, ShoppingCart, ChevronLeft, ChevronRight, X, RotateCcw, Save, Heart, Palette, Store, Search, Image as ImageIcon, Link as LinkIcon, Pencil, ChevronDown, HelpCircle } from 'lucide-react';
@@ -12,6 +16,7 @@ import { ImageLibraryPicker } from '../components/ImageLibraryPicker';
 import { getImageCategories } from '../services/imageLibraryService';
 import { firebaseService } from '../services/firebase';
 import { useOnlineStatus } from '../utils/useOnlineStatus';
+import { TryFabricPanel } from '../src/designer/components/TryFabricPanel';
 
 // ... (KEEP ALL INTERFACES, TYPES, AND MOCK DATA EXACTLY THE SAME)
 // Types for design data persistence
@@ -215,6 +220,9 @@ export const DesignerV2 = () => {
   const [womenRootId, setWomenRootId] = useState<string | null>(null);
   const [womenLevel1, setWomenLevel1] = useState<any[]>([]);
   const [showMyDesigns, setShowMyDesigns] = useState<boolean>(false);
+  const [lastTryOnJobId, setLastTryOnJobId] = useState<string | null>(null);
+  const [lastTryOnResultUrl, setLastTryOnResultUrl] = useState<string | null>(null);
+  const tryFabricSectionRef = React.useRef<HTMLDivElement | null>(null);
   
   // Logic hooks (same as before)
   const garmentTypes = React.useMemo(() => {
@@ -488,7 +496,7 @@ export const DesignerV2 = () => {
       setCurrentDesignId(id);
       navigate(`/designer/${id}${buildQuery()}`);
     }
-    const payload: PersistedDesign = { id: id, userId: user.id, selectedTemplate, fabricSource, khuyoot: khuyootSel || null, shops: shopsSel || null, upload: uploadSel || null, fabricId: selectedFabricId, fabricImage, fabricSettings, selections: selections as any, generatedImage, createdAt: Date.now(), updatedAt: Date.now() };
+    const payload: PersistedDesign = { id: id, userId: user.id, selectedTemplate, fabricSource, khuyoot: khuyootSel || null, shops: shopsSel || null, upload: uploadSel || null, fabricId: selectedFabricId, fabricImage, fabricSettings, selections: selections as any, generatedImage, tryOnJobId: lastTryOnJobId || null, tryOnResultUrl: lastTryOnResultUrl || null, createdAt: Date.now(), updatedAt: Date.now() };
     await designService.saveDesign(payload);
     await trackDesignEvent(user.id, 'design_saved', id, selectedFabricId || undefined, Object.values(selections).filter((o): o is DesignOption => o !== null).map(o => o.id));
     showToast('✅ تم حفظ التصميم بنجاح!', 'success');
@@ -518,7 +526,9 @@ export const DesignerV2 = () => {
   const currentTemplate = TEMPLATES.find(t => t.id === selectedTemplate);
 
   return (
-    <div className="flex flex-col h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-50 font-sans overflow-hidden">
+    // NOTE: Keep the parent page as the ONLY scroll container.
+    // Avoid `h-screen` / `overflow-auto` wrappers here to prevent double-scroll + scroll chaining.
+    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-50 font-sans">
       
       {/* --- HEADER --- */}
       <header className="h-16 flex-none bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-slate-200 dark:border-slate-800 flex items-center justify-between px-6 z-50">
@@ -551,6 +561,18 @@ export const DesignerV2 = () => {
            <Button variant="ghost" size="sm" onClick={() => setShowMyDesigns(true)} className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-300">
              <Layers size={18} />
            </Button>
+
+           <Button
+             variant="ghost"
+             size="sm"
+             onClick={() => tryFabricSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+             className="text-slate-500 hover:text-slate-800 dark:hover:text-slate-300"
+             title="Try Fabric"
+           >
+             <Wand2 size={18} />
+             <span className="hidden md:inline text-xs font-bold">Try Fabric</span>
+           </Button>
+
            <Button onClick={handleSaveDesign} className="rounded-full px-5 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-105 transition-transform">
              <span className="text-xs font-bold">حفظ</span>
            </Button>
@@ -558,10 +580,10 @@ export const DesignerV2 = () => {
       </header>
 
       {/* --- MAIN LAYOUT (SPLIT SCREEN) --- */}
-      <div className="flex-1 flex flex-col lg:flex-row overflow-auto lg:overflow-hidden relative">
+      <div className="flex flex-col lg:flex-row relative">
         
-        {/* LEFT: SCROLLABLE CONTROLS (THE "ATELIER" SIDE) */}
-        <div className="order-1 lg:order-1 w-full lg:w-[420px] xl:w-[480px] h-auto lg:h-full overflow-visible lg:overflow-y-auto bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-10 shadow-xl shadow-slate-200/20 dark:shadow-none pb-6 lg:pb-0">
+        {/* LEFT: CONTROLS (no internal scroll; page scrolls instead) */}
+        <div className="order-1 lg:order-1 w-full lg:w-[420px] xl:w-[480px] h-auto overflow-visible bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-10 shadow-xl shadow-slate-200/20 dark:shadow-none pb-6">
           <div className="p-6 space-y-8">
             
             {/* SECTION 1: TEMPLATE */}
@@ -704,6 +726,62 @@ export const DesignerV2 = () => {
                   </div>
                 )}
               </div>
+            </section>
+
+            <hr className="border-slate-100 dark:border-slate-800" />
+
+            {/* TRY-ON (Always visible, inline) */}
+            <section ref={tryFabricSectionRef} className="space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">★</span>
+                  تجربة القماش (Try‑On)
+                </h2>
+                <div className="text-[11px] text-slate-500 dark:text-slate-400">يعمل داخل نفس الصفحة</div>
+              </div>
+              <TryFabricPanel
+                initialTemplateId={selectedTemplate}
+                initialOptions={{
+                  neckStyle:
+                    selections.neck?.id === 'neck-round'
+                      ? 'round'
+                      : selections.neck?.id === 'neck-v'
+                        ? 'v'
+                        : selections.neck?.id === 'neck-collar'
+                          ? 'collar'
+                          : 'keep',
+                  sleeveStyle:
+                    selections.sleeve?.id === 'sleeve-long'
+                      ? 'long'
+                      : selections.sleeve?.id === 'sleeve-short'
+                        ? 'short'
+                        : selections.sleeve?.id === 'sleeve-none'
+                          ? 'none'
+                          : 'keep',
+                  embroideryStyle:
+                    selections.embroidery?.id === 'emb-chest'
+                      ? 'chest'
+                      : selections.embroidery?.id === 'emb-collar'
+                        ? 'collar'
+                        : selections.embroidery?.id === 'emb-full'
+                          ? 'full'
+                          : 'keep',
+                  fabricScale: (fabricSettings?.patternScale as any) ?? 1,
+                  colorPreservation: 'high',
+                }}
+                onApplyResult={({ jobId, resultImageUrl }) => {
+                  setGeneratedImage(resultImageUrl);
+                  setLastTryOnJobId(jobId);
+                  setLastTryOnResultUrl(resultImageUrl);
+                  setCurrentStep(3);
+                  showToast('✅ تم توليد الصورة وإضافتها للتصميم', 'success');
+                }}
+              />
+              {lastTryOnJobId ? (
+                <div className="mt-3 text-[11px] text-slate-500 dark:text-slate-400">
+                  آخر عملية Try-On: {lastTryOnJobId}
+                </div>
+              ) : null}
             </section>
 
             <hr className="border-slate-100 dark:border-slate-800" />

@@ -677,9 +677,15 @@ export const UsersManagement = () => {
       setShowDeleteModal(false);
       setUserToDelete(null);
       showToast('✅ تم حذف المستخدم بنجاح', 'success');
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error deleting user:', error);
-      showToast('❌ حدث خطأ أثناء الحذف', 'error');
+      
+      // Check for permission errors
+      if (error?.code === 'permission-denied' || error?.message?.includes('permission')) {
+        showToast('❌ الصلاحيات غير كافية لحذف المستخدم. يرجى التحقق من قواعد Firestore', 'error');
+      } else {
+        showToast('❌ حدث خطأ أثناء الحذف: ' + (error?.message || 'خطأ غير معروف'), 'error');
+      }
     } finally {
       setDeleting(false);
     }
@@ -955,7 +961,10 @@ export const UsersManagement = () => {
                         <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
                           {user.name.charAt(0)}
                         </div>
-                        <span className="font-medium text-slate-900 dark:text-white text-xs">{user.name}</span>
+                        <div className="flex flex-col">
+                          <span className="font-medium text-slate-900 dark:text-white text-xs">{user.name}</span>
+                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{user.id}</span>
+                        </div>
                       </div>
                     </td>
                     <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.email}</td>

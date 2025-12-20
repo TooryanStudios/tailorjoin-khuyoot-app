@@ -13,6 +13,12 @@ service firebase.storage {
              request.resource.size < 10 * 1024 * 1024; // حد أقصى عام 10MB
     }
     
+    // التحقق من أن المستخدم admin
+    function isAdmin() {
+      return request.auth != null &&
+             firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+    
     // ===========================================
     // قواعد عامة - القراءة متاحة للجميع
     // ===========================================
@@ -32,9 +38,8 @@ service firebase.storage {
                      request.auth.uid == tailorId &&
                      isValidImage();
       
-      // السماح بالحذف فقط للخياط صاحب المنتج
-      allow delete: if request.auth != null && 
-                      request.auth.uid == tailorId;
+      // السماح بالحذف للخياط صاحب المنتج أو للـ admin
+      allow delete: if (request.auth != null && request.auth.uid == tailorId) || isAdmin();
     }
     
     // ===========================================
@@ -74,6 +79,7 @@ service firebase.storage {
     // تغطي الملفات مثل: users/{uid}/board_123.jpg و users/{uid}/products/{productId}/{fileId}.jpg
     match /users/{userId}/{rest=**} {
       allow write: if isValidImage();
+      allow delete: if (request.auth != null && request.auth.uid == userId) || isAdmin();
     }
 
     // ===========================================
@@ -87,10 +93,8 @@ service firebase.storage {
                      request.auth.uid == tailorId &&
                      isValidImage() &&
                      request.resource.size < 3 * 1024 * 1024; // حد أقصى 3MB
-      
-      // السماح بالحذف فقط للخياط
-      allow delete: if request.auth != null && 
-                      request.auth.uid == tailorId;
+      // السماح بالحذف للخياط أو للـ admin
+      allow delete: if (request.auth != null && request.auth.uid == tailorId) || isAdmin();
     }
     
     // ===========================================
@@ -106,6 +110,20 @@ service firebase.storage {
       
       // السماح بالحذف للمستخدمين المصادق عليهم
       allow delete: if request.auth != null;
+    }
+
+    // ===========================================
+    // Try-On Results (AI-generated fabric try-on images)
+    // ===========================================
+    // Path: tryon_results/{jobId}.png
+    // Written by server-side Admin SDK (no auth token), read by anyone
+    
+    match /tryon_results/{jobId} {
+      // Allow server-side writes (Admin SDK has no auth token)
+      allow write: if true;
+      
+      // Allow reads for anyone (results are public via signed URL anyway)
+      allow read: if true;
     }
   }
 }

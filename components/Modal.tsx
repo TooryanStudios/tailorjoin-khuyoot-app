@@ -66,7 +66,7 @@ export const Modal: React.FC<ModalProps> = ({
     : "fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
 
   return (
-    <div className={backdropClass}>
+    <div className={backdropClass} data-overlay="khuyoot-modal">
       <div 
         ref={modalRef}
         className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700`}

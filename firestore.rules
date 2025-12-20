@@ -75,30 +75,51 @@ service cloud.firestore {
       // Update: Allow updates (will add proper auth later)
       allow update: if true;
       
-      // Delete: Deny
-      allow delete: if false;
+      // Delete: Only admin can delete users
+      allow delete: if isAdminUser();
       
       // Products subcollection
       match /products/{productId} {
         allow read: if true;
         allow create, update: if exists(/databases/$(database)/documents/users/$(userId))
           && isValidProductDoc();
-        allow delete: if exists(/databases/$(database)/documents/users/$(userId));
+        allow delete: if exists(/databases/$(database)/documents/users/$(userId)) || isAdminUser();
       }
       
       // Designs subcollection
       match /designs/{designId} {
         allow read, write: if true;
+        allow delete: if isAdminUser();
       }
       
       // Client measurements subcollection
       match /clientMeasurements/{clientId} {
         allow read, write: if true;
+        allow delete: if isAdminUser();
       }
       
       // Measurements subcollection
       match /measurements/{measurementId} {
         allow read, write: if true;
+        allow delete: if isAdminUser();
+      }
+      
+      // Materials subcollection
+      match /materials/{materialId} {
+        allow read, write: if true;
+        allow delete: if isAdminUser();
+      }
+      
+      // Orders subcollection
+      match /orders/{orderId} {
+        allow read, write: if true;
+        allow delete: if isAdminUser();
+      }
+      
+      // Notifications subcollection
+      match /notifications/{notificationId} {
+        allow read, write: if true;
+        allow delete: if isAdminUser();
       }
     }
     
@@ -167,10 +188,11 @@ service cloud.firestore {
       allow create, update, delete: if isAdminUser();
     }
 
-    // Products (top-level)
+    // Products (top-level) - Old structure, allow admin to delete orphaned products
     match /products/{productId} {
       allow read: if true;
       allow write: if false;
+      allow delete: if isAdminUser();
     }
 
     // Interactions (likes, wishlist, etc.)
@@ -281,6 +303,18 @@ service cloud.firestore {
     // Analytics (future admin-only)
     match /analytics/{document=**} {
       allow read, write: if false;
+    }
+    
+    // Image Library (admin-managed fabric/pattern images for Designer)
+    match /imageLibrary/{categoryId} {
+      allow read: if true;  // Anyone can browse the library
+      allow write: if request.auth != null;  // Authenticated users can upload (app checks admin role)
+    }
+    
+    // Try-On Jobs (AI fabric try-on tracking)
+    match /tryon_jobs/{jobId} {
+      allow read: if true;  // Anyone can check job status
+      allow write: if true;  // Server-side Admin SDK writes job docs (no auth token)
     }
     
     // ============================================================

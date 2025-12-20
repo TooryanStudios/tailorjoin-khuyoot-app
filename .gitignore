@@ -9,6 +9,7 @@ lerna-debug.log*
 
 node_modules
 dist
+.env
 dist-ssr
 *.local
 
@@ -32,3 +33,10 @@ dist-ssr
 
 .vercel
 .env*.local
+
+# Local Vercel link folder (do not commit)
+.vercel-tailorjoin/
+
+# Accidentally created secret backups (do not commit)
+.env.backup
+

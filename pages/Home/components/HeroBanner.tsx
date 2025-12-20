@@ -16,11 +16,7 @@ export const HeroBanner: React.FC = () => {
   const buttonText = bannerConfig.buttonText || "استكشف جاكيتات العيد";
   const buttonLink = bannerConfig.buttonLink || "/products";
   
-  const showImagePath = () => {
-    const img = document.querySelector('.hero-banner-img') as HTMLImageElement;
-    const actualSrc = img?.currentSrc || img?.src || imageSrc;
-    window.open(actualSrc, '_blank');
-  };
+  // Debug button removed per request
 
   return (
     <div className="mb-8">
@@ -31,15 +27,7 @@ export const HeroBanner: React.FC = () => {
           className="hero-banner-img w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex items-center justify-between px-6 md:px-12">
-          {user?.role === 'admin' && (
-            <button
-              onClick={showImagePath}
-              className="absolute top-2 left-2 bg-red-500 text-white text-xs px-3 py-1 rounded-md hover:bg-red-600 transition-colors font-mono shadow-lg z-10"
-              title="عرض مسار الصورة"
-            >
-              Debug
-            </button>
-          )}
+          {/* Admin debug button removed */}
           <div className="flex flex-col gap-2">
             <span className="text-amber-400 font-medium text-xs md:text-sm uppercase tracking-wider animate-pulse">
               {badge}

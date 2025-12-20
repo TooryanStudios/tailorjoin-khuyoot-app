@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin } from 'lucide-react';
+import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
@@ -83,6 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الإدارة</p>
           <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" />
           <SidebarItem id="products" icon={Package} label="المنتجات" />
+          <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" />
           <SidebarItem id="store" icon={Store} label="إدارة المتجر" />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الأصول</p>

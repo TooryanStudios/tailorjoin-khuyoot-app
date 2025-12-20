@@ -43,18 +43,12 @@ const SectionLabel = ({ title }: { title: string }) => (
     </div>
 );
 
-// Dev Accounts Configuration
-const DEV_ACCOUNTS = [
-  { email: 'user@test.com', password: '123456', name: 'أحمد المستخدم', role: 'مستخدم عادي', icon: '👤', color: 'bg-blue-100 text-blue-600' },
-  { email: 'tailor@test.com', password: '123456', name: 'خياط الأصالة', role: 'خياط', icon: '✂️', color: 'bg-purple-100 text-purple-600' },
-  { email: 'boutique@test.com', password: '123456', name: 'بوتيك الأناقة', role: 'بوتيك', icon: '👗', color: 'bg-pink-100 text-pink-600' },
-  { email: 'admin@test.com', password: '123456', name: 'المدير العام', role: 'مدير', icon: '👑', color: 'bg-red-100 text-red-600' },
-];
+// Dev accounts removed per request
 
 export const AuthModal = () => {
   const { isAuthModalOpen, toggleAuthModal, login, register, loading, authModalMode } = useApp();
-  const [isLogin, setIsLogin] = useState(authModalMode === 'login');
-  const [showDevAccounts, setShowDevAccounts] = useState(false);
+  const [isLogin, setIsLogin] = useState(true);
+  // Quick access developer accounts menu removed
   const [submitting, setSubmitting] = useState(false);
   // Fail-safe: if submitting gets stuck, clear after 12s
   useEffect(() => {
@@ -86,7 +80,8 @@ export const AuthModal = () => {
   const [showFallback, setShowFallback] = useState(false);
   // Sync local mode with context mode when it changes
   React.useEffect(() => {
-    setIsLogin(authModalMode === 'login');
+    // Force login mode regardless of requested mode
+    setIsLogin(true);
   }, [authModalMode]);
 
   // Prefill email/phone from localStorage when modal opens
@@ -123,20 +118,7 @@ export const AuthModal = () => {
 
   if (!isAuthModalOpen) return null;
 
-  const handleDevLogin = async (acc: typeof DEV_ACCOUNTS[0]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setSubmitting(true);
-    try {
-        await login(acc.email, acc.password);
-        toggleAuthModal(false);
-    } catch (error) {
-        console.error("Dev login failed", error);
-        alert("فشل تسجيل الدخول التجريبي");
-    } finally {
-        setSubmitting(false);
-    }
-  };
+  // Developer quick login removed
 
   const normalizePhone = (raw: string) => {
     let digits = (raw || '').replace(/[^0-9]/g, '');
@@ -156,7 +138,7 @@ export const AuthModal = () => {
     }
     setSubmitting(true);
     try {
-      console.log('[AuthModal] submit start', { isLogin });
+      //
       if (isLogin) {
         const input = email.trim();
         if (input.includes('@')) {
@@ -164,34 +146,33 @@ export const AuthModal = () => {
           await login(input, password);
         } else {
           const phoneDigits = normalizePhone(input);
-          console.log('[AuthModal] Phone login attempt:', { input, phoneDigits });
+          //
           if (!phoneDigits) { alert('يرجى إدخال رقم هاتف صحيح'); setSubmitting(false); return; }
           setStatusText('يتم التحقق من الرقم...');
           // Try loginId first
           const candidates = [phoneDigits, `968${phoneDigits}`];
-          console.log('[AuthModal] Searching for candidates:', candidates);
+          //
           let found = null as Awaited<ReturnType<typeof firebaseService.findUserByLoginId>>;
           for (const cand of candidates) {
             found = await firebaseService.findUserByLoginId(cand);
-            console.log('[AuthModal] findUserByLoginId result for', cand, ':', found);
+            //
             if (found) break;
           }
           // Fallback to phone field for older accounts
           if (!found) {
-            console.log('[AuthModal] No loginId match, trying phone field');
+            //
             for (const cand of candidates) {
               found = await firebaseService.findUserByPhone(cand);
-              console.log('[AuthModal] findUserByPhone result for', cand, ':', found);
+              //
               if (found) break;
             }
           }
           if (!found) { 
-            console.log('[AuthModal] No user found for phone:', phoneDigits);
             alert('لا يوجد حساب مرتبط بهذا الرقم'); 
             setSubmitting(false); 
             return; 
           }
-          console.log('[AuthModal] Found user:', { uid: found.uid, email: found.email });
+          //
           if (!found.email) {
             // Auto-assign temp email from phone and register credentials, or prompt if preferred
             setStatusText('إنشاء بريد مؤقت وربط الحساب...');
@@ -295,11 +276,11 @@ export const AuthModal = () => {
               </p>
             </div>
 
-            {/* Toggle Switch */}
+            {/* Toggle Switch disabled */}
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-8 relative isolate">
-              <div className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${isLogin ? 'right-1' : 'right-[calc(50%+4px)]'}`} />
-              <button onClick={() => setIsLogin(true)} className={`flex-1 py-2.5 text-sm font-bold transition-colors ${isLogin ? 'text-indigo-600 dark:text-white' : 'text-slate-500'}`}>تسجيل دخول</button>
-              <button onClick={() => setIsLogin(false)} className={`flex-1 py-2.5 text-sm font-bold transition-colors ${!isLogin ? 'text-indigo-600 dark:text-white' : 'text-slate-500'}`}>حساب جديد</button>
+              <div className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 right-1`} />
+              <button className={`flex-1 py-2.5 text-sm font-bold transition-colors text-indigo-600 dark:text-white`}>تسجيل دخول</button>
+              <button className={`flex-1 py-2.5 text-sm font-bold transition-colors text-slate-400 cursor-not-allowed`} disabled>حساب جديد (مغلق مؤقتاً)</button>
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-6">
@@ -527,27 +508,7 @@ export const AuthModal = () => {
               </div>
             </form>
             
-            {/* Developer Mode */}
-            <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-               <button onClick={() => setShowDevAccounts(!showDevAccounts)} className="flex items-center justify-between w-full text-xs font-medium text-amber-600 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg hover:bg-amber-100 transition-colors">
-                 <span className="flex items-center gap-2"><Zap size={14} fill="currentColor" /> وضع المطور (حسابات جاهزة)</span>
-                 <ChevronRight size={14} className={`transition-transform ${showDevAccounts ? 'rotate-90' : ''}`} />
-               </button>
-
-               {showDevAccounts && (
-                 <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 animate-in slide-in-from-top-1">
-                    {DEV_ACCOUNTS.map((acc, idx) => (
-                      <button key={idx} onClick={() => handleDevLogin(acc)} className="flex items-center gap-3 p-2.5 rounded-xl border border-slate-100 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-all text-right">
-                          <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${acc.color}`}>{acc.icon}</div>
-                          <div className="flex-1 min-w-0">
-                            <div className="text-xs font-bold truncate text-slate-800 dark:text-white">{acc.name}</div>
-                            <div className="text-[10px] text-slate-400 truncate">{acc.role}</div>
-                          </div>
-                      </button>
-                    ))}
-                 </div>
-               )}
-            </div>
+            {/* Developer Mode removed */}
 
           </div>
         </div>

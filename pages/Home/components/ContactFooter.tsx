@@ -1,5 +1,5 @@
 import React from 'react';
-import { Mail, Phone, MapPin } from 'lucide-react';
+import { Mail, MapPin } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
 
 export const ContactFooter: React.FC = () => {
@@ -9,7 +9,7 @@ export const ContactFooter: React.FC = () => {
   const title = contactTexts.contactFooterTitle || 'تواصل معنا';
   const subtitle = contactTexts.contactFooterSubtitle || 'نحن هنا لخدمتك في أي وقت';
   const email = contactTexts.contactEmail || 'info@khuyoot.om';
-  const phone = contactTexts.contactPhone || '+968 9999 9999';
+  // Phone removed per request
   const address = contactTexts.contactAddress || 'مسقط، سلطنة عُمان';
   const copyright = contactTexts.copyrightText || '© 2025 خيوط - منصة التفصيل الذكي. جميع الحقوق محفوظة.';
   
@@ -32,15 +32,7 @@ export const ContactFooter: React.FC = () => {
             </a>
           </div>
 
-          <div className="flex flex-col items-center text-center p-4 bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-            <div className="w-12 h-12 bg-emerald-500/10 rounded-full flex items-center justify-center mb-3">
-              <Phone className="text-emerald-600 dark:text-emerald-400" size={24} />
-            </div>
-            <h4 className="font-bold text-slate-800 dark:text-white mb-1">الهاتف</h4>
-            <a href={`tel:${phone}`} className="text-blue-600 dark:text-blue-400 hover:underline text-sm" dir="ltr">
-              {phone}
-            </a>
-          </div>
+          {/* Phone contact removed */}
 
           <div className="flex flex-col items-center text-center p-4 bg-white dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
             <div className="w-12 h-12 bg-purple-500/10 rounded-full flex items-center justify-center mb-3">

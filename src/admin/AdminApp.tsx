@@ -16,6 +16,7 @@ import { UsersManagement } from './users/UsersManagement';
 import { ImageLibraryManagement } from './images/ImageLibraryManagement';
 import { MeasurementTemplates } from './measurements/MeasurementTemplates';
 import { ProductsManagement } from './products/ProductsManagement';
+import { OrphanedProducts } from './products/OrphanedProducts';
 import { HomePageSettings } from './settings/HomePageSettings';
 import { SiteTextsSettings } from './settings/SiteTextsSettings';
 import { SocialMediaSettings } from './settings/SocialMediaSettings';
@@ -34,7 +35,8 @@ type AdminSection =
   | 'tailors' 
   | 'boutiques'
   | 'shops'
-  | 'products' 
+  | 'products'
+  | 'orphaned-products' 
   | 'fabrics' 
   | 'measurements' 
   | 'family' 
@@ -202,6 +204,38 @@ export const AdminApp = () => {
       setIsLoggingIn(false);
     }
   };
+
+  // Defensive: remove any stray full-screen overlays left by previous routes/modals
+  useEffect(() => {
+    try {
+      const candidates = Array.from(document.querySelectorAll('div')) as HTMLElement[];
+      const overlays = candidates.filter((el) => {
+        const style = window.getComputedStyle(el);
+        const cls = String(el.className || '');
+        return (
+          style.position === 'fixed' &&
+          (cls.includes('inset-0') || (style.top === '0px' && style.left === '0px' && style.right === '0px' && style.bottom === '0px')) &&
+          (cls.includes('bg-black') || cls.includes('bg-slate-900') || cls.includes('backdrop-blur'))
+        );
+      });
+      overlays.forEach((el) => {
+        // Skip our own sidebar veil which only appears when open
+        const isSidebarVeil = el.getAttribute('aria-hidden') === 'true' && clsIncludes(el, 'bg-slate-900/40');
+        if (!isSidebarVeil) {
+          el.parentElement?.removeChild(el);
+        }
+      });
+      // Also reset any body styles a modal might have set
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+    } catch {}
+
+    function clsIncludes(el: Element, token: string) {
+      try { return String((el as HTMLElement).className || '').includes(token); } catch { return false; }
+    }
+  }, [location.pathname]);
 
   const PlaceholderView = ({ title, icon: Icon }: any) => (
     <div className="flex flex-col items-center justify-center h-96 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
@@ -490,6 +524,7 @@ export const AdminApp = () => {
       case 'boutiques': return <ShopsManagement shops={allShops} shopType="boutique" title="إدارة البوتيكات" />;
       case 'shops': return <ShopsManagement shops={allShops} shopType="fabric_store" title="المحلات الأخرى (أقمشة ومواد خياطة)" />;
       case 'products': return <ProductsManagement />;
+      case 'orphaned-products': return <OrphanedProducts />;
       case 'store': return (
         <div className="space-y-6 max-w-3xl">
           <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">إدارة متجر خيوط</h2>
@@ -574,8 +609,8 @@ export const AdminApp = () => {
   };
 
   // شاشة تحميل أثناء التحقق من المصادقة
-  // Avoid blocking the whole admin UI when global `loading` is toggled by non-auth flows.
-  if (isCheckingAuth || (loading && user === null)) {
+  // Keep this gate time-bound to avoid indefinite spinners if auth is slow.
+  if (isCheckingAuth) {
     return (
       <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-[#050817] to-slate-900 flex items-center justify-center">
         <div className="text-center">

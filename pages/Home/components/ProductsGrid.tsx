@@ -119,6 +119,7 @@ export const ProductsGrid: React.FC<ProductsGridProps> = ({
               showLegacyBadge
               legacyBadgeText="نظام قديم"
               legacyBadgeClassName="bg-indigo-600/90"
+              onDelete={() => window.location.reload()}
             />
           </div>
         ))}

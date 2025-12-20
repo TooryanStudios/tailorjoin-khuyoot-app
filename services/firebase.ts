@@ -1,7 +1,7 @@
 import * as firebaseApp from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp } from 'firebase/firestore';
-import { getStorage } from 'firebase/storage';
+import { getStorage, ref as storageRef, deleteObject, listAll } from 'firebase/storage';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
 import { MOCK_PRODUCTS } from './mockService';
 import { applyUserDefaults } from '../utils/userDefaults';
@@ -77,8 +77,6 @@ try {
   try { setLogLevel('error'); } catch {}
   storage = getStorage(app);
   isFirebaseInitialized = true;
-  console.log("✅ Firebase initialized successfully");
-  console.log("📦 Storage Bucket:", firebaseConfig.storageBucket);
 } catch (error) {
   console.error("❌ Firebase Initialization Error:", error);
   console.error("🔧 Check your .env file and Firebase config");
@@ -216,8 +214,6 @@ export const firebaseService = {
   async register(email: string, pass: string, name: string, role: UserRole, merchantInfo?: any): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
     
-    console.log('🔍 Register Debug:', { role, merchantInfo });
-    
     const credential = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(credential.user, { displayName: name });
     
@@ -240,7 +236,6 @@ export const firebaseService = {
 
       // Add merchant info if provided
       if (merchantInfo) {
-        console.log('📦 Merchant Info:', merchantInfo);
         if (merchantInfo.shopType) userData.shopType = merchantInfo.shopType;
         if (merchantInfo.phone) userData.phone = merchantInfo.phone;
         if (merchantInfo.loginId) userData.loginId = merchantInfo.loginId;
@@ -263,7 +258,6 @@ export const firebaseService = {
         }
       }
 
-      console.log('💾 Saving to Firestore:', userData);
       await setDoc(doc(db, 'users', credential.user.uid), userData);
     } catch (e) {
       console.error("Error saving user data", e);
@@ -333,10 +327,12 @@ export const firebaseService = {
     }
 
     try {
-      // Use collectionGroup to query products from all users' subcollections
+      const products: Product[] = [];
+      const seenIds = new Set<string>();
+
+      // 1. Get products from new structure: users/{userId}/products subcollections
       const productsGroup = collectionGroup(db, 'products');
       
-      // Query without isDraft filter (index not ready yet), filter in memory instead
       let q;
       if (category && category !== 'all') {
         q = query(productsGroup, where('category', '==', category));
@@ -344,18 +340,39 @@ export const firebaseService = {
         q = query(productsGroup);
       }
 
-      const snapshot = await getDocs(q);
+      const TIMEOUT_MS = 2500;
+      const snapPromise = getDocs(q);
+      const snapshot = await Promise.race([
+        snapPromise,
+        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
+      ]);
+      if (!snapshot) return [];
       
-      if (snapshot.empty) {
-        return [];
-      }
-
-      const products: Product[] = [];
       snapshot.forEach(doc => {
         const data = doc.data() as any;
-        // Filter out drafts in memory
+        // Filter out drafts
         if (data.isDraft !== true) {
-          products.push({ id: doc.id, ...data } as Product);
+          // Check if this is from subcollection (has parent path)
+          const isSubcollection = doc.ref.path.includes('users/');
+          
+          if (isSubcollection) {
+            products.push({ 
+              id: doc.id, 
+              ...data,
+              _isOldStructure: false 
+            } as Product);
+            seenIds.add(doc.id);
+          } else {
+            // This is from root collection
+            if (!seenIds.has(doc.id)) {
+              products.push({ 
+                id: doc.id, 
+                ...data,
+                _isOldStructure: true 
+              } as Product);
+              seenIds.add(doc.id);
+            }
+          }
         }
       });
       
@@ -561,6 +578,20 @@ export const firebaseService = {
     }
   },
 
+  // Delete product from old root products collection
+  async deleteOldProduct(productId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
+    
+    try {
+      const productRef = doc(db, 'products', productId);
+      await deleteDoc(productRef);
+      console.log('Old product deleted successfully from root collection');
+    } catch (error) {
+      console.error("Error deleting old product:", error);
+      throw error;
+    }
+  },
+
   // --- Global App Settings ---
 
   async getGlobalSettings(): Promise<AppSettings> {
@@ -590,18 +621,30 @@ export const firebaseService = {
 
     try {
       const settingsRef = doc(db, 'system', 'settings');
-      const docSnap = await getDoc(settingsRef);
-      
-      if (docSnap.exists()) {
-        const loadedSettings = { ...defaultSettings, ...docSnap.data() } as AppSettings;
-        console.log('✅ Loaded settings from Firebase:', loadedSettings);
-        return loadedSettings;
-      } else {
-        // Create default settings if they don't exist
-        console.log('⚠️ No settings found, creating defaults');
-        await setDoc(settingsRef, defaultSettings);
-        return defaultSettings;
-      }
+
+      // Add a defensive timeout so UI never hangs on slow networks
+      const TIMEOUT_MS = 2500;
+      const withTimeout = <T>(p: Promise<T>, fallback: T, timeoutMs: number) => {
+        return Promise.race([
+          p,
+          new Promise<T>((resolve) => setTimeout(() => resolve(fallback), timeoutMs))
+        ]);
+      };
+
+      const fetchSettings = (async () => {
+        const docSnap = await getDoc(settingsRef);
+        if (docSnap.exists()) {
+          const loadedSettings = { ...defaultSettings, ...docSnap.data() } as AppSettings;
+          return loadedSettings;
+        } else {
+          await setDoc(settingsRef, defaultSettings);
+          return defaultSettings;
+        }
+      })();
+
+      // If Firestore is slow/unreachable, fall back quickly to defaults
+      const settings = await withTimeout(fetchSettings, defaultSettings, TIMEOUT_MS);
+      return settings;
     } catch (error) {
       console.error("Error fetching settings:", error);
       return defaultSettings;
@@ -610,10 +653,8 @@ export const firebaseService = {
 
   async saveGlobalSettings(settings: AppSettings): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
-    console.log('💾 Saving settings to Firebase:', settings);
     const settingsRef = doc(db, 'system', 'settings');
     await setDoc(settingsRef, settings, { merge: true });
-    console.log('✅ Settings saved successfully');
   },
 
   // --- Measurements Management ---
@@ -793,10 +834,71 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
+      // 1. Delete all products and their images from Storage
+      const productsRef = collection(db, `users/${userId}/products`);
+      const productsSnapshot = await getDocs(productsRef);
+      
+      for (const productDoc of productsSnapshot.docs) {
+        const productData = productDoc.data();
+        
+        // Delete product images from Storage
+        const images = productData.images || productData.imageUrls || [];
+        for (const imageUrl of images) {
+          try {
+            // Extract path from URL
+            if (imageUrl && typeof imageUrl === 'string' && imageUrl.includes('firebase')) {
+              const imagePath = imageUrl.split('/o/')[1]?.split('?')[0];
+              if (imagePath) {
+                const decodedPath = decodeURIComponent(imagePath);
+                const imageRef = storageRef(storage, decodedPath);
+                await deleteObject(imageRef);
+              }
+            }
+          } catch (imgError) {
+            // Ignore individual image deletion errors
+          }
+        }
+        
+        // Delete product document
+        await deleteDoc(productDoc.ref);
+      }
+      
+      // 2. Delete other subcollections
+      const subcollections = ['designs', 'clientMeasurements', 'measurements', 'materials', 'orders', 'notifications'];
+      
+      for (const subcollectionName of subcollections) {
+        try {
+          const subcollectionRef = collection(db, `users/${userId}/${subcollectionName}`);
+          const subcollectionSnapshot = await getDocs(subcollectionRef);
+          
+          for (const subDoc of subcollectionSnapshot.docs) {
+            await deleteDoc(subDoc.ref);
+          }
+        } catch (subError) {
+          // Ignore subcollection deletion errors
+        }
+      }
+      
+      // 3. Delete user profile images from Storage
+      try {
+        const userFolderRef = storageRef(storage, `users/${userId}`);
+        const userFiles = await listAll(userFolderRef);
+        
+        for (const fileRef of userFiles.items) {
+          try {
+            await deleteObject(fileRef);
+          } catch (fileError) {
+            // Ignore individual file deletion errors
+          }
+        }
+      } catch (storageError) {
+        // Ignore storage folder access errors
+      }
+      
+      // 4. Finally, delete the user document
       await deleteDoc(doc(db, 'users', userId));
-      console.log(`✅ User ${userId} deleted successfully`);
-    } catch (error) {
-      console.error("❌ Error deleting user:", error);
+    } catch (error: any) {
+      console.error("Error deleting user:", error);
       throw error;
     }
   },
@@ -986,7 +1088,14 @@ export const firebaseService = {
     try {
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('role', '==', 'tailor'), where('approvalStatus', '==', 'approved'));
-      const snapshot = await getDocs(q);
+      const TIMEOUT_MS = 2500;
+      const snapPromise = getDocs(q);
+      const snapshot = await Promise.race([
+        snapPromise,
+        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
+      ]);
+
+      if (!snapshot) return [];
 
       const tailors = snapshot.docs.map(docSnap => {
         const d: any = docSnap.data();
@@ -1140,7 +1249,13 @@ export const firebaseService = {
 
     try {
       const regionsRef = collection(db, 'popularRegions');
-      const snapshot = await getDocs(regionsRef);
+      const TIMEOUT_MS = 2500;
+      const snapPromise = getDocs(regionsRef);
+      const snapshot = await Promise.race([
+        snapPromise,
+        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
+      ]);
+      if (!snapshot) return [];
       
       return snapshot.docs.map(doc => ({
         id: doc.id,

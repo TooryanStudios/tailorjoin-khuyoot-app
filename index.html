@@ -11,16 +11,16 @@
     />
 
     <!-- Security Headers -->
-        <meta http-equiv="Content-Security-Policy" 
-          content="default-src 'self'; 
-           script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com; 
-           script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
-           style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
-           img-src 'self' data: blob: https: http:; 
-           font-src 'self' https://fonts.gstatic.com;
-           frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
-           connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com;
-           worker-src 'self' blob:;">
+            <meta http-equiv="Content-Security-Policy" 
+              content="default-src 'self'; 
+               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com; 
+               script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
+               style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
+               img-src 'self' data: blob: https: http:; 
+               font-src 'self' https://fonts.gstatic.com;
+               frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
+               connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com ws: wss:; 
+               worker-src 'self' blob:;">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta name="referrer" content="strict-origin-when-cross-origin">
     
@@ -100,21 +100,45 @@
           originalWarn.apply(console, args);
         };
         
-        // Suppress share-modal.js errors (some environments inject/load it)
+        // Suppress share-modal.js errors completely
         const originalError = console.error;
         console.error = function(...args) {
-          if (args[0]?.toString?.()?.includes?.('share-modal')) {
-            return; // Suppress share-modal errors
+          const msg = args[0]?.toString?.() || '';
+          // Suppress share-modal and common DOM errors from it
+          if (msg.includes('share-modal') || 
+              msg.includes('addEventListener') ||
+              (msg.includes('Cannot read properties of null') && args[1]?.includes?.('share-modal'))) {
+            return; // Suppress
           }
           originalError.apply(console, args);
         };
 
-        // Also suppress uncaught runtime errors coming specifically from share-modal.js
+        // Suppress uncaught runtime errors from share-modal.js
         window.addEventListener('error', function (event) {
           try {
             const filename = event?.filename || '';
-            if (filename && filename.includes('share-modal')) {
+            const message = event?.message || '';
+            const stack = event?.error?.stack || '';
+            
+            if (filename.includes('share-modal') || 
+                message.includes('share-modal') ||
+                stack.includes('share-modal')) {
               event.preventDefault();
+              event.stopImmediatePropagation();
+              return true;
+            }
+          } catch {
+            // no-op
+          }
+        }, true);
+        
+        // Also catch unhandled promise rejections from share-modal
+        window.addEventListener('unhandledrejection', function (event) {
+          try {
+            const reason = event?.reason?.toString?.() || '';
+            if (reason.includes('share-modal')) {
+              event.preventDefault();
+              return true;
             }
           } catch {
             // no-op

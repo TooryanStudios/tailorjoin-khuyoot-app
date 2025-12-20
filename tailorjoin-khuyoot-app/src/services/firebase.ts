@@ -79,8 +79,6 @@ try {
   try { setLogLevel('error'); } catch {}
   storage = getStorage(app);
   isFirebaseInitialized = true;
-  console.log("✅ Firebase initialized successfully");
-  console.log("📦 Storage Bucket:", firebaseConfig.storageBucket);
 } catch (error) {
   console.error("❌ Firebase Initialization Error:", error);
   console.error("🔧 Check your .env file and Firebase config");
@@ -195,8 +193,6 @@ export const firebaseService = {
   async register(email: string, pass: string, name: string, role: UserRole, merchantInfo?: any): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
     
-    console.log('🔍 Register Debug:', { role, merchantInfo });
-    
     const credential = await createUserWithEmailAndPassword(auth, email, pass);
     await updateProfile(credential.user, { displayName: name });
     
@@ -219,7 +215,6 @@ export const firebaseService = {
 
       // Add merchant info if provided
       if (merchantInfo) {
-        console.log('📦 Merchant Info:', merchantInfo);
         if (merchantInfo.shopType) userData.shopType = merchantInfo.shopType;
         if (merchantInfo.phone) userData.phone = merchantInfo.phone;
         if (merchantInfo.loginId) userData.loginId = merchantInfo.loginId;
@@ -242,7 +237,6 @@ export const firebaseService = {
         }
       }
 
-      console.log('💾 Saving to Firestore:', userData);
       await setDoc(doc(db, 'users', credential.user.uid), userData);
     } catch (e) {
       console.error("Error saving user data", e);
@@ -573,11 +567,9 @@ export const firebaseService = {
       
       if (docSnap.exists()) {
         const loadedSettings = { ...defaultSettings, ...docSnap.data() } as AppSettings;
-        console.log('✅ Loaded settings from Firebase:', loadedSettings);
         return loadedSettings;
       } else {
         // Create default settings if they don't exist
-        console.log('⚠️ No settings found, creating defaults');
         await setDoc(settingsRef, defaultSettings);
         return defaultSettings;
       }
@@ -589,10 +581,8 @@ export const firebaseService = {
 
   async saveGlobalSettings(settings: AppSettings): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
-    console.log('💾 Saving settings to Firebase:', settings);
     const settingsRef = doc(db, 'system', 'settings');
     await setDoc(settingsRef, settings, { merge: true });
-    console.log('✅ Settings saved successfully');
   },
 
   // --- Measurements Management ---

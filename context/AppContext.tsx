@@ -114,7 +114,17 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         setSettingsLoaded(true);
       }
     };
-    loadSettings();
+    // Add watchdog to avoid indefinite wait if Firestore is slow
+    const watchdog = setTimeout(() => {
+      if (!settingsLoaded) {
+        try { console.warn('⚠️ Settings load watchdog triggered; using defaults'); } catch {}
+        setSettingsLoaded(true);
+      }
+    }, 3000);
+
+    loadSettings().finally(() => {
+      try { clearTimeout(watchdog); } catch {}
+    });
   }, [isOnline]);
 
   // Apply Theme to DOM
@@ -138,7 +148,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
 
            const normalizeUser = (u: any): any => {
             if (!u) return u;
-            console.log('🔍 Normalizing user:', { name: u.name, role: u.role, shopType: (u as any).shopType });
+            //
             let role = typeof u.role === 'string' ? u.role.toLowerCase() : u.role;
             const shopType = (u as any).shopType ? String((u as any).shopType).toLowerCase() : null;
             
@@ -152,7 +162,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
             // Default guest when missing
             if (!role) role = 'guest';
             const { shopType: _, ...rest } = u;
-            console.log('✅ Normalized to role:', role);
+            //
             return { ...rest, role };
            };
 
@@ -178,23 +188,23 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   };
 
   const login = async (email: string, password: string) => {
-    console.log('[AppContext.login] start', { emailMasked: email.includes('@') ? email : 'phone-login-resolved', time: new Date().toISOString() });
+    //
     setLoading(true);
     try {
       if (firebaseService.isInitialized()) {
         const t0 = performance.now?.() || Date.now();
         await firebaseService.login(email, password);
         const t1 = performance.now?.() || Date.now();
-        console.log('✅ Firebase login successful', { durationMs: Math.round(t1 - t0) });
+        //
       } else {
         const t0 = performance.now?.() || Date.now();
         const userData = await mockLogin(email);
         setUser(userData);
         const t1 = performance.now?.() || Date.now();
-        console.log('✅ Mock login successful', { durationMs: Math.round(t1 - t0), userId: userData.id });
+        //
       }
       setIsAuthModalOpen(false);
-      console.log('✅ Auth modal closed after login');
+      //
     } catch (error: any) {
       // Dev-only fallback: if Firebase Auth is blocked (extensions/CSP/proxy), allow mock login on localhost
       const isLocalDev = (() => {
@@ -219,16 +229,16 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         }
       }
 
-      console.error("❌ Login failed", error);
+      console.error("Login failed", error);
       alert(getFirebaseErrorMessage(error));
     } finally {
       setLoading(false);
-      console.log('[AppContext.login] end', { time: new Date().toISOString() });
+      //
     }
   };
 
   const register = async (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => {
-    console.log('[AppContext.register] start', { role, hasMerchantInfo: !!merchantInfo, time: new Date().toISOString() });
+    //
     if (!appSettings.allowNewRegistrations) {
       alert("التسجيل مغلق حالياً للصيانة");
       return;
@@ -239,7 +249,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         const t0 = performance.now?.() || Date.now();
         await firebaseService.register(email, password, name, role, merchantInfo);
         const t1 = performance.now?.() || Date.now();
-        console.log('✅ Firebase register successful', { durationMs: Math.round(t1 - t0) });
+        //
       } else {
         const t0 = performance.now?.() || Date.now();
         const userData = await mockLogin(email);
@@ -251,7 +261,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         }
         setUser(userData);
         const t1 = performance.now?.() || Date.now();
-        console.log('✅ Mock register successful', { durationMs: Math.round(t1 - t0), userId: userData.id });
+        //
       }
       setIsAuthModalOpen(false);
     } catch (error: any) {
@@ -259,7 +269,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       alert(getFirebaseErrorMessage(error));
     } finally {
       setLoading(false);
-      console.log('[AppContext.register] end', { time: new Date().toISOString() });
+      //
     }
   };
 

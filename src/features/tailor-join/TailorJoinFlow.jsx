@@ -259,6 +259,8 @@ function buildUserDoc({ uid, formData, boardImageUrl, profileImageUrl }) {
 }
 
 export default function TailorJoinFlow() {
+    // Temporarily disable new registrations per request
+    const REGISTRATION_DISABLED = true;
     const navigate = useNavigate();
     const params = useParams();
     const location = useLocation();
@@ -295,9 +297,30 @@ export default function TailorJoinFlow() {
             await loadCategories();
             if (cancelled) return;
         };
-        init();
+        if (!REGISTRATION_DISABLED) {
+            init();
+        } else {
+            setFirestoreProductCategories([]);
+            setCategoriesLoading(false);
+        }
         return () => { cancelled = true; };
     }, []);
+
+    if (REGISTRATION_DISABLED) {
+        return (
+            <div className="min-h-[60vh] flex items-center justify-center">
+                <div className="max-w-xl mx-auto text-center bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-2xl p-6 shadow">
+                    <div className="text-amber-700 dark:text-amber-200 font-bold text-lg mb-2">
+                        🧵 بوابة انضمام الخياطين
+                    </div>
+                    <p className="text-amber-800 dark:text-amber-100 text-sm">
+                        نقوم حالياً باختبار نظام الانضمام. سنعود قريباً عندما نكون جاهزين لاستقبال الطلبات.
+                        شكراً لتفهمكم.
+                    </p>
+                </div>
+            </div>
+        );
+    }
 
     const baseProductCategories = useMemo(() => {
         if (Array.isArray(firestoreProductCategories) && firestoreProductCategories.length > 0) return firestoreProductCategories;
