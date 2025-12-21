@@ -50,23 +50,88 @@ function orientedDimensions(meta: sharp.Metadata): { width?: number; height?: nu
   return { width, height };
 }
 
-function buildPrompt(req: TryOnRequest) {
+function buildPrompt(req: TryOnRequest, templateWidth?: number, templateHeight?: number) {
   const scale = req.options?.fabricScale ?? 1;
   const neck = req.options?.neckStyle || 'keep';
   const sleeve = req.options?.sleeveStyle || 'keep';
   const emb = req.options?.embroideryStyle || 'keep';
+
+  const dimensionGuidance = templateWidth && templateHeight 
+    ? `CRITICAL: Output image MUST be exactly ${templateWidth}x${templateHeight} pixels to match the template dimensions. Preserve the exact aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`
+    : `CRITICAL: Output image MUST match the exact dimensions and aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`;
 
   return `You are a professional fashion product renderer.
 Task: Replace ONLY the garment fabric area in Image A with the fabric pattern from Image B.
 Keep garment shape, folds, lighting, shadows, and background unchanged.
 Do not add people. Do not change body/face (none exists).
 Preserve exact neckline and sleeve geometry unless options specify change.
+${dimensionGuidance}
 Options:
 - fabric scale: ${scale}
 - neck style: ${neck}
 - sleeve style: ${sleeve}
 - embroidery style: ${emb}
 Output a single photorealistic image.`;
+}
+
+function clampNumber(value: number, min: number, max: number) {
+  return Math.max(min, Math.min(max, value));
+}
+
+async function applyFabricScaleAndTile(
+  fabricImg: { base64: string; mimeType: string; buffer: Buffer },
+  fabricScale: number | undefined,
+): Promise<{ base64: string; mimeType: string; buffer: Buffer }> {
+  const scale = typeof fabricScale === 'number' ? fabricScale : 1;
+  if (!Number.isFinite(scale) || scale === 1) return fabricImg;
+
+  // Deterministic scale: physically resize and tile the fabric swatch before sending to the model.
+  // This avoids relying on prompt-following for pattern scale.
+  const CANVAS_SIZE = 1024;
+  const MIN_TILE = 96;
+  const MAX_TILE = 1024;
+
+  try {
+    const meta = await (sharp as any)(fabricImg.buffer).metadata();
+    const baseW = typeof meta.width === 'number' && meta.width > 0 ? meta.width : 512;
+    const baseH = typeof meta.height === 'number' && meta.height > 0 ? meta.height : 512;
+
+    const tileW = clampNumber(Math.round(baseW * scale), MIN_TILE, MAX_TILE);
+    const tileH = clampNumber(Math.round(baseH * scale), MIN_TILE, MAX_TILE);
+
+    const tileBuffer = await (sharp as any)(fabricImg.buffer)
+      .rotate()
+      .resize(tileW, tileH, { fit: 'fill', kernel: 'lanczos3' })
+      .png()
+      .toBuffer();
+
+    const tiledBuffer = await (sharp as any)({
+      create: {
+        width: CANVAS_SIZE,
+        height: CANVAS_SIZE,
+        channels: 3,
+        background: { r: 255, g: 255, b: 255 },
+      },
+    })
+      .composite([
+        {
+          input: tileBuffer,
+          tile: true,
+          blend: 'over',
+        },
+      ])
+      .png()
+      .toBuffer();
+
+    return {
+      base64: tiledBuffer.toString('base64'),
+      mimeType: 'image/png',
+      buffer: tiledBuffer,
+    };
+  } catch (e) {
+    console.warn('Failed to apply deterministic fabric scale; falling back to original fabric image:', e);
+    return fabricImg;
+  }
 }
 
 export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise<{ status: number; json: TryOnResponse }> {
@@ -162,6 +227,9 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
     return { status: 400, json: { jobId, status: 'failed', error: message } };
   }
 
+  // Apply fabric scale deterministically (resize + tile) so the pattern size changes reliably.
+  fabricImg = await applyFabricScaleAndTile(fabricImg, req.options?.fabricScale);
+
   // Create Firestore job doc (status: processing)
   try {
     const db = getFirestore();
@@ -178,7 +246,11 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
   }
 
   try {
-    const promptText = buildPrompt(req);
+    // Get template dimensions to pass to prompt
+    const templateMetadata = await (sharp as any)(templateImg.buffer).metadata();
+    const { width: templateWidth, height: templateHeight } = orientedDimensions(templateMetadata);
+    
+    const promptText = buildPrompt(req, templateWidth, templateHeight);
     const out = await generateTryOnImage({
       templateBase64: templateImg.base64,
       templateMimeType: templateImg.mimeType,
@@ -191,10 +263,8 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     // Resize generated image to match template dimensions
     try {
-      const templateMetadata = await (sharp as any)(templateImg.buffer).metadata();
       const generatedMetadata = await (sharp as any)(outBuffer).metadata();
 
-      const { width: templateWidth, height: templateHeight } = orientedDimensions(templateMetadata);
       const { width: generatedWidth, height: generatedHeight } = orientedDimensions(generatedMetadata);
 
       // Only resize if dimensions don't match
@@ -204,7 +274,8 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
         outBuffer = await (sharp as any)(outBuffer)
           .rotate()
           .resize(templateWidth, templateHeight, {
-            fit: 'fill', // Force exact dimensions
+            fit: 'contain', // Preserve aspect ratio - fit inside dimensions
+            background: { r: 255, g: 255, b: 255, alpha: 1 }, // White background for letterboxing
             kernel: 'lanczos3', // High-quality resampling
           })
           .png()
@@ -213,6 +284,41 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
     } catch (resizeErr) {
       console.warn('Failed to resize generated image to match template:', resizeErr);
       // Continue with original size if resize fails
+    }
+
+    // Add watermark (logo) to the generated image
+    try {
+      const watermarkPath = new URL('../../public/icons/icon-512.png', import.meta.url).pathname;
+      const imgMetadata = await (sharp as any)(outBuffer).metadata();
+      const imgWidth = imgMetadata.width || 1024;
+      const imgHeight = imgMetadata.height || 1024;
+      
+      // Watermark size: 15% of image width, positioned bottom-right
+      const watermarkSize = Math.floor(imgWidth * 0.15);
+      const margin = Math.floor(watermarkSize * 0.2);
+
+      const watermarkBuffer = await (sharp as any)(watermarkPath)
+        .resize(watermarkSize, watermarkSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+        .png()
+        .toBuffer();
+
+      outBuffer = await (sharp as any)(outBuffer)
+        .composite([
+          {
+            input: watermarkBuffer,
+            gravity: 'southeast',
+            blend: 'over',
+            left: margin,
+            top: margin,
+          }
+        ])
+        .png()
+        .toBuffer();
+      
+      console.log('Watermark applied successfully');
+    } catch (watermarkErr) {
+      console.warn('Failed to apply watermark:', watermarkErr);
+      // Continue without watermark if it fails
     }
 
     // Upload to Storage

@@ -5,15 +5,17 @@ interface ImageComparisonSliderProps {
   afterImage: string;
   beforeLabel?: string;
   afterLabel?: string;
+  animateReveal?: boolean;
 }
 
-export function ImageComparisonSlider({
+export const ImageComparisonSlider = React.forwardRef<HTMLDivElement, ImageComparisonSliderProps>(function ImageComparisonSlider({
   beforeImage,
   afterImage,
   beforeLabel = 'Before',
   afterLabel = 'After',
-}: ImageComparisonSliderProps) {
-  const [sliderPosition, setSliderPosition] = useState(50);
+  animateReveal = false,
+}, ref) {
+  const [sliderPosition, setSliderPosition] = useState(animateReveal ? 0 : 50);
   const [isDragging, setIsDragging] = useState(false);
   const [aspectRatio, setAspectRatio] = useState<string>('3 / 4');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -40,6 +42,24 @@ export function ImageComparisonSlider({
     if (!isDragging) return;
     handleMove(e.touches[0].clientX);
   };
+
+  useEffect(() => {
+    if (animateReveal) {
+      // Animate from 0 to 50 over 1.5 seconds
+      const duration = 1500;
+      const startTime = Date.now();
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeOut = 1 - Math.pow(1 - progress, 3);
+        setSliderPosition(easeOut * 50);
+        if (progress < 1) {
+          requestAnimationFrame(animate);
+        }
+      };
+      requestAnimationFrame(animate);
+    }
+  }, [animateReveal]);
 
   useEffect(() => {
     if (isDragging) {
@@ -106,7 +126,7 @@ export function ImageComparisonSlider({
 
       {/* Slider Handle */}
       <div
-        className="absolute top-0 bottom-0 w-1 bg-white cursor-ew-resize"
+        className="absolute top-0 bottom-0 w-0.5 bg-white cursor-ew-resize shadow-lg"
         style={{ left: `${sliderPosition}%`, transform: 'translateX(-50%)' }}
         onMouseDown={handleMouseDown}
         onTouchStart={handleMouseDown}
@@ -130,4 +150,4 @@ export function ImageComparisonSlider({
       </div>
     </div>
   );
-}
+});

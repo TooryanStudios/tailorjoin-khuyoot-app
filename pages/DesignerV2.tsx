@@ -579,85 +579,95 @@ export const DesignerV2 = () => {
         </div>
       </header>
 
-      {/* --- MAIN LAYOUT (SPLIT SCREEN) --- */}
-      <div className="flex flex-col lg:flex-row relative">
-        
-        {/* LEFT: CONTROLS (no internal scroll; page scrolls instead) */}
-        <div className="order-1 lg:order-1 w-full lg:w-[420px] xl:w-[480px] h-auto overflow-visible bg-white dark:bg-slate-900 border-l border-slate-200 dark:border-slate-800 z-10 shadow-xl shadow-slate-200/20 dark:shadow-none pb-6">
-          <div className="p-6 space-y-8">
+      {/* --- MAIN CONTROLS --- */}
+      <div className="w-full h-auto overflow-visible bg-[#F5F5F7] dark:bg-[#050505] z-10 pb-6 relative">
+        <div className="absolute top-0 right-0 text-[9px] bg-green-500 text-white px-1 py-0.5 z-[9999]">LEFT-CONTROLS</div>
+          
+          {/* Background Effects */}
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-violet-200/40 to-fuchsia-100/40 dark:from-violet-900/10 dark:to-fuchsia-900/10 rounded-full blur-[120px]" />
+            <div className="absolute inset-0 opacity-[0.4]" style={{ backgroundImage: 'radial-gradient(#a1a1aa 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
+          </div>
+          
+          <div className="p-6 space-y-8 relative z-10">
             
-            {/* SECTION 1: TEMPLATE */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">1</span>
-                  الموديل الأساسي
-                </h2>
-                <button onClick={() => setShowTemplateImageLibrary(true)} className="text-xs font-bold text-violet-600 hover:underline">تغيير</button>
-              </div>
-              
-              <div 
-                onClick={() => setShowTemplateImageLibrary(true)}
-                className="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border border-transparent hover:border-violet-500 transition-all"
-              >
-                 {(() => {
-                    const rep = measurementTemplates.find(t => t.productType === selectedTemplate);
-                    const overrideImg = templateImageOverrides[selectedTemplate];
-                    const img = overrideImg || rep?.categoryImageUrl || rep?.baseImageUrl;
-                    if (img) return <img src={img} alt="Model" className="w-full h-full object-contain" />;
-                    return (
-                        <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
-                             <Shirt size={48} className="mb-2 opacity-50" />
-                             <span className="text-xs font-bold">اضغط للاختيار</span>
-                        </div>
-                    );
-                 })()}
-                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                   <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold border border-white/30">
-                     تصفح المكتبة
-                   </div>
-                 </div>
-              </div>
-            </section>
-
-            <hr className="border-slate-100 dark:border-slate-800" />
-
-            {/* SECTION 2: FABRIC */}
-            <section>
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">2</span>
-                  القماش
-                </h2>
-                {fabricImage && <button onClick={clearFabricSelection} className="text-xs text-red-500">حذف</button>}
-              </div>
-
-              {/* Fabric Source Pills */}
-              <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide">
-                {(['khuyoot', 'shops', 'upload'] as const).map(src => (
-                  <button
-                    key={src}
-                    onClick={() => handleFabricSourceSelect(src)}
-                    className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${fabricSource === src ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600'}`}
-                  >
-                    {src === 'khuyoot' ? 'متجر خيوط' : src === 'shops' ? 'من المتاجر' : 'رفع صورة'}
-                  </button>
-                ))}
-              </div>
-
-              {/* Selected Fabric Preview (Styled like model card) */}
-              <div className="space-y-3">
+            {/* ROW: TEMPLATE + FABRIC (responsive) */}
+            <div className="flex flex-col sm:flex-row gap-6 sm:gap-8">
+              {/* SECTION 1: TEMPLATE */}
+              <section className="relative flex-1">
+                <div className="absolute top-0 left-0 text-[9px] bg-purple-500 text-white px-1 py-0.5 z-[9999]">SEC-1-TEMPLATE</div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">1</span>
+                    الموديل الأساسي
+                  </h2>
+                  <button onClick={() => setShowTemplateImageLibrary(true)} className="text-xs font-bold text-violet-600 hover:underline">تغيير</button>
+                </div>
+                
                 <div 
-                  className="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border border-transparent hover:border-emerald-500 transition-all"
-                  onClick={() => {
-                    if (fabricSource === 'khuyoot') setFabricModalOpen(true);
-                    else if (fabricSource === 'shops') setShopsModalOpen(true);
-                  }}
+                  onClick={() => setShowTemplateImageLibrary(true)}
+                  className="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border-2 border-slate-300 dark:border-slate-600 hover:border-violet-500 transition-all"
                 >
-                  {fabricImage ? (
-                    <img src={fabricImage} alt="Fabric" className="w-full h-full object-contain" />
-                  ) : (
-                    <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                   <div className="absolute top-0 left-0 text-[9px] bg-violet-500 text-white px-1 py-0.5 z-[9999]">MODEL-CARD</div>
+                   {(() => {
+                      const rep = measurementTemplates.find(t => t.productType === selectedTemplate);
+                      const overrideImg = templateImageOverrides[selectedTemplate];
+                      const img = overrideImg || rep?.categoryImageUrl || rep?.baseImageUrl;
+                      if (img) return <img src={img} alt="Model" className="w-full h-full object-contain" />;
+                      return (
+                          <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
+                               <Shirt size={48} className="mb-2 opacity-50" />
+                               <span className="text-xs font-bold">اضغط للاختيار</span>
+                          </div>
+                      );
+                   })()}
+                   <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                     <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold border border-white/30">
+                       تصفح المكتبة
+                     </div>
+                   </div>
+                </div>
+              </section>
+
+              {/* SECTION 2: FABRIC */}
+              <section className="relative flex-1">
+                <div className="absolute top-0 left-0 text-[9px] bg-purple-500 text-white px-1 py-0.5 z-[9999]">SEC-2-FABRIC</div>
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">2</span>
+                    القماش
+                  </h2>
+                  {fabricImage && <button onClick={clearFabricSelection} className="text-xs text-red-500">حذف</button>}
+                </div>
+
+                {/* Fabric Source Pills */}
+                <div className="flex gap-2 mb-4 overflow-x-auto pb-2 scrollbar-hide relative">
+                  <div className="absolute top-0 left-0 text-[9px] bg-blue-500 text-white px-1 py-0.5 z-[9999]">FABRIC-SOURCE-PILLS</div>
+                  {(['khuyoot', 'shops', 'upload'] as const).map(src => (
+                    <button
+                      key={src}
+                      onClick={() => handleFabricSourceSelect(src)}
+                      className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap border transition-all ${fabricSource === src ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600'}`}
+                    >
+                      {src === 'khuyoot' ? 'متجر خيوط' : src === 'shops' ? 'من المتاجر' : 'رفع صورة'}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Selected Fabric Preview (Styled like model card) */}
+                <div className="space-y-3 relative">
+                  <div className="absolute top-0 left-0 text-[9px] bg-emerald-500 text-white px-1 py-0.5 z-[9999]">FABRIC-CARD</div>
+                  <div 
+                    className="group relative w-full aspect-[3/4] rounded-3xl overflow-hidden bg-slate-100 dark:bg-slate-800 cursor-pointer border-2 border-slate-300 dark:border-slate-600 hover:border-emerald-500 transition-all"
+                    onClick={() => {
+                      if (fabricSource === 'khuyoot') setFabricModalOpen(true);
+                      else if (fabricSource === 'shops') setShopsModalOpen(true);
+                    }}
+                  >
+                    {fabricImage ? (
+                      <img src={fabricImage} alt="Fabric" className="w-full h-full object-contain" />
+                    ) : (
+                      <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                       <Palette size={48} className="mb-2 opacity-50" />
                       <span className="text-xs font-bold">اضغط للاختيار</span>
                     </div>
@@ -727,11 +737,56 @@ export const DesignerV2 = () => {
                 )}
               </div>
             </section>
+            </div>
+
+            <hr className="border-slate-100 dark:border-slate-800" />
+
+            {/* SECTION 3: DETAILS */}
+            <section className="relative">
+               <div className="absolute top-0 left-0 text-[9px] bg-purple-500 text-white px-1 py-0.5 z-[9999]">SEC-3-DETAILS</div>
+               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
+                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">3</span>
+                  التفاصيل والإضافات
+               </h2>
+               
+               <div className="grid grid-cols-2 gap-4 sm:gap-6">
+                  {DESIGN_CATEGORIES.map(cat => {
+                    const isSelected = !!selections[cat.id];
+                    const selected = selections[cat.id];
+                    return (
+                      <button
+                        key={cat.id}
+                        onClick={() => handleCategoryClick(cat.id)}
+                        className={`w-full flex flex-col items-center p-3 sm:p-4 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow-md ${isSelected ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-lg shadow-lg shadow-slate-900/10' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 hover:border-slate-300'}`}
+                      >
+                        <div className="w-full aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
+                          {isSelected && selected?.thumbnailUrl ? (
+                            <img src={selected.thumbnailUrl!} alt={selected.name} className="w-full h-full object-cover" />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-[10px] sm:text-[11px] text-slate-500">اضغط للاختيار</div>
+                          )}
+                        </div>
+                        <div className="mt-2 text-center">
+                          <div className="text-xs sm:text-sm font-bold">{cat.name}</div>
+                          <div className="text-[10px] sm:text-[11px] opacity-80">
+                            {isSelected ? selected?.name : 'اضغط للاختيار'}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                  {/* Reserved empty tile */}
+                  <div className="w-full aspect-square p-3 sm:p-4 rounded-2xl border bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 flex items-center justify-center text-slate-400 text-xs">
+                    احتياطي
+                  </div>
+               </div>
+            </section>
 
             <hr className="border-slate-100 dark:border-slate-800" />
 
             {/* TRY-ON (Always visible, inline) */}
-            <section ref={tryFabricSectionRef} className="space-y-3">
+            <section ref={tryFabricSectionRef} className="space-y-3 relative">
+              <div className="absolute top-0 left-0 text-[9px] bg-orange-500 text-white px-1 py-0.5 z-[9999]">SEC-TRYON</div>
               <div className="flex items-center justify-between">
                 <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">★</span>
@@ -784,161 +839,9 @@ export const DesignerV2 = () => {
               ) : null}
             </section>
 
-            <hr className="border-slate-100 dark:border-slate-800" />
-
-            {/* SECTION 3: DETAILS */}
-            <section>
-               <h2 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2 mb-4">
-                  <span className="w-6 h-6 rounded-full bg-slate-100 dark:bg-slate-800 text-xs flex items-center justify-center">3</span>
-                  التفاصيل والإضافات
-               </h2>
-               
-               <div className="grid grid-cols-2 gap-4 sm:gap-6">
-                  {DESIGN_CATEGORIES.map(cat => {
-                    const isSelected = !!selections[cat.id];
-                    const selected = selections[cat.id];
-                    return (
-                      <button
-                        key={cat.id}
-                        onClick={() => handleCategoryClick(cat.id)}
-                        className={`w-full flex flex-col items-center p-3 sm:p-4 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow-md ${isSelected ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-transparent shadow-lg shadow-slate-900/10' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 hover:border-slate-300'}`}
-                      >
-                        <div className="w-full h-24 sm:h-28 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
-                          {isSelected && selected?.thumbnailUrl ? (
-                            <img src={selected.thumbnailUrl!} alt={selected.name} className="w-full h-full object-cover" />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-[10px] sm:text-[11px] text-slate-500">اضغط للاختيار</div>
-                          )}
-                        </div>
-                        <div className="mt-2 text-center">
-                          <div className="text-xs sm:text-sm font-bold">{cat.name}</div>
-                          <div className="text-[10px] sm:text-[11px] opacity-80">
-                            {isSelected ? selected?.name : 'اضغط للاختيار'}
-                          </div>
-                        </div>
-                      </button>
-                    );
-                  })}
-                  {/* Reserved empty tile */}
-                  <div className="w-full h-24 sm:h-28 p-3 sm:p-4 rounded-2xl border bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 flex items-center justify-center text-slate-400 text-xs">
-                    احتياطي
-                  </div>
-               </div>
-            </section>
-
              {/* Removed mobile spacer to avoid large gap */}
           </div>
         </div>
-
-        {/* RIGHT: STATIC PREVIEW (THE "RUNWAY" SIDE) */}
-        <div className="order-2 lg:order-2 flex-none lg:flex-1 lg:h-full bg-[#F5F5F7] dark:bg-[#050505] relative flex items-start lg:items-center justify-center overflow-hidden">
-             
-             {/* Background Effects */}
-             <div className="absolute inset-0 pointer-events-none">
-                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-gradient-to-tr from-violet-200/40 to-fuchsia-100/40 dark:from-violet-900/10 dark:to-fuchsia-900/10 rounded-full blur-[120px]" />
-                <div className="absolute inset-0 opacity-[0.4]" style={{ backgroundImage: 'radial-gradient(#a1a1aa 1px, transparent 1px)', backgroundSize: '32px 32px' }} />
-             </div>
-
-             {/* Main Preview Area */}
-             <div className="relative z-10 w-full flex flex-col items-center p-4">
-                 
-                 {isGenerating && (
-                    <div className="absolute inset-0 z-50 bg-white/50 dark:bg-black/50 backdrop-blur-sm flex flex-col items-center justify-center">
-                        <div className="w-16 h-16 border-4 border-slate-900 dark:border-white border-t-transparent rounded-full animate-spin mb-4" />
-                        <span className="font-bold text-slate-900 dark:text-white tracking-widest uppercase text-sm">جاري التصميم</span>
-                    </div>
-                 )}
-
-                 {generatedImage ? (
-                    <img src={generatedImage} alt="Final Design" className="max-h-[85vh] w-auto object-contain drop-shadow-2xl animate-in zoom-in-95 duration-500" />
-                 ) : (
-                    (() => {
-                      const rep = measurementTemplates.find(t => t.productType === selectedTemplate);
-                      const overrideImg = templateImageOverrides[selectedTemplate];
-                      const modelImg = overrideImg || rep?.categoryImageUrl || rep?.baseImageUrl || null;
-                      const bgStyle: React.CSSProperties = fabricImage ? {
-                        backgroundImage: `url(${fabricImage})`,
-                        backgroundSize: `${Math.round(100 * (fabricSettings.patternScale || 1))}%`,
-                        backgroundRepeat: fabricSettings.patternRepeatMode === 'repeat' ? 'repeat' : 'no-repeat',
-                        backgroundPosition: `${fabricSettings.patternOffsetX || 0}px ${fabricSettings.patternOffsetY || 0}px`,
-                      } : {};
-                      return (
-                        <div className="relative w-full max-w-[520px] aspect-[3/4] rounded-3xl overflow-hidden border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900" style={bgStyle}>
-                          {fabricImage && (
-                            <div
-                              className="absolute inset-0 pointer-events-none"
-                              style={{
-                                transform: `rotate(${fabricSettings.patternRotation || 0}deg)`,
-                                backgroundColor: previewOverlayTheme === 'light' ? `rgba(255,255,255, ${previewOverlayOpacity})` : `rgba(0,0,0, ${previewOverlayOpacity})`,
-                              }}
-                            />
-                          )}
-                          {modelImg ? (
-                            <img src={modelImg} alt="الموديل" className="absolute inset-0 m-auto w-full h-full object-contain" style={{ mixBlendMode: fabricImage ? previewBlendMode : 'normal' }} />
-                          ) : (
-                            <div className="absolute inset-0 flex items-center justify-center text-slate-400">
-                              اختر الموديل والقماش لبدء المعاينة
-                            </div>
-                          )}
-                          <div className="absolute top-3 left-3 right-3 flex gap-2 justify-end">
-                            {(Object.entries(selections) as Array<[string, DesignOption | null]>).map(([catId, opt]) => (
-                              opt ? (
-                                <span
-                                  key={catId}
-                                  className="px-2 py-1 text-[10px] rounded-full bg-white/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
-                                >
-                                  {opt.name}
-                                </span>
-                              ) : null
-                            ))}
-                          </div>
-                          {!fabricImage && (
-                            <div className="absolute bottom-3 left-1/2 -translate-x-1/2 text-[11px] text-slate-500">اختر القماش لرؤية المعاينة الحية</div>
-                          )}
-                        </div>
-                      );
-                    })()
-                 )}
-                 
-                 {/* Floating Actions for Preview (Like Instagram/TikTok Overlay) */}
-                 {generatedImage && (
-                    <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md p-2 rounded-full shadow-2xl border border-white/20">
-                        <Button onClick={handleAddToCart} className="rounded-full px-6 bg-emerald-600 hover:bg-emerald-700 text-white shadow-lg shadow-emerald-500/20">
-                           <ShoppingCart size={18} className="mr-2" />
-                           <span className="font-bold text-xs">إضافة للسلة</span>
-                        </Button>
-                         <div className="w-px h-6 bg-slate-200 dark:bg-slate-700" />
-                         <button onClick={handleSaveDesign} className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="حفظ">
-                            <Save size={20} />
-                         </button>
-                         <button 
-                            onClick={() => navigator.share?.({ title: 'My Design', url: window.location.href })}
-                            className="p-3 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full text-slate-600 dark:text-slate-300 transition-colors" title="مشاركة"
-                         >
-                            <Share2 size={20} />
-                         </button>
-                    </div>
-                 )}
-             </div>
-
-             {/* GENERATE BUTTON (DESKTOP - FLOATING) */}
-             <div className="absolute bottom-8 right-8 z-20">
-                 <Button 
-                    onClick={handleGenerate} 
-                    disabled={isGenerating}
-                    className={`h-16 w-16 rounded-full flex items-center justify-center shadow-2xl transition-all duration-300 ${isGenerating ? 'bg-slate-400' : 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:scale-110'}`}
-                 >
-                    <Wand2 size={24} className={isGenerating ? 'animate-spin' : ''} />
-                 </Button>
-                 {!generatedImage && !isGenerating && (
-                    <div className="absolute bottom-full mb-2 right-1/2 translate-x-1/2 whitespace-nowrap bg-slate-900 text-white text-[10px] px-2 py-1 rounded-lg">
-                        اضغط للإنشاء
-                    </div>
-                 )}
-             </div>
-        </div>
-
-      </div>
 
       {/* --- TOAST --- */}
       {toast.open && (
