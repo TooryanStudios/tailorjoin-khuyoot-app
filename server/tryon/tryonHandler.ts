@@ -82,6 +82,8 @@ async function applyFabricScaleAndTile(
   fabricImg: { base64: string; mimeType: string; buffer: Buffer },
   fabricScale: number | undefined,
 ): Promise<{ base64: string; mimeType: string; buffer: Buffer }> {
+  // Skip tiling on Vercel if Sharp fails to load (serverless environment limitations)
+  // Fabric scale will still be passed in prompt for AI to interpret
   const scale = typeof fabricScale === 'number' ? fabricScale : 1;
   if (!Number.isFinite(scale) || scale === 1) return fabricImg;
 
@@ -92,6 +94,12 @@ async function applyFabricScaleAndTile(
   const MAX_TILE = 1024;
 
   try {
+    // Check if sharp is available (may fail in serverless)
+    if (!sharp) {
+      console.warn('Sharp not available in this environment; skipping fabric tiling');
+      return fabricImg;
+    }
+
     const meta = await (sharp as any)(fabricImg.buffer).metadata();
     const baseW = typeof meta.width === 'number' && meta.width > 0 ? meta.width : 512;
     const baseH = typeof meta.height === 'number' && meta.height > 0 ? meta.height : 512;
@@ -263,23 +271,23 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     // Resize generated image to match template dimensions
     try {
-      const generatedMetadata = await (sharp as any)(outBuffer).metadata();
+      if (sharp && templateWidth && templateHeight) {
+        const generatedMetadata = await (sharp as any)(outBuffer).metadata();
+        const { width: generatedWidth, height: generatedHeight } = orientedDimensions(generatedMetadata);
 
-      const { width: generatedWidth, height: generatedHeight } = orientedDimensions(generatedMetadata);
-
-      // Only resize if dimensions don't match
-      if (templateWidth && templateHeight && 
-          (generatedWidth !== templateWidth || generatedHeight !== templateHeight)) {
-        console.log(`Resizing generated image from ${generatedWidth}x${generatedHeight} to ${templateWidth}x${templateHeight}`);
-        outBuffer = await (sharp as any)(outBuffer)
-          .rotate()
-          .resize(templateWidth, templateHeight, {
-            fit: 'contain', // Preserve aspect ratio - fit inside dimensions
-            background: { r: 255, g: 255, b: 255, alpha: 1 }, // White background for letterboxing
-            kernel: 'lanczos3', // High-quality resampling
-          })
-          .png()
-          .toBuffer();
+        // Only resize if dimensions don't match
+        if (generatedWidth !== templateWidth || generatedHeight !== templateHeight) {
+          console.log(`Resizing generated image from ${generatedWidth}x${generatedHeight} to ${templateWidth}x${templateHeight}`);
+          outBuffer = await (sharp as any)(outBuffer)
+            .rotate()
+            .resize(templateWidth, templateHeight, {
+              fit: 'contain',
+              background: { r: 255, g: 255, b: 255, alpha: 1 },
+              kernel: 'lanczos3',
+            })
+            .png()
+            .toBuffer();
+        }
       }
     } catch (resizeErr) {
       console.warn('Failed to resize generated image to match template:', resizeErr);
@@ -288,34 +296,38 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     // Add watermark (logo) to the generated image
     try {
-      const watermarkPath = new URL('../../public/icons/icon-512.png', import.meta.url).pathname;
-      const imgMetadata = await (sharp as any)(outBuffer).metadata();
-      const imgWidth = imgMetadata.width || 1024;
-      const imgHeight = imgMetadata.height || 1024;
-      
-      // Watermark size: 15% of image width, positioned bottom-right
-      const watermarkSize = Math.floor(imgWidth * 0.15);
-      const margin = Math.floor(watermarkSize * 0.2);
+      if (sharp) {
+        const watermarkPath = new URL('../../public/icons/icon-512.png', import.meta.url).pathname;
+        const imgMetadata = await (sharp as any)(outBuffer).metadata();
+        const imgWidth = imgMetadata.width || 1024;
+        const imgHeight = imgMetadata.height || 1024;
+        
+        // Watermark size: 15% of image width, positioned bottom-right
+        const watermarkSize = Math.floor(imgWidth * 0.15);
+        const margin = Math.floor(watermarkSize * 0.2);
 
-      const watermarkBuffer = await (sharp as any)(watermarkPath)
-        .resize(watermarkSize, watermarkSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-        .png()
-        .toBuffer();
+        const watermarkBuffer = await (sharp as any)(watermarkPath)
+          .resize(watermarkSize, watermarkSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
+          .png()
+          .toBuffer();
 
-      outBuffer = await (sharp as any)(outBuffer)
-        .composite([
-          {
-            input: watermarkBuffer,
-            gravity: 'southeast',
-            blend: 'over',
-            left: margin,
-            top: margin,
-          }
-        ])
-        .png()
-        .toBuffer();
-      
-      console.log('Watermark applied successfully');
+        outBuffer = await (sharp as any)(outBuffer)
+          .composite([
+            {
+              input: watermarkBuffer,
+              gravity: 'southeast',
+              blend: 'over',
+              left: margin,
+              top: margin,
+            }
+          ])
+          .png()
+          .toBuffer();
+        
+        console.log('Watermark applied successfully');
+      } else {
+        console.warn('Sharp not available; skipping watermark');
+      }
     } catch (watermarkErr) {
       console.warn('Failed to apply watermark:', watermarkErr);
       // Continue without watermark if it fails
