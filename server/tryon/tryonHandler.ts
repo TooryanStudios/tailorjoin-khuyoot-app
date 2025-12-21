@@ -1,11 +1,28 @@
 import crypto from 'node:crypto';
-import sharp from 'sharp';
 import type { TryOnRequest, TryOnResponse } from '../../src/types/tryon';
 import { getTemplateById } from './templates';
 import { assertNoPersonalPhotoPolicy, isAllowedRemoteImageUrl, validateTryOnRequest } from './validation';
 import { generateTryOnImage } from './geminiClient';
 import { getFirestore, getStorageBucket, verifyFirebaseIdToken } from './firebaseAdmin';
 import { getImageMeta } from './imageMeta';
+
+type SharpFn = any;
+let sharpFnPromise: Promise<SharpFn | null> | null = null;
+
+async function getSharpFn(): Promise<SharpFn | null> {
+  if (sharpFnPromise) return sharpFnPromise;
+
+  sharpFnPromise = import('sharp')
+    .then((mod: any) => (mod?.default ? mod.default : mod))
+    .catch((e: any) => {
+      // On some serverless environments, Sharp native binaries may be unavailable.
+      // We must not crash the function; fall back to "no-sharp" mode.
+      console.warn('Sharp failed to load; continuing without Sharp features (resize/tiling/watermark):', e);
+      return null;
+    });
+
+  return sharpFnPromise;
+}
 
 type HandlerContext = {
   ip: string;
@@ -40,7 +57,7 @@ async function fetchImageAsBase64(url: string): Promise<{ base64: string; mimeTy
   return { base64: buffer.toString('base64'), mimeType: contentType.split(';')[0], buffer };
 }
 
-function orientedDimensions(meta: sharp.Metadata): { width?: number; height?: number } {
+function orientedDimensions(meta: { width?: number; height?: number; orientation?: number }): { width?: number; height?: number } {
   const width = meta.width;
   const height = meta.height;
   if (!width || !height) return { width, height };
@@ -94,7 +111,7 @@ async function applyFabricScaleAndTile(
   const MAX_TILE = 1024;
 
   try {
-    // Check if sharp is available (may fail in serverless)
+    const sharp = await getSharpFn();
     if (!sharp) {
       console.warn('Sharp not available in this environment; skipping fabric tiling');
       return fabricImg;
@@ -254,9 +271,10 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
   }
 
   try {
-    // Get template dimensions to pass to prompt
-    const templateMetadata = await (sharp as any)(templateImg.buffer).metadata();
-    const { width: templateWidth, height: templateHeight } = orientedDimensions(templateMetadata);
+    // Get template dimensions to pass to prompt (best-effort; depends on Sharp availability)
+    const sharp = await getSharpFn();
+    const templateMetadata = sharp ? await (sharp as any)(templateImg.buffer).metadata() : null;
+    const { width: templateWidth, height: templateHeight } = orientedDimensions(templateMetadata || {});
     
     const promptText = buildPrompt(req, templateWidth, templateHeight);
     const out = await generateTryOnImage({
@@ -271,6 +289,7 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     // Resize generated image to match template dimensions
     try {
+      const sharp = await getSharpFn();
       if (sharp && templateWidth && templateHeight) {
         const generatedMetadata = await (sharp as any)(outBuffer).metadata();
         const { width: generatedWidth, height: generatedHeight } = orientedDimensions(generatedMetadata);
@@ -296,6 +315,7 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     // Add watermark (logo) to the generated image
     try {
+      const sharp = await getSharpFn();
       if (sharp) {
         const watermarkPath = new URL('../../public/icons/icon-512.png', import.meta.url).pathname;
         const imgMetadata = await (sharp as any)(outBuffer).metadata();
