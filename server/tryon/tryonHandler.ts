@@ -1,10 +1,10 @@
 import crypto from 'node:crypto';
 import type { TryOnRequest, TryOnResponse } from '../../src/types/tryon';
-import { getTemplateById } from './templates';
-import { assertNoPersonalPhotoPolicy, isAllowedRemoteImageUrl, validateTryOnRequest } from './validation';
-import { generateTryOnImage } from './geminiClient';
-import { getFirestore, getStorageBucket, verifyFirebaseIdToken } from './firebaseAdmin';
-import { getImageMeta } from './imageMeta';
+import { getTemplateById } from './templates.js';
+import { assertNoPersonalPhotoPolicy, isAllowedRemoteImageUrl, validateTryOnRequest } from './validation.js';
+import { generateTryOnImage } from './geminiClient.js';
+import { getFirestore, getStorageBucket, verifyFirebaseIdToken } from './firebaseAdmin.js';
+import { getImageMeta } from './imageMeta.js';
 
 type SharpFn = any;
 let sharpFnPromise: Promise<SharpFn | null> | null = null;

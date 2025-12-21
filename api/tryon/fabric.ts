@@ -1,5 +1,5 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { handleTryOnFabric } from '../../server/tryon/tryonHandler';
+import { handleTryOnFabric } from '../../server/tryon/tryonHandler.js';
 
 async function readJsonBody(req: IncomingMessage, maxBytes = 6 * 1024 * 1024): Promise<any> {
   const chunks: Buffer[] = [];
