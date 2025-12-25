@@ -1,15 +1,50 @@
 import React from 'react';
 import { TemplatePicker } from './TemplatePicker';
 import { FabricUploader } from './FabricUploader';
-import { TryOnResult } from './TryOnResult';
 import { GARMENT_TEMPLATES } from '../templates/garmentTemplates';
-import type { TryOnOptions, TryOnRequest, TryOnResponse } from '../../types/tryon';
-import { resizeImage } from '../../utils/imageResize';
-import { fileToBase64 } from '../../utils/fileToBase64';
-import { generateTryOn } from '../../services/tryonService';
-import { ImageLibraryPicker } from '../../../components/ImageLibraryPicker';
+import type { TryOnOptions, TryOnResponse } from '../../types/tryon';
+import { useApp } from '../../../context/AppContext';
+import { FabricSelectCard } from './tryFabricPanel/FabricSelectCard';
+import { TryOnResultSection } from './tryFabricPanel/TryOnResultSection';
+import { TryOnTemplatePickerModal } from './tryFabricPanel/TryOnTemplatePickerModal';
+import { TryOnFabricPickerModal } from './tryFabricPanel/TryOnFabricPickerModal';
+import { FabricImageLibraryModal } from './tryFabricPanel/FabricImageLibraryModal';
+import { TryFabricMainCard } from './tryFabricPanel/TryFabricMainCard';
+import { useTryOnTemplatePicker } from '../hooks/useTryOnTemplatePicker';
+import { useTryOnGeneration } from '../hooks/useTryOnGeneration';
+import {
+  getFabricCategories,
+  getFabricsByCategoryId,
+  getFabricCoverUrl,
+  getFabricCoverThumbnailUrl,
+  type FabricCategory as KhuyootFabricCategory,
+  type FabricItem as KhuyootFabricItem,
+} from '../../../services/fabricLibraryService';
+import type { GenerationItem } from '../../../pages/designerV2/components/GenerationsRail';
+
+type GarmentTemplate = {
+  id: string;
+  name: string;
+  imageUrl: string;
+  thumbnailUrl?: string | null;
+  enabled?: boolean;
+  order?: number;
+  isPremium?: boolean;
+};
 
 const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
+const RECENT_TEMPLATES_KEY = 'khuyoot_tryon_recent_templates_v1';
+const MAX_RECENT_TEMPLATES = 9;
+const FREE_MAX_RECENTS = 3;
+const TEMPLATE_PICKER_PAGE_SIZE = 20;
+const RECENT_THUMB_WIDTH = 100;
+const RECENT_THUMB_HEIGHT = 133; // matches the recent card aspect [3/4] at ~100px width
+
+function parseDataUrl(dataUrl: string): { mimeType: string; base64: string } | null {
+  const match = /^data:([^;]+);base64,(.*)$/.exec(dataUrl || '');
+  if (!match) return null;
+  return { mimeType: match[1], base64: match[2] };
+}
 
 function looksLikePersonalPhotoClientSide(file: File): boolean {
   // Minimal, conservative heuristic: reject portrait-ish photos by filename.
@@ -18,16 +53,151 @@ function looksLikePersonalPhotoClientSide(file: File): boolean {
   return false;
 }
 
-export function TryFabricPanel(props: {
+function isLikelyStorableUrl(url: string): boolean {
+  if (!url) return false;
+  // Never store blob URLs in localStorage (they break across reloads and waste space).
+  if (url.startsWith('blob:')) return false;
+  // Allow compact data URLs and normal URLs.
+  if (url.startsWith('data:image/')) return true;
+  if (url.startsWith('http://') || url.startsWith('https://')) return true;
+  return false;
+}
+
+async function createCoverThumbnailDataUrl(params: {
+  sourceDataUrl: string;
+  targetWidth: number;
+  targetHeight: number;
+  mimeType?: 'image/webp' | 'image/jpeg' | 'image/png';
+  quality?: number;
+}): Promise<string | null> {
+  const { sourceDataUrl, targetWidth, targetHeight } = params;
+  const mimeType = params.mimeType ?? 'image/webp';
+  const quality = params.quality ?? 0.82;
+  if (!sourceDataUrl?.startsWith('data:image/')) return null;
+
+  return await new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = targetWidth;
+        canvas.height = targetHeight;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return resolve(null);
+
+        // cover-crop to target aspect
+        const scale = Math.max(targetWidth / img.width, targetHeight / img.height);
+        const drawWidth = img.width * scale;
+        const drawHeight = img.height * scale;
+        const dx = (targetWidth - drawWidth) / 2;
+        const dy = (targetHeight - drawHeight) / 2;
+        ctx.clearRect(0, 0, targetWidth, targetHeight);
+        ctx.drawImage(img, dx, dy, drawWidth, drawHeight);
+
+        try {
+          resolve(canvas.toDataURL(mimeType, quality));
+        } catch {
+          // Some browsers may not support webp; fall back.
+          resolve(canvas.toDataURL('image/jpeg', 0.82));
+        }
+      } catch {
+        resolve(null);
+      }
+    };
+    img.onerror = () => resolve(null);
+    img.src = sourceDataUrl;
+  });
+}
+
+export type TryFabricPanelHandle = {
+  generate: () => void;
+  openTemplatePicker: () => void;
+  openFabricPicker: () => void;
+};
+
+export type TryFabricPanelProps = {
   initialTemplateId?: string;
+  initialTemplateImageUrl?: string | null;
+  initialTemplateWidth?: number | null;
+  initialTemplateHeight?: number | null;
   initialOptions?: TryOnOptions;
   onApplyResult: (result: { jobId: string; resultImageUrl: string }) => void;
-}) {
-  const { initialTemplateId, initialOptions, onApplyResult } = props;
+  onTemplateSubmit?: (payload: { templateId: string; templateImageUrl: string }) => void;
+  onFabricSubmit?: (payload: { fabricImageUrl: string; fabricPreviewUrl?: string | null }) => void;
+  templates?: GarmentTemplate[];
+  useExternalCards?: boolean;
+  externalTemplateImageUrl?: string | null;
+  externalFabricImageUrl?: string | null;
+  comparisonOverride?: {
+    beforeImage?: string | null;
+    afterImage?: string | null;
+    beforeLabel?: string;
+    afterLabel?: string;
+  } | null;
+  onResultHelp?: () => void;
+  onResultToggleAdminAnchors?: () => void;
+  showAdminAnchors?: boolean;
+  onRequestPickTemplate?: () => void;
+  onRequestPickFabric?: () => void;
+  onMissingTemplate?: () => void;
+  onMissingFabric?: () => void;
+  onRequestHelp?: () => void;
+  onGenerated?: (result: { jobId: string; resultImageUrl: string; resultThumbnailUrl?: string }) => void;
+  modalGenerations?: GenerationItem[];
+  modalGenerationsPlaceholderCount?: number;
+  onModalGenerationOpen?: (url: string) => void;
+  onModalGenerationSetBefore?: (url: string) => void;
+  onModalGenerationSetAfter?: (url: string) => void;
+};
 
-  const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(initialTemplateId || null);
-  const [customTemplateFile, setCustomTemplateFile] = React.useState<File | null>(null);
-  const [customTemplatePreview, setCustomTemplatePreview] = React.useState<string | null>(null);
+export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPanelProps>(function TryFabricPanel(props, ref) {
+  const { user, appSettings } = useApp();
+
+  const isSubscribed = React.useMemo(() => {
+    if (!user) return false;
+    if ((user as any).isGoldMember === true) return true;
+    const tier = (user as any)?.subscription?.tier;
+    return typeof tier === 'string' && tier.toLowerCase() !== 'free';
+  }, [user]);
+
+  const maxRecentTemplates = React.useMemo(() => {
+    const freeMax = Number((appSettings as any)?.aiTryOn?.limits?.free?.maxRecents ?? FREE_MAX_RECENTS);
+    const subMax = Number((appSettings as any)?.aiTryOn?.limits?.subscribed?.maxRecents ?? MAX_RECENT_TEMPLATES);
+    const safeFree = Number.isFinite(freeMax) ? Math.max(0, freeMax) : FREE_MAX_RECENTS;
+    const safeSub = Number.isFinite(subMax) ? Math.max(0, subMax) : MAX_RECENT_TEMPLATES;
+    return isSubscribed ? safeSub : safeFree;
+  }, [appSettings, isSubscribed]);
+
+  const {
+    initialTemplateId,
+    initialTemplateImageUrl,
+    initialTemplateWidth,
+    initialTemplateHeight,
+    initialOptions,
+    onApplyResult,
+    onTemplateSubmit,
+    onFabricSubmit,
+    templates: templatesProp,
+    useExternalCards = false,
+    externalTemplateImageUrl,
+    externalFabricImageUrl,
+    comparisonOverride,
+    onResultHelp,
+    onResultToggleAdminAnchors,
+    showAdminAnchors,
+    onRequestPickTemplate,
+    onRequestPickFabric,
+    onMissingTemplate,
+    onMissingFabric,
+    onRequestHelp,
+    onGenerated,
+    modalGenerations,
+    modalGenerationsPlaceholderCount,
+    onModalGenerationOpen,
+    onModalGenerationSetBefore,
+    onModalGenerationSetAfter,
+  } = props;
+
   const [fabricFile, setFabricFile] = React.useState<File | null>(null);
   const [fabricImageUrl, setFabricImageUrl] = React.useState<string | null>(null);
   const [fabricPreview, setFabricPreview] = React.useState<string | null>(null);
@@ -40,17 +210,20 @@ export function TryFabricPanel(props: {
     colorPreservation: initialOptions?.colorPreservation || 'high',
   });
 
-  const [loading, setLoading] = React.useState(false);
-  const [progress, setProgress] = React.useState(0);
-  const [result, setResult] = React.useState<TryOnResponse | null>(null);
-  const [showTemplateImageLibrary, setShowTemplateImageLibrary] = React.useState(false);
+  const portalTarget = typeof document !== 'undefined' ? document.body : null;
+
   const [showFabricPicker, setShowFabricPicker] = React.useState(false);
   const [showFabricImageLibrary, setShowFabricImageLibrary] = React.useState(false);
+  const [khuyootFabricCategories, setKhuyootFabricCategories] = React.useState<KhuyootFabricCategory[]>([]);
+  const [khuyootSelectedCategoryId, setKhuyootSelectedCategoryId] = React.useState<string | null>(null);
+  const [khuyootFabrics, setKhuyootFabrics] = React.useState<KhuyootFabricItem[]>([]);
+  const [khuyootFabricsLoading, setKhuyootFabricsLoading] = React.useState(false);
+  const [khuyootFabricsError, setKhuyootFabricsError] = React.useState<string | null>(null);
   const [showDebugView, setShowDebugView] = React.useState(false);
-  const [animateReveal, setAnimateReveal] = React.useState(false);
+  const overlayScrollPositionRef = React.useRef<number>(0);
   const topRef = React.useRef<HTMLDivElement>(null);
   const resultRef = React.useRef<HTMLDivElement>(null);
-
+  const persistStateTimer = React.useRef<number | null>(null);
   const validateFile = React.useCallback((file: File | null) => {
     if (!file) {
       setFabricError(null);
@@ -76,8 +249,190 @@ export function TryFabricPanel(props: {
     return true;
   }, []);
 
+  const templatePicker = useTryOnTemplatePicker({
+    initialTemplateId,
+    initialTemplateImageUrl,
+    templatesProp: templatesProp as any,
+    isSubscribed,
+    useExternalCards,
+    externalTemplateImageUrl: externalTemplateImageUrl ?? null,
+    templatePickerPageSize: TEMPLATE_PICKER_PAGE_SIZE,
+    maxRecentTemplates,
+    recentTemplatesStorageKey: RECENT_TEMPLATES_KEY,
+  });
+
+  const {
+    templates,
+    showTemplateImageLibrary,
+    setShowTemplateImageLibrary,
+    templatePickerPage,
+    setTemplatePickerPage,
+    selectedTemplateId,
+    setSelectedTemplateId,
+    customTemplateFile,
+    setCustomTemplateFile,
+    customTemplatePreview,
+    setCustomTemplatePreview,
+    templateUploadInputRef,
+    templateDragActive,
+    handleTemplateDrop,
+    handleTemplateDragOver,
+    handleTemplateDragEnter,
+    handleTemplateDragLeave,
+    validateTemplateFile,
+    onTemplateUpload: onTemplateUploadInner,
+    templatePreviewImgElRef,
+    templatePreviewSrcRef,
+    templatePreviewLoading,
+    setTemplatePreviewLoading,
+    templateSidePreviewImgElRef,
+    templateSidePreviewSrcRef,
+    templateSidePreviewLoading,
+    setTemplateSidePreviewLoading,
+    templatePickerLeftScrollRef,
+    templatePickerLeftScrollThumb,
+    updateTemplatePickerLeftScrollThumb,
+    recentTemplates,
+    setRecentTemplates,
+    showAllRecents,
+    setShowAllRecents,
+    saveTemplateToHistory,
+    setSaveTemplateToHistory,
+    upsertRecentTemplate,
+    pagedCuratedTemplateItems,
+    templatePickerTotalPages,
+    resolvedTemplateImageUrl,
+    resolvedTemplateIdToApply,
+    canSubmitTemplate,
+    handleTemplateSelect: handleTemplateSelectInner,
+    handleRecentClick: handleRecentClickInner,
+  } = templatePicker;
+
+  const generationTemplates = React.useMemo(() => {
+    return (templates || []).map((t) => ({ id: t.id, imageUrl: t.imageUrl }));
+  }, [templates]);
+
+  const {
+    loading,
+    progress,
+    result,
+    animateReveal,
+    setAnimateReveal,
+    setResult,
+    clearResult,
+    generate,
+    saveToProject,
+    retry,
+  } = useTryOnGeneration({
+    useExternalCards,
+    initialTemplateId,
+    initialTemplateImageUrl,
+    initialTemplateWidth,
+    initialTemplateHeight,
+    initialOptions,
+    externalTemplateImageUrl: externalTemplateImageUrl ?? null,
+    externalFabricImageUrl: externalFabricImageUrl ?? null,
+    selectedTemplateId,
+    templates: generationTemplates,
+    customTemplateFile,
+    customTemplatePreview,
+    fabricFile,
+    fabricImageUrl,
+    options,
+    validateFabricFile: validateFile,
+    resultRef,
+    topRef,
+    onApplyResult,
+    onGenerated,
+    onMissingTemplate,
+    onMissingFabric,
+    createCoverThumbnailDataUrl,
+    upsertRecentTemplate,
+    saveTemplateToHistory,
+    recentThumbWidth: RECENT_THUMB_WIDTH,
+    recentThumbHeight: RECENT_THUMB_HEIGHT,
+  });
+
+  const onTemplateUpload = React.useCallback((file: File | null) => {
+    setAnimateReveal(false);
+    onTemplateUploadInner(file);
+  }, [setAnimateReveal, onTemplateUploadInner]);
+
+  const handleTemplateSelect = React.useCallback((item: { id: string; name?: string; imageUrl?: string; thumbnailUrl?: string; isPremium?: boolean; isLocked?: boolean }) => {
+    setAnimateReveal(false);
+    handleTemplateSelectInner(item);
+  }, [setAnimateReveal, handleTemplateSelectInner]);
+
+  const handleRecentClick = React.useCallback((item: { id: string; imageUrl: string; name?: string }) => {
+    setAnimateReveal(false);
+    handleRecentClickInner(item);
+  }, [setAnimateReveal, handleRecentClickInner]);
+
+  // Prevent mobile background scrolling when our custom overlays are open.
+  React.useEffect(() => {
+    const anyOverlayOpen = showTemplateImageLibrary || showFabricPicker;
+    if (!anyOverlayOpen) return;
+
+    overlayScrollPositionRef.current = window.scrollY;
+    document.body.style.position = 'fixed';
+    document.body.style.top = `-${overlayScrollPositionRef.current}px`;
+    document.body.style.width = '100%';
+    document.body.style.overflow = 'hidden';
+
+    return () => {
+      document.body.style.position = '';
+      document.body.style.top = '';
+      document.body.style.width = '';
+      document.body.style.overflow = '';
+      window.scrollTo(0, overlayScrollPositionRef.current);
+    };
+  }, [showTemplateImageLibrary, showFabricPicker]);
+
+  // Load persisted state from localStorage on mount
+  React.useEffect(() => {
+    try {
+      const savedState = localStorage.getItem('khuyoot_tryfabric_state');
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        if (parsed.result) setResult(parsed.result);
+        if (parsed.customTemplatePreview) setCustomTemplatePreview(parsed.customTemplatePreview);
+        if (parsed.fabricImageUrl) setFabricImageUrl(parsed.fabricImageUrl);
+        if (parsed.fabricPreview) setFabricPreview(parsed.fabricPreview);
+        if (parsed.selectedTemplateId) setSelectedTemplateId(parsed.selectedTemplateId);
+      }
+    } catch {
+      // ignore
+    }
+  }, [setResult, setCustomTemplatePreview, setFabricImageUrl, setFabricPreview, setSelectedTemplateId]);
+
+  // Save state to localStorage whenever it changes
+  React.useEffect(() => {
+    try {
+      if (result || customTemplatePreview || fabricImageUrl) {
+        if (persistStateTimer.current) window.clearTimeout(persistStateTimer.current);
+        persistStateTimer.current = window.setTimeout(() => {
+          localStorage.setItem('khuyoot_tryfabric_state', JSON.stringify({
+            result,
+            customTemplatePreview,
+            fabricImageUrl,
+            fabricPreview,
+            selectedTemplateId
+          }));
+        }, 250);
+      }
+    } catch {
+      // ignore
+    }
+    return () => {
+      if (persistStateTimer.current) {
+        window.clearTimeout(persistStateTimer.current);
+        persistStateTimer.current = null;
+      }
+    };
+  }, [result, customTemplatePreview, fabricImageUrl, fabricPreview, selectedTemplateId]);
+
   const onFabricChange = async (file: File | null) => {
-    setResult(null);
+    setAnimateReveal(false);
     setFabricImageUrl(null);
     if (!validateFile(file)) {
       setFabricFile(file);
@@ -94,458 +449,344 @@ export function TryFabricPanel(props: {
   };
 
   const onFabricUrlSelect = React.useCallback((url: string) => {
-    setResult(null);
+    setAnimateReveal(false);
     setFabricError(null);
     setFabricFile(null);
     setFabricImageUrl(url);
     setFabricPreview(url);
-  }, []);
+  }, [setAnimateReveal]);
 
-  const onTemplateUpload = async (file: File | null) => {
-    setResult(null);
-    setCustomTemplateFile(file);
-    setSelectedTemplateId(null); // Deselect predefined template
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setCustomTemplatePreview(url);
-    } else {
-      setCustomTemplatePreview(null);
-    }
-  };
-
-  const onGenerate = async () => {
-    setResult(null);
-    setProgress(0);
+  const onFabricUrlSelectWithPreview = React.useCallback((fullUrl: string, previewUrl?: string | null) => {
     setAnimateReveal(false);
-    if (!selectedTemplateId && !customTemplateFile) {
-      setResult({ jobId: 'n/a', status: 'failed', error: 'يرجى اختيار قالب أو رفع صورة' });
-      return;
-    }
-    if (!fabricFile && !fabricImageUrl) {
-      setResult({ jobId: 'n/a', status: 'failed', error: 'يرجى اختيار القماش' });
-      return;
-    }
-    if (fabricFile && !validateFile(fabricFile)) return;
+    setFabricError(null);
+    setFabricFile(null);
+    setFabricImageUrl(fullUrl);
+    setFabricPreview(previewUrl || fullUrl);
+  }, [setAnimateReveal]);
 
-    setLoading(true);
-    
-    // Scroll to result area
-    setTimeout(() => {
-      resultRef.current?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    }, 100);
-    try {
-      setProgress(10);
-      let fabricBase64: string | null = null;
-      let fabricMimeType: string | null = null;
-      if (fabricFile) {
-        const resized = await resizeImage(fabricFile, 1024);
-        setProgress(25);
-        const { base64, mimeType } = await fileToBase64(resized);
-        fabricBase64 = base64;
-        fabricMimeType = mimeType;
-        setProgress(40);
-      } else {
-        // URL-based fabric selection (server will fetch it)
-        setProgress(40);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!showFabricPicker) return;
+    setKhuyootFabricsError(null);
+    setKhuyootFabricsLoading(true);
+    (async () => {
+      try {
+        const cats = await getFabricCategories();
+        if (cancelled) return;
+        setKhuyootFabricCategories(cats);
+        const nextCatId = khuyootSelectedCategoryId || cats[0]?.id || null;
+        setKhuyootSelectedCategoryId(nextCatId);
+        if (nextCatId) {
+          const fabrics = await getFabricsByCategoryId(nextCatId);
+          if (!cancelled) setKhuyootFabrics(fabrics);
+        } else {
+          setKhuyootFabrics([]);
+        }
+      } catch (e: any) {
+        console.error('Failed to load khuyoot fabric library:', e);
+        if (!cancelled) setKhuyootFabricsError('تعذر تحميل مكتبة الأقمشة');
+      } finally {
+        if (!cancelled) setKhuyootFabricsLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFabricPicker]);
 
-      // Use custom template or predefined template ID
-      const templateId = customTemplateFile ? 'custom-upload' : selectedTemplateId!;
-
-      const payload: TryOnRequest = {
-        garmentTemplateId: templateId,
-        ...(fabricBase64
-          ? { fabricImageBase64: fabricBase64, fabricMimeType: fabricMimeType || undefined }
-          : { fabricImageUrl: fabricImageUrl || undefined }),
-        options: {
-          ...options,
-          fabricScale: Math.max(0.5, Math.min(3, Number(options.fabricScale ?? 1))),
-        },
-      };
-
-      // If custom template, convert to base64 and add to payload
-      if (customTemplateFile) {
-        const templateResized = await resizeImage(customTemplateFile, 1024);
-        const templateData = await fileToBase64(templateResized);
-        // Use garmentTemplateImageUrl as data URL for custom uploads
-        payload.garmentTemplateImageUrl = `data:${templateData.mimeType};base64,${templateData.base64}`;
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!showFabricPicker) return;
+    if (!khuyootSelectedCategoryId) return;
+    setKhuyootFabricsError(null);
+    setKhuyootFabricsLoading(true);
+    (async () => {
+      try {
+        const fabrics = await getFabricsByCategoryId(khuyootSelectedCategoryId);
+        if (!cancelled) setKhuyootFabrics(fabrics);
+      } catch (e: any) {
+        console.error('Failed to load fabrics by category:', e);
+        if (!cancelled) setKhuyootFabricsError('تعذر تحميل الأقمشة');
+      } finally {
+        if (!cancelled) setKhuyootFabricsLoading(false);
       }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [showFabricPicker, khuyootSelectedCategoryId]);
 
-      setProgress(50);
-      const resp = await generateTryOn(payload);
-      setProgress(90);
-      setResult(resp);
+  const generateRef = React.useRef(generate);
+  React.useEffect(() => {
+    generateRef.current = generate;
+  }, [generate]);
 
-      if (resp.status === 'completed' && resp.resultImageUrl) {
-        setProgress(100);
-        // Trigger reveal animation after a short delay
-        setTimeout(() => setAnimateReveal(true), 300);
-        // Keep result for display; apply only when user clicks "Save to Project".
-      }
-    } catch (e: any) {
-      setResult({ jobId: 'n/a', status: 'failed', error: e?.message || 'Request failed' });
-    } finally {
-      setLoading(false);
-      setTimeout(() => setProgress(0), 500);
-    }
-  };
+  const openTemplatePickerRef = React.useRef<() => void>(() => undefined);
+  const openFabricPickerRef = React.useRef<() => void>(() => undefined);
 
-  const onSave = () => {
-    if (result?.status !== 'completed' || !result.resultImageUrl) return;
-    onApplyResult({ jobId: result.jobId, resultImageUrl: result.resultImageUrl });
-  };
+  React.useEffect(() => {
+    openTemplatePickerRef.current = () => setShowTemplateImageLibrary(true);
+  }, [setShowTemplateImageLibrary]);
 
-  const onRetry = React.useCallback(() => {
-    topRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  React.useEffect(() => {
+    openFabricPickerRef.current = () => setShowFabricPicker(true);
   }, []);
+
+  React.useImperativeHandle(ref, () => ({
+    generate: () => {
+      void generateRef.current();
+    },
+    openTemplatePicker: () => {
+      openTemplatePickerRef.current();
+    },
+    openFabricPicker: () => {
+      openFabricPickerRef.current();
+    },
+  }), []);
+
+  const onDebugLoadTemplate = React.useCallback(() => {
+    const templateUrl = customTemplatePreview || (selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.imageUrl : undefined);
+    if (templateUrl) {
+      setResult({
+        jobId: 'debug-test',
+        status: 'completed',
+        resultImageUrl: templateUrl,
+      });
+      setAnimateReveal(true);
+      setTimeout(() => {
+        resultRef.current?.scrollIntoView?.({ behavior: 'smooth', block: 'center' } as any);
+      }, 100);
+    }
+  }, [customTemplatePreview, selectedTemplateId, templates, setResult, setAnimateReveal]);
+
+  const closeTemplatePicker = React.useCallback(() => setShowTemplateImageLibrary(false), []);
+  const closeFabricPicker = React.useCallback(() => setShowFabricPicker(false), []);
+  const closeFabricImageLibrary = React.useCallback(() => setShowFabricImageLibrary(false), []);
+
+  const confirmTemplateSelection = React.useCallback(() => {
+    if (!resolvedTemplateImageUrl || !resolvedTemplateIdToApply) return;
+    onTemplateSubmit?.({
+      templateId: resolvedTemplateIdToApply,
+      templateImageUrl: resolvedTemplateImageUrl,
+    });
+    closeTemplatePicker();
+  }, [resolvedTemplateImageUrl, resolvedTemplateIdToApply, onTemplateSubmit, closeTemplatePicker]);
+
+  const onSelectFabricFromImageLibrary = React.useCallback((url: string) => {
+    onFabricUrlSelect(url);
+    closeFabricImageLibrary();
+  }, [onFabricUrlSelect, closeFabricImageLibrary]);
+
+  const onGoToPortfolioFromFabricPicker = React.useCallback(() => {
+    closeFabricPicker();
+    window.location.hash = '#/portfolio-management';
+  }, [closeFabricPicker]);
+
+  const onFabricChangeAndClosePicker = React.useCallback((file: File | null) => {
+    onFabricChange(file);
+    closeFabricPicker();
+  }, [onFabricChange, closeFabricPicker]);
+
+  const refreshFabricCategories = React.useCallback(async () => {
+    setKhuyootFabricsError(null);
+    setKhuyootFabricsLoading(true);
+    try {
+      const cats = await getFabricCategories();
+      setKhuyootFabricCategories(cats);
+      const nextCatId = khuyootSelectedCategoryId || cats[0]?.id || null;
+      setKhuyootSelectedCategoryId(nextCatId);
+    } catch {
+      setKhuyootFabricsError('تعذر تحديث الأقسام');
+    } finally {
+      setKhuyootFabricsLoading(false);
+    }
+  }, [khuyootSelectedCategoryId]);
+
+  const onSelectFabricItemAndClose = React.useCallback((payload: { imageUrl: string; previewUrl?: string | null }) => {
+    onFabricUrlSelectWithPreview(payload.imageUrl, payload.previewUrl || null);
+    onFabricSubmit?.({
+      fabricImageUrl: payload.imageUrl,
+      fabricPreviewUrl: payload.previewUrl || null,
+    });
+    closeFabricPicker();
+  }, [onFabricUrlSelectWithPreview, onFabricSubmit, closeFabricPicker]);
+
+  const templatePickerContentProps = React.useMemo(() => ({
+    templatePickerLeftScrollRef,
+    updateTemplatePickerLeftScrollThumb,
+    templatePickerLeftScrollThumb,
+    templateUploadInputRef,
+    handleTemplateDrop,
+    handleTemplateDragOver,
+    handleTemplateDragEnter,
+    handleTemplateDragLeave,
+    templateDragActive,
+    customTemplatePreview,
+    customTemplateFile,
+    templatePreviewImgElRef,
+    templatePreviewSrcRef,
+    templatePreviewLoading,
+    setTemplatePreviewLoading,
+    setCustomTemplateFile,
+    setCustomTemplatePreview,
+    saveTemplateToHistory,
+    setSaveTemplateToHistory,
+    recentTemplates,
+    setRecentTemplates,
+    showAllRecents,
+    setShowAllRecents,
+    maxRecentTemplates,
+    recentTemplatesStorageKey: RECENT_TEMPLATES_KEY,
+    onRecentClick: handleRecentClick,
+    validateTemplateFile,
+    onTemplateUpload,
+    pagedCuratedTemplateItems,
+    selectedTemplateId,
+    onSelectTemplateItem: handleTemplateSelect,
+    templatePickerTotalPages,
+    templatePickerPage,
+    setTemplatePickerPage,
+    resolvedTemplateImageUrl,
+    templateSidePreviewImgElRef,
+    templateSidePreviewSrcRef,
+    templateSidePreviewLoading,
+    setTemplateSidePreviewLoading,
+    canSubmitTemplate,
+    onConfirmTemplate: confirmTemplateSelection,
+  }), [
+    templatePickerLeftScrollRef,
+    updateTemplatePickerLeftScrollThumb,
+    templatePickerLeftScrollThumb,
+    templateUploadInputRef,
+    handleTemplateDrop,
+    handleTemplateDragOver,
+    handleTemplateDragEnter,
+    handleTemplateDragLeave,
+    templateDragActive,
+    customTemplatePreview,
+    customTemplateFile,
+    templatePreviewImgElRef,
+    templatePreviewSrcRef,
+    templatePreviewLoading,
+    saveTemplateToHistory,
+    recentTemplates,
+    showAllRecents,
+    maxRecentTemplates,
+    pagedCuratedTemplateItems,
+    selectedTemplateId,
+    handleTemplateSelect,
+    templatePickerTotalPages,
+    templatePickerPage,
+    resolvedTemplateImageUrl,
+    templateSidePreviewLoading,
+    canSubmitTemplate,
+    confirmTemplateSelection,
+    handleRecentClick,
+    validateTemplateFile,
+    onTemplateUpload,
+  ]);
+
+  const templatePickerModal = (
+    <TryOnTemplatePickerModal
+      open={showTemplateImageLibrary}
+      portalTarget={portalTarget}
+      onClose={closeTemplatePicker}
+      contentProps={templatePickerContentProps}
+    />
+  );
+
+  const fabricImageLibraryModal = (
+    <FabricImageLibraryModal
+      open={showFabricImageLibrary}
+      onSelect={onSelectFabricFromImageLibrary}
+      onClose={closeFabricImageLibrary}
+    />
+  );
+
+  const fabricPickerContentProps = React.useMemo(() => ({
+    onGoToPortfolio: onGoToPortfolioFromFabricPicker,
+    onFabricChangeAndClose: onFabricChangeAndClosePicker,
+    khuyootFabricCategories,
+    khuyootSelectedCategoryId,
+    setKhuyootSelectedCategoryId,
+    khuyootFabricsError,
+    khuyootFabricsLoading,
+    khuyootFabrics,
+    onRefreshCategories: refreshFabricCategories,
+    getFabricCoverUrl,
+    getFabricCoverThumbnailUrl,
+    onSelectFabricItem: onSelectFabricItemAndClose,
+  }), [
+    onGoToPortfolioFromFabricPicker,
+    onFabricChangeAndClosePicker,
+    khuyootFabricCategories,
+    khuyootSelectedCategoryId,
+    khuyootFabricsError,
+    khuyootFabricsLoading,
+    khuyootFabrics,
+    refreshFabricCategories,
+    onSelectFabricItemAndClose,
+  ]);
+
+  const fabricPickerModal = (
+    <TryOnFabricPickerModal
+      open={showFabricPicker}
+      portalTarget={portalTarget}
+      onClose={closeFabricPicker}
+      contentProps={fabricPickerContentProps}
+    />
+  );
+
+  const resultOriginalImageUrl = React.useMemo(() => {
+    if (useExternalCards) return externalTemplateImageUrl || undefined;
+    return customTemplatePreview || (selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.imageUrl : undefined);
+  }, [useExternalCards, externalTemplateImageUrl, customTemplatePreview, selectedTemplateId, templates]);
+
+  const fabricSelectCard = !useExternalCards ? (
+    <FabricSelectCard
+      imageUrl={(fabricPreview || fabricImageUrl || externalFabricImageUrl) ?? null}
+      onClick={() => {
+        setShowFabricPicker(true);
+      }}
+    />
+  ) : null;
 
   return (
-    <div className="space-y-3">
-      <div ref={topRef} className="rounded-3xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4 space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-sm font-black text-slate-900 dark:text-white">جرّب القماش على القالب</div>
-            <div className="text-[11px] text-slate-500 dark:text-slate-400">قوالب فقط. ممنوع الصور الشخصية في هذا التدفق.</div>
-          </div>
-          <div className="shrink-0 text-[10px] font-bold text-slate-500 dark:text-slate-400 px-2 py-1 rounded-full border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800">
-            AI Try-On
-          </div>
-        </div>
+    <div className="w-full flex flex-col gap-1">
+      <div ref={topRef} className="contents" />
 
-        <div className="grid grid-cols-2 gap-3">
-          <div 
-            className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-violet-500 transition-all group"
-            onClick={() => setShowTemplateImageLibrary(true)}
-          >
-            <div className="absolute top-0 left-0 text-[9px] bg-violet-500 text-white px-1 py-0.5 z-[9999]">TRYON-TEMPLATE-CARD</div>
-            {customTemplatePreview ? (
-              <img src={customTemplatePreview} alt="Custom template" className="w-full h-full object-contain" />
-            ) : selectedTemplateId && GARMENT_TEMPLATES.find(t => t.id === selectedTemplateId) ? (
-              <img src={GARMENT_TEMPLATES.find(t => t.id === selectedTemplateId)!.imageUrl} alt="Template" className="w-full h-full object-contain" />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                <svg className="w-12 h-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-                <span className="text-xs font-bold">اختر القالب</span>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold border border-white/30">
-                اختر القالب
-              </div>
-            </div>
-            <div className="absolute top-2 right-2 bg-violet-600 text-white text-[10px] px-2 py-1 rounded-full font-bold">القالب</div>
-          </div>
+      {templatePickerModal}
+      {fabricImageLibraryModal}
+      {fabricPickerModal}
 
-          <div 
-            className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-blue-500 transition-all group"
-            onClick={() => setShowFabricPicker(true)}
-          >
-            <div className="absolute top-0 left-0 text-[9px] bg-blue-500 text-white px-1 py-0.5 z-[9999]">TRYON-FABRIC-CARD</div>
-            {fabricPreview ? (
-              <img src={fabricPreview} alt="Fabric preview" className="w-full h-full object-contain" />
-            ) : (
-              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
-                <svg className="w-12 h-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
-                </svg>
-                <span className="text-xs font-bold">اختر القماش</span>
-              </div>
-            )}
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <div className="bg-white/20 backdrop-blur-md px-4 py-2 rounded-full text-white text-xs font-bold border border-white/30">
-                اختر القماش
-              </div>
-            </div>
-            <div className="absolute top-2 right-2 bg-blue-600 text-white text-[10px] px-2 py-1 rounded-full font-bold">القماش</div>
-          </div>
-        </div>
+      <TryFabricMainCard fabricSelectCard={fabricSelectCard ?? undefined} onRequestHelp={onRequestHelp} />
 
-        {/* Template picker modal */}
-        {showTemplateImageLibrary && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowTemplateImageLibrary(false)}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-auto" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">اختر القالب</h3>
-                <button onClick={() => setShowTemplateImageLibrary(false)} className="text-slate-500 hover:text-slate-700">✕</button>
-              </div>
-              <TemplatePicker templates={GARMENT_TEMPLATES} selectedId={selectedTemplateId} onSelect={(id) => { setSelectedTemplateId(id); setCustomTemplateFile(null); setCustomTemplatePreview(null); setShowTemplateImageLibrary(false); }} />
-              <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-                <label className="text-sm font-bold text-slate-700 dark:text-slate-300 block mb-2">أو ارفع قالب مخصص</label>
-                <div className="mb-3 rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-3 text-[11px] text-amber-900 dark:text-amber-200">
-                  <div className="font-black mb-1">تنبيه</div>
-                  <div>برفعك للقالب أنت تؤكد أن لديك حق استخدام الصورة، وأنها لا تحتوي على أشخاص/صور شخصية أو بيانات حساسة. أنت تتحمل المسؤولية عن المحتوى المرفوع.</div>
-                </div>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(e) => { onTemplateUpload(e.target.files?.[0] || null); setShowTemplateImageLibrary(false); }}
-                  className="block w-full text-sm text-slate-700 dark:text-slate-200 file:mr-3 file:rounded-lg file:border-0 file:bg-slate-100 file:px-3 file:py-2 file:text-xs file:font-bold file:text-slate-700 hover:file:bg-slate-200 dark:file:bg-slate-800 dark:file:text-slate-100 dark:hover:file:bg-slate-700"
-                />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {showFabricImageLibrary && (
-          <ImageLibraryPicker
-            onSelect={(url) => {
-              onFabricUrlSelect(url);
-              setShowFabricImageLibrary(false);
-            }}
-            onClose={() => setShowFabricImageLibrary(false)}
-          />
-        )}
-
-        {/* Fabric picker modal */}
-        {showFabricPicker && (
-          <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowFabricPicker(false)}>
-            <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white">اختر القماش:</h3>
-                <button onClick={() => setShowFabricPicker(false)} className="text-slate-500 hover:text-slate-700">✕</button>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <button
-                  type="button"
-                  className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 transition-all text-right bg-slate-50/60 dark:bg-slate-800/40"
-                  onClick={() => {
-                    setShowFabricPicker(false);
-                    setShowFabricImageLibrary(true);
-                  }}
-                >
-                  <div className="font-black text-sm text-slate-900 dark:text-white">من مكتبة خيوط</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">اختيار قماش جاهز</div>
-                </button>
-
-                <button
-                  type="button"
-                  className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 transition-all text-right bg-slate-50/60 dark:bg-slate-800/40"
-                  onClick={() => {
-                    setShowFabricPicker(false);
-                    window.location.hash = '#/portfolio-management';
-                  }}
-                >
-                  <div className="font-black text-sm text-slate-900 dark:text-white">من مجموعتي</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">صورك المحفوظة</div>
-                </button>
-
-                <button
-                  type="button"
-                  className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-slate-400 transition-all text-right bg-slate-50/60 dark:bg-slate-800/40"
-                  onClick={() => {
-                    setShowFabricPicker(false);
-                    window.location.hash = '#/shops';
-                  }}
-                >
-                  <div className="font-black text-sm text-slate-900 dark:text-white">تصفح المحلات</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">اكتشف أقمشة المتاجر</div>
-                </button>
-
-                <button
-                  type="button"
-                  className="p-4 rounded-2xl border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 transition-all text-right bg-slate-50/60 dark:bg-slate-800/40"
-                  onClick={() => {
-                    document.getElementById('tryon-fabric-upload')?.click();
-                  }}
-                >
-                  <div className="font-black text-sm text-slate-900 dark:text-white">رفع صورة</div>
-                  <div className="text-xs text-slate-500 dark:text-slate-400">من جهازك</div>
-                </button>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/20 p-4 text-[11px] text-amber-900 dark:text-amber-200 space-y-2">
-                <div className="font-black">تنبيه مهم قبل رفع الصورة</div>
-                <div>ارفع صورة قماش/نقشة فقط (لقطة قريبة). ممنوع الصور الشخصية أو أي صور خاصة.</div>
-                <div>برفعك للصورة أنت تؤكد أن لديك حق استخدامها وتتحمل المسؤولية الكاملة عن المحتوى المرفوع.</div>
-              </div>
-
-              <input
-                id="tryon-fabric-upload"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(e) => {
-                  onFabricChange(e.target.files?.[0] || null);
-                  setShowFabricPicker(false);
-                }}
-                className="hidden"
-              />
-            </div>
-          </div>
-        )}
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">الرقبة</label>
-            <select
-              value={options.neckStyle || 'keep'}
-              onChange={(e) => setOptions((o) => ({ ...o, neckStyle: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="keep">بدون تغيير</option>
-              <option value="round">دائرية</option>
-              <option value="v">V</option>
-              <option value="collar">ياقة</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">الأكمام</label>
-            <select
-              value={options.sleeveStyle || 'keep'}
-              onChange={(e) => setOptions((o) => ({ ...o, sleeveStyle: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="keep">بدون تغيير</option>
-              <option value="long">طويل</option>
-              <option value="short">قصير</option>
-              <option value="none">بدون</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">التطريز</label>
-            <select
-              value={options.embroideryStyle || 'keep'}
-              onChange={(e) => setOptions((o) => ({ ...o, embroideryStyle: e.target.value }))}
-              className="w-full rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2 text-sm"
-            >
-              <option value="keep">بدون تغيير</option>
-              <option value="chest">صدر</option>
-              <option value="collar">ياقة</option>
-              <option value="full">كامل</option>
-              <option value="none">بدون</option>
-            </select>
-          </div>
-          <div>
-            <label className="text-xs font-bold text-slate-700 dark:text-slate-300 block mb-1">مقياس النقشة</label>
-            <input
-              type="range"
-              min={0.5}
-              max={3}
-              step={0.1}
-              value={options.fabricScale ?? 1}
-              onChange={(e) => setOptions((o) => ({ ...o, fabricScale: Number(e.target.value) }))}
-              className="w-full"
-            />
-            <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">{(options.fabricScale ?? 1).toFixed(1)}x</div>
-          </div>
-        </div>
-
-        <button
-          type="button"
-          onClick={onGenerate}
-          disabled={loading}
-          className="w-full px-4 py-3 rounded-2xl text-sm font-black bg-gradient-to-r from-violet-600 to-indigo-600 text-white disabled:opacity-60"
-        >
-          {loading ? 'جارِ التوليد...' : 'توليد (Try Fabric)'}
-        </button>
-
-        <button
-          type="button"
-          onClick={() => setShowDebugView(!showDebugView)}
-          className="w-full px-3 py-2 rounded-xl text-xs font-bold bg-amber-500 text-white hover:bg-amber-600 transition-colors"
-        >
-          {showDebugView ? 'إخفاء عرض التصحيح' : 'عرض الصور الكاملة (Debug)'}
-        </button>
-      </div>
-
-      <TryOnResult 
+      <TryOnResultSection
         ref={resultRef}
-        result={result} 
-        loading={loading} 
+        result={result}
+        loading={loading}
         progress={progress}
-        originalImageUrl={customTemplatePreview || (selectedTemplateId ? GARMENT_TEMPLATES.find(t => t.id === selectedTemplateId)?.imageUrl : undefined)}
-        onSaveToProject={onSave}
-        onRetry={onRetry}
+        originalImageUrl={resultOriginalImageUrl}
+        fabricThumbnailUrl={(fabricPreview || fabricImageUrl || externalFabricImageUrl) ?? null}
+        comparisonBeforeImage={comparisonOverride?.beforeImage || undefined}
+        comparisonAfterImage={comparisonOverride?.afterImage}
+        comparisonBeforeLabel={comparisonOverride?.beforeLabel}
+        comparisonAfterLabel={comparisonOverride?.afterLabel}
+        onHelp={onResultHelp}
+        onToggleAdminAnchors={onResultToggleAdminAnchors}
+        showAdminAnchors={!!showAdminAnchors}
+        onSaveToProject={saveToProject}
+        onRetry={retry}
         animateReveal={animateReveal}
+        modalGenerations={modalGenerations}
+        modalGenerationsPlaceholderCount={modalGenerationsPlaceholderCount}
+        onModalGenerationOpen={onModalGenerationOpen}
+        onModalGenerationSetBefore={onModalGenerationSetBefore}
+        onModalGenerationSetAfter={onModalGenerationSetAfter}
+        onOpenTemplatePicker={() => setShowTemplateImageLibrary(true)}
+        onOpenFabricPicker={() => setShowFabricPicker(true)}
       />
-
-      {/* DEBUG VIEW - Show all images at full size */}
-      {showDebugView && (
-        <div className="rounded-3xl border-4 border-amber-500 bg-white dark:bg-slate-900 p-6 space-y-6">
-          <div className="text-center">
-            <div className="inline-block px-4 py-2 rounded-full bg-amber-500 text-white font-black text-sm mb-4">
-              🔍 DEBUG VIEW - عرض الصور الكاملة
-            </div>
-          </div>
-
-          {/* Template Image */}
-          <div className="space-y-2">
-            <div className="text-sm font-bold text-slate-900 dark:text-white bg-violet-100 dark:bg-violet-900/30 px-3 py-2 rounded-lg">
-              1️⃣ القالب (Template)
-            </div>
-            {customTemplatePreview ? (
-              <div className="border-2 border-violet-500 rounded-xl p-2 bg-slate-50 dark:bg-slate-800">
-                <img src={customTemplatePreview} alt="Template Debug" className="max-w-full h-auto" />
-                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                  المصدر: قالب مخصص مرفوع
-                </div>
-              </div>
-            ) : selectedTemplateId && GARMENT_TEMPLATES.find(t => t.id === selectedTemplateId) ? (
-              <div className="border-2 border-violet-500 rounded-xl p-2 bg-slate-50 dark:bg-slate-800">
-                <img src={GARMENT_TEMPLATES.find(t => t.id === selectedTemplateId)!.imageUrl} alt="Template Debug" className="max-w-full h-auto" />
-                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                  المصدر: قالب من المكتبة ({selectedTemplateId})
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-300 rounded-xl">
-                لم يتم اختيار قالب
-              </div>
-            )}
-          </div>
-
-          {/* Fabric Image */}
-          <div className="space-y-2">
-            <div className="text-sm font-bold text-slate-900 dark:text-white bg-blue-100 dark:bg-blue-900/30 px-3 py-2 rounded-lg">
-              2️⃣ القماش (Fabric)
-            </div>
-            {fabricPreview ? (
-              <div className="border-2 border-blue-500 rounded-xl p-2 bg-slate-50 dark:bg-slate-800">
-                <img src={fabricPreview} alt="Fabric Debug" className="max-w-full h-auto" />
-                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                  المصدر: قماش مرفوع من الجهاز
-                </div>
-              </div>
-            ) : (
-              <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-300 rounded-xl">
-                لم يتم رفع قماش
-              </div>
-            )}
-          </div>
-
-          {/* Result Image */}
-          <div className="space-y-2">
-            <div className="text-sm font-bold text-slate-900 dark:text-white bg-green-100 dark:bg-green-900/30 px-3 py-2 rounded-lg">
-              3️⃣ النتيجة (Result)
-            </div>
-            {result?.status === 'completed' && (result.resultImageUrl || result.resultImageDataUrl) ? (
-              <div className="border-2 border-green-500 rounded-xl p-2 bg-slate-50 dark:bg-slate-800">
-                <img 
-                  src={result.resultImageUrl || result.resultImageDataUrl} 
-                  alt="Result Debug" 
-                  className="max-w-full h-auto" 
-                />
-                <div className="mt-2 text-xs text-slate-600 dark:text-slate-400">
-                  Job ID: {result.jobId}
-                </div>
-              </div>
-            ) : result?.status === 'failed' ? (
-              <div className="text-center text-red-500 py-8 border-2 border-dashed border-red-300 rounded-xl">
-                فشل التوليد: {result.error}
-              </div>
-            ) : loading ? (
-              <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-300 rounded-xl">
-                جارِ التوليد...
-              </div>
-            ) : (
-              <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-300 rounded-xl">
-                لم يتم توليد نتيجة بعد
-              </div>
-            )}
-          </div>
-        </div>
-      )}
     </div>
   );
-}
+});

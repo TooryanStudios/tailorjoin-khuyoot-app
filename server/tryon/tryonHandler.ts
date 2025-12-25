@@ -1,10 +1,31 @@
 import crypto from 'node:crypto';
+import { access } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { TryOnRequest, TryOnResponse } from '../../src/types/tryon';
 import { getTemplateById } from './templates.js';
 import { assertNoPersonalPhotoPolicy, isAllowedRemoteImageUrl, validateTryOnRequest } from './validation.js';
 import { generateTryOnImage } from './geminiClient.js';
 import { getFirestore, getStorageBucket, verifyFirebaseIdToken } from './firebaseAdmin.js';
 import { getImageMeta } from './imageMeta.js';
+
+async function resolveWatermarkPath(): Promise<string> {
+  const candidates = [
+    path.resolve(process.cwd(), 'public', 'icons', 'icon-512.png'),
+    fileURLToPath(new URL('../../public/icons/icon-512.png', import.meta.url)),
+  ];
+
+  for (const candidate of candidates) {
+    try {
+      await access(candidate);
+      return candidate;
+    } catch {
+      // try next
+    }
+  }
+
+  throw new Error(`Watermark asset not found. Tried: ${candidates.join(', ')}`);
+}
 
 type SharpFn = any;
 let sharpFnPromise: Promise<SharpFn | null> | null = null;
@@ -77,22 +98,188 @@ function buildPrompt(req: TryOnRequest, templateWidth?: number, templateHeight?:
     ? `CRITICAL: Output image MUST be exactly ${templateWidth}x${templateHeight} pixels to match the template dimensions. Preserve the exact aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`
     : `CRITICAL: Output image MUST match the exact dimensions and aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`;
 
-  return `You are a professional fashion product renderer.
-Task: Replace ONLY the garment fabric area in Image A with the fabric pattern from Image B.
-Keep garment shape, folds, lighting, shadows, and background unchanged.
-Do not add people. Do not change body/face (none exists).
-Preserve exact neckline and sleeve geometry unless options specify change.
+  return `You are a professional fabric texture replacement tool for fashion products.
+
+STRICT RULES - DO NOT DEVIATE:
+1. Image A (first image) is the BASE TEMPLATE - you MUST keep EVERYTHING from this image EXACTLY as-is
+2. Image B (second image) is ONLY the fabric texture/pattern to apply
+3. Your ONLY task: Replace the fabric/cloth texture visible on the garment in Image A with the pattern from Image B
+4. DO NOT generate a new image, person, background, or garment
+5. DO NOT change the garment's shape, cut, pose, draping, folds, wrinkles, or shadows
+6. DO NOT change the background, lighting, or any non-fabric elements
+7. DO NOT add or remove people, mannequins, or any objects
+8. PRESERVE the exact silhouette, edges, and structure of the garment from Image A
+9. ONLY modify the surface texture/pattern of the fabric areas visible on the garment
+
+Task: Take Image A as your base. Locate the fabric/cloth areas on the garment. Replace ONLY those fabric textures with the pattern from Image B while preserving all shadows, folds, highlights, and garment structure.
+
 ${dimensionGuidance}
-Options:
+
+Options (apply minimally, only if explicitly set to non-default values):
 - fabric scale: ${scale}
 - neck style: ${neck}
 - sleeve style: ${sleeve}
 - embroidery style: ${emb}
-Output a single photorealistic image.`;
+
+Output: A single image that looks IDENTICAL to Image A except the fabric texture is now from Image B.`;
 }
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
+}
+
+function medianChannel(values: number[]): number {
+  if (values.length === 0) return 255;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0 ? Math.round((sorted[mid - 1] + sorted[mid]) / 2) : sorted[mid];
+}
+
+function looksLikeSkinPixel(r: number, g: number, b: number): boolean {
+  // Conservative, best-effort skin-tone heuristic (YCbCr + RGB constraints).
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  if (r < 60 || g < 30 || b < 20) return false;
+  if (max - min < 15) return false;
+  if (Math.abs(r - g) < 10) return false;
+  if (!(r > g && r > b)) return false;
+
+  const cb = 128 - 0.168736 * r - 0.331264 * g + 0.5 * b;
+  const cr = 128 + 0.5 * r - 0.418688 * g - 0.081312 * b;
+  return cb >= 77 && cb <= 127 && cr >= 133 && cr <= 173;
+}
+
+async function compositePreservingTemplateBackground(params: {
+  sharp: any;
+  templatePng: Buffer;
+  generatedPng: Buffer;
+  width: number;
+  height: number;
+}): Promise<Buffer> {
+  const { sharp, templatePng, generatedPng, width, height } = params;
+
+  // Build a best-effort foreground mask from the template by flood-filling "background" from borders.
+  // Then composite generated over template only in foreground areas (excluding skin-tone pixels).
+  const MASK_W = 256;
+  const scale = Math.min(1, MASK_W / Math.max(width, height));
+  const w = Math.max(32, Math.round(width * scale));
+  const h = Math.max(32, Math.round(height * scale));
+
+  const tplRaw = await sharp(templatePng)
+    .resize(w, h, { fit: 'fill' })
+    .removeAlpha()
+    .raw()
+    .toBuffer({ resolveWithObject: true });
+
+  const data: Buffer = tplRaw.data;
+  const stride = w * 3;
+
+  // Collect border pixels to estimate background color (median is robust to outliers).
+  const rs: number[] = [];
+  const gs: number[] = [];
+  const bs: number[] = [];
+  for (let x = 0; x < w; x++) {
+    const top = x * 3;
+    const bot = (h - 1) * stride + x * 3;
+    rs.push(data[top], data[bot]);
+    gs.push(data[top + 1], data[bot + 1]);
+    bs.push(data[top + 2], data[bot + 2]);
+  }
+  for (let y = 0; y < h; y++) {
+    const left = y * stride;
+    const right = y * stride + (w - 1) * 3;
+    rs.push(data[left], data[right]);
+    gs.push(data[left + 1], data[right + 1]);
+    bs.push(data[left + 2], data[right + 2]);
+  }
+  const bgR = medianChannel(rs);
+  const bgG = medianChannel(gs);
+  const bgB = medianChannel(bs);
+
+  const bgVisited = new Uint8Array(w * h);
+  const isBg = new Uint8Array(w * h);
+
+  const TH = 34; // color distance threshold (max-channel distance)
+  const idxOf = (x: number, y: number) => y * w + x;
+  const pushIfBg = (x: number, y: number, q: number[]) => {
+    if (x < 0 || y < 0 || x >= w || y >= h) return;
+    const idx = idxOf(x, y);
+    if (bgVisited[idx]) return;
+    bgVisited[idx] = 1;
+    const p = (y * w + x) * 3;
+    const r = data[p];
+    const g = data[p + 1];
+    const b = data[p + 2];
+    const dist = Math.max(Math.abs(r - bgR), Math.abs(g - bgG), Math.abs(b - bgB));
+    if (dist <= TH) {
+      isBg[idx] = 1;
+      q.push(x, y);
+    }
+  };
+
+  const q: number[] = [];
+  for (let x = 0; x < w; x++) {
+    pushIfBg(x, 0, q);
+    pushIfBg(x, h - 1, q);
+  }
+  for (let y = 0; y < h; y++) {
+    pushIfBg(0, y, q);
+    pushIfBg(w - 1, y, q);
+  }
+
+  // BFS flood fill
+  while (q.length) {
+    const y = q.pop() as number;
+    const x = q.pop() as number;
+    pushIfBg(x + 1, y, q);
+    pushIfBg(x - 1, y, q);
+    pushIfBg(x, y + 1, q);
+    pushIfBg(x, y - 1, q);
+  }
+
+  // Build alpha mask: foreground (not background) = 255.
+  // Exclude skin-like pixels to avoid painting faces/hands when templates include models.
+  const maskA = Buffer.alloc(w * h);
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const idx = idxOf(x, y);
+      const p = (y * w + x) * 3;
+      const r = data[p];
+      const g = data[p + 1];
+      const b = data[p + 2];
+      const fg = isBg[idx] ? 0 : 255;
+      const skin = looksLikeSkinPixel(r, g, b);
+      maskA[idx] = fg && !skin ? 255 : 0;
+    }
+  }
+
+  // Convert to RGBA mask image where alpha=maskA
+  const maskRgba = Buffer.alloc(w * h * 4);
+  for (let i = 0; i < w * h; i++) {
+    const o = i * 4;
+    maskRgba[o] = 255;
+    maskRgba[o + 1] = 255;
+    maskRgba[o + 2] = 255;
+    maskRgba[o + 3] = maskA[i];
+  }
+
+  const maskPng = await sharp(maskRgba, { raw: { width: w, height: h, channels: 4 } })
+    .resize(width, height, { fit: 'fill', kernel: 'nearest' })
+    .blur(1)
+    .png()
+    .toBuffer();
+
+  const genMasked = await sharp(generatedPng)
+    .ensureAlpha()
+    .composite([{ input: maskPng, blend: 'dest-in' }])
+    .png()
+    .toBuffer();
+
+  return await sharp(templatePng)
+    .ensureAlpha()
+    .composite([{ input: genMasked, blend: 'over' }])
+    .png()
+    .toBuffer();
 }
 
 async function applyFabricScaleAndTile(
@@ -183,21 +370,15 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
   const jobId = crypto.randomUUID();
   const createdAt = new Date().toISOString();
 
-  // Storage is required for returning a result URL; fail fast if Admin creds/bucket are not configured.
-  let bucket: ReturnType<typeof getStorageBucket>;
+  // Storage is optional:
+  // - If configured, we upload and return a stable `resultImageUrl`.
+  // - If not configured (common on preview/dev deployments), we return `resultImageDataUrl`.
+  let bucket: ReturnType<typeof getStorageBucket> | null = null;
   try {
     bucket = getStorageBucket();
   } catch (e: any) {
-    return {
-      status: 500,
-      json: {
-        jobId,
-        status: 'failed',
-        error:
-          e?.message ||
-          'Missing Firebase Admin credentials / storage bucket. Set FIREBASE_SERVICE_ACCOUNT_JSON (or split vars) and FIREBASE_STORAGE_BUCKET in .env.',
-      },
-    };
+    console.warn('Firebase Storage not configured; will return resultImageDataUrl instead of uploading:', e?.message || e);
+    bucket = null;
   }
 
   // Resolve template image - either from predefined template or custom URL/data
@@ -223,7 +404,7 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
     }
   } else {
     // Use predefined template
-    const template = getTemplateById(req.garmentTemplateId);
+    const template = await getTemplateById(req.garmentTemplateId);
     if (!template) {
       return { status: 400, json: { jobId: 'n/a', status: 'failed', error: 'Unknown garmentTemplateId' } };
     }
@@ -271,10 +452,18 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
   }
 
   try {
-    // Get template dimensions to pass to prompt (best-effort; depends on Sharp availability)
-    const sharp = await getSharpFn();
-    const templateMetadata = sharp ? await (sharp as any)(templateImg.buffer).metadata() : null;
-    const { width: templateWidth, height: templateHeight } = orientedDimensions(templateMetadata || {});
+    // Use client-provided dimensions if available, otherwise extract from image
+    let templateWidth = req.garmentTemplateWidth;
+    let templateHeight = req.garmentTemplateHeight;
+
+    if (!templateWidth || !templateHeight) {
+      // Fallback: Get template dimensions from image (best-effort; depends on Sharp availability)
+      const sharp = await getSharpFn();
+      const templateMetadata = sharp ? await (sharp as any)(templateImg.buffer).metadata() : null;
+      const oriented = orientedDimensions(templateMetadata || {});
+      templateWidth = oriented.width;
+      templateHeight = oriented.height;
+    }
     
     const promptText = buildPrompt(req, templateWidth, templateHeight);
     const out = await generateTryOnImage({
@@ -317,7 +506,8 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
     try {
       const sharp = await getSharpFn();
       if (sharp) {
-        const watermarkPath = new URL('../../public/icons/icon-512.png', import.meta.url).pathname;
+        const watermarkPath = await resolveWatermarkPath();
+
         const imgMetadata = await (sharp as any)(outBuffer).metadata();
         const imgWidth = imgMetadata.width || 1024;
         const imgHeight = imgMetadata.height || 1024;
@@ -325,6 +515,9 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
         // Watermark size: 15% of image width, positioned bottom-right
         const watermarkSize = Math.floor(imgWidth * 0.15);
         const margin = Math.floor(watermarkSize * 0.2);
+
+        const left = Math.max(0, imgWidth - watermarkSize - margin);
+        const top = Math.max(0, imgHeight - watermarkSize - margin);
 
         const watermarkBuffer = await (sharp as any)(watermarkPath)
           .resize(watermarkSize, watermarkSize, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
@@ -335,10 +528,9 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
           .composite([
             {
               input: watermarkBuffer,
-              gravity: 'southeast',
               blend: 'over',
-              left: margin,
-              top: margin,
+              left,
+              top,
             }
           ])
           .png()
@@ -353,39 +545,94 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
       // Continue without watermark if it fails
     }
 
-    // Upload to Storage
-    const objectPath = `tryon_results/${jobId}.png`;
-    const token = crypto.randomUUID();
-    await bucket.file(objectPath).save(outBuffer, {
-      contentType: 'image/png',
-      resumable: false,
-      metadata: {
-        metadata: {
-          firebaseStorageDownloadTokens: token,
-        },
-      },
-    });
-
-    const bucketName = bucket.name;
-    const encodedPath = encodeURIComponent(objectPath);
-    const resultUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${token}`;
-
-    // Update Firestore
+    // Best-effort: preserve the original template background so patterns don't "bleed" everywhere.
+    // This mitigates the common failure case where the model tiles the fabric across the entire canvas.
     try {
-      const db = getFirestore();
-      await db.collection('tryon_jobs').doc(jobId).set(
-        {
-          status: 'completed',
-          completedAt: new Date().toISOString(),
-          resultUrl,
-        },
-        { merge: true }
-      );
-    } catch {
-      // ignore
+      const sharp = await getSharpFn();
+      if (sharp && templateWidth && templateHeight) {
+        const templatePng = await (sharp as any)(templateImg.buffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
+        const generatedPng = await (sharp as any)(outBuffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
+        outBuffer = await compositePreservingTemplateBackground({
+          sharp,
+          templatePng,
+          generatedPng,
+          width: templateWidth,
+          height: templateHeight,
+        });
+      }
+    } catch (e) {
+      console.warn('Failed to post-process try-on output with background-preserving composite:', e);
     }
 
-    return { status: 200, json: { jobId, status: 'completed', resultImageUrl: resultUrl } };
+    if (bucket) {
+      // Upload to Storage
+      const objectPath = `tryon_results/${jobId}.png`;
+      const token = crypto.randomUUID();
+      await bucket.file(objectPath).save(outBuffer, {
+        contentType: 'image/png',
+        resumable: false,
+        metadata: {
+          metadata: {
+            firebaseStorageDownloadTokens: token,
+          },
+        },
+      });
+
+      const bucketName = bucket.name;
+      const encodedPath = encodeURIComponent(objectPath);
+      const resultUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedPath}?alt=media&token=${token}`;
+
+      // Also upload a lightweight thumbnail for gallery views.
+      let thumbnailUrl: string | undefined;
+      try {
+        const sharp = await getSharpFn();
+        if (sharp) {
+          const thumbBuffer = await (sharp as any)(outBuffer)
+            .rotate()
+            .resize(240, 320, { fit: 'cover', position: 'center' })
+            .jpeg({ quality: 78, mozjpeg: true })
+            .toBuffer();
+
+          const thumbPath = `tryon_results/thumbs/${jobId}.jpg`;
+          const thumbToken = crypto.randomUUID();
+          await bucket.file(thumbPath).save(thumbBuffer, {
+            contentType: 'image/jpeg',
+            resumable: false,
+            metadata: {
+              metadata: {
+                firebaseStorageDownloadTokens: thumbToken,
+              },
+            },
+          });
+          const encodedThumb = encodeURIComponent(thumbPath);
+          thumbnailUrl = `https://firebasestorage.googleapis.com/v0/b/${bucketName}/o/${encodedThumb}?alt=media&token=${thumbToken}`;
+        }
+      } catch (e) {
+        console.warn('Failed to generate/upload thumbnail; continuing without it:', e);
+      }
+
+      // Update Firestore
+      try {
+        const db = getFirestore();
+        await db.collection('tryon_jobs').doc(jobId).set(
+          {
+            status: 'completed',
+            completedAt: new Date().toISOString(),
+            resultUrl,
+            thumbnailUrl: thumbnailUrl || null,
+          },
+          { merge: true }
+        );
+      } catch {
+        // ignore
+      }
+
+      return { status: 200, json: { jobId, status: 'completed', resultImageUrl: resultUrl, resultThumbnailUrl: thumbnailUrl } };
+    }
+
+    // No Firebase Storage: return inline data URL
+    const resultImageDataUrl = `data:image/png;base64,${outBuffer.toString('base64')}`;
+    return { status: 200, json: { jobId, status: 'completed', resultImageDataUrl } };
   } catch (e: any) {
     const err = e?.message || 'Try-on failed';
     const statusCode = typeof e?.statusCode === 'number' ? e.statusCode : 500;

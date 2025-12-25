@@ -103,12 +103,12 @@ export async function uploadFabricImage(file: File): Promise<string> {
  */
 export function validateFabricImage(file: File): { valid: boolean; error?: string } {
   const maxSize = 10 * 1024 * 1024; // 10MB
-  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+  const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/avif'];
 
   if (!allowedTypes.includes(file.type)) {
     return {
       valid: false,
-      error: 'يرجى اختيار صورة بصيغة JPG أو PNG أو WEBP'
+      error: 'يرجى اختيار صورة بصيغة JPG أو PNG أو WEBP أو AVIF'
     };
   }
 

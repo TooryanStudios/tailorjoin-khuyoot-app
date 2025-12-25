@@ -325,6 +325,7 @@ export const ImageLibraryPicker: React.FC<ImageLibraryPickerProps> = ({ onSelect
           </div>
         )}
       </div>
+      anchorId_ImageLibraryPicker
     </div>
   );
 };

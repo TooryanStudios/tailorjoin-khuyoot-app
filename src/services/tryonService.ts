@@ -22,6 +22,13 @@ export async function generateTryOn(payload: TryOnRequest): Promise<TryOnRespons
   });
 
   if (!res.ok) {
+    const contentType = res.headers.get('content-type') || '';
+    if (contentType.includes('application/json')) {
+      const data: any = await res.json().catch(() => null);
+      const message = (data && (data.error || data.message)) ? (data.error || data.message) : '';
+      throw new Error(message || `Try-on request failed (${res.status})`);
+    }
+
     const text = await res.text().catch(() => '');
     throw new Error(text || `Try-on request failed (${res.status})`);
   }

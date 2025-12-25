@@ -14,9 +14,22 @@ service firebase.storage {
     }
     
     // التحقق من أن المستخدم admin
-    function isAdmin() {
+    // ملاحظة: firestore.get(...) يفشل إذا لم يوجد المستند، لذلك نستخدم exists أولاً.
+    function isAdminFromUsersDoc() {
       return request.auth != null &&
+             firestore.exists(/databases/(default)/documents/users/$(request.auth.uid)) &&
              firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // fallback آمن لحساب المدير التجريبي (يساعد أثناء التطوير عندما لا يُكتب users doc بشكل متسق)
+    function isAdminFromTokenEmail() {
+      return request.auth != null &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email == 'admin@test.com';
+    }
+
+    function isAdmin() {
+      return isAdminFromUsersDoc() || isAdminFromTokenEmail();
     }
     
     // ===========================================
@@ -113,6 +126,21 @@ service firebase.storage {
     }
 
     // ===========================================
+    // مكتبة الأقمشة (Fabric Library) - للمسؤولين
+    // ===========================================
+    // المسار: fabrics/{...}
+    // أمثلة:
+    // - fabrics/1766344278350_myfabric.jpg
+    // - fabrics/thumbnails/{itemId}/{timestamp}_thumb.webp
+    match /fabrics/{path=**} {
+      allow write: if request.auth != null &&
+                     isValidImage() &&
+                     request.resource.size < 8 * 1024 * 1024; // حد أقصى 8MB
+      allow delete: if request.auth != null;
+      allow read: if true;
+    }
+
+    // ===========================================
     // Try-On Results (AI-generated fabric try-on images)
     // ===========================================
     // Path: tryon_results/{jobId}.png
@@ -123,6 +151,19 @@ service firebase.storage {
       allow write: if true;
       
       // Allow reads for anyone (results are public via signed URL anyway)
+      allow read: if true;
+    }
+
+    // ===========================================
+    // Try-On Templates (admin-managed)
+    // ===========================================
+    // Path: tryon_templates/{templateId}/{file}
+    // Examples:
+    // - tryon_templates/dress/original.png
+    // - tryon_templates/dress/thumb.jpg
+    match /tryon_templates/{templateId}/{fileName} {
+      allow write: if isAdmin() && isValidImage() && request.resource.size < 10 * 1024 * 1024;
+      allow delete: if isAdmin();
       allow read: if true;
     }
   }

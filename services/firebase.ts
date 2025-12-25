@@ -1,7 +1,7 @@
 import * as firebaseApp from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp } from 'firebase/firestore';
-import { getStorage, ref as storageRef, deleteObject, listAll } from 'firebase/storage';
+import { getStorage, ref as storageRef, deleteObject, listAll, getDownloadURL, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
 import { MOCK_PRODUCTS } from './mockService';
 import { applyUserDefaults } from '../utils/userDefaults';
@@ -23,6 +23,32 @@ let auth: any;
 let db: any;
 let storage: any;
 let isFirebaseInitialized = false;
+
+function inferImageExtensionFromContentType(contentType: string | undefined | null): string {
+  const ct = String(contentType || '').toLowerCase();
+  if (ct.includes('image/png')) return 'png';
+  if (ct.includes('image/webp')) return 'webp';
+  if (ct.includes('image/avif')) return 'avif';
+  if (ct.includes('image/jpeg') || ct.includes('image/jpg')) return 'jpg';
+  return 'jpg';
+}
+
+function sanitizeStoragePathSegment(value: string): string {
+  return String(value || '')
+    .trim()
+    .replace(/[\s]+/g, '-')
+    .replace(/[^a-zA-Z0-9._-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+}
+
+function sanitizeFirestoreDocId(value: string): string {
+  // Firestore doc ids cannot contain '/' and should be reasonably short.
+  // Keep it permissive but safe.
+  const base = String(value || '').trim();
+  if (!base) return '';
+  return base.replace(/[\/]/g, '_').slice(0, 256);
+}
 
 const LOCAL_MEASUREMENT_TEMPLATES_KEY = 'khuyoot_measurement_templates';
 
@@ -601,6 +627,28 @@ export const firebaseService = {
       allowNewRegistrations: true,
       designerEnabled: true,
       cartEnabled: true,
+      aiTryOn: {
+        limits: {
+          free: {
+            maxPremiumTemplatesBrowse: 4,
+            maxRecents: 3,
+            maxGenerationsStored: 4,
+          },
+          subscribed: {
+            // Keep generous defaults; can be tuned from Admin > Settings.
+            maxPremiumTemplatesBrowse: 999999,
+            maxRecents: 9,
+            maxGenerationsStored: 50,
+          },
+        },
+        premiumFeatures: {
+          watermarkRemoval: true,
+          hdExport: true,
+          priorityQueue: true,
+          batchGeneration: true,
+          presets: true,
+        },
+      },
       // Globally managed product categories used by homepage filters and join flow
       productCategories: [
         { id: 'dishdasha', name: 'الدشاديش' },
@@ -1497,6 +1545,302 @@ export const firebaseService = {
       });
     } catch (error) {
       console.error("Error getting approved fabric stores:", error);
+      return [];
+    }
+  },
+
+  // ------------------------------------------------------------
+  // Try-On Garment Templates (admin-managed)
+  // ------------------------------------------------------------
+
+  async uploadTryOnGarmentTemplateOriginal(params: { templateId: string; file: File; onProgress?: (progress: number) => void }): Promise<string> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const templateId = sanitizeStoragePathSegment(params?.templateId);
+    const file = params?.file;
+    if (!templateId) throw new Error('Template id is required');
+    if (!file) throw new Error('Template file is required');
+
+    if (!auth.currentUser) {
+      throw new Error('Not authenticated. Please log in as an admin before uploading templates.');
+    }
+
+    const ext = inferImageExtensionFromContentType(file.type);
+    const objectRef = storageRef(storage, `tryon_templates/${templateId}/original.${ext}`);
+    if (typeof params?.onProgress === 'function') {
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(objectRef, file, { contentType: file.type || `image/${ext}` });
+        task.on(
+          'state_changed',
+          (snap) => {
+            const total = snap.totalBytes || 0;
+            const pct = total > 0 ? Math.round((snap.bytesTransferred / total) * 100) : 0;
+            try { params.onProgress!(pct); } catch {}
+          },
+          (err) => reject(err),
+          () => resolve()
+        );
+      });
+    } else {
+      await uploadBytes(objectRef, file, { contentType: file.type || `image/${ext}` });
+    }
+    return await getDownloadURL(objectRef);
+  },
+
+  async uploadTryOnGarmentTemplateThumbnail(params: { templateId: string; blob: Blob; onProgress?: (progress: number) => void }): Promise<string> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const templateId = sanitizeStoragePathSegment(params?.templateId);
+    const blob = params?.blob;
+    if (!templateId) throw new Error('Template id is required');
+    if (!blob) throw new Error('Thumbnail blob is required');
+
+    if (!auth.currentUser) {
+      throw new Error('Not authenticated. Please log in as an admin before uploading templates.');
+    }
+
+    const objectRef = storageRef(storage, `tryon_templates/${templateId}/thumb.jpg`);
+    if (typeof params?.onProgress === 'function') {
+      await new Promise<void>((resolve, reject) => {
+        const task = uploadBytesResumable(objectRef, blob, { contentType: blob.type || 'image/jpeg' });
+        task.on(
+          'state_changed',
+          (snap) => {
+            const total = snap.totalBytes || 0;
+            const pct = total > 0 ? Math.round((snap.bytesTransferred / total) * 100) : 0;
+            try { params.onProgress!(pct); } catch {}
+          },
+          (err) => reject(err),
+          () => resolve()
+        );
+      });
+    } else {
+      await uploadBytes(objectRef, blob, { contentType: blob.type || 'image/jpeg' });
+    }
+    return await getDownloadURL(objectRef);
+  },
+
+  async getTryOnGarmentTemplates(options?: { resolveStorageUrls?: boolean }): Promise<Array<{ id: string; name: string; imageUrl: string; thumbnailUrl?: string; enabled?: boolean; order?: number; isPremium?: boolean }>> {
+    if (!isFirebaseInitialized) return [];
+
+    try {
+      const refCol = collection(db, 'tryon_garment_templates');
+      const snap = await getDocs(refCol);
+      const raw = snap.docs.map((d) => {
+        const data: any = d.data() || {};
+        return {
+          id: d.id,
+          name: String(data.name || ''),
+          imageUrl: String(data.imageUrl || ''),
+          thumbnailUrl: data.thumbnailUrl ? String(data.thumbnailUrl || '') : undefined,
+          enabled: data.enabled !== false,
+          order: typeof data.order === 'number' ? data.order : undefined,
+          isPremium: data.isPremium === true,
+        };
+      }).filter(t => t.id && t.name && t.imageUrl);
+
+      const resolveStorageUrls = options?.resolveStorageUrls === true;
+
+      // IMPORTANT:
+      // Resolving Storage paths via getDownloadURL requires the current client to have
+      // Storage read permission. In non-admin user contexts this can cause storage/unauthorized.
+      // Therefore, we only resolve when explicitly requested (admin screens, migrations).
+      const out = resolveStorageUrls
+        ? await Promise.all(
+            raw.map(async (t) => {
+              const resolved: any = { ...t };
+
+              const imageUrl = String(t.imageUrl || '');
+              if (imageUrl.startsWith('gs://') || imageUrl.startsWith('tryon_templates/')) {
+                try {
+                  resolved.imageUrl = await getDownloadURL(storageRef(storage, imageUrl));
+                } catch (e) {
+                  console.warn('Failed to resolve template imageUrl to download URL:', t.id, imageUrl, e);
+                  // Keep original URL - it may work as-is or will fail gracefully in <img>
+                }
+              }
+
+              const thumbnailUrl = String(t.thumbnailUrl || '');
+              if (thumbnailUrl && (thumbnailUrl.startsWith('gs://') || thumbnailUrl.startsWith('tryon_templates/'))) {
+                try {
+                  resolved.thumbnailUrl = await getDownloadURL(storageRef(storage, thumbnailUrl));
+                } catch (e) {
+                  console.warn('Failed to resolve template thumbnailUrl to download URL:', t.id, thumbnailUrl, e);
+                  // Keep original URL - it may work as-is or will fail gracefully in <img>
+                }
+              }
+
+              return resolved as { id: string; name: string; imageUrl: string; thumbnailUrl?: string; enabled?: boolean; order?: number; isPremium?: boolean };
+            })
+          )
+        : raw;
+
+      // Sort locally to avoid requiring indexes.
+      out.sort((a, b) => {
+        const ao = typeof a.order === 'number' ? a.order : 999999;
+        const bo = typeof b.order === 'number' ? b.order : 999999;
+        if (ao !== bo) return ao - bo;
+        return a.name.localeCompare(b.name, 'ar');
+      });
+
+      return out;
+    } catch (error) {
+      console.error('Error getting try-on garment templates:', error);
+      return [];
+    }
+  },
+
+  async getTryOnJobById(jobId: string): Promise<{ id: string; status?: string; resultUrl?: string | null; thumbnailUrl?: string | null } | null> {
+    if (!isFirebaseInitialized) return null;
+    const safeId = sanitizeFirestoreDocId(jobId);
+    if (!safeId) return null;
+
+    try {
+      const refDoc = doc(db, 'tryon_jobs', safeId);
+      const snap = await getDoc(refDoc);
+      if (!snap.exists()) return null;
+      const data: any = snap.data() || {};
+      return {
+        id: snap.id,
+        status: typeof data.status === 'string' ? data.status : undefined,
+        resultUrl: data.resultUrl ? String(data.resultUrl) : null,
+        thumbnailUrl: data.thumbnailUrl ? String(data.thumbnailUrl) : null,
+      };
+    } catch (e) {
+      console.warn('getTryOnJobById failed:', jobId, e);
+      return null;
+    }
+  },
+
+  async upsertTryOnGarmentTemplate(template: { id: string; name: string; imageUrl: string; thumbnailUrl?: string; enabled?: boolean; order?: number; isPremium?: boolean }) {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!template?.id) throw new Error('Template id is required');
+    if (!template?.name) throw new Error('Template name is required');
+    if (!template?.imageUrl) throw new Error('Template imageUrl is required');
+
+    const refDoc = doc(db, 'tryon_garment_templates', template.id);
+    await setDoc(
+      refDoc,
+      {
+        id: template.id,
+        name: template.name,
+        imageUrl: template.imageUrl,
+        ...(template.thumbnailUrl !== undefined ? { thumbnailUrl: template.thumbnailUrl } : {}),
+        enabled: template.enabled !== false,
+        isPremium: template.isPremium === true,
+        ...(typeof template.order === 'number' ? { order: template.order } : {}),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  },
+
+  async deleteTryOnGarmentTemplate(id: string) {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!id) return;
+    await deleteDoc(doc(db, 'tryon_garment_templates', id));
+  },
+
+  /**
+   * One-time helper: ensure existing templates have an explicit isPremium field.
+   * Only writes isPremium=false when the field is missing.
+   */
+  async backfillTryOnTemplateIsPremium(): Promise<{ updated: number; skipped: number }>
+  {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+
+    const refCol = collection(db, 'tryon_garment_templates');
+    const snap = await getDocs(refCol);
+    let updated = 0;
+    let skipped = 0;
+
+    for (const d of snap.docs) {
+      const data: any = d.data() || {};
+      if (typeof data.isPremium === 'boolean') {
+        skipped += 1;
+        continue;
+      }
+      await setDoc(
+        doc(db, 'tryon_garment_templates', d.id),
+        {
+          isPremium: false,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      updated += 1;
+    }
+
+    return { updated, skipped };
+  },
+
+  async seedTryOnGarmentTemplates(templates: Array<{ id: string; name: string; imageUrl: string; thumbnailUrl?: string; enabled?: boolean; order?: number; isPremium?: boolean }>) {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const list = Array.isArray(templates) ? templates : [];
+    for (const t of list) {
+      if (!t?.id || !t?.name || !t?.imageUrl) continue;
+      await this.upsertTryOnGarmentTemplate(t);
+    }
+  },
+
+  // ------------------------------------------------------------
+  // Try-On Generations (per user)
+  // ------------------------------------------------------------
+
+  async upsertUserTryOnGeneration(params: {
+    userId: string;
+    generation: { jobId: string; url: string; thumbnailUrl?: string | null; createdAt: number };
+  }): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const userId = String(params?.userId || '').trim();
+    const generation = params?.generation;
+    if (!userId) throw new Error('userId is required');
+    if (!generation?.jobId || !generation?.url || typeof generation?.createdAt !== 'number') {
+      throw new Error('generation.jobId, generation.url and generation.createdAt are required');
+    }
+
+    const docId = sanitizeFirestoreDocId(generation.jobId) || sanitizeFirestoreDocId(`${generation.createdAt}`);
+    if (!docId) throw new Error('Invalid generation id');
+
+    const refDoc = doc(db, `users/${userId}/tryon_generations`, docId);
+    await setDoc(
+      refDoc,
+      {
+        id: docId,
+        jobId: String(generation.jobId),
+        url: String(generation.url),
+        thumbnailUrl: generation.thumbnailUrl ? String(generation.thumbnailUrl) : null,
+        createdAt: generation.createdAt,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  },
+
+  async getUserTryOnGenerations(params: {
+    userId: string;
+    limit?: number;
+  }): Promise<Array<{ jobId: string; url: string; thumbnailUrl?: string | null; createdAt: number }>> {
+    if (!isFirebaseInitialized) return [];
+    const userId = String(params?.userId || '').trim();
+    if (!userId) return [];
+    const limitCount = Number.isFinite(params?.limit) ? Math.max(1, Math.min(200, Number(params.limit))) : 50;
+
+    try {
+      const refCol = collection(db, `users/${userId}/tryon_generations`);
+      const q = query(refCol, orderBy('createdAt', 'desc'), limit(limitCount));
+      const snap = await getDocs(q);
+      return snap.docs
+        .map((d) => {
+          const data: any = d.data() || {};
+          return {
+            jobId: String(data.jobId || d.id),
+            url: String(data.url || ''),
+            thumbnailUrl: data.thumbnailUrl ? String(data.thumbnailUrl) : null,
+            createdAt: typeof data.createdAt === 'number' ? data.createdAt : 0,
+          };
+        })
+        .filter((x) => x.jobId && x.url);
+    } catch (e) {
+      console.warn('[firebaseService.getUserTryOnGenerations] failed:', e);
       return [];
     }
   }

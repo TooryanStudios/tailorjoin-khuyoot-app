@@ -4,6 +4,8 @@ export type ServerGarmentTemplate = {
   imageUrl: string;
 };
 
+import { getFirestore } from './firebaseAdmin.js';
+
 // Server-authoritative mapping (prevents arbitrary template URLs).
 export const SERVER_GARMENT_TEMPLATES: ServerGarmentTemplate[] = [
   {
@@ -32,6 +34,33 @@ export const SERVER_GARMENT_TEMPLATES: ServerGarmentTemplate[] = [
   },
 ];
 
-export function getTemplateById(id: string) {
-  return SERVER_GARMENT_TEMPLATES.find((t) => t.id === id) || null;
+const TRYON_TEMPLATES_COLLECTION = 'tryon_garment_templates';
+const TEMPLATE_CACHE_MS = 60_000;
+const templateCache = new Map<string, { ts: number; value: ServerGarmentTemplate | null }>();
+
+export async function getTemplateById(id: string): Promise<ServerGarmentTemplate | null> {
+  const cached = templateCache.get(id);
+  if (cached && Date.now() - cached.ts < TEMPLATE_CACHE_MS) return cached.value;
+
+  try {
+    const snap = await getFirestore().collection(TRYON_TEMPLATES_COLLECTION).doc(id).get();
+    if (snap.exists) {
+      const data: any = snap.data() || {};
+      const enabled = data.enabled !== false;
+      const name = typeof data.name === 'string' ? data.name : '';
+      const imageUrl = typeof data.imageUrl === 'string' ? data.imageUrl : '';
+
+      if (enabled && name && imageUrl) {
+        const tpl: ServerGarmentTemplate = { id, name, imageUrl };
+        templateCache.set(id, { ts: Date.now(), value: tpl });
+        return tpl;
+      }
+    }
+  } catch {
+    // Non-fatal: fall back to static mapping.
+  }
+
+  const fallback = SERVER_GARMENT_TEMPLATES.find((t) => t.id === id) || null;
+  templateCache.set(id, { ts: Date.now(), value: fallback });
+  return fallback;
 }

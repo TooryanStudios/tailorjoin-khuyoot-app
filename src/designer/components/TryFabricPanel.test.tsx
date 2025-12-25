@@ -1,7 +1,8 @@
 import React from 'react';
 import { describe, it, expect, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, act } from '@testing-library/react';
 import { TryFabricPanel } from './TryFabricPanel';
+import { AppProvider } from '../../../context/AppContext';
 
 vi.mock('../../services/tryonService', () => {
   return {
@@ -28,15 +29,29 @@ vi.mock('../../utils/fileToBase64', () => {
 describe('TryFabricPanel', () => {
   it('calls API and renders result', async () => {
     const onApplyResult = vi.fn();
-    const { getByLabelText, getByRole, findByRole } = render(
-      <TryFabricPanel initialTemplateId="dress" onApplyResult={onApplyResult} />
-    );
+    let utils: ReturnType<typeof render>;
+    await act(async () => {
+      utils = render(
+        <AppProvider>
+          <TryFabricPanel initialTemplateId="dress" onApplyResult={onApplyResult} />
+        </AppProvider>
+      );
+    });
 
+    const { getAllByText, getByRole, findByRole } = utils!;
+
+    // Open fabric picker modal
+    await act(async () => {
+      (getAllByText('اختر القماش')[0] as HTMLElement).click();
+    });
+
+    // Upload fabric via the modal's hidden input
     const file = new File([new Uint8Array([1, 2, 3])], 'fabric.png', { type: 'image/png' });
-    const input = getByLabelText('قماش (لقطة قريبة فقط)') as HTMLInputElement;
-    await React.act(async () => {
-      Object.defineProperty(input, 'files', { value: [file] });
-      input.dispatchEvent(new Event('change', { bubbles: true }));
+    const input = document.getElementById('tryon-fabric-upload') as HTMLInputElement | null;
+    expect(input).toBeTruthy();
+    await act(async () => {
+      Object.defineProperty(input!, 'files', { value: [file] });
+      input!.dispatchEvent(new Event('change', { bubbles: true }));
     });
 
     await React.act(async () => {

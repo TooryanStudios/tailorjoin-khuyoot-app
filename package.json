@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:lan": "vite --host 0.0.0.0 --port 3000",
     "dev:api": "tsx watch server/devApiServer.ts",
     "dev:all": "concurrently -k -n api,web -c magenta,cyan \"npm run dev:api\" \"npm run dev\"",
     "build": "vite build",
@@ -14,6 +15,8 @@
     "migrate:join-products": "node scripts/migrate_tailor_join_products_fix.js",
     "migrate:join-products:admin": "node scripts/migrate_tailor_join_products_fix_admin.mjs",
     "migrate:join-products:admin:dry": "node scripts/migrate_tailor_join_products_fix_admin.mjs --dry",
+    "migrate:tryon-template-urls": "tsx scripts/migrateTryOnTemplateUrls.ts",
+    "set-admin": "tsx scripts/setAdminRoleByEmail.ts",
     "typecheck": "tsc --noEmit",
     "generate:og": "node scripts/convertOgImage.mjs"
   },

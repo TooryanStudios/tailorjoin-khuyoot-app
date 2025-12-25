@@ -11,7 +11,7 @@
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
 const MAX_WIDTH = 1600;
 const JPEG_QUALITY = 0.75;
-const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
+const ACCEPTED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/avif', 'image/webp'];
 
 /**
  * Validate and compress an image file

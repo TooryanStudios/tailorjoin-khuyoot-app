@@ -1,177 +1,23 @@
 import React, { useState, useEffect } from 'react';
-import { ImagePlus, Plus, Trash2, Edit2, Save, X, FolderPlus, Upload, MoreVertical, RefreshCw, ChevronDown, ChevronLeft, Folder, FolderOpen, Image as ImageIcon } from 'lucide-react';
+import { RefreshCw, FolderPlus } from 'lucide-react';
 import { ImageLibraryCategory, ImageLibraryItem } from '../../../types';
 import {
   getImageCategories,
-  addImageCategory,
-  updateImageCategory,
   deleteImageCategory,
   getImagesByCategoryId,
   addImageToLibrary,
   deleteImageLibraryItem,
-  updateImageLibraryItem,
+  updateImageCategory,
+  ensureThumbnailForImageLibraryItem,
   syncCategoriesFromProducts
 } from '../../../services/imageLibraryService';
-import { getRootImageCategories, createCategoryWithParent, reassignCategoryParent, resetCategoryParent } from '../../../services/imageLibraryService';
+import { getRootImageCategories, createCategoryWithParent, reassignCategoryParent } from '../../../services/imageLibraryService';
 import { useApp } from '../../../context/AppContext';
-
-interface CategoryTreeNode extends ImageLibraryCategory {
-  children: CategoryTreeNode[];
-}
-
-interface CategoryTreeItemProps {
-  node: CategoryTreeNode;
-  level: number;
-  expanded: boolean;
-  selected: boolean;
-  onToggle: () => void;
-  onSelect: () => void;
-  onDelete: () => void;
-}
-
-const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({ 
-  node, 
-  level, 
-  expanded, 
-  selected, 
-  onToggle, 
-  onSelect,
-  onDelete
-}) => {
-  const [showMenu, setShowMenu] = useState(false);
-  const hasChildren = node.children && node.children.length > 0;
-  const canHaveImages = node.level === 1 || !hasChildren; // السماح بالمستوى 1 أيضًا
-
-  return (
-    <div className="select-none">
-      <div
-        className={`flex items-center gap-2 py-2 px-3 rounded-lg cursor-pointer transition-colors ${
-          selected
-            ? 'bg-blue-50 dark:bg-blue-900/30 border-l-4 border-blue-500'
-            : 'hover:bg-slate-50 dark:hover:bg-slate-800/50'
-        }`}
-        style={{ paddingRight: `${level * 1.5 + 0.75}rem` }}
-      >
-        {/* أيقونة التوسيع/الطي */}
-        {hasChildren ? (
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggle();
-            }}
-            className="p-0.5 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition"
-          >
-            {expanded ? (
-              <ChevronDown size={16} className="text-slate-600 dark:text-slate-400" />
-            ) : (
-              <ChevronLeft size={16} className="text-slate-600 dark:text-slate-400" />
-            )}
-          </button>
-        ) : (
-          <div className="w-5" />
-        )}
-
-        {/* أيقونة المجلد/الصورة */}
-        <div className="flex-shrink-0">
-          {hasChildren ? (
-            expanded ? (
-              <FolderOpen size={18} className="text-amber-500" />
-            ) : (
-              <Folder size={18} className="text-amber-600" />
-            )
-          ) : (
-            <ImageIcon size={18} className="text-blue-500" />
-          )}
-        </div>
-
-        {/* اسم القسم */}
-        <div 
-          className="flex-1 min-w-0"
-          onClick={canHaveImages ? onSelect : undefined}
-        >
-          <p className="text-sm font-medium text-slate-900 dark:text-white truncate">
-            {node.name}
-          </p>
-          {node.nameEn && (
-            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">
-              {node.nameEn}
-            </p>
-          )}
-        </div>
-
-        {/* قائمة الخيارات */}
-        <div className="relative">
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowMenu(!showMenu);
-            }}
-            className="p-1 hover:bg-slate-200 dark:hover:bg-slate-700 rounded transition"
-          >
-            <MoreVertical size={14} className="text-slate-400" />
-          </button>
-          {showMenu && (
-            <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-700 rounded-lg shadow-xl border border-slate-200 dark:border-slate-600 z-20 min-w-[120px]">
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowMenu(false);
-                  onDelete();
-                }}
-                className="w-full px-3 py-2 text-xs text-right text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-lg transition"
-              >
-                <Trash2 size={12} />
-                حذف القسم
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* الأقسام الفرعية */}
-      {hasChildren && expanded && (
-        <div>
-          {node.children.map(child => (
-            <CategoryTreeItemWrapper
-              key={child.id}
-              node={child}
-              level={level + 1}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
-
-// Wrapper component to connect with parent state
-const CategoryTreeItemWrapper: React.FC<{ node: CategoryTreeNode; level: number }> = ({ node, level }) => {
-  const parent = React.useContext(CategoryTreeContext);
-  if (!parent) return null;
-  
-  const expanded = parent.expandedCategories.has(node.id);
-  const selected = parent.selectedCategory?.id === node.id;
-  
-  return (
-    <CategoryTreeItem
-      node={node}
-      level={level}
-      expanded={expanded}
-      selected={selected}
-      onToggle={() => parent.toggleCategory(node.id)}
-      onSelect={() => (node.level === 1 || !node.hasChildren) && parent.setSelectedCategory(node)}
-      onDelete={() => parent.handleDeleteCategory(node.id)}
-    />
-  );
-};
-
-const CategoryTreeContext = React.createContext<{
-  expandedCategories: Set<string>;
-  selectedCategory: ImageLibraryCategory | null;
-  toggleCategory: (id: string) => void;
-  setSelectedCategory: (cat: ImageLibraryCategory) => void;
-  handleDeleteCategory: (id: string) => void;
-} | null>(null);
+import { CategoryTreeItemWrapper, CategoryTreeContext, CategoryTreeNode } from './components/CategoryTree';
+import { AddCategoryModal } from './components/AddCategoryModal';
+import { AddImageModal } from './components/AddImageModal';
+import { ImageViewerModal } from './components/ImageViewerModal';
+import { ImageGrid } from './components/ImageGrid';
 
 export const ImageLibraryManagement = () => {
   const { user } = useApp();
@@ -191,25 +37,31 @@ export const ImageLibraryManagement = () => {
   // Debugging state
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  // New category form
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [newCategoryNameEn, setNewCategoryNameEn] = useState('');
-  const [newCategoryOrder, setNewCategoryOrder] = useState(1);
-  const [newCategoryParentId, setNewCategoryParentId] = useState<string | null>(null);
-
-  // New image form
-  const [newImageFile, setNewImageFile] = useState<File | null>(null);
-  const [newImageLabel, setNewImageLabel] = useState('');
+  // Upload state
   const [uploadProgress, setUploadProgress] = useState(false);
-  const [imagePreviewUrl, setImagePreviewUrl] = useState<string | null>(null);
+  const [uploadCounter, setUploadCounter] = useState<{ done: number; total: number } | null>(null);
+  
   const [openCategoryMenu, setOpenCategoryMenu] = useState<string | null>(null);
   const [openImageMenu, setOpenImageMenu] = useState<string | null>(null);
+  const [thumbnailGeneratingById, setThumbnailGeneratingById] = useState<Record<string, boolean>>({});
   const [syncing, setSyncing] = useState(false);
   const [rootParents, setRootParents] = useState<ImageLibraryCategory[]>([]);
   const [selectedNewParentId, setSelectedNewParentId] = useState<string | null>(null);
   const [movingParent, setMovingParent] = useState(false);
   const [uiMessage, setUiMessage] = useState<string | null>(null);
   const [uiError, setUiError] = useState<string | null>(null);
+  const [viewingImage, setViewingImage] = useState<ImageLibraryItem | null>(null);
+  const [showSettings, setShowSettings] = useState(false);
+
+  useEffect(() => {
+    if (uiMessage || uiError) {
+      const timer = setTimeout(() => {
+        setUiMessage(null);
+        setUiError(null);
+      }, 4000);
+      return () => clearTimeout(timer);
+    }
+  }, [uiMessage, uiError]);
 
   useEffect(() => {
     loadCategories();
@@ -286,31 +138,50 @@ export const ImageLibraryManagement = () => {
   };
 
   const buildCategoryTree = (categories: ImageLibraryCategory[]): CategoryTreeNode[] => {
-    const categoryMap = new Map<string, CategoryTreeNode>();
-    
-    // تحويل جميع الأقسام إلى عقد
+    const nodeMap = new Map<string, CategoryTreeNode>();
+
     categories.forEach(cat => {
-      categoryMap.set(cat.id, { ...cat, children: [] });
+      nodeMap.set(cat.id, { ...cat, children: [] });
     });
-    
-    const tree: CategoryTreeNode[] = [];
-    
-    // بناء الشجرة
+
+    const roots: CategoryTreeNode[] = [];
+
     categories.forEach(cat => {
-      const node = categoryMap.get(cat.id)!;
+      const node = nodeMap.get(cat.id);
+      if (!node) return;
+
       if (cat.parentId) {
-        const parent = categoryMap.get(cat.parentId);
-        if (parent) {
-          parent.children.push(node);
-        } else {
-          tree.push(node);
-        }
+        const parent = nodeMap.get(cat.parentId);
+        if (parent) parent.children.push(node);
+        else roots.push(node);
       } else {
-        tree.push(node);
+        roots.push(node);
       }
     });
-    
-    return tree;
+
+    const displayName = (c: ImageLibraryCategory) => (c.nameAr || c.name || '').toString();
+    const sortNodes = (nodes: CategoryTreeNode[]) => {
+      nodes.sort((a, b) => {
+        const orderA = a.order ?? Number.POSITIVE_INFINITY;
+        const orderB = b.order ?? Number.POSITIVE_INFINITY;
+        if (orderA !== orderB) return orderA - orderB;
+        return displayName(a).localeCompare(displayName(b), 'ar');
+      });
+      nodes.forEach(n => {
+        if (n.children.length) sortNodes(n.children);
+      });
+    };
+
+    const assignLevels = (nodes: CategoryTreeNode[], level: number) => {
+      nodes.forEach(n => {
+        n.level = level;
+        if (n.children.length) assignLevels(n.children, level + 1);
+      });
+    };
+
+    sortNodes(roots);
+    assignLevels(roots, 0);
+    return roots;
   };
 
   const toggleCategory = (categoryId: string) => {
@@ -346,21 +217,35 @@ export const ImageLibraryManagement = () => {
     return last ? (last.nameAr || last.name) : null;
   };
 
-  // Compute flat leaf categories and filter by tab
-  const leafCategories = React.useMemo(() => {
+  // Categories visible in the sidebar tree.
+  // IMPORTANT: we include ancestors of matching leaves so nesting works.
+  const visibleCategories = React.useMemo(() => {
+    if (activeTab === 'all') return categories;
+
     const leaves = categories.filter(c => !c.hasChildren);
-    if (activeTab === 'all') return leaves;
-    return leaves.filter(c => {
+    const matchingLeaves = leaves.filter(c => {
       const rootName = getRootAncestorName(c) || '';
-      if (activeTab === 'female') {
-        return /نسائ|النسائية|حري/i.test(rootName);
-      }
-      if (activeTab === 'male') {
-        return /رجال|الرجالية|رجالي/i.test(rootName);
-      }
+      if (activeTab === 'female') return /نسائ|النسائية|حري/i.test(rootName);
+      if (activeTab === 'male') return /رجال|الرجالية|رجالي/i.test(rootName);
       return true;
     });
-  }, [categories, activeTab]);
+
+    const ids = new Set<string>();
+    const guard = 100;
+    const addWithAncestors = (cat: ImageLibraryCategory) => {
+      let current: ImageLibraryCategory | undefined = cat;
+      let steps = 0;
+      while (current && steps < guard) {
+        ids.add(current.id);
+        if (!current.parentId) break;
+        current = categoryMap.get(current.parentId) || undefined;
+        steps++;
+      }
+    };
+
+    matchingLeaves.forEach(addWithAncestors);
+    return categories.filter(c => ids.has(c.id));
+  }, [categories, activeTab, categoryMap]);
 
   // Level collections for drill-down
   const level0Categories = React.useMemo(() => categories.filter(c => c.level === 0), [categories]);
@@ -451,29 +336,26 @@ export const ImageLibraryManagement = () => {
     return parts.join(' › ');
   };
 
-  const handleAddCategory = async () => {
-    if (!newCategoryName.trim() || !newCategoryNameEn.trim()) {
+  const handleAddCategory = async (data: { name: string; nameEn: string; order: number; parentId: string | null }) => {
+    const { name, nameEn, order, parentId } = data;
+    if (!name.trim() || !nameEn.trim()) {
       alert('يرجى ملء جميع الحقول');
       return;
     }
 
-    const chosenParent = newCategoryParentId ?? selectedLevel1Id ?? selectedLevel0Id ?? null;
+    const chosenParent = parentId ?? selectedLevel1Id ?? selectedLevel0Id ?? null;
     console.debug('[ImageLibrary] createCategoryWithParent debug', {
-      newCategoryName,
-      newCategoryNameEn,
+      name,
+      nameEn,
       selectedLevel0Id,
       selectedLevel1Id,
       chosenParent
     });
     try {
       setLoading(true);
-      await createCategoryWithParent(newCategoryName, { nameEn: newCategoryNameEn || undefined, parentId: chosenParent });
+      await createCategoryWithParent(name, { nameEn: nameEn || undefined, parentId: chosenParent });
       
-      setNewCategoryName('');
-      setNewCategoryNameEn('');
-      setNewCategoryOrder(1);
       setShowAddCategoryModal(false);
-      setNewCategoryParentId(null);
       await loadCategories();
       alert('تم إضافة القسم بنجاح!');
     } catch (error) {
@@ -505,80 +387,50 @@ export const ImageLibraryManagement = () => {
     }
   };
 
-  const handleAddImage = async () => {
-    if (!selectedCategory || !newImageFile || !newImageLabel.trim()) {
-      alert('يرجى ملء جميع الحقول واختيار صورة');
-        {/* Debug Panel */}
-        <div className="mb-3 p-3 rounded-lg border border-dashed border-blue-300 bg-blue-50 dark:bg-blue-900/20 text-xs text-blue-800 dark:text-blue-200">
-          <div className="font-bold mb-1">DEBUG: ImageLibrary</div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-            <div>selectedLevel0Id: <span className="font-mono">{selectedLevel0Id || 'null'}</span></div>
-            <div>selectedLevel1Id: <span className="font-mono">{selectedLevel1Id || 'null'}</span></div>
-            <div>newCategoryName: <span className="font-mono">{newCategoryName || '-'}</span></div>
-            <div>newCategoryNameEn: <span className="font-mono">{newCategoryNameEn || '-'}</span></div>
-            <div>chosenParent (on create): <span className="font-mono">{(selectedLevel1Id || selectedLevel0Id) || 'null'}</span></div>
-          </div>
-        </div>
+  const handleAddImage = async (files: File[], label: string) => {
+    if (!selectedCategory || files.length === 0 || !label.trim()) {
+      alert('يرجى ملء جميع الحقول واختيار صورة/صور');
       return;
     }
 
-    console.log('🚀 بدء رفع الصورة:', {
+    console.log('🚀 بدء رفع الصور:', {
       categoryId: selectedCategory.id,
       categoryName: selectedCategory.name,
-      fileName: newImageFile.name,
-      label: newImageLabel
+      filesCount: files.length,
+      files: files.map(f => ({ name: f.name, size: f.size, type: f.type })),
+      label: label
     });
 
     try {
       setUploadProgress(true);
-                <div>
-                  <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">الأب (اختياري)</label>
-                  <select
-                    value={newCategoryParentId ?? ''}
-                    onChange={(e) => setNewCategoryParentId(e.target.value || null)}
-                    className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md"
-                  >
-                    <option value="">بدون أب — مستوى 0</option>
-                    {rootParents
-                      .filter(r => !r.isImmutable && !/(الأزياء|Fashion)/i.test(r.nameAr || r.name || ''))
-                      .map(r => (
-                        <option key={r.id} value={r.id}>{r.nameAr || r.name}</option>
-                      ))}
-                  </select>
-                  <p className="text-[10px] text-slate-500 mt-1">يمكنك اختيار أب صريح أو تركه فارغاً ليكون على المستوى 0.</p>
-                </div>
-
-      const uploaderId = user?.id || 'admin'; // استخدام 'admin' كقيمة افتراضية
+      setUploadCounter({ done: 0, total: files.length });
+      const uploaderId = user?.id || 'admin';
       
       console.log('📤 استدعاء addImageToLibrary...');
-      const imageId = await addImageToLibrary(
-        selectedCategory.id,
-        newImageFile,
-        newImageLabel,
-        uploaderId
-      );
-      console.log('✅ تم رفع الصورة بنجاح! ID:', imageId);
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        const imageLabel = files.length > 1 ? `${label.trim()} (${i + 1})` : label.trim();
+        const imageId = await addImageToLibrary(selectedCategory.id, file, imageLabel, uploaderId);
+        console.log('✅ تم رفع الصورة بنجاح! ID:', imageId);
+        setUploadCounter(prev => {
+          if (!prev) return prev;
+          return { ...prev, done: Math.min(prev.total, prev.done + 1) };
+        });
+      }
       
-      // إعادة تحميل الصور لإظهار الصورة الجديدة
       console.log('🔄 إعادة تحميل الصور...');
       await loadCategoryImages(selectedCategory.id);
       console.log('✅ تم إعادة تحميل الصور');
       
-      // تنظيف البيانات
-      setNewImageFile(null);
-      setNewImageLabel('');
-      if (imagePreviewUrl) {
-        URL.revokeObjectURL(imagePreviewUrl);
-        setImagePreviewUrl(null);
-      }
       setShowAddImageModal(false);
       
-      alert('تم إضافة الصورة بنجاح!');
+      setUiMessage(files.length > 1 ? 'تم إضافة الصور بنجاح!' : 'تم إضافة الصورة بنجاح!');
     } catch (error) {
       console.error('❌ خطأ في إضافة الصورة:', error);
-      alert('فشل إضافة الصورة: ' + (error as Error).message);
+      setUiError('فشل إضافة الصورة: ' + (error as Error).message);
     } finally {
       setUploadProgress(false);
+      setUploadCounter(null);
     }
   };
 
@@ -602,6 +454,35 @@ export const ImageLibraryManagement = () => {
     }
   };
 
+  const handleGenerateThumbnailForImage = async (image: ImageLibraryItem) => {
+    if (thumbnailGeneratingById[image.id]) return;
+    try {
+      setThumbnailGeneratingById(prev => ({ ...prev, [image.id]: true }));
+      setOpenImageMenu(null);
+      const newThumbUrl = await ensureThumbnailForImageLibraryItem({
+        id: image.id,
+        categoryId: image.categoryId,
+        imageUrl: image.imageUrl,
+        thumbnailUrl: image.thumbnailUrl
+      });
+
+      // If the viewer modal is open for the same image, update it immediately.
+      setViewingImage(prev => {
+        if (!prev || prev.id !== image.id) return prev;
+        return { ...prev, thumbnailUrl: newThumbUrl };
+      });
+
+      if (selectedCategory) {
+        await loadCategoryImages(selectedCategory.id);
+      }
+    } catch (error) {
+      console.error('Error generating thumbnail:', error);
+      alert('فشل إنشاء المصغّر');
+    } finally {
+      setThumbnailGeneratingById(prev => ({ ...prev, [image.id]: false }));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 p-6 pb-20">
       <div className="max-w-7xl mx-auto">
@@ -613,47 +494,6 @@ export const ImageLibraryManagement = () => {
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
               إدارة الصور الافتراضية للخياطين والمحلات
             </p>
-                    {/* Parent management for selected leaf category */}
-                    {selectedCategory && (
-                      <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900/30 border border-slate-200 dark:border-slate-700 rounded">
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 items-end">
-                          <div>
-                            <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">الأب الجديد (اختياري)</label>
-                            <select value={selectedNewParentId ?? ''} onChange={e=>setSelectedNewParentId(e.target.value || null)} className="w-full px-2 py-1 border rounded">
-                              <option value="">بدون أب — مستوى 0</option>
-                              {rootParents
-                                .filter(p => !p.isImmutable && !/(الأزياء|Fashion)/i.test(p.nameAr || p.name || ''))
-                                .map(p => (
-                                  <option key={p.id} value={p.id}>{p.nameAr || p.name}</option>
-                                ))}
-                            </select>
-                          </div>
-                          <button
-                            onClick={async () => {
-                              setUiMessage(null); setUiError(null);
-                              try { setMovingParent(true); await reassignCategoryParent(selectedCategory.id, selectedNewParentId); setUiMessage('تم نقل القسم'); }
-                              catch(e:any){ setUiError(e?.message || 'تعذر النقل'); }
-                              finally { setMovingParent(false); }
-                            }}
-                            className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded"
-                            disabled={movingParent}
-                          >{movingParent ? 'جارٍ النقل...' : 'نقل إلى الأب'}</button>
-                          <button
-                            onClick={async () => {
-                              setUiMessage(null); setUiError(null);
-                              try { setMovingParent(true); await resetCategoryParent(selectedCategory.id); setUiMessage('تمت إعادة التعيين لمستوى 0'); }
-                              catch(e:any){ setUiError(e?.message || 'تعذر إعادة التعيين'); }
-                              finally { setMovingParent(false); }
-                            }}
-                            className="px-3 py-1.5 text-sm bg-orange-600 hover:bg-orange-700 text-white rounded"
-                            disabled={movingParent}
-                          >{movingParent ? 'جارٍ التعيين...' : 'إعادة تعيين الأب'}</button>
-                        </div>
-                        {(uiMessage || uiError) && (
-                          <div className={`mt-2 text-xs ${uiError ? 'text-red-700' : 'text-green-700'}`}>{uiError || uiMessage}</div>
-                        )}
-                      </div>
-                    )}
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -675,480 +515,147 @@ export const ImageLibraryManagement = () => {
         </div>
 
         <div className="space-y-6">
-          {/* Categories Section - cascading filters */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            {loading && categories.length === 0 ? (
-              <p className="text-slate-500 text-sm text-center py-8">جاري التحميل...</p>
-            ) : (
-              <>
-                {/* Container #2: Broad categories (Men/Women/Kids) with "All" option */}
-                {level0Categories.length > 0 && (
-                  <div className="px-3 py-2 mb-3 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2 overflow-x-auto">
-                      <button
-                        type="button"
-                        onClick={() => { 
-                          console.log('🔵 [Container #2] الجميع - عرض كل الأقسام من level0Categories');
-                          setSelectedLevel0Id(null); setSelectedLevel1Id(null); setSelectedCategory(null); 
-                        }}
-                        className={`shrink-0 px-3 py-1.5 text-xs rounded-md border transition ${
-                          !selectedLevel0Id
-                            ? 'bg-blue-600 text-white border-blue-600' 
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-blue-50'
-                        }`}
-                      >
-                        الجميع
-                      </button>
-                      {level0Categories.map(cat => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => { 
-                            console.log('🔵 [Container #2]', cat.name, '| ID:', cat.id, '| Level:', cat.level, '| Source: level0Categories (productCategories where level=0)');
-                            setSelectedLevel0Id(cat.id); setSelectedLevel1Id(null); setSelectedCategory(null); 
-                          }}
-                          className={`shrink-0 px-3 py-1.5 text-xs rounded-md border transition ${
-                            selectedLevel0Id === cat.id 
-                              ? 'bg-blue-600 text-white border-blue-600' 
-                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-blue-50'
-                          }`}
-                        >
-                          {cat.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Container #3: Specific types (Dishdasha/Wizar/etc) - appears after Container #2 selection */}
-                {selectedLevel0Id && level1Categories.length > 0 && (
-                  <div className="px-3 py-2 mb-3 bg-slate-50 dark:bg-slate-900/30 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <div className="flex items-center gap-2 overflow-x-auto">
-                      <button
-                        type="button"
-                        onClick={() => { 
-                          console.log('🟡 [Container #3] الجميع - عرض كل الأقسام الفرعية من level1Categories | Parent:', selectedLevel0Id);
-                          setSelectedLevel1Id(null); setSelectedCategory(null); 
-                        }}
-                        className={`shrink-0 px-3 py-1.5 text-xs rounded-md border transition ${
-                          !selectedLevel1Id
-                            ? 'bg-amber-500 text-white border-amber-500' 
-                            : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-amber-50'
-                        }`}
-                      >
-                        الجميع
-                      </button>
-                      {level1Categories.map(cat => (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          onClick={() => { 
-                            console.log('🟡 [Container #3]', cat.name, '| ID:', cat.id, '| Level:', cat.level, '| Parent:', cat.parentId, '| Source: level1Categories (filtered by selectedLevel0Id)');
-                            setSelectedLevel1Id(cat.id); setSelectedCategory(cat); 
-                          }}
-                          className={`shrink-0 px-3 py-1.5 text-xs rounded-md border transition ${
-                            selectedLevel1Id === cat.id 
-                              ? 'bg-amber-500 text-white border-amber-500' 
-                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-300 dark:border-slate-600 hover:bg-amber-50'
-                          }`}
-                        >
-                          {cat.name}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {/* Final items grid - shows after level selection */}
-                {(selectedLevel1Id || selectedLevel0Id) && (
-                  <div>
-                    <div className="mb-2">
-                      <span className="text-xs text-slate-500">الأقسام النهائية</span>
-                    </div>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                      {(selectedLevel1Id
-                        ? categories.filter(c => c.parentId === selectedLevel1Id && !c.hasChildren)
-                        : leafCategories
-                      ).map(finalCat => (
-                        <button
-                          key={finalCat.id}
-                          onClick={() => {
-                            console.log('🟢 [Final Grid]', finalCat.name, '| ID:', finalCat.id, '| Level:', finalCat.level, '| Parent:', finalCat.parentId, '| Source:', selectedLevel1Id ? 'categories.filter(parentId === selectedLevel1Id)' : 'leafCategories (all !hasChildren)');
-                            setSelectedCategory(finalCat);
-                          }}
-                          className={`p-3 rounded-lg text-right transition-all ${
-                            selectedCategory?.id === finalCat.id
-                              ? 'bg-blue-500 text-white shadow-lg scale-105'
-                              : 'bg-white dark:bg-slate-800 hover:bg-blue-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-600 hover:border-blue-300'
-                          }`}
-                        >
-                          <div className="flex items-center gap-2 mb-1">
-                            <ImageIcon size={14} className={selectedCategory?.id === finalCat.id ? 'text-white' : 'text-blue-500'} />
-                            <span className="text-sm font-medium truncate">{finalCat.name}</span>
-                          </div>
-                          <div className="flex items-center gap-1 mb-1">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${selectedCategory?.id === finalCat.id ? 'bg-blue-600 text-blue-100' : 'bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-300'}`}>Level {finalCat.level ?? 0}</span>
-                            {finalCat.isImmutable && (
-                              <span className={`text-[10px] px-1.5 py-0.5 rounded ${selectedCategory?.id === finalCat.id ? 'bg-red-600 text-red-100' : 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-300'}`}>مقفل</span>
-                            )}
-                            <span className={`ml-auto text-[10px] font-mono ${selectedCategory?.id === finalCat.id ? 'text-blue-100' : 'text-slate-400'}`}>{finalCat.id}</span>
-                          </div>
-                          {finalCat.nameEn && (
-                            <p className={`text-xs truncate ${selectedCategory?.id === finalCat.id ? 'text-blue-100' : 'text-slate-500'}`}>
-                              {finalCat.nameEn}
-                            </p>
-                          )}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </>
-            )}
+          {/* Tabs */}
+          <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-fit">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                activeTab === 'all' 
+                  ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              الكل
+            </button>
+            <button
+              onClick={() => setActiveTab('female')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                activeTab === 'female' 
+                  ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              النسائية
+            </button>
+            <button
+              onClick={() => setActiveTab('male')}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
+                activeTab === 'male' 
+                  ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 
+                  : 'text-slate-500 hover:text-slate-700 dark:hover:text-slate-300'
+              }`}
+            >
+              الرجالية
+            </button>
           </div>
 
-          {/* Breadcrumb + Images Section */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg p-4 shadow-sm border border-slate-200 dark:border-slate-700">
-            {/* Breadcrumb */}
-            <div className="flex items-center justify-between mb-3">
-              <div className="text-xs text-slate-600 dark:text-slate-300 truncate">
-                {breadcrumb}
+          <div className="grid grid-cols-1 lg:grid-cols-[300px,1fr] gap-6">
+            {/* Sidebar Tree */}
+            <div className="bg-white dark:bg-slate-800 rounded-xl p-6 shadow-sm border border-slate-200 dark:border-slate-700">
+              <div className="space-y-1">
+                <CategoryTreeContext.Provider value={{
+                  expandedCategories,
+                  selectedCategory,
+                  toggleCategory,
+                  setSelectedCategory,
+                  handleDeleteCategory,
+                  requestMoveCategory: (cat) => {
+                    setSelectedCategory(cat);
+                    setShowSettings(true);
+                  }
+                }}>
+                  {buildCategoryTree(visibleCategories).map(node => (
+                    <CategoryTreeItemWrapper
+                      key={node.id}
+                      node={node}
+                      level={0}
+                    />
+                  ))}
+                </CategoryTreeContext.Provider>
               </div>
-              {(selectedLevel0Id || selectedLevel1Id || selectedCategory) && (
-                <button onClick={() => { setSelectedCategory(null); resetDrillDown(); }} className="text-xs text-blue-600 hover:underline">
-                  مسح الاختيار
-                </button>
-              )}
             </div>
-            {selectedCategory ? (
-              <>
-                <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200 dark:border-slate-700">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900 dark:text-white">
-                      {selectedCategory.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-                      {categoryImages.length} صورة
-                    </p>
-                  </div>
-                  <button
-                    onClick={() => setShowAddImageModal(true)}
-                    className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg flex items-center gap-1.5 transition shadow-sm"
-                  >
-                    <Upload size={16} />
-                    رفع صورة
-                  </button>
-                </div>
 
-                {/* Edit/Delete/Parent Controls */}
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
-                  <label className="flex flex-col">
-                    <span className="text-xs">اسم القسم (عربي)</span>
-                    <input value={editNameAr} onChange={e=>setEditNameAr(e.target.value)} className="border rounded px-2 py-1" />
-                  </label>
-                  <label className="flex flex-col">
-                    <span className="text-xs">اسم القسم (إنجليزي)</span>
-                    <input value={editNameEn} onChange={e=>setEditNameEn(e.target.value)} className="border rounded px-2 py-1" />
-                  </label>
-                  <div className="flex items-end gap-2">
-                    <button
-                      onClick={async () => {
-                        try {
-                          await updateImageCategory(selectedCategory.id, { name: editNameAr, nameAr: editNameAr, nameEn: editNameEn });
-                          setSelectedCategory({ ...selectedCategory, name: editNameAr, nameAr: editNameAr, nameEn: editNameEn });
-                        } catch (e:any) {
-                          alert(e?.message || 'تعذر حفظ التعديلات');
-                        }
-                      }}
-                      className="px-3 py-1.5 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded"
-                    >حفظ</button>
-                    <button
-                      onClick={async () => {
-                        if (!confirm('تأكيد حذف القسم؟ سيتم حذف الصور المرتبطة.')) return;
-                        await handleDeleteCategory(selectedCategory.id);
-                      }}
-                      className="px-3 py-1.5 text-sm bg-red-600 hover:bg-red-700 text-white rounded"
-                    >حذف</button>
-                  </div>
-                  <div className="md:col-span-3">
-                    <label className="block text-xs mb-1">تعيين أب جديد (أي قسم موجود، باستثناء الأزياء)</label>
-                    <div className="flex gap-2 items-end">
-                      <select value={selectedNewParentId ?? ''} onChange={e=>setSelectedNewParentId(e.target.value || null)} className="border rounded px-2 py-1">
-                        <option value="">بدون أب — مستوى 0</option>
-                        {availableParents.map(p => (
-                          <option key={p.id} value={p.id}>{buildPathLabel(p)}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={async () => {
-                          setUiMessage(null); setUiError(null);
-                          try { setMovingParent(true); await reassignCategoryParent(selectedCategory.id, selectedNewParentId); setUiMessage('تم تعيين الأب'); await loadCategories(); }
-                          catch(e:any){ setUiError(e?.message || 'تعذر التعيين'); }
-                          finally { setMovingParent(false); }
-                        }}
-                        className="px-3 py-1.5 text-sm bg-green-600 hover:bg-green-700 text-white rounded"
-                        disabled={movingParent}
-                      >{movingParent ? 'جارٍ التعين...' : 'تعيين الأب'}</button>
-                    </div>
-                  </div>
-                </div>
-
-                {loading ? (
-                  <div className="text-center py-8">
-                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-3"></div>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">جاري التحميل...</p>
-                  </div>
-                ) : categoryImages.length === 0 ? (
-                  <div className="text-center py-12">
-                    <ImagePlus size={48} className="mx-auto mb-3 text-slate-300" />
-                    <p className="text-sm text-slate-500 dark:text-slate-400 mb-3">
-                      لا توجد صور في هذا القسم
-                    </p>
-                    <button
-                      onClick={() => setShowAddImageModal(true)}
-                      className="px-3 py-1.5 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-lg shadow-sm"
-                    >
-                      إضافة صورة
-                    </button>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                    {categoryImages.map(image => (
-                      <div
-                        key={image.id}
-                        className="group relative aspect-[3/4] rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 hover:border-purple-400 hover:shadow-lg transition"
-                      >
-                        <img
-                          src={image.imageUrl}
-                          alt={image.label}
-                          className="w-full h-full object-cover"
-                        />
-                        
-                        {/* زر القائمة في الأعلى */}
-                        <div className="absolute top-2 left-2 z-10">
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setOpenImageMenu(openImageMenu === image.id ? null : image.id);
-                            }}
-                            className="p-1.5 bg-black/50 hover:bg-black/70 backdrop-blur-sm rounded-md transition"
-                          >
-                            <MoreVertical size={14} className="text-white" />
-                          </button>
-                          {openImageMenu === image.id && (
-                            <div className="absolute left-0 top-full mt-1 bg-white dark:bg-slate-700 rounded-lg shadow-xl border border-slate-200 dark:border-slate-600 min-w-[120px]">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setOpenImageMenu(null);
-                                  handleDeleteImage(image.id);
-                                }}
-                                className="w-full px-3 py-2 text-xs text-right text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 flex items-center gap-2 rounded-lg transition"
-                              >
-                                <Trash2 size={12} />
-                                حذف الصورة
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                        
-                        <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/70 to-transparent p-1.5">
-                          <p className="text-white text-[10px] line-clamp-2 leading-tight">{image.label}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="flex items-center justify-center h-64">
-                <div className="text-center">
-                  <ImagePlus size={40} className="mx-auto mb-2 text-slate-300" />
-                  <p className="text-sm text-slate-500 dark:text-slate-400">
-                    اختر قسماً لعرض الصور
-                  </p>
-                </div>
-              </div>
-            )}
+            {/* Main Content */}
+            <ImageGrid
+              breadcrumb={breadcrumb}
+              selectedCategory={selectedCategory}
+              categoryImages={categoryImages}
+              loading={loading}
+              showSettings={showSettings}
+              setShowSettings={setShowSettings}
+              editNameAr={editNameAr}
+              setEditNameAr={setEditNameAr}
+              editNameEn={editNameEn}
+              setEditNameEn={setEditNameEn}
+              selectedNewParentId={selectedNewParentId}
+              setSelectedNewParentId={setSelectedNewParentId}
+              availableParents={availableParents}
+              buildPathLabel={buildPathLabel}
+              movingParent={movingParent}
+              onMoveParent={async () => {
+                setUiMessage(null); setUiError(null);
+                try { setMovingParent(true); await reassignCategoryParent(selectedCategory!.id, selectedNewParentId); setUiMessage('تم نقل القسم بنجاح'); await loadCategories(); }
+                catch(e:any){ setUiError(e?.message || 'تعذر النقل'); }
+                finally { setMovingParent(false); }
+              }}
+              onDeleteCategory={() => handleDeleteCategory(selectedCategory!.id)}
+              onUpdateCategory={async () => {
+                try {
+                  await updateImageCategory(selectedCategory!.id, { name: editNameAr, nameAr: editNameAr, nameEn: editNameEn });
+                  setSelectedCategory({ ...selectedCategory!, name: editNameAr, nameAr: editNameAr, nameEn: editNameEn });
+                  setUiMessage('تم حفظ التغييرات بنجاح');
+                  setShowSettings(false);
+                } catch (e:any) {
+                  setUiError(e?.message || 'تعذر حفظ التعديلات');
+                }
+              }}
+              onDeleteImage={handleDeleteImage}
+              onGenerateThumbnail={handleGenerateThumbnailForImage}
+              thumbnailGeneratingById={thumbnailGeneratingById}
+              openImageMenu={openImageMenu}
+              setOpenImageMenu={setOpenImageMenu}
+              onViewImage={setViewingImage}
+              onAddImage={() => setShowAddImageModal(true)}
+              onClearSelection={() => { setSelectedCategory(null); resetDrillDown(); }}
+            />
           </div>
         </div>
       </div>
 
-      {/* Add Category Modal */}
-      {showAddCategoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white">إضافة قسم جديد</h3>
-              <button onClick={() => setShowAddCategoryModal(false)}>
-                <X size={18} className="text-slate-400" />
-              </button>
-            </div>
+      <AddCategoryModal
+        isOpen={showAddCategoryModal}
+        onClose={() => setShowAddCategoryModal(false)}
+        onSubmit={handleAddCategory}
+        rootParents={rootParents}
+        loading={loading}
+      />
 
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  اسم القسم (عربي) *
-                </label>
-                <input
-                  type="text"
-                  value={newCategoryName}
-                  onChange={(e) => setNewCategoryName(e.target.value)}
-                  placeholder="مثال: دشداشات"
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md"
-                />
-              </div>
+      <AddImageModal
+        isOpen={showAddImageModal}
+        onClose={() => setShowAddImageModal(false)}
+        categoryName={selectedCategory?.name || ''}
+        onUpload={handleAddImage}
+        uploadProgress={uploadProgress}
+        uploadCounter={uploadCounter}
+      />
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  اسم القسم (إنجليزي) *
-                </label>
-                <input
-                  type="text"
-                  value={newCategoryNameEn}
-                  onChange={(e) => setNewCategoryNameEn(e.target.value)}
-                  placeholder="مثال: dishdasha"
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md"
-                />
-              </div>
+      <ImageViewerModal
+        image={viewingImage}
+        onClose={() => setViewingImage(null)}
+        categoryName={selectedCategory?.name}
+        onGenerateThumbnail={handleGenerateThumbnailForImage}
+        isGeneratingThumbnail={viewingImage ? !!thumbnailGeneratingById[viewingImage.id] : false}
+      />
 
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  ترتيب العرض
-                </label>
-                <input
-                  type="number"
-                  value={newCategoryOrder}
-                  onChange={(e) => setNewCategoryOrder(parseInt(e.target.value) || 1)}
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">الأب (اختياري)</label>
-                <select
-                  value={(selectedLevel1Id || selectedLevel0Id) ?? ''}
-                  onChange={() => {}}
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md"
-                >
-                  <option value="">بدون أب — مستوى 0</option>
-                  {rootParents.map(r => (
-                    <option key={r.id} value={r.id}>{r.nameAr || r.name}</option>
-                  ))}
-                </select>
-                <p className="text-[10px] text-slate-500 mt-1">سيتم استخدام الاختيار في المستوى أعلاه كأب للقسم.</p>
-              </div>
-
-              <button
-                onClick={handleAddCategory}
-                disabled={loading}
-                className="w-full py-2 text-sm bg-blue-600 hover:bg-blue-700 text-white rounded-md font-medium disabled:opacity-50"
-              >
-                {loading ? 'جاري الإضافة...' : 'إضافة القسم'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Add Image Modal */}
-      {showAddImageModal && selectedCategory && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-lg max-w-md w-full p-4 border border-slate-200 dark:border-slate-700">
-            <div className="flex items-center justify-between gap-3 mb-3">
-              <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate flex-1">
-                إضافة صورة إلى {selectedCategory.name}
-              </h3>
-              <button onClick={() => {
-                setShowAddImageModal(false);
-                setNewImageFile(null);
-                setNewImageLabel('');
-                if (imagePreviewUrl) {
-                  URL.revokeObjectURL(imagePreviewUrl);
-                  setImagePreviewUrl(null);
-                }
-              }}>
-                <X size={18} className="text-slate-400 hover:text-slate-600" />
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  اختر صورة *
-                </label>
-                <input
-                  key={imagePreviewUrl || 'file-input'}
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0] || null;
-                    console.log('📁 تم اختيار ملف:', file?.name, file?.type, file?.size);
-                    
-                    setNewImageFile(file);
-                    
-                    // إنشاء معاينة base64 بدلاً من blob لتجنب مشاكل CSP
-                    if (file) {
-                      const reader = new FileReader();
-                      reader.onloadend = () => {
-                        const base64 = reader.result as string;
-                        console.log('🖼️ تم إنشاء معاينة base64');
-                        setImagePreviewUrl(base64);
-                      };
-                      reader.readAsDataURL(file);
-                    } else {
-                      setImagePreviewUrl(null);
-                    }
-                  }}
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md file:mr-2 file:py-1 file:px-2 file:rounded file:border-0 file:text-xs file:bg-slate-200 dark:file:bg-slate-700 file:text-slate-700 dark:file:text-slate-200"
-                />
-              </div>
-              
-              {newImageFile && imagePreviewUrl && (
-                <div className="animate-fadeIn">
-                  <div className="flex items-center gap-2 mb-2 p-2 bg-green-50 dark:bg-green-900/20 rounded-md border border-green-200 dark:border-green-800">
-                    <span className="inline-block w-2 h-2 bg-green-500 rounded-full flex-shrink-0"></span>
-                    <p className="text-xs text-green-700 dark:text-green-300 truncate flex-1">
-                      {newImageFile.name}
-                    </p>
-                    <span className="text-xs text-green-600 dark:text-green-400 bg-green-100 dark:bg-green-900/40 px-2 py-0.5 rounded flex-shrink-0">
-                      {(newImageFile.size / 1024).toFixed(0)} KB
-                    </span>
-                  </div>
-                  <div className="relative rounded-lg overflow-hidden border-2 border-green-300 dark:border-green-700 shadow-lg">
-                    <img
-                      key={imagePreviewUrl}
-                      src={imagePreviewUrl}
-                      alt="Preview"
-                      className="w-full h-56 object-contain bg-slate-100 dark:bg-slate-900"
-                      onLoad={() => console.log('✅ تم تحميل صورة المعاينة')}
-                      onError={() => console.error('❌ خطأ في تحميل صورة المعاينة')}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-medium text-slate-700 dark:text-slate-300 mb-1">
-                  وصف الصورة *
-                </label>
-                <textarea
-                  value={newImageLabel}
-                  onChange={(e) => setNewImageLabel(e.target.value)}
-                  placeholder="مثال: دشداشة بيضاء كلاسيكية"
-                  rows={2}
-                  className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md resize-none"
-                />
-              </div>
-
-              <button
-                onClick={handleAddImage}
-                disabled={uploadProgress}
-                className="w-full py-2 text-sm bg-purple-600 hover:bg-purple-700 text-white rounded-md font-medium disabled:opacity-50"
-              >
-                {uploadProgress ? 'جاري الرفع...' : 'إضافة الصورة'}
-              </button>
-            </div>
+      {/* Global Toast Notification */}
+      {(uiMessage || uiError) && (
+        <div className="fixed bottom-6 left-1/2 transform -translate-x-1/2 z-50 animate-fadeIn">
+          <div className={`px-6 py-3 rounded-full shadow-xl flex items-center gap-3 ${
+            uiError 
+              ? 'bg-red-600 text-white' 
+              : 'bg-slate-900 text-white'
+          }`}>
+            <span className="text-sm font-medium">{uiError || uiMessage}</span>
           </div>
         </div>
       )}

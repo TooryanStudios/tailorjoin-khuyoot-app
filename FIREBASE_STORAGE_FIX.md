@@ -8,6 +8,51 @@
 
 ---
 
+## ✅ ملاحظة مهمة: مشكلة CORS (للخصائص التي تستخدم Canvas مثل تبليط القماش)
+
+إذا ظهر في Console خطأ مثل:
+
+```
+Access to image at 'https://firebasestorage.googleapis.com/...' from origin 'http://localhost:3000' has been blocked by CORS policy
+No 'Access-Control-Allow-Origin' header is present
+```
+
+هذا ليس له علاقة بقواعد Storage Rules.
+
+**السبب:** إعدادات CORS الخاصة بـ Firebase Storage / Google Cloud Storage غير مفعلة للقراءة من المتصفح (خصوصاً عند رسم الصورة على Canvas ثم تصديرها).
+
+### ✅ الحل (مرة واحدة على الـ Bucket)
+
+1) ثبّت Google Cloud SDK (يتضمن `gsutil`).
+
+2) سجّل دخولك:
+
+```powershell
+gcloud auth login
+```
+
+3) طبّق ملف CORS الموجود في المشروع:
+
+- الملف: `firebase.storage.cors.json`
+- اسم الـ bucket (عادة) موجود في `.env.local` ضمن `VITE_FIREBASE_STORAGE_BUCKET`
+
+```powershell
+gsutil cors set firebase.storage.cors.json gs://YOUR_BUCKET_NAME
+```
+
+4) تحقق:
+
+```powershell
+gsutil cors get gs://YOUR_BUCKET_NAME
+```
+
+### ⚠️ تنبيه
+
+ملف `firebase.storage.cors.json` مضبوط بشكل متساهل (`origin: ["*"]`) للتجارب.
+في الإنتاج يُفضل تقييد `origin` إلى دوميناتك فقط.
+
+---
+
 ## ✅ الحل السريع
 
 ### 1️⃣ افتح Firebase Console

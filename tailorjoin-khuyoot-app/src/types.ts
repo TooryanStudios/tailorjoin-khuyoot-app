@@ -206,6 +206,8 @@ export interface AppSettings {
   allowNewRegistrations: boolean;
   designerEnabled: boolean;
   cartEnabled: boolean;
+  // Globally managed product categories used by homepage filters and join flow
+  productCategories?: Array<{ id: string; name: string }>;
   storeEnabled?: boolean; // تفعيل/تعطيل متجر خيوط
   matchingMeasurementsVideoUrl?: string; // رابط فيديو تعليمات المقاسات المطابقة
     helpVideo?: {
@@ -213,6 +215,32 @@ export interface AppSettings {
       url?: string; // رابط فيديو المساعدة لزر "شاهد"
       buttonText?: string; // نص الزر
     };
+
+  /**
+   * AI Try-On monetization config.
+   * Stored in Firestore under system/settings.
+   */
+  aiTryOn?: {
+    limits?: {
+      free?: {
+        maxPremiumTemplatesBrowse?: number;
+        maxRecents?: number;
+        maxGenerationsStored?: number;
+      };
+      subscribed?: {
+        maxPremiumTemplatesBrowse?: number;
+        maxRecents?: number;
+        maxGenerationsStored?: number;
+      };
+    };
+    premiumFeatures?: {
+      watermarkRemoval?: boolean;
+      hdExport?: boolean;
+      priorityQueue?: boolean;
+      batchGeneration?: boolean;
+      presets?: boolean;
+    };
+  };
   measurementTemplateWidth?: number; // عرض صورة قالب المقاسات (بكسل)
   measurementTemplateHeight?: number; // ارتفاع صورة قالب المقاسات (بكسل)
   homeSections?: {

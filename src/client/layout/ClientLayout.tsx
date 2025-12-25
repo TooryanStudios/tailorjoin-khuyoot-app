@@ -4,10 +4,13 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 import { AuthModal } from '../../../components/AuthModal';
+import { useApp } from '../../../context/AppContext';
 
 export const ClientLayout = () => {
   // Debug log removed
   const location = useLocation();
+  const { user } = useApp();
+  const isAdmin = user?.role === 'admin';
 
   // Defensive cleanup: remove any stuck full-screen overlays and restore body styles
   useEffect(() => {
@@ -44,12 +47,14 @@ export const ClientLayout = () => {
     <div className="min-h-screen bg-slate-50 dark:bg-[#050817] text-slate-900 dark:text-slate-100 font-sans selection:bg-blue-500/30 transition-colors duration-300">
       <Header />
       {/* Global Under-Development Banner */}
-      <div className="w-full bg-amber-100 border-y border-amber-300 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700">
-        <div className="max-w-7xl mx-auto px-4 py-3 text-center text-sm font-bold">
-          🚧 هذا الموقع لا يزال قيد التطوير والاختبار. نشكركم على تفهّمكم.
+      {!isAdmin && (
+        <div className="w-full bg-amber-100 border-y border-amber-300 text-amber-900 dark:bg-amber-900/30 dark:text-amber-200 dark:border-amber-700">
+          <div className="max-w-7xl mx-auto px-4 py-3 text-center text-sm font-bold">
+            🚧 هذا الموقع لا يزال قيد التطوير والاختبار. نشكركم على تفهّمكم.
+          </div>
         </div>
-      </div>
-      <main id="main-content" className="w-full max-w-7xl mx-auto min-h-[85vh] relative pb-40 md:pb-28">
+      )}
+      <main id="main-content" className="w-full max-w-7xl mx-auto min-h-[85vh] relative pb-[calc(74px+env(safe-area-inset-bottom))]">
          <Outlet />
       </main>
       <Footer />

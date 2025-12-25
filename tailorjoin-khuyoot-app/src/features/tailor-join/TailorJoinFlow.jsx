@@ -788,8 +788,8 @@ export default function TailorJoinFlow() {
     };
 
     const MAX_SIZE = 5 * 1024 * 1024; // 5MB
-    const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png'];
-    const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/jpg,image/png';
+    const ALLOWED_TYPES = ['image/jpeg', 'image/jpg', 'image/png', 'image/avif', 'image/webp'];
+    const ACCEPTED_IMAGE_TYPES = 'image/jpeg,image/jpg,image/png,image/avif,image/webp';
 
     const shortenFileName = (name, maxLen = 32) => {
         const safe = String(name || '');

@@ -15,6 +15,34 @@ import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage
 import { ImageLibraryCategory, ImageLibraryItem } from '../types';
 import imageCompression from 'browser-image-compression';
 
+async function fetchImageBlobProxyFirst(url: string): Promise<Blob> {
+  const isLocalhost =
+    typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+  const tryFetch = async (fetchUrl: string) => {
+    const res = await fetch(fetchUrl);
+    if (!res.ok) {
+      throw new Error(`Failed to fetch image (${res.status})`);
+    }
+    return await res.blob();
+  };
+
+  if (isLocalhost) {
+    try {
+      return await tryFetch(`/api/proxy-image?url=${encodeURIComponent(url)}`);
+    } catch {
+      // fallback to direct
+    }
+  }
+
+  return await tryFetch(url);
+}
+
+function sanitizeFileName(fileName: string): string {
+  return fileName.replace(/[^a-zA-Z0-9._-]/g, '_');
+}
+
 // ==========================================
 // إدارة الأقسام (Categories)
 // ==========================================
@@ -347,29 +375,55 @@ export async function addImageToLibrary(
     console.log('📁 القسم:', categoryId);
     console.log('📄 الملف:', imageFile.name, 'الحجم:', imageFile.size);
     
-    // ضغط الصورة (تعطيل Web Worker لتجنب مشاكل CSP)
-    console.log('📦 ضغط الصورة...');
-    const options = {
+    const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+    const safeName = sanitizeFileName(imageFile.name);
+    
+    // 1. ضغط الصورة الرئيسية (جودة عالية)
+    console.log('📦 ضغط الصورة الرئيسية...');
+    const mainImageOptions = {
       maxSizeMB: 1,
       maxWidthOrHeight: 1920,
-      useWebWorker: false // تعطيل Web Worker لتجنب مشاكل CSP
+      useWebWorker: false
     };
-    const compressedFile = await imageCompression(imageFile, options);
-    console.log('✅ تم ضغط الصورة. الحجم الجديد:', compressedFile.size);
+    const compressedMainFile = await imageCompression(imageFile, mainImageOptions);
+    console.log('✅ تم ضغط الصورة الرئيسية. الحجم الجديد:', compressedMainFile.size);
     
-    // رفع الصورة إلى Firebase Storage
-    const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
-    const storagePath = `imageLibrary/${categoryId}/${uniqueId}_${imageFile.name}`;
-    console.log('☁️ رفع إلى Storage في المسار:', storagePath);
+    // 2. إنشاء صورة مصغرة (thumbnail) للمعاينة
+    console.log('🖼️ إنشاء الصورة المصغرة...');
+    const thumbnailOptions = {
+      maxSizeMB: 0.03,
+      maxWidthOrHeight: 200,
+      useWebWorker: false,
+      fileType: 'image/webp',
+      initialQuality: 0.6
+    };
+    const thumbnailFile = await imageCompression(imageFile, thumbnailOptions);
+    console.log('✅ تم إنشاء الصورة المصغرة. الحجم:', thumbnailFile.size);
     
-    const storageRef = ref(storage, storagePath);
-    await uploadBytes(storageRef, compressedFile);
-    console.log('✅ تم رفع الملف إلى Storage');
+    // 3. رفع الصورة الرئيسية
+    const mainStoragePath = `imageLibrary/${categoryId}/${uniqueId}_${safeName}`;
+    console.log('☁️ رفع الصورة الرئيسية إلى:', mainStoragePath);
+    const mainStorageRef = ref(storage, mainStoragePath);
+    await uploadBytes(mainStorageRef, compressedMainFile, {
+      contentType: (compressedMainFile as File).type || imageFile.type || 'application/octet-stream',
+      cacheControl: 'public,max-age=31536000,immutable'
+    });
+    const imageUrl = await getDownloadURL(mainStorageRef);
+    console.log('✅ تم رفع الصورة الرئيسية. الرابط:', imageUrl);
     
-    const imageUrl = await getDownloadURL(storageRef);
-    console.log('🔗 رابط الصورة:', imageUrl);
+    // 4. رفع الصورة المصغرة
+    // Keep thumbnail in same folder (no nested subpaths) to match common Storage Rules patterns.
+    const thumbnailStoragePath = `imageLibrary/${categoryId}/${uniqueId}_thumb.webp`;
+    console.log('☁️ رفع الصورة المصغرة إلى:', thumbnailStoragePath);
+    const thumbnailStorageRef = ref(storage, thumbnailStoragePath);
+    await uploadBytes(thumbnailStorageRef, thumbnailFile, {
+      contentType: (thumbnailFile as File).type || 'image/webp',
+      cacheControl: 'public,max-age=31536000,immutable'
+    });
+    const thumbnailUrl = await getDownloadURL(thumbnailStorageRef);
+    console.log('✅ تم رفع الصورة المصغرة. الرابط:', thumbnailUrl);
     
-    // الحصول على آخر ترتيب
+    // 5. حساب الترتيب
     console.log('🔢 حساب الترتيب...');
     const existingImages = await getImagesByCategoryId(categoryId);
     const maxOrder = existingImages.length > 0 
@@ -377,12 +431,13 @@ export async function addImageToLibrary(
       : 0;
     console.log('📊 الترتيب الحالي:', maxOrder, 'الترتيب الجديد:', maxOrder + 1);
     
-    // حفظ بيانات الصورة في Firestore
+    // 6. حفظ البيانات في Firestore
     console.log('💾 حفظ البيانات في Firestore...');
     const imagesRef = collection(db, 'imageLibraryItems');
     const imageData = {
       categoryId,
       imageUrl,
+      thumbnailUrl,
       label,
       order: maxOrder + 1,
       uploadedBy,
@@ -405,6 +460,45 @@ export async function addImageToLibrary(
     }
     throw new Error(error?.message || 'فشل إضافة الصورة');
   }
+}
+
+export async function ensureThumbnailForImageLibraryItem(
+  item: Pick<ImageLibraryItem, 'id' | 'categoryId' | 'imageUrl' | 'thumbnailUrl'>
+): Promise<string> {
+  if (item.thumbnailUrl) return item.thumbnailUrl;
+
+  const blob = await fetchImageBlobProxyFirst(item.imageUrl);
+  if (blob.type && !blob.type.startsWith('image/')) {
+    throw new Error('الملف ليس صورة');
+  }
+
+  const sourceFile = new File([blob], `${item.id}.img`, {
+    type: blob.type || 'application/octet-stream'
+  });
+
+  const thumbnailFile = await imageCompression(sourceFile, {
+    maxSizeMB: 0.03,
+    maxWidthOrHeight: 200,
+    useWebWorker: false,
+    fileType: 'image/webp',
+    initialQuality: 0.6
+  });
+
+  const thumbnailStoragePath = `imageLibrary/${item.categoryId}/${item.id}_thumb.webp`;
+  const thumbnailStorageRef = ref(storage, thumbnailStoragePath);
+  await uploadBytes(thumbnailStorageRef, thumbnailFile, {
+    contentType: (thumbnailFile as File).type || 'image/webp',
+    cacheControl: 'public,max-age=31536000,immutable'
+  });
+  const thumbnailUrl = await getDownloadURL(thumbnailStorageRef);
+
+  const itemRef = doc(db, 'imageLibraryItems', item.id);
+  await updateDoc(itemRef, {
+    thumbnailUrl,
+    updatedAt: Timestamp.now()
+  } as any);
+
+  return thumbnailUrl;
 }
 
 export async function updateImageLibraryItem(
@@ -430,12 +524,24 @@ export async function deleteImageLibraryItem(itemId: string): Promise<void> {
     if (!snapshot.empty) {
       const imageData = snapshot.docs[0].data() as ImageLibraryItem;
       
-      // محاولة حذف الصورة من Storage
+      // محاولة حذف الصورة الرئيسية من Storage
       try {
         const imageRef = ref(storage, imageData.imageUrl);
         await deleteObject(imageRef);
+        console.log('✅ تم حذف الصورة الرئيسية من Storage');
       } catch (storageError) {
-        console.warn('Could not delete image from storage:', storageError);
+        console.warn('⚠️ تعذر حذف الصورة الرئيسية من storage:', storageError);
+      }
+      
+      // محاولة حذف الصورة المصغرة من Storage
+      if (imageData.thumbnailUrl) {
+        try {
+          const thumbnailRef = ref(storage, imageData.thumbnailUrl);
+          await deleteObject(thumbnailRef);
+          console.log('✅ تم حذف الصورة المصغرة من Storage');
+        } catch (storageError) {
+          console.warn('⚠️ تعذر حذف الصورة المصغرة من storage:', storageError);
+        }
       }
     }
     

@@ -121,6 +121,14 @@ service cloud.firestore {
         allow read, write: if true;
         allow delete: if isAdminUser();
       }
+
+      // Try-on generations subcollection (Designer: "My Generations")
+      match /tryon_generations/{generationId} {
+        // Users can only access their own generations; admins can read/manage for support.
+        allow read: if (request.auth != null && request.auth.uid == userId) || isAdminUser();
+        allow create: if request.auth != null && request.auth.uid == userId;
+        allow update, delete: if (request.auth != null && request.auth.uid == userId) || isAdminUser();
+      }
     }
     
     // ============================================================
@@ -306,15 +314,51 @@ service cloud.firestore {
     }
     
     // Image Library (admin-managed fabric/pattern images for Designer)
-    match /imageLibrary/{categoryId} {
-      allow read: if true;  // Anyone can browse the library
-      allow write: if request.auth != null;  // Authenticated users can upload (app checks admin role)
+    match /imageLibrary/{document=**} {
+      allow read: if true;  // Anyone can browse the library (includes subcollections)
+      allow write: if request.auth != null;  // Authenticated users can manage (app checks admin role)
+    }
+    
+    // Image Library Categories (admin-managed category structure)
+    match /imageLibraryCategories/{categoryId} {
+      allow read: if true;  // Anyone can browse categories
+      allow write: if request.auth != null;  // Authenticated users can manage (app checks admin role)
+    }
+    
+    // Image Library Items (actual images in the library)
+    match /imageLibraryItems/{itemId} {
+      allow read: if true;  // Anyone can browse images
+      allow write: if request.auth != null;  // Authenticated users can upload/manage (app checks admin role)
     }
     
     // Try-On Jobs (AI fabric try-on tracking)
     match /tryon_jobs/{jobId} {
       allow read: if true;  // Anyone can check job status
       allow write: if true;  // Server-side Admin SDK writes job docs (no auth token)
+    }
+
+    // Try-On Garment Templates (admin-managed)
+    match /tryon_garment_templates/{templateId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminUser();
+    }
+    
+    // Fabric Library Categories (admin-managed)
+    match /fabricCategories/{categoryId} {
+      allow read: if true;  // Anyone can browse fabric categories
+      allow write: if request.auth != null;  // Authenticated users can manage (app checks admin role)
+    }
+    
+    // Fabric Library Items (admin-managed fabric catalog)
+    match /fabricItems/{itemId} {
+      allow read: if true;  // Anyone can browse fabrics
+      allow write: if request.auth != null;  // Authenticated users can manage (app checks admin role)
+    }
+    
+    // Measurement Templates (admin-managed templates for client measurements)
+    match /measurementTemplates/{templateId} {
+      allow read: if true;  // Anyone can read measurement templates
+      allow write: if isAdminUser();  // Only admins can create/update/delete
     }
     
     // ============================================================

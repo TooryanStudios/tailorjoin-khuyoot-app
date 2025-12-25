@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle } from 'lucide-react';
+import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface SidebarProps {
@@ -27,6 +27,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   shopsCount = 0
 }) => {
   const navigate = useNavigate();
+
+  const showDevPrefixes = Boolean((import.meta as any)?.env?.DEV);
   
   const SidebarItem = ({ id, icon: Icon, label, count }: { id: string, icon: any, label: string, count?: number }) => (
     <button 
@@ -38,7 +40,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
       }`}
     >
       <Icon size={16} />
-      <span className="font-medium text-xs flex-1 text-right">{label}</span>
+      <span className="font-medium text-xs flex-1 text-right">
+        {showDevPrefixes ? `${id} · ` : ''}{label}
+      </span>
       {count !== undefined && count > 0 && (
         <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
           {count}
@@ -87,10 +91,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <SidebarItem id="store" icon={Store} label="إدارة المتجر" />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الأصول</p>
-          <SidebarItem id="images" icon={ImagePlus} label="مكتبة الصور" />
+          <SidebarItem id="images" icon={ImagePlus} label="*++** مكتبة الصور" />
           <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" />
           <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" />
           <SidebarItem id="family" icon={Users} label="ملفات العائلة" />
+          
+          <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">Try-On</p>
+          <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">النظام</p>
           <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" />

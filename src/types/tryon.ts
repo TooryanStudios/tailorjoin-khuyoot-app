@@ -9,6 +9,8 @@ export type TryOnOptions = {
 export type TryOnRequest = {
   garmentTemplateId: string;
   garmentTemplateImageUrl?: string; // optional if server maps id->url
+  garmentTemplateWidth?: number; // optional: client-provided template dimensions
+  garmentTemplateHeight?: number; // optional: client-provided template dimensions
   fabricImageBase64?: string; // optional alternative to URL
   fabricImageUrl?: string; // optional
   fabricMimeType?: string;
@@ -19,6 +21,7 @@ export type TryOnResponse = {
   jobId: string;
   status: 'completed' | 'failed';
   resultImageUrl?: string;
+  resultThumbnailUrl?: string;
   resultImageDataUrl?: string;
   error?: string;
 };

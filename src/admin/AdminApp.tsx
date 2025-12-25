@@ -6,6 +6,7 @@ import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Sho
 import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
+import { DevSectionAnchor } from './components/DevSectionAnchor';
 import { DashboardOverview } from './dashboard/DashboardOverview';
 import { OrdersTable } from './orders/OrdersTable';
 import { FabricLibrary } from './fabrics/FabricLibrary';
@@ -26,6 +27,7 @@ import { NotificationsSender } from './notifications/NotificationsSender';
 import { AdsManagement } from './ads/AdsManagement';
 import { FinancialManagement } from './financial/FinancialManagement';
 import { RegionsManagement } from './regions/RegionsManagement';
+import { TryOnTemplates } from './tryon/TryOnTemplates';
 
 type AdminSection = 
   | 'dashboard' 
@@ -43,6 +45,7 @@ type AdminSection =
   | 'ai' 
   | 'store'
   | 'images'
+  | 'tryon-templates'
   | 'notifications'
   | 'ads'
   | 'regions'
@@ -594,7 +597,8 @@ export const AdminApp = () => {
         </div>
       );
       case 'images': return <ImageLibraryManagement />;
-      case 'fabrics': return <FabricLibrary fabrics={fabrics} />;
+      case 'fabrics': return <FabricLibrary />;
+      case 'tryon-templates': return <TryOnTemplates />;
       case 'measurements': return <MeasurementTemplates />;
       case 'family': return <PlaceholderView title="ملفات العائلة" icon={Users} />;
       case 'ai': return <AIModels aiModels={aiModels} />;
@@ -781,9 +785,12 @@ export const AdminApp = () => {
              >
                <Menu size={24} />
              </button>
-             <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200 capitalize">
-               {activeSection === 'ai' ? 'AI Configuration' : activeSection}
-             </h2>
+             <div className="flex items-center gap-3">
+               <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200 capitalize">
+                 {activeSection === 'ai' ? 'AI Configuration' : activeSection}
+               </h2>
+               <DevSectionAnchor sectionId={activeSection} />
+             </div>
            </div>
 
            <div className="flex items-center gap-4">
@@ -812,8 +819,12 @@ export const AdminApp = () => {
            </div>
         </header>
 
-        <main className="flex-1 overflow-y-auto p-6 scroll-smooth">
-           {renderContent()}
+        <main
+          id={`admin-${activeSection}`}
+          data-admin-section={activeSection}
+          className="flex-1 overflow-y-auto p-6 scroll-smooth"
+        >
+          {renderContent()}
         </main>
       </div>
     </div>

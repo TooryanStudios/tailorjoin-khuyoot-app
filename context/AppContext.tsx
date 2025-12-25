@@ -85,6 +85,27 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     designerEnabled: true,
     cartEnabled: true,
     storeEnabled: false, // متجر خيوط تجريبي مبدئياً
+    aiTryOn: {
+      limits: {
+        free: {
+          maxPremiumTemplatesBrowse: 4,
+          maxRecents: 3,
+          maxGenerationsStored: 4,
+        },
+        subscribed: {
+          maxPremiumTemplatesBrowse: 999999,
+          maxRecents: 9,
+          maxGenerationsStored: 50,
+        },
+      },
+      premiumFeatures: {
+        watermarkRemoval: true,
+        hdExport: true,
+        priorityQueue: true,
+        batchGeneration: true,
+        presets: true,
+      },
+    },
     measurementTemplateWidth: 460, // عرض صورة قالب المقاسات
     measurementTemplateHeight: 690, // ارتفاع صورة قالب المقاسات
     matchingMeasurementsVideoUrl: '',

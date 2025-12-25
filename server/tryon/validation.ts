@@ -37,11 +37,48 @@ export function validateTryOnRequest(body: any): ValidationResult {
     }
   }
 
+  const tplW = (req as any).garmentTemplateWidth;
+  const tplH = (req as any).garmentTemplateHeight;
+  if (tplW != null || tplH != null) {
+    if (typeof tplW !== 'number' || typeof tplH !== 'number') {
+      return { ok: false, status: 400, message: 'garmentTemplateWidth and garmentTemplateHeight must be numbers' };
+    }
+    if (!Number.isFinite(tplW) || !Number.isFinite(tplH) || tplW <= 0 || tplH <= 0) {
+      return { ok: false, status: 400, message: 'garmentTemplateWidth and garmentTemplateHeight must be positive numbers' };
+    }
+    // Prevent absurd values / abuse
+    if (tplW > 8000 || tplH > 8000) {
+      return { ok: false, status: 400, message: 'garmentTemplateWidth/Height too large' };
+    }
+  }
+
   const scale = req.options?.fabricScale;
   if (typeof scale === 'number') {
     if (Number.isNaN(scale) || scale < 0.5 || scale > 3) {
       return { ok: false, status: 400, message: 'fabricScale must be between 0.5 and 3' };
     }
+  }
+
+  // Validate that options object exists and has required fields
+  if (!req.options || typeof req.options !== 'object') {
+    return { ok: false, status: 400, message: 'options object is required' };
+  }
+
+  // Validate option fields have valid values (server uses these in prompt)
+  const validStyles = ['keep', 'modify', 'remove'];
+  if (req.options.neckStyle && typeof req.options.neckStyle === 'string' && !validStyles.includes(req.options.neckStyle)) {
+    return { ok: false, status: 400, message: 'Invalid neckStyle value' };
+  }
+  if (req.options.sleeveStyle && typeof req.options.sleeveStyle === 'string' && !validStyles.includes(req.options.sleeveStyle)) {
+    return { ok: false, status: 400, message: 'Invalid sleeveStyle value' };
+  }
+  if (req.options.embroideryStyle && typeof req.options.embroideryStyle === 'string' && !validStyles.includes(req.options.embroideryStyle)) {
+    return { ok: false, status: 400, message: 'Invalid embroideryStyle value' };
+  }
+
+  const validColorPreservation = ['high', 'medium', 'low'];
+  if (req.options.colorPreservation && typeof req.options.colorPreservation === 'string' && !validColorPreservation.includes(req.options.colorPreservation)) {
+    return { ok: false, status: 400, message: 'Invalid colorPreservation value' };
   }
 
   return { ok: true };

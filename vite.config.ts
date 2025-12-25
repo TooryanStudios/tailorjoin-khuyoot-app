@@ -1,17 +1,31 @@
+import os from 'os';
 import path from 'path';
 import { defineConfig, loadEnv } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
+function getLanIpv4(): string | undefined {
+  const nets = os.networkInterfaces();
+  for (const netInfos of Object.values(nets)) {
+    for (const net of netInfos ?? []) {
+      if (net.family === 'IPv4' && !net.internal) return net.address;
+    }
+  }
+  return undefined;
+}
+
 export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isProduction = mode === 'production';
-    const tryOnApiPort = env.TRYON_API_PORT || '8787';
+    const tryOnApiPort = env.TRYON_API_PORT || '8788';
+    const lanIpv4 = getLanIpv4();
     
     return {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        // When accessing the dev server from a phone on LAN, HMR must not point to localhost.
+        hmr: lanIpv4 ? { host: lanIpv4, clientPort: 3000, protocol: 'ws' } : undefined,
         proxy: {
           '/api': {
             target: `http://localhost:${tryOnApiPort}`,

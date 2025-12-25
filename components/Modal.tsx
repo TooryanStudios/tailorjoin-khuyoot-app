@@ -12,6 +12,7 @@ interface ModalProps {
   showFooter?: boolean;
   cancelText?: string;
   confirmText?: string;
+  debugId?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({ 
@@ -24,7 +25,8 @@ export const Modal: React.FC<ModalProps> = ({
   modeless = false,
   showFooter = false,
   cancelText = 'إلغاء الأمر',
-  confirmText = 'اعتماد'
+  confirmText = 'اعتماد',
+  debugId
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
@@ -61,17 +63,25 @@ export const Modal: React.FC<ModalProps> = ({
 
   if (!isOpen) return null;
 
+  const showDebug = !!debugId && !!import.meta?.env?.DEV;
+
   const backdropClass = modeless 
     ? "fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 pointer-events-none"
     : "fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
 
   return (
-    <div className={backdropClass} data-overlay="khuyoot-modal">
+    <div className={backdropClass} data-overlay="khuyoot-modal" data-debug-modal={debugId || undefined}>
       <div 
         ref={modalRef}
-        className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700`}
+        className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700 relative`}
         onClick={(e) => e.stopPropagation()}
+        data-debug-modal={debugId || undefined}
       >
+        {showDebug && (
+          <div className="absolute top-2 left-1/2 -translate-x-1/2 z-[9999] text-[10px] font-black px-2 py-1 rounded-full bg-slate-900 text-white shadow-xl ring-2 ring-white/70 select-text cursor-text">
+            MODAL: {debugId}
+          </div>
+        )}
         {/* Header */}
         <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">
@@ -84,12 +94,13 @@ export const Modal: React.FC<ModalProps> = ({
             <X size={20} />
           </button>
         </div>
-
+        anchorId_Modal_Header
+        
         {/* Content */}
         <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
           {children}
         </div>
-
+        
         {/* Fixed Footer */}
         {showFooter && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">

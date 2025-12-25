@@ -2,6 +2,7 @@ export type GarmentTemplate = {
   id: string;
   name: string;
   imageUrl: string;
+  thumbnailUrl?: string;
   tags?: string[];
 };
 
