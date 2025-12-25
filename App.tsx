@@ -41,6 +41,19 @@ import TailorJoinFlow from './src/features/tailor-join/TailorJoinFlow';
 import { Maintenance } from './src/pages/Maintenance';
 const Drafts = React.lazy(() => import('./pages/Drafts'));
 
+// Ensure dev.khuyoot.app defaults to designer (not tailor join)
+const DevDefaultRoute: React.FC = () => {
+  React.useEffect(() => {
+    const hostname = window.location.hostname;
+    const hash = window.location.hash;
+    if (hostname === 'dev.khuyoot.app' && (!hash || hash === '#/' || hash === '#')) {
+      console.log('DevDefaultRoute: forcing default to #/designer');
+      window.location.hash = '#/designer';
+    }
+  }, []);
+  return null;
+};
+
 // Auto-redirect component for tailorjoin subdomain
 const TailorJoinRedirect: React.FC = () => {
   React.useEffect(() => {
@@ -54,7 +67,7 @@ const TailorJoinRedirect: React.FC = () => {
     const isTailorJoinDomain = hostname === 'tailorjoin.khuyoot.app';
     
     // Only redirect for tailorjoin.khuyoot.app, NOT for dev.khuyoot.app
-    if (isTailorJoinDomain && hash === '#/') {
+    if (isTailorJoinDomain && (hash === '#/' || hash === '#')) {
       console.log('Redirecting to join-tailor');
       window.location.hash = '#/join-tailor';
     }
@@ -82,6 +95,7 @@ const App: React.FC = () => {
   return (
     <HelmetProvider>
       <AppProvider>
+        <DevDefaultRoute />
         <TailorJoinRedirect />
         <HashRouter>
          <Routes>
