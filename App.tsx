@@ -44,8 +44,18 @@ const Drafts = React.lazy(() => import('./pages/Drafts'));
 // Auto-redirect component for tailorjoin subdomain
 const TailorJoinRedirect: React.FC = () => {
   React.useEffect(() => {
-    const isTailorJoinDomain = window.location.hostname === 'tailorjoin.khuyoot.app';
-    if (isTailorJoinDomain && window.location.hash === '#/') {
+    const hostname = window.location.hostname;
+    const hash = window.location.hash;
+    
+    // Debug logging
+    console.log('TailorJoinRedirect - hostname:', hostname);
+    console.log('TailorJoinRedirect - hash:', hash);
+    
+    const isTailorJoinDomain = hostname === 'tailorjoin.khuyoot.app';
+    
+    // Only redirect for tailorjoin.khuyoot.app, NOT for dev.khuyoot.app
+    if (isTailorJoinDomain && hash === '#/') {
+      console.log('Redirecting to join-tailor');
       window.location.hash = '#/join-tailor';
     }
   }, []);
