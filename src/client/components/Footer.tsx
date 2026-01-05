@@ -1,9 +1,9 @@
 import React from 'react';
-import { Home, Layers, ShoppingCart, PenTool, Scissors, ClipboardList, PackageOpen, Store, Box, Wand2 } from 'lucide-react';
+import { Home, Layers, ShoppingCart, PenTool, Scissors, ClipboardList, PackageOpen, Store, Box } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../../../context/AppContext';
 
-export const Footer = () => {
+export const Footer = React.memo(function Footer() {
   const navigate = useNavigate();
   const location = useLocation();
   
@@ -19,46 +19,32 @@ export const Footer = () => {
     return null; 
   }
 
-  const isActive = (path: string) => location.pathname === path;
-  const isInDesigner = location.pathname === '/designer' || location.pathname.startsWith('/designer/');
+  const isInDesigner =
+    location.pathname === '/designer' ||
+    location.pathname.startsWith('/designer/') ||
+    location.pathname === '/designer-v2-1' ||
+    location.pathname.startsWith('/designer-v2-1/');
+
+  const isActive = (path: string) => {
+    if (path === '/designer') return isInDesigner;
+    return location.pathname === path;
+  };
 
   const NavItem = ({ icon: Icon, label, path, isCenter = false }: { icon: any, label: string, path: string, isCenter?: boolean }) => {
     const active = isActive(path);
 
     // 1. Center "Designer" Button - Shifted UP significantly (-top-9)
     if (isCenter) {
-      const centerIsGenerate = isInDesigner;
-      const CenterIcon = centerIsGenerate ? Wand2 : Icon;
-      const centerLabel = centerIsGenerate ? 'توليد' : label;
-
       return (
         <button 
-          onClick={() => {
-            if (centerIsGenerate) {
-              try {
-                window.dispatchEvent(new CustomEvent('khuyoot:designer-generate'));
-              } catch {
-                // ignore
-              }
-              return;
-            }
-            navigate(path);
-          }}
+          onClick={() => navigate(path)}
           className="group relative -top-9 flex flex-col items-center justify-center p-1"
         >
           {/* Restored Blue/Indigo Gradient */}
           <div
             className="relative overflow-hidden flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 ring-[6px] ring-white dark:ring-[#1a1a1a] transition-transform duration-200 active:scale-95"
           >
-            {centerIsGenerate ? (
-              <span aria-hidden="true" className="absolute inset-0 pointer-events-none motion-reduce:hidden">
-                <span
-                  className="absolute -inset-y-4 left-0 w-[60%] bg-gradient-to-r from-transparent via-white/45 to-transparent blur-[1px]"
-                  style={{ animation: 'khuyootFooterShine 1.6s ease-in-out infinite' }}
-                />
-              </span>
-            ) : null}
-            <CenterIcon
+            <Icon
               size={24}
               strokeWidth={2.5}
               className="relative transition-transform duration-300 group-hover:rotate-12"
@@ -66,7 +52,7 @@ export const Footer = () => {
           </div>
           {/* Label sits exactly on the border line */}
           <span className="absolute -bottom-6 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-black/50 px-2 rounded-full backdrop-blur-sm">
-            {centerLabel}
+            {label}
           </span>
         </button>
       );
@@ -147,7 +133,10 @@ export const Footer = () => {
 
   return (
     // Mobile-only bottom navigation. On desktop, this takes visual space and feels oversized.
-    <div className="fixed bottom-0 left-0 z-50 w-full bg-white dark:bg-[#1a1a1a] border-t border-slate-100 dark:border-slate-800 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.03)]">
+    <div
+      className="bottom-nav w-full bg-white dark:bg-[#1a1a1a] border-t border-slate-100 dark:border-slate-800 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.03)] overflow-visible"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}
+    >
       <style>{`
         @keyframes khuyootFooterShine {
           0%   { transform: translateX(-160%) rotate(18deg); }
@@ -156,7 +145,7 @@ export const Footer = () => {
         }
       `}</style>
       {/* Container height increased slightly to accommodate lifted icons */}
-      <div className="mx-auto flex h-[74px] max-w-lg items-start justify-between px-2">
+      <div className="mx-auto flex h-[74px] w-full max-w-lg items-start justify-between px-2">
         
         <NavItem icon={Home} label="الرئيسية" path="/" />
 
@@ -169,11 +158,8 @@ export const Footer = () => {
           </>
         )}
         
-        {/* Center Button Container */}
         {appSettings.designerEnabled && (
-          <div className="w-16 flex justify-center">
-             <NavItem icon={PenTool} label="المصمم" path="/designer" isCenter={true} />
-          </div>
+          <NavItem icon={PenTool} label="إبدا التفصيل" path="/designer" />
         )}
         
         {!loading && (
@@ -197,4 +183,4 @@ export const Footer = () => {
       </div>
     </div>
   );
-};
+});

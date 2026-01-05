@@ -18,14 +18,19 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isProduction = mode === 'production';
     const tryOnApiPort = env.TRYON_API_PORT || '8788';
-    const lanIpv4 = getLanIpv4();
+  const devPort = Number(env.VITE_DEV_PORT || env.PORT || 3000);
+    const hmrHost = env.VITE_HMR_HOST?.trim();
     
     return {
       server: {
-        port: 3000,
+        port: devPort,
         host: '0.0.0.0',
-        // When accessing the dev server from a phone on LAN, HMR must not point to localhost.
-        hmr: lanIpv4 ? { host: lanIpv4, clientPort: 3000, protocol: 'ws' } : undefined,
+        // Let Vite pick the HMR host from the current page URL.
+        // Set VITE_HMR_HOST only if you need to force it (e.g., specific LAN/IP setups).
+        hmr: hmrHost ? { host: hmrHost, protocol: 'ws' } : undefined,
+        // If hot reload doesn't trigger on Windows, enable polling:
+        // set VITE_USE_POLLING=1
+        watch: env.VITE_USE_POLLING === '1' ? { usePolling: true, interval: 150 } : undefined,
         proxy: {
           '/api': {
             target: `http://localhost:${tryOnApiPort}`,
@@ -44,6 +49,7 @@ export default defineConfig(({ mode }) => {
           },
           includeAssets: ['favicon.ico', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'],
           workbox: {
+            maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
             globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}'],
             navigateFallback: '/index.html',
             // Exclude dev-related files from caching
@@ -94,6 +100,9 @@ export default defineConfig(({ mode }) => {
                 handler: 'CacheFirst',
                 options: { 
                   cacheName: 'static', 
+                  // Cross-origin <img> requests (e.g. Firebase Storage) often produce opaque responses (status 0).
+                  // Allow caching both 200 and opaque responses so images persist across visits.
+                  cacheableResponse: { statuses: [0, 200] },
                   expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 } 
                 }
               }

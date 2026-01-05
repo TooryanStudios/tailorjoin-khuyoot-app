@@ -1,4 +1,5 @@
 import React from 'react';
+import { useThumbnailCache } from '../../hooks/useThumbnailCache';
 
 export type TemplatePickerItem = {
   id: string;
@@ -17,20 +18,72 @@ export function TemplatePicker(props: {
   items: TemplatePickerItem[];
   selectedId: string | null;
   onSelect: (item: TemplatePickerItem) => void;
+  onConfirm?: (item: TemplatePickerItem) => void;
   aspect?: 'portrait' | 'square';
   maxItemWidthPx?: number;
+  preferThumbnailOnly?: boolean;
+  showEndPlaceholders?: boolean;
 }) {
-  const { items, selectedId, onSelect, aspect = 'portrait', maxItemWidthPx = 140 } = props;
+  const {
+    items,
+    selectedId,
+    onSelect,
+    onConfirm,
+    aspect = 'portrait',
+    maxItemWidthPx = 108,
+    preferThumbnailOnly = false,
+    showEndPlaceholders = true,
+  } = props;
 
-  const maxWidthClass = `max-w-[${maxItemWidthPx}px]`;
-  const aspectClass = aspect === 'square' ? 'aspect-square' : 'aspect-[3/4]';
-  const desiredPerRow = 4;
-  const placeholderCount = items.length >= desiredPerRow
-    ? (desiredPerRow - (items.length % desiredPerRow)) % desiredPerRow
-    : desiredPerRow - items.length;
+  const GAP_PX = 2;
+  const FIXED_HEIGHT_PX = 154;
+
+  const containerRef = React.useRef<HTMLDivElement | null>(null);
+  const [cols, setCols] = React.useState(4);
+
+  const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 30 });
+
+  React.useEffect(() => {
+    prefetchThumbnails(items.map((t) => t.thumbnailUrl ?? t.imageUrl));
+  }, [items, prefetchThumbnails]);
+
+  React.useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const computeCols = () => {
+      const width = el.clientWidth || 0;
+      const denom = maxItemWidthPx + GAP_PX;
+      const next = Math.max(1, Math.floor((width + GAP_PX) / denom));
+      setCols(next);
+    };
+
+    computeCols();
+
+    if (typeof ResizeObserver === 'undefined') {
+      const onResize = () => computeCols();
+      window.addEventListener('resize', onResize);
+      return () => window.removeEventListener('resize', onResize);
+    }
+
+    const ro = new ResizeObserver(() => computeCols());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [maxItemWidthPx]);
+
+  const placeholderCount = showEndPlaceholders
+    ? (items.length === 0 ? cols : (cols - (items.length % cols)) % cols)
+    : 0;
 
   return (
-    <div className="flex flex-wrap gap-2 justify-start">
+    <div
+      ref={containerRef}
+      className="grid justify-center"
+      style={{
+        gridTemplateColumns: `repeat(${cols}, ${maxItemWidthPx}px)`,
+        gap: `${GAP_PX}px`,
+      }}
+    >
       {items.map((t) => {
         const isSelected = t.id === selectedId;
         const metaToneClass = t.metaTone === 'ok'
@@ -48,35 +101,122 @@ export function TemplatePicker(props: {
             }}
             disabled={!!t.disabled}
             title={t.title}
-            style={{ width: maxItemWidthPx, flexBasis: maxItemWidthPx }}
+            style={{
+              width: maxItemWidthPx,
+              flexBasis: maxItemWidthPx,
+              maxHeight: `${FIXED_HEIGHT_PX}px`,
+              // Reduce paint/reflow cost for offscreen cards while scrolling.
+              // Works best in Chromium; harmless in browsers that ignore it.
+              contentVisibility: 'auto',
+              containIntrinsicSize: `${maxItemWidthPx}px ${FIXED_HEIGHT_PX}px`,
+              contain: 'layout paint style',
+            }}
             className={
-              `mx-0 ${maxWidthClass} rounded-xl border p-2 text-right transition-all flex flex-col items-stretch ` +
-              (isSelected
-                ? 'border-violet-500 bg-violet-50 dark:bg-violet-900/20'
-                : 'border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600') +
-              (t.disabled ? ' opacity-60 cursor-not-allowed hover:border-slate-200 dark:hover:border-slate-700' : '')
+              `group rounded-xl text-right transition-all flex flex-col items-stretch bg-transparent border-0 p-0 ` +
+              (t.disabled ? ' opacity-60 cursor-not-allowed' : '')
             }
           >
-            <div className={`${aspectClass} relative w-full overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800 flex items-start justify-start`}>
-              {t.thumbnailUrl || t.imageUrl ? (
+            <div
+              style={{
+                width: `${maxItemWidthPx}px`,
+                height: `${FIXED_HEIGHT_PX}px`,
+              }}
+              className={
+                `relative overflow-hidden rounded-xl bg-slate-100 dark:bg-slate-800 flex items-start justify-start ` +
+                (isSelected
+                  ? 'ring-2 ring-violet-500 ring-offset-2 ring-offset-white dark:ring-offset-slate-900'
+                  : 'ring-1 ring-slate-200/60 dark:ring-slate-700/60 hover:ring-slate-300/70 dark:hover:ring-slate-600/70')
+              }
+            >
+              {(() => {
+                const displaySrc = (t.thumbnailUrl || null) ?? null;
+                const canFallbackToImageUrl = !preferThumbnailOnly;
+                const fallbackSrc = canFallbackToImageUrl ? (t.imageUrl || null) : null;
+                const src = displaySrc || fallbackSrc;
+                if (!src) {
+                  return (
+                    <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
+                      لا توجد صورة
+                    </div>
+                  );
+                }
+                return (
                 <>
                   <img
-                    src={(t.thumbnailUrl || t.imageUrl) as string}
+                    src={getThumbnailSrc(src as string)}
                     alt={t.name}
                     className={`h-full w-full object-cover object-top ${t.isLocked ? 'opacity-40 grayscale' : ''}`}
                     loading="lazy"
                     decoding="async"
                     onError={(e) => {
-                      e.currentTarget.style.display = 'none';
-                      const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                      if (fallback) fallback.style.display = 'flex';
+                      // If optimized WebP fails, try original imageUrl as fallback
+                      const img = e.currentTarget;
+                      const originalUrl = t.imageUrl;
+                      
+                      // Only try fallback once (avoid infinite loop)
+                      if (displaySrc && fallbackSrc && img.src !== fallbackSrc) {
+                        console.log(`[Template Picker] WebP failed for ${t.name}, trying original URL`);
+                        img.src = getThumbnailSrc(fallbackSrc);
+                        return;
+                      }
+                      
+                      // No fallback available or already tried - show error
+                      img.style.display = 'none';
+                      const fallbackDiv = img.nextElementSibling as HTMLElement | null;
+                      if (fallbackDiv) fallbackDiv.style.display = 'flex';
                     }}
                   />
                   <div className="absolute inset-0 hidden items-center justify-center text-xs text-slate-400">
                     لا توجد صورة
                   </div>
+
+                  {/* Bottom gradient shade (always visible) */}
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
+
+                  {/* Hover/focus overlay (title + button) */}
+                  <div
+                    className={
+                      'absolute inset-x-0 bottom-0 p-2 transition-opacity ' +
+                      'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 '
+                    }
+                  >
+                    <div className="relative flex flex-col gap-1">
+                      <div className="text-[11px] font-normal text-white text-center drop-shadow-md truncate">
+                        {t.name}
+                      </div>
+
+                      <div
+                        role={onConfirm ? 'button' : undefined}
+                        tabIndex={onConfirm ? 0 : -1}
+                        onClick={(e) => {
+                          if (!onConfirm) return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (t.disabled) return;
+                          onConfirm(t);
+                        }}
+                        onKeyDown={(e) => {
+                          if (!onConfirm) return;
+                          if (e.key !== 'Enter' && e.key !== ' ') return;
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (t.disabled) return;
+                          onConfirm(t);
+                        }}
+                        className={
+                          'w-full h-6 rounded-md text-[10px] font-normal flex items-center justify-center bg-black/60 text-gray-300 ' +
+                          'transition-colors ' +
+                          (onConfirm && !t.disabled ? 'cursor-pointer hover:bg-black/70' : 'cursor-default')
+                        }
+                        aria-label={onConfirm ? `استخدم القالب ${t.name}` : undefined}
+                      >
+                        استخدم القالب
+                      </div>
+                    </div>
+                  </div>
                 </>
-              ) : (
+                );
+              })() || (
                 <div className="h-full w-full flex items-center justify-center text-xs text-slate-400">
                   لا توجد صورة
                 </div>
@@ -100,18 +240,17 @@ export function TemplatePicker(props: {
                 </div>
               )}
             </div>
-            <div className="mt-2 text-xs font-bold text-slate-800 dark:text-white">{t.name}</div>
           </button>
         );
       })}
       {Array.from({ length: placeholderCount }).map((_, idx) => (
         <div
           key={`placeholder-${idx}`}
-          style={{ width: maxItemWidthPx, flexBasis: maxItemWidthPx }}
-          className={`mx-0 ${maxWidthClass} rounded-xl border border-dashed border-slate-200 dark:border-slate-700 p-2 opacity-60`}
+          style={{ width: `${maxItemWidthPx}px`, height: `${FIXED_HEIGHT_PX}px` }}
+          className="mx-0 rounded-xl border-0 p-0 opacity-60 overflow-hidden bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-[11px] text-slate-400 ring-1 ring-dashed ring-slate-200 dark:ring-slate-700"
           aria-hidden
         >
-          <div className={`${aspectClass} w-full overflow-hidden rounded-lg bg-slate-50 dark:bg-slate-900 flex items-center justify-center text-[11px] text-slate-400`}>—</div>
+          —
         </div>
       ))}
     </div>

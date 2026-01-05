@@ -22,8 +22,52 @@ import {
 import { TemplatePicker } from '../../designer/components/TemplatePicker';
 import { firebaseService } from '../../../services/firebase';
 import { showToast } from '../../../utils/notifications';
+import { getOptimizedImageUrl } from '../../utils/imageOptimization';
+import { useLocation, useNavigate } from 'react-router-dom';
 
 type TabSection = 'templates' | 'features' | 'settings';
+
+const TRYON_TABS: ReadonlyArray<TabSection> = ['templates', 'features', 'settings'];
+
+function getTryOnTabFromPathname(pathname: string): TabSection {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'tryon-templates', ':tab?']
+  const tab = parts[2];
+  if (TRYON_TABS.includes(tab as TabSection)) return tab as TabSection;
+  return 'templates';
+}
+
+type TryOnTabButtonProps = {
+  id: TabSection;
+  label: string;
+  Icon: any;
+  activeTab: TabSection;
+  onClick: (id: TabSection) => void;
+  showDevPrefixes: boolean;
+};
+
+const TryOnTabButton = React.memo(function TryOnTabButton({
+  id,
+  label,
+  Icon,
+  activeTab,
+  onClick,
+  showDevPrefixes,
+}: TryOnTabButtonProps) {
+  return (
+    <button
+      onClick={() => onClick(id)}
+      className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+        activeTab === id
+          ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+          : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+      }`}
+    >
+      <Icon size={16} />
+      {showDevPrefixes ? `${id} · ${label}` : label}
+    </button>
+  );
+});
 
 type DisplayMode = 'grid' | 'list' | 'compact';
 
@@ -54,6 +98,7 @@ type CreateDraftItem = {
   isPremium: boolean;
   saving: boolean;
   saved: boolean;
+  cancelled: boolean;
   stage?: CreateUploadStage;
   originalProgress?: number; // 0..100
   thumbProgress?: number; // 0..100
@@ -226,7 +271,9 @@ async function cropFileToAspectJpegBlob(params: { file: File; aspect: number; cx
 }
 
 export const TryOnTemplates: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabSection>('templates');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = useMemo(() => getTryOnTabFromPathname(location.pathname), [location.pathname]);
   const [templates, setTemplates] = useState<TryOnTemplate[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -236,6 +283,7 @@ export const TryOnTemplates: React.FC = () => {
   const nameInputRef = useRef<HTMLInputElement | null>(null);
 
   const [displayMode, setDisplayMode] = useState<DisplayMode>('grid');
+  const [selectedTemplateIds, setSelectedTemplateIds] = useState<Set<string>>(new Set());
   const [templateFilterQuery, setTemplateFilterQuery] = useState('');
   const [filterActiveOnly, setFilterActiveOnly] = useState(false);
   const [filterInactiveOnly, setFilterInactiveOnly] = useState(false);
@@ -268,6 +316,23 @@ export const TryOnTemplates: React.FC = () => {
   const cropDragRef = useRef<{ active: boolean; startX: number; startY: number; startCx: number; startCy: number } | null>(null);
 
   const showDevPrefixes = useMemo(() => Boolean((import.meta as any)?.env?.DEV), []);
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    const parts = String(pathname || '').split('/').filter(Boolean);
+    if (parts[0] !== 'admin' || parts[1] !== 'tryon-templates') return;
+
+    const rawTab = parts[2];
+    const canonical = `/admin/tryon-templates/${getTryOnTabFromPathname(pathname)}`;
+
+    if (!rawTab || !TRYON_TABS.includes(rawTab as TabSection)) {
+      if (pathname !== canonical) navigate(canonical, { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  const handleTabClick = useCallback((id: TabSection) => {
+    navigate(`/admin/tryon-templates/${id}`);
+  }, [navigate]);
 
   useEffect(() => {
     if (activeTab === 'templates') {
@@ -515,6 +580,7 @@ export const TryOnTemplates: React.FC = () => {
           isPremium: false,
           saving: false,
           saved: false,
+          cancelled: false,
           stage: 'queued',
           originalProgress: 0,
           thumbProgress: 0,
@@ -551,9 +617,13 @@ export const TryOnTemplates: React.FC = () => {
   };
 
   const handleSaveCreateItem = async (key: string): Promise<boolean> => {
+    // Check if cancelled before starting
+    const currentItem = createItemsRef.current.find((x) => x.key === key);
+    if (!currentItem || currentItem.cancelled) return false;
+    
     setCreateItems((prev) => prev.map((it) => (it.key === key ? { ...it, saving: true, error: undefined, stage: 'uploadingOriginal', originalProgress: 0, thumbProgress: 0 } : it)));
     const item = createItemsRef.current.find((x) => x.key === key);
-    if (!item) return false;
+    if (!item || item.cancelled) return false;
 
     const id = String(item.id || '').trim();
     const name = String(item.name || '').trim();
@@ -567,31 +637,36 @@ export const TryOnTemplates: React.FC = () => {
         templateId: id,
         file: item.file,
         onProgress: (p) => {
+          // Check cancelled during upload
+          const current = createItemsRef.current.find((x) => x.key === key);
+          if (current?.cancelled) return;
           setCreateItems((prev) => prev.map((it) => (it.key === key ? { ...it, originalProgress: p, stage: 'uploadingOriginal' } : it)));
         },
       });
-      // Generate thumbnail only at save time
-      setCreateItems((prev) => prev.map((it) => (it.key === key ? { ...it, stage: 'uploadingThumb', thumbProgress: 0 } : it)));
-      const thumbBlob = await createThumbnailJpegBlobFromFile(item.file, 256, 0.82);
-      const thumbnailUrl = await firebaseService.uploadTryOnGarmentTemplateThumbnail({
-        templateId: id,
-        blob: thumbBlob,
-        onProgress: (p) => {
-          setCreateItems((prev) => prev.map((it) => (it.key === key ? { ...it, thumbProgress: p, stage: 'uploadingThumb' } : it)));
-        },
-      });
+
+      // Check if cancelled after upload
+      if (createItemsRef.current.find(x => x.key === key)?.cancelled) {
+        setCreateItems((prev) => prev.filter((it) => it.key !== key));
+        return false;
+      }
 
       setCreateItems((prev) => prev.map((it) => (it.key === key ? { ...it, stage: 'savingDoc' } : it)));
 
-      await firebaseService.upsertTryOnGarmentTemplate({
+      // Firebase extension will auto-generate WebP thumbnails
+      const templateData = {
         id,
         name,
         imageUrl,
-        thumbnailUrl,
+        thumbnailUrl: imageUrl, // Use original, extension creates resized versions
         enabled: item.enabled,
         isPremium: item.isPremium,
         ...(typeof item.order === 'number' ? { order: item.order } : {}),
-      });
+      };
+      
+      await firebaseService.upsertTryOnGarmentTemplate(templateData);
+
+      // Optimistic update - add to list immediately
+      setTemplates((prev) => [templateData, ...prev]);
 
       // Remove the card after success (queue behavior)
       setCreateItems((prev) => {
@@ -601,7 +676,6 @@ export const TryOnTemplates: React.FC = () => {
         }
         return prev.filter((x) => x.key !== key);
       });
-      await loadTemplates();
       return true;
     } catch (error: any) {
       console.error('Error creating template:', error);
@@ -613,7 +687,7 @@ export const TryOnTemplates: React.FC = () => {
   const handleSaveAllCreate = async () => {
     if (bulkSaving) return;
     setBulkSaving(true);
-    const startKeys = createItemsRef.current.filter((x) => !x.saved && !x.saving).map((x) => x.key);
+    const startKeys = createItemsRef.current.filter((x) => !x.saved && !x.saving && !x.cancelled).map((x) => x.key);
     let ok = 0;
     let failed = 0;
     for (const key of startKeys) {
@@ -637,12 +711,21 @@ export const TryOnTemplates: React.FC = () => {
     }
   };
 
+  const handleCancelCreateItem = (key: string) => {
+    setCreateItems((prev) => prev.map((it) => it.key === key ? { ...it, cancelled: true, saving: false } : it));
+    // Remove after brief delay
+    setTimeout(() => {
+      setCreateItems((prev) => prev.filter((it) => it.key !== key));
+    }, 300);
+  };
+
   const createQueueStats = useMemo(() => {
     const total = createItems.length;
     const done = createItems.filter((x) => x.saved || x.stage === 'done').length;
     const errored = createItems.filter((x) => x.stage === 'error' || Boolean(x.error)).length;
-    const uploading = createItems.filter((x) => x.stage === 'uploadingOriginal' || x.stage === 'uploadingThumb' || x.stage === 'savingDoc' || x.saving).length;
-    const queued = Math.max(0, total - done - uploading - errored);
+    const cancelled = createItems.filter((x) => x.cancelled).length;
+    const uploading = createItems.filter((x) => (x.stage === 'uploadingOriginal' || x.stage === 'uploadingThumb' || x.stage === 'savingDoc' || x.saving) && !x.cancelled).length;
+    const queued = Math.max(0, total - done - uploading - errored - cancelled);
 
     const pct = total === 0
       ? 0
@@ -724,19 +807,14 @@ export const TryOnTemplates: React.FC = () => {
       let thumbnailUrl = editDraft.thumbnailUrl;
 
       if (editDraft.replacementFile) {
-        handleUpdateEditDraft({ uploadStage: 'uploadingOriginal', originalProgress: 0, thumbProgress: 0 });
+        handleUpdateEditDraft({ uploadStage: 'uploadingOriginal', originalProgress: 0 });
         imageUrl = await firebaseService.uploadTryOnGarmentTemplateOriginal({
           templateId: id,
           file: editDraft.replacementFile,
           onProgress: (p) => handleUpdateEditDraft({ uploadStage: 'uploadingOriginal', originalProgress: p }),
         });
-        const thumbBlob = await createThumbnailJpegBlobFromFile(editDraft.replacementFile, 256, 0.82);
-        handleUpdateEditDraft({ uploadStage: 'uploadingThumb', thumbProgress: 0 });
-        thumbnailUrl = await firebaseService.uploadTryOnGarmentTemplateThumbnail({
-          templateId: id,
-          blob: thumbBlob,
-          onProgress: (p) => handleUpdateEditDraft({ uploadStage: 'uploadingThumb', thumbProgress: p }),
-        });
+        // Firebase extension will auto-generate WebP thumbnails
+        thumbnailUrl = imageUrl;
       }
 
       handleUpdateEditDraft({ uploadStage: 'savingDoc' });
@@ -917,30 +995,64 @@ export const TryOnTemplates: React.FC = () => {
 
   const handleDeleteTemplate = async (templateId: string) => {
     if (!confirm('هل أنت متأكد من حذف هذا القالب؟')) return;
-    setLoading(true);
+    
+    // Optimistic update - remove immediately
+    setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    
     try {
       await firebaseService.deleteTryOnGarmentTemplate(templateId);
-      await loadTemplates();
+      showToast('تم حذف القالب', 'success');
     } catch (error) {
       console.error('Error deleting template:', error);
-    } finally {
-      setLoading(false);
+      showToast('فشل حذف القالب', 'error');
+      // Reload on error to restore state
+      await loadTemplates();
     }
   };
 
-  const TabButton = ({ id, label, icon: Icon }: { id: TabSection; label: string; icon: any }) => (
-    <button
-      onClick={() => setActiveTab(id)}
-      className={`flex items-center gap-2 px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
-        activeTab === id
-          ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-          : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-      }`}
-    >
-      <Icon size={16} />
-      {showDevPrefixes ? `${id} · ${label}` : label}
-    </button>
-  );
+  const handleBulkDelete = async () => {
+    if (selectedTemplateIds.size === 0) return;
+    if (!confirm(`هل أنت متأكد من حذف ${selectedTemplateIds.size} قالب؟`)) return;
+    
+    const idsToDelete = Array.from(selectedTemplateIds);
+    
+    // Optimistic update - remove immediately
+    setTemplates((prev) => prev.filter((t) => !idsToDelete.includes(t.id)));
+    setSelectedTemplateIds(new Set());
+    
+    try {
+      const deletePromises = idsToDelete.map((id: string) => 
+        firebaseService.deleteTryOnGarmentTemplate(id)
+      );
+      await Promise.all(deletePromises);
+      showToast('تم حذف القوالب المحددة', 'success');
+    } catch (error) {
+      console.error('Error bulk deleting templates:', error);
+      showToast('فشل حذف بعض القوالب', 'error');
+      // Reload on error
+      await loadTemplates();
+    }
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedTemplateIds.size === pagedTemplates.length) {
+      setSelectedTemplateIds(new Set());
+    } else {
+      setSelectedTemplateIds(new Set(pagedTemplates.map(t => t.id)));
+    }
+  };
+
+  const toggleSelectTemplate = (templateId: string) => {
+    setSelectedTemplateIds(prev => {
+      const next = new Set(prev);
+      if (next.has(templateId)) {
+        next.delete(templateId);
+      } else {
+        next.add(templateId);
+      }
+      return next;
+    });
+  };
 
   return (
     <div className="space-y-6">
@@ -950,9 +1062,9 @@ export const TryOnTemplates: React.FC = () => {
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
-        <TabButton id="templates" label="القوالب المتاحة" icon={ImageIcon} />
-        <TabButton id="features" label="ميزات Premium" icon={Star} />
-        <TabButton id="settings" label="إعدادات عامة" icon={Settings} />
+        <TryOnTabButton id="templates" label="القوالب المتاحة" Icon={ImageIcon} activeTab={activeTab} onClick={handleTabClick} showDevPrefixes={showDevPrefixes} />
+        <TryOnTabButton id="features" label="ميزات Premium" Icon={Star} activeTab={activeTab} onClick={handleTabClick} showDevPrefixes={showDevPrefixes} />
+        <TryOnTabButton id="settings" label="إعدادات عامة" Icon={Settings} activeTab={activeTab} onClick={handleTabClick} showDevPrefixes={showDevPrefixes} />
       </div>
 
       {/* Content */}
@@ -960,8 +1072,24 @@ export const TryOnTemplates: React.FC = () => {
         {activeTab === 'templates' && (
           <div className="space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-              <div className="text-sm text-slate-500">
-                {filteredTemplates.length} قالب{templateFilterQuery.trim() ? ` (من ${templates.length})` : ''}
+              <div className="flex items-center gap-3">
+                <div className="text-sm text-slate-500">
+                  {filteredTemplates.length} قالب{templateFilterQuery.trim() ? ` (من ${templates.length})` : ''}
+                </div>
+                {selectedTemplateIds.size > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-bold text-blue-600 dark:text-blue-400">
+                      {selectedTemplateIds.size} محدد
+                    </span>
+                    <button
+                      onClick={handleBulkDelete}
+                      disabled={loading}
+                      className="px-3 py-1.5 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
+                    >
+                      حذف المحدد
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="w-full sm:w-auto flex flex-wrap items-center gap-2 justify-end">
@@ -1080,6 +1208,16 @@ export const TryOnTemplates: React.FC = () => {
                   <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
                 </button>
 
+                <button
+                  type="button"
+                  onClick={toggleSelectAll}
+                  disabled={loading || pagedTemplates.length === 0}
+                  title={selectedTemplateIds.size === pagedTemplates.length ? "إلغاء تحديد الكل" : "تحديد الكل"}
+                  className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-50 text-sm font-medium"
+                >
+                  {selectedTemplateIds.size === pagedTemplates.length ? "إلغاء الكل" : "تحديد الكل"}
+                </button>
+
                 <div className="flex items-center rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
                   <button
                     type="button"
@@ -1133,21 +1271,27 @@ export const TryOnTemplates: React.FC = () => {
             ) : (
               <>
                 {displayMode === 'grid' && (
-                  <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-7 lg:grid-cols-9 xl:grid-cols-10 gap-2">
+                  <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-7 gap-3">
                     {pagedTemplates.map((template) => (
                       <div
                         key={template.id}
-                        className={
-                          "group border rounded-lg overflow-hidden " +
-                          (template.isPremium
-                            ? 'border-amber-400 dark:border-amber-600 bg-gradient-to-br from-amber-50 to-orange-100 dark:from-amber-900/30 dark:to-orange-900/30 shadow-sm shadow-amber-100 dark:shadow-none'
-                            : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800')
-                        }
+                        className="group border rounded-lg overflow-hidden border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800"
                       >
                         <div className="relative aspect-[3/4] bg-slate-100 dark:bg-slate-900">
+                          {/* Checkbox */}
+                          <div className="absolute top-1.5 right-1.5 z-10">
+                            <input
+                              type="checkbox"
+                              checked={selectedTemplateIds.has(template.id)}
+                              onChange={() => toggleSelectTemplate(template.id)}
+                              className="w-4 h-4 rounded border-2 border-white bg-white/90 cursor-pointer"
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          </div>
+                          
                           {template.thumbnailUrl ? (
                             <img
-                              src={template.thumbnailUrl}
+                              src={getOptimizedImageUrl(template.imageUrl, 'thumbnail') || template.thumbnailUrl}
                               alt={template.name}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -1235,14 +1379,9 @@ export const TryOnTemplates: React.FC = () => {
                                 {template.name}
                               </button>
                             )}
-                            <div className="text-[11px] text-slate-500 truncate" title={template.id}>
-                              {showDevPrefixes ? `ID: ${template.id}` : template.id}
-                            </div>
                           </div>
 
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="text-[10px] text-slate-500">{typeof template.order === 'number' ? `#${template.order}` : '—'}</div>
-                            <div className="flex items-center gap-1">
+                          <div className="flex items-center justify-end gap-1">
                               <button
                                 type="button"
                                 onClick={(e) => handleToggleEnabled(e, template.id, template.enabled !== false)}
@@ -1302,7 +1441,6 @@ export const TryOnTemplates: React.FC = () => {
                               >
                                 <Trash2 size={14} />
                               </button>
-                            </div>
                           </div>
                         </div>
                       </div>
@@ -1322,11 +1460,16 @@ export const TryOnTemplates: React.FC = () => {
                             : 'border-slate-200 dark:border-slate-700')
                         }
                       >
-                        <div className={`${displayMode === 'compact' ? 'w-5 h-6' : 'w-7 h-8'} rounded-md overflow-hidden bg-slate-100 dark:bg-slate-900 flex-shrink-0 relative`}
-                        >
+                        <input
+                          type="checkbox"
+                          checked={selectedTemplateIds.has(template.id)}
+                          onChange={() => toggleSelectTemplate(template.id)}
+                          className="w-4 h-4 rounded border-slate-300 cursor-pointer flex-shrink-0"
+                        />
+                        <div className={`${displayMode === 'compact' ? 'w-5 h-6' : 'w-7 h-8'} rounded-md overflow-hidden bg-slate-100 dark:bg-slate-900 flex-shrink-0 relative`}>
                           {template.thumbnailUrl ? (
                             <img
-                              src={template.thumbnailUrl}
+                              src={getOptimizedImageUrl(template.imageUrl, 'thumbnail') || template.thumbnailUrl}
                               alt={template.name}
                               className="w-full h-full object-cover"
                               loading="lazy"
@@ -1768,24 +1911,34 @@ export const TryOnTemplates: React.FC = () => {
                         )}
 
                         <div className="flex items-center justify-end gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setCreateItems((prev) => {
-                                const it = prev.find((x) => x.key === item.key);
-                                if (it) {
-                                  try { URL.revokeObjectURL(it.previewUrl); } catch {}
-                                }
-                                return prev.filter((x) => x.key !== item.key);
-                              });
-                            }}
-                            disabled={item.saving}
-                          >
-                            حذف
-                          </Button>
-                          <Button size="sm" onClick={() => handleSaveCreateItem(item.key)} disabled={item.saving}>
-                            {item.saving ? '...' : 'حفظ'}
+                          {item.saving && !item.cancelled ? (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleCancelCreateItem(item.key)}
+                            >
+                              إلغاء
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => {
+                                setCreateItems((prev) => {
+                                  const it = prev.find((x) => x.key === item.key);
+                                  if (it) {
+                                    try { URL.revokeObjectURL(it.previewUrl); } catch {}
+                                  }
+                                  return prev.filter((x) => x.key !== item.key);
+                                });
+                              }}
+                              disabled={item.saving}
+                            >
+                              حذف
+                            </Button>
+                          )}
+                          <Button size="sm" onClick={() => handleSaveCreateItem(item.key)} disabled={item.saving || item.cancelled}>
+                            {item.cancelled ? 'ملغى' : item.saving ? '...' : 'حفظ'}
                           </Button>
                         </div>
                       </div>

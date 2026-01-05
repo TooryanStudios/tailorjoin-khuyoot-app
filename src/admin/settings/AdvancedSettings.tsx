@@ -1,10 +1,35 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Save, ShoppingCart, DollarSign, Bell, FileText, Percent, Star, Image as ImageIcon, CreditCard } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
+import { useLocation, useNavigate } from 'react-router-dom';
+
+type AdvancedTab = 'orders' | 'notifications' | 'pages' | 'discounts' | 'reviews' | 'images' | 'payment' | 'tryon';
+
+const ADVANCED_TABS: ReadonlyArray<AdvancedTab> = [
+  'orders',
+  'notifications',
+  'pages',
+  'discounts',
+  'reviews',
+  'images',
+  'payment',
+  'tryon',
+];
+
+function getAdvancedTabFromPathname(pathname: string): AdvancedTab {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'config', 'advanced', ':tab?']
+  const tab = parts[3];
+  if (ADVANCED_TABS.includes(tab as AdvancedTab)) return tab as AdvancedTab;
+  return 'orders';
+}
 
 export const AdvancedSettings: React.FC = () => {
-  const { appSettings, saveAppSettings } = useApp();
-  const [activeTab, setActiveTab] = useState<'orders' | 'notifications' | 'pages' | 'discounts' | 'reviews' | 'images' | 'payment'>('orders');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const { appSettings, saveAppSettings, settingsLoaded } = useApp();
+  const activeTab = useMemo(() => getAdvancedTabFromPathname(location.pathname), [location.pathname]);
+  const didHydrateFromSettingsRef = useRef(false);
   
   // Order Settings
   const [orderSettings, setOrderSettings] = useState({
@@ -67,10 +92,18 @@ export const AdvancedSettings: React.FC = () => {
     paymentConfirmationMessage: 'تم استلام الدفعة بنجاح',
   });
 
+  // Try-On Settings
+  const [tryOnDriverPrompt, setTryOnDriverPrompt] = useState<string>('');
+
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
 
+  // Hydrate local UI state ONCE after global settings are loaded.
+  // Re-applying on every save can feel like a full-page refresh.
   useEffect(() => {
+    if (!settingsLoaded) return;
+    if (didHydrateFromSettingsRef.current) return;
+
     if (appSettings.orderSettings) setOrderSettings(appSettings.orderSettings as any);
     if (appSettings.notificationSettings) setNotificationSettings(appSettings.notificationSettings as any);
     if (appSettings.pageTexts) setPageTexts(appSettings.pageTexts as any);
@@ -78,7 +111,23 @@ export const AdvancedSettings: React.FC = () => {
     if (appSettings.reviewSettings) setReviewSettings(appSettings.reviewSettings as any);
     if (appSettings.imageSettings) setImageSettings(appSettings.imageSettings as any);
     if (appSettings.paymentSettings) setPaymentSettings(appSettings.paymentSettings as any);
-  }, [appSettings]);
+    setTryOnDriverPrompt((appSettings as any)?.aiTryOn?.driverPrompt || '');
+
+    didHydrateFromSettingsRef.current = true;
+  }, [appSettings, settingsLoaded]);
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    const parts = String(pathname || '').split('/').filter(Boolean);
+    if (parts[0] !== 'admin' || parts[1] !== 'config' || parts[2] !== 'advanced') return;
+
+    const rawTab = parts[3];
+    const canonical = `/admin/config/advanced/${getAdvancedTabFromPathname(pathname)}`;
+
+    if (!rawTab || !ADVANCED_TABS.includes(rawTab as AdvancedTab)) {
+      if (pathname !== canonical) navigate(canonical, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   const handleSave = async () => {
     setSaving(true);
@@ -94,13 +143,41 @@ export const AdvancedSettings: React.FC = () => {
         reviewSettings,
         imageSettings,
         paymentSettings,
-      });
+        aiTryOn: {
+          ...(appSettings as any)?.aiTryOn,
+          driverPrompt: tryOnDriverPrompt,
+        },
+      }, { silent: true, optimistic: true });
       
       setMessage('✅ تم حفظ الإعدادات بنجاح');
       setTimeout(() => setMessage(''), 3000);
     } catch (error) {
       console.error('Error saving advanced settings:', error);
       setMessage('❌ حدث خطأ أثناء الحفظ');
+      setTimeout(() => setMessage(''), 3000);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleSaveTryOnPromptOnly = async () => {
+    setSaving(true);
+    setMessage('');
+
+    try {
+      await saveAppSettings({
+        ...appSettings,
+        aiTryOn: {
+          ...(appSettings as any)?.aiTryOn,
+          driverPrompt: tryOnDriverPrompt,
+        },
+      }, { silent: true, optimistic: true });
+
+      setMessage('✅ تم حفظ موجه Try‑On بنجاح');
+      setTimeout(() => setMessage(''), 3000);
+    } catch (error) {
+      console.error('Error saving Try-On driver prompt:', error);
+      setMessage('❌ حدث خطأ أثناء حفظ موجه Try‑On');
       setTimeout(() => setMessage(''), 3000);
     } finally {
       setSaving(false);
@@ -115,6 +192,7 @@ export const AdvancedSettings: React.FC = () => {
     { id: 'reviews', label: 'التقييمات', icon: Star },
     { id: 'images', label: 'الصور', icon: ImageIcon },
     { id: 'payment', label: 'الدفع', icon: CreditCard },
+    { id: 'tryon', label: 'Try‑On', icon: Star },
   ];
 
   return (
@@ -127,7 +205,7 @@ export const AdvancedSettings: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
+                onClick={() => navigate(`/admin/config/advanced/${tab.id}`)}
                 className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-indigo-600 text-white shadow-lg'
@@ -636,9 +714,51 @@ export const AdvancedSettings: React.FC = () => {
           </div>
         )}
 
+        {/* Try-On Tab */}
+        {activeTab === 'tryon' && (
+          <div className="space-y-4">
+            <h3 className="text-lg font-bold text-slate-800 dark:text-white mb-4">إعدادات Try‑On</h3>
+
+            <div>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                Driver Prompt (الموجه الأساسي)
+              </label>
+              <textarea
+                value={tryOnDriverPrompt}
+                onChange={(e) => setTryOnDriverPrompt(e.target.value)}
+                rows={6}
+                placeholder="اكتب الموجه الأساسي الذي سيتم حقنه في طلبات Try‑On..."
+                className="w-full px-4 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-800 dark:text-white font-mono text-sm"
+              />
+              <div className="mt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setTryOnDriverPrompt('')}
+                  className="text-xs font-medium text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                >
+                  مسح الموجه
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end">
+              <button
+                type="button"
+                onClick={handleSaveTryOnPromptOnly}
+                disabled={saving}
+                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-bold rounded-lg transition-all disabled:cursor-not-allowed"
+              >
+                <Save size={18} />
+                {saving ? 'جاري الحفظ...' : 'حفظ الموجه فقط'}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Save Button */}
         <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <button
+            type="button"
             onClick={handleSave}
             disabled={saving}
             className="flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-400 text-white font-bold rounded-xl transition-all shadow-lg hover:shadow-xl disabled:cursor-not-allowed"

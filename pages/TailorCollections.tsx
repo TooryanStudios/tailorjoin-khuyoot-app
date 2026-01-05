@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/Button';
-import { getProducts } from '../services/mockService';
 import { firebaseService } from '../services/firebase';
 import { storageService } from '../services/storageService';
 import { Product } from '../types';
@@ -12,17 +12,64 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { getActiveOrdersForProduct } from '../services/orderService';
 import { getDefaultImagesForCategory, type DefaultImageOption } from '../utils/defaultImages';
+import { useAppStore } from '../src/store/useAppStore';
+import { preloadImages } from '../src/utils/imagePreloader';
+import { StableImage } from '../src/components/StableImage';
 
 export const TailorCollections = () => {
   const { user } = useApp();
-  const [myProducts, setMyProducts] = useState<Product[]>([]);
+  const tailorProducts = useAppStore((state) => state.tailorProducts);
+  const setTailorProducts = useAppStore((state) => state.setTailorProducts);
+  const viewMode = useAppStore((state) => state.tailorViewMode);
+  const setViewMode = useAppStore((state) => state.setTailorViewMode);
+  const myProducts = tailorProducts;
   const [showAddForm, setShowAddForm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [viewMode, setViewMode] = useState<'list' | 'grid' | 'compact'>('list');
   const [filterMode, setFilterMode] = useState<'all' | 'published' | 'drafts'>('all');
+
+  const productsQuery = useQuery({
+    queryKey: ['tailor-products', user?.id],
+    queryFn: async () => {
+      if (!user?.id) return [] as Product[];
+      return firebaseService.getProductsByTailorId(user.id);
+    },
+    enabled: !!user?.id,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15, // Keep in cache 15min instead of default 5min
+    onSuccess: (data) => {
+      preloadImages(data.slice(0, 5).map((p) => p.image));
+    },
+  });
+
+  useEffect(() => {
+    if (productsQuery.data) {
+      setTailorProducts(productsQuery.data);
+      setInitialLoading(false);
+    }
+  }, [productsQuery.data, setTailorProducts]);
+
+  useEffect(() => {
+    if (productsQuery.isFetched && !productsQuery.isLoading) {
+      setInitialLoading(false);
+    }
+  }, [productsQuery.isFetched, productsQuery.isLoading]);
+
+  // **NEW: Cache-First Logic**
+  // Only show loading skeleton if NO data exists (initial load)
+  // If data exists, show it immediately during background refetch
+  const shouldShowLoadingSpinner = initialLoading && !productsQuery.data;
+
+  const refreshProducts = React.useCallback(async () => {
+    setRefreshing(true);
+    const result = await productsQuery.refetch();
+    if (result.data) {
+      setTailorProducts(result.data);
+    }
+    setRefreshing(false);
+  }, [productsQuery, setTailorProducts]);
   
   // Scroll state for filter tabs
   const filterScrollRef = useRef<HTMLDivElement>(null);
@@ -174,7 +221,6 @@ export const TailorCollections = () => {
   // جلب منتجات الخياط عند تحميل الصفحة
   useEffect(() => {
     if (user?.id) {
-      loadMyProducts();
       loadCategories();
     }
   }, [user?.id]);
@@ -243,19 +289,6 @@ export const TailorCollections = () => {
     }
   };
 
-  const loadMyProducts = async () => {
-    if (!user?.id) return;
-    try {
-      // استخدام دالة خاصة للتاجر تجلب كل المنتجات بما فيها المسودات
-      const allProducts = await firebaseService.getProductsByTailorId(user.id);
-      setMyProducts(allProducts);
-    } catch (error) {
-      console.error('Error loading products:', error);
-    } finally {
-      setInitialLoading(false);
-    }
-  };
-
   const handleAddProduct = async (e: React.FormEvent, saveAsDraft: boolean = false) => {
     e.preventDefault();
     if (!user?.id) {
@@ -296,7 +329,7 @@ export const TailorCollections = () => {
       await firebaseService.addProduct(newProduct);
       
       // إعادة تحميل المنتجات
-      await loadMyProducts();
+      await refreshProducts();
       
       // إخفاء النموذج وإعادة تعيين الحقول
       setShowAddForm(false);
@@ -323,7 +356,7 @@ export const TailorCollections = () => {
     
     try {
       await firebaseService.deleteProduct(id, user.id);
-      await loadMyProducts();
+      await refreshProducts();
       alert('تم حذف المنتج بنجاح');
     } catch (error) {
       console.error('Error deleting product:', error);
@@ -389,7 +422,7 @@ export const TailorCollections = () => {
       }
 
       await firebaseService.updateProduct(editingProduct.id, updates);
-      await loadMyProducts();
+      await refreshProducts();
       
       setEditingProduct(null);
       resetForm();
@@ -427,7 +460,7 @@ export const TailorCollections = () => {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await loadMyProducts();
+    await refreshProducts();
     setTimeout(() => setRefreshing(false), 500);
   };
 
@@ -1067,7 +1100,7 @@ export const TailorCollections = () => {
         )}
 
         {/* Products Display */}
-        {initialLoading ? (
+        {shouldShowLoadingSpinner ? (
           <div className="text-center py-12">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
             <p className="text-slate-600 dark:text-slate-400">جاري تحميل المنتجات...</p>
@@ -1079,8 +1112,8 @@ export const TailorCollections = () => {
               <div className="space-y-4">
                 {filteredProducts.map((product) => (
                   <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex gap-4 group hover:shadow-md transition">
-                    <div className="w-20 h-20 bg-slate-100 rounded-lg overflow-hidden shrink-0 relative">
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    <div className="relative w-20 aspect-square bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden shrink-0">
+                      <StableImage src={product.image} alt={product.name} aspectClass="h-full" className="absolute inset-0" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                           {product.images.length}/10
@@ -1149,8 +1182,8 @@ export const TailorCollections = () => {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {filteredProducts.map((product) => (
                   <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden group hover:shadow-lg transition">
-                    <div className="relative aspect-square overflow-hidden bg-slate-100">
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                    <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900">
+                      <StableImage src={product.image} alt={product.name} aspectClass="aspect-square" imgClassName="group-hover:scale-105 duration-300" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-bold">
                           {product.images.length}/10 صور
@@ -1203,8 +1236,8 @@ export const TailorCollections = () => {
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filteredProducts.map((product) => (
                   <div key={product.id} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden group hover:shadow-md transition">
-                    <div className="relative aspect-square overflow-hidden bg-slate-100">
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                    <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900">
+                      <StableImage src={product.image} alt={product.name} aspectClass="aspect-square" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                           {product.images.length}/10

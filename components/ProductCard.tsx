@@ -177,7 +177,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
             src={productImages[currentImageIndex]} 
             alt={product.name} 
             className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            loading="lazy"
+            loading="eager"
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageError(true)}
           />

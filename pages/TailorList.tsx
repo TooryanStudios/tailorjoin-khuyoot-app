@@ -4,6 +4,7 @@ import { ArrowRight, MapPin, Star, CheckCircle2, Search, Filter, Grid, List } fr
 import { Tailor, Region } from '../types';
 import { getTailors } from '../services/mockService';
 import { getSpecializationLabel } from '../utils/specializationHelper';
+import { StableImage } from '../src/components/StableImage';
 
 const REGIONS: { id: Region | 'All', name: string }[] = [
   { id: 'All', name: 'الكل' },
@@ -186,10 +187,12 @@ export const TailorList = () => {
              className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-all cursor-pointer flex gap-4"
            >
               {tailor.image ? (
-                <img 
-                  src={tailor.image} 
-                  alt={tailor.name} 
-                  className="w-20 h-20 rounded-xl object-cover border border-slate-100 dark:border-slate-700"
+                <StableImage
+                  src={tailor.image}
+                  alt={tailor.name}
+                  aspectClass="aspect-square"
+                  className="w-20 h-20 rounded-xl border border-slate-100 dark:border-slate-700"
+                  imgClassName="object-cover"
                 />
               ) : (
                 <div className="w-20 h-20 rounded-xl bg-slate-100 dark:bg-slate-700 flex items-center justify-center border border-slate-100 dark:border-slate-700">

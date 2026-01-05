@@ -15,7 +15,7 @@ export function TryFabricMainCard(props: {
       {fabricSelectCard ?? (
         
         <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          fabricSelectCard
+          fabricSelectCarddddd
           <div className="flex items-start gap-3">
             <div className="w-24 aspect-[3/4] rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
               
@@ -42,6 +42,7 @@ export function TryFabricMainCard(props: {
         </div>
       )}
 
+      <div className="text-xs text-slate-500 dark:text-slate-400 px-1">شريط التحكم (Controls Strip)</div>
       <TryFabricControlsStrip onRequestHelp={onRequestHelp} />
     </div>
   );

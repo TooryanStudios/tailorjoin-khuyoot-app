@@ -293,12 +293,13 @@ export const ImageLibraryPicker: React.FC<ImageLibraryPickerProps> = ({ onSelect
                     <p className="text-sm">لا توجد صور في هذا القسم</p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                     {images.map(img => (
                       <button
                         key={img.id}
                         onClick={() => handleImageSelect(img.imageUrl)}
-                        className="group relative aspect-square rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all hover:shadow-lg hover:scale-105"
+                        className="group relative rounded-xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all hover:shadow-lg hover:scale-105"
+                        style={{ width: '108px', height: '154px' }}
                       >
                         <img 
                           src={img.imageUrl} 

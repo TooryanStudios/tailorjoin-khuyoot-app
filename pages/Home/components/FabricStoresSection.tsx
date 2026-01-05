@@ -7,7 +7,8 @@ interface FabricStoresSectionProps {
   stores: Shop[];
 }
 
-export const FabricStoresSection: React.FC<FabricStoresSectionProps> = ({ stores }) => {
+// ✅ Memoized to prevent re-renders when parent updates
+export const FabricStoresSection = React.memo<FabricStoresSectionProps>(({ stores }) => {
   const navigate = useNavigate();
 
   if (stores.length === 0) return null;
@@ -49,6 +50,8 @@ export const FabricStoresSection: React.FC<FabricStoresSectionProps> = ({ stores
                   <img
                     src={store.image}
                     alt={store.name}
+                    loading="eager"
+                    decoding="async"
                     className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
                   />
                 ) : (
@@ -136,4 +139,4 @@ export const FabricStoresSection: React.FC<FabricStoresSectionProps> = ({ stores
       </div>
     </div>
   );
-};
+});

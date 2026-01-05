@@ -9,6 +9,12 @@ interface PreviewCanvasProps {
   previewStatus: PreviewStatus;
   onRegeneratePreview?: () => void;
   errorMessage?: string;
+  /**
+   * `section`: renders title/description + framed canvas (default)
+   * `canvas`: renders only the framed canvas (better for background layers)
+   */
+  mode?: 'section' | 'canvas';
+  className?: string;
 }
 
 export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
@@ -17,7 +23,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   previewUrl,
   previewStatus,
   onRegeneratePreview,
-  errorMessage
+  errorMessage,
+  mode = 'section',
+  className
 }) => {
   const renderContent = () => {
     // Error state
@@ -131,18 +139,27 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
     );
   };
 
-  return (
-    <div className="space-y-4">
-      <div>
-        <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
-          معاينة التصميم
-        </h2>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          شاهدي كيف سيبدو القماش على التصميم المختار
-        </p>
-      </div>
+  const showHeader = mode === 'section';
 
-      <div className="rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden min-h-[400px] lg:min-h-[500px]">
+  return (
+    <div className={[showHeader ? 'space-y-4' : 'h-full', className].filter(Boolean).join(' ')}>
+      {showHeader && (
+        <div>
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-2">
+            معاينة التصميم
+          </h2>
+          <p className="text-sm text-slate-600 dark:text-slate-400">
+            شاهدي كيف سيبدو القماش على التصميم المختار
+          </p>
+        </div>
+      )}
+
+      <div
+        className={[
+          'rounded-2xl border-2 border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 overflow-hidden',
+          showHeader ? 'min-h-[400px] lg:min-h-[500px]' : 'h-full min-h-0',
+        ].join(' ')}
+      >
         {renderContent()}
       </div>
     </div>

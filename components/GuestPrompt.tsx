@@ -2,6 +2,7 @@ import React from 'react';
 import { Lock, Sparkles, CheckCircle2, UserPlus } from 'lucide-react';
 import { Button } from './Button';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 
 interface GuestPromptProps {
   title?: string;
@@ -20,6 +21,7 @@ export const GuestPrompt: React.FC<GuestPromptProps> = ({
   ]
 }) => {
   const { toggleAuthModal } = useApp();
+  const navigate = useNavigate();
 
   return (
     <div className="min-h-[60vh] flex items-center justify-center p-4">
@@ -85,7 +87,7 @@ export const GuestPrompt: React.FC<GuestPromptProps> = ({
           </button>
           
           <button
-            onClick={() => window.location.href = '/'}
+            onClick={() => navigate('/', { replace: true })}
             className="w-full py-3 text-base text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 transition-colors font-medium"
           >
             العودة للرئيسية

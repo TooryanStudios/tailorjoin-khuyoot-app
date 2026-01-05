@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { RefreshCw, FolderPlus } from 'lucide-react';
 import { ImageLibraryCategory, ImageLibraryItem } from '../../../types';
 import {
@@ -19,7 +20,21 @@ import { AddImageModal } from './components/AddImageModal';
 import { ImageViewerModal } from './components/ImageViewerModal';
 import { ImageGrid } from './components/ImageGrid';
 
+type ImageTab = 'all' | 'female' | 'male';
+
+const IMAGE_TABS: ReadonlyArray<ImageTab> = ['all', 'female', 'male'];
+
+function getImageTabFromPathname(pathname: string): ImageTab {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'images', ':tab?']
+  const tab = parts[2];
+  if (IMAGE_TABS.includes(tab as ImageTab)) return tab as ImageTab;
+  return 'all';
+}
+
 export const ImageLibraryManagement = () => {
+  const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useApp();
   const [categories, setCategories] = useState<ImageLibraryCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ImageLibraryCategory | null>(null);
@@ -28,11 +43,24 @@ export const ImageLibraryManagement = () => {
   const [showAddCategoryModal, setShowAddCategoryModal] = useState(false);
   const [showAddImageModal, setShowAddImageModal] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [activeTab, setActiveTab] = useState<'all' | 'female' | 'male'>('all');
+  const activeTab = useMemo(() => getImageTabFromPathname(location.pathname), [location.pathname]);
   const [selectedLevel0Id, setSelectedLevel0Id] = useState<string | null>(null);
   const [selectedLevel1Id, setSelectedLevel1Id] = useState<string | null>(null);
   const [editNameAr, setEditNameAr] = useState('');
   const [editNameEn, setEditNameEn] = useState('');
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    const parts = String(pathname || '').split('/').filter(Boolean);
+    if (parts[0] !== 'admin' || parts[1] !== 'images') return;
+
+    const rawTab = parts[2];
+    const canonical = `/admin/images/${getImageTabFromPathname(pathname)}`;
+
+    if (!rawTab || !IMAGE_TABS.includes(rawTab as ImageTab)) {
+      if (pathname !== canonical) navigate(canonical, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   // Debugging state
   const [debugInfo, setDebugInfo] = useState<any>(null);
@@ -518,7 +546,7 @@ export const ImageLibraryManagement = () => {
           {/* Tabs */}
           <div className="flex gap-2 p-1 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 w-fit">
             <button
-              onClick={() => setActiveTab('all')}
+              onClick={() => navigate('/admin/images/all')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 activeTab === 'all' 
                   ? 'bg-slate-100 dark:bg-slate-700 text-slate-900 dark:text-white' 
@@ -528,7 +556,7 @@ export const ImageLibraryManagement = () => {
               الكل
             </button>
             <button
-              onClick={() => setActiveTab('female')}
+              onClick={() => navigate('/admin/images/female')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 activeTab === 'female' 
                   ? 'bg-pink-50 dark:bg-pink-900/20 text-pink-600 dark:text-pink-400' 
@@ -538,7 +566,7 @@ export const ImageLibraryManagement = () => {
               النسائية
             </button>
             <button
-              onClick={() => setActiveTab('male')}
+              onClick={() => navigate('/admin/images/male')}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition ${
                 activeTab === 'male' 
                   ? 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400' 

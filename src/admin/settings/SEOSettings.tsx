@@ -35,7 +35,7 @@ export const SEOSettings: React.FC = () => {
       await saveAppSettings({
         ...appSettings,
         seo
-      });
+      }, { silent: true, optimistic: true });
       
       setMessage('✅ تم حفظ إعدادات SEO بنجاح');
       setTimeout(() => setMessage(''), 3000);

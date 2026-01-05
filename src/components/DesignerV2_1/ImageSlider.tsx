@@ -1,0 +1,197 @@
+import React, { useEffect, useRef, useState } from 'react';
+
+type ImageSliderProps = {
+  before: string;
+  after: string;
+  value?: number;
+  onChange?: (value: number) => void;
+  initialValue?: number;
+  className?: string;
+  heightClassName?: string;
+};
+
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+const ImageSlider: React.FC<ImageSliderProps> = ({
+  before,
+  after,
+  value,
+  onChange,
+  initialValue = 50,
+  className,
+  heightClassName = 'h-[600px]',
+}) => {
+  const [internalPos, setInternalPos] = useState(initialValue);
+  const [containerSize, setContainerSize] = useState<{ width: number; height: number } | null>(null);
+  const isDraggingRef = useRef(false);
+  const rafRef = useRef<number | null>(null);
+  const latestPosRef = useRef<number>(initialValue);
+  const containerRef = useRef<HTMLDivElement>(null);
+  const clipRef = useRef<HTMLDivElement>(null);
+  const handleLineRef = useRef<HTMLDivElement>(null);
+  const containerRectRef = useRef<DOMRect | null>(null);
+
+  const isControlled = typeof value === 'number';
+  const sliderPos = internalPos;
+
+  const applyVisualPos = (pos: number) => {
+    if (clipRef.current) {
+      clipRef.current.style.width = `${pos}%`;
+    }
+    if (handleLineRef.current) {
+      handleLineRef.current.style.left = `${pos}%`;
+    }
+  };
+
+  // Keep internal state in sync with controlled value when not dragging.
+  useEffect(() => {
+    if (!isControlled) return;
+    if (isDraggingRef.current) return;
+    setInternalPos(value as number);
+    latestPosRef.current = value as number;
+    applyVisualPos(value as number);
+  }, [isControlled, value]);
+
+  // Measure container size so the "after" image stays full-size while the wrapper clips.
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const measure = () => {
+      const rect = el.getBoundingClientRect();
+      if (rect.width <= 0 || rect.height <= 0) return;
+      setContainerSize({ width: rect.width, height: rect.height });
+    };
+
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const updateFromClientX = (clientX: number) => {
+    const rect = containerRectRef.current ?? containerRef.current?.getBoundingClientRect() ?? null;
+    if (!rect || rect.width <= 0) return;
+
+    const position = ((clientX - rect.left) / rect.width) * 100;
+    const next = clamp(position, 0, 100);
+    latestPosRef.current = next;
+
+    // Apply immediately to avoid “first frame” delay.
+    applyVisualPos(next);
+
+    // Throttle DOM writes to animation frames to avoid jank.
+    if (rafRef.current != null) return;
+    rafRef.current = window.requestAnimationFrame(() => {
+      rafRef.current = null;
+      applyVisualPos(latestPosRef.current);
+    });
+  };
+
+  const onStartDrag = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Only start dragging on primary button for mouse.
+    if (e.pointerType === 'mouse' && e.button !== 0) return;
+    e.stopPropagation(); // Prevent event bubbling
+    isDraggingRef.current = true;
+
+    const rect = containerRef.current?.getBoundingClientRect() ?? null;
+    containerRectRef.current = rect;
+
+    containerRef.current?.setPointerCapture(e.pointerId);
+    updateFromClientX(e.clientX);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    updateFromClientX(e.clientX);
+  };
+
+  const onPointerUpOrCancel = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (!isDraggingRef.current) return;
+    isDraggingRef.current = false;
+
+    containerRectRef.current = null;
+
+    if (rafRef.current != null) {
+      window.cancelAnimationFrame(rafRef.current);
+      rafRef.current = null;
+    }
+
+    // Sync React state once (end of drag).
+    setInternalPos(latestPosRef.current);
+
+    // Commit to parent only once, on drag end. This avoids re-rendering the full DesignerV2_1 tree.
+    if (onChange) onChange(latestPosRef.current);
+
+    try {
+      containerRef.current?.releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  };
+
+  return (
+    <div
+      ref={containerRef}
+      dir="ltr"
+      className={
+        `relative w-full ${heightClassName} overflow-hidden rounded-lg select-none bg-transparent ` +
+        (className ?? '')
+      }
+      onPointerMove={onPointerMove}
+      onPointerUp={onPointerUpOrCancel}
+      onPointerCancel={onPointerUpOrCancel}
+    >
+      {before ? (
+        <img
+          src={before}
+          className="absolute inset-0 w-full h-full object-contain object-center pointer-events-none"
+          alt="Before"
+          decoding="async"
+          draggable={false}
+        />
+      ) : null}
+
+      {after ? (
+        <div
+          className="absolute top-0 left-0 bottom-0 overflow-hidden pointer-events-none"
+          style={{ width: `${sliderPos}%` }}
+          ref={clipRef}
+        >
+          <div
+            className="absolute top-0 left-0 bottom-0"
+            style={
+              containerSize
+                ? { width: `${containerSize.width}px` }
+                : { width: '100%' }
+            }
+          >
+            <img
+              src={after}
+              className="w-full h-full object-contain object-center pointer-events-none"
+              alt="After"
+              decoding="async"
+              draggable={false}
+            />
+          </div>
+        </div>
+      ) : null}
+
+      {/* Slider Handle Line */}
+      <div
+        className="absolute top-0 bottom-0 w-1 bg-white/80 dark:bg-white/70 flex items-center justify-center cursor-col-resize pointer-events-auto"
+        style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)', willChange: 'left' }}
+        onPointerDown={onStartDrag}
+        ref={handleLineRef}
+      >
+        <div 
+          className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm ring-1 ring-black/10 dark:ring-white/15 cursor-col-resize pointer-events-auto touch-none"
+        >
+          <span className="text-zinc-900 text-base font-semibold">↔</span>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default ImageSlider;

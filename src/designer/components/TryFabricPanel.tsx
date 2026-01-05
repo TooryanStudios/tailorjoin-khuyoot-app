@@ -9,9 +9,12 @@ import { TryOnResultSection } from './tryFabricPanel/TryOnResultSection';
 import { TryOnTemplatePickerModal } from './tryFabricPanel/TryOnTemplatePickerModal';
 import { TryOnFabricPickerModal } from './tryFabricPanel/TryOnFabricPickerModal';
 import { FabricImageLibraryModal } from './tryFabricPanel/FabricImageLibraryModal';
-import { TryFabricMainCard } from './tryFabricPanel/TryFabricMainCard';
-import { useTryOnTemplatePicker } from '../hooks/useTryOnTemplatePicker';
+import { FabricTilingModal } from './FabricTilingModal';
+import type { TryOnResultFeatures } from './tryOnResult/TryOnResultFeatures';
+
+import { CUSTOM_UPLOAD_TEMPLATE_ID, useTryOnTemplatePicker } from '../hooks/useTryOnTemplatePicker';
 import { useTryOnGeneration } from '../hooks/useTryOnGeneration';
+import { firebaseService } from '../../../services/firebase';
 import {
   getFabricCategories,
   getFabricsByCategoryId,
@@ -36,7 +39,7 @@ const MAX_UPLOAD_BYTES = 5 * 1024 * 1024;
 const RECENT_TEMPLATES_KEY = 'khuyoot_tryon_recent_templates_v1';
 const MAX_RECENT_TEMPLATES = 9;
 const FREE_MAX_RECENTS = 3;
-const TEMPLATE_PICKER_PAGE_SIZE = 20;
+const TEMPLATE_PICKER_PAGE_SIZE = 24;
 const RECENT_THUMB_WIDTH = 100;
 const RECENT_THUMB_HEIGHT = 133; // matches the recent card aspect [3/4] at ~100px width
 
@@ -127,7 +130,9 @@ export type TryFabricPanelProps = {
   templates?: GarmentTemplate[];
   useExternalCards?: boolean;
   externalTemplateImageUrl?: string | null;
+  externalTemplateImageUrlForGeneration?: string | null;
   externalFabricImageUrl?: string | null;
+  selectedFabricId?: string | null;
   comparisonOverride?: {
     beforeImage?: string | null;
     afterImage?: string | null;
@@ -143,15 +148,22 @@ export type TryFabricPanelProps = {
   onMissingFabric?: () => void;
   onRequestHelp?: () => void;
   onGenerated?: (result: { jobId: string; resultImageUrl: string; resultThumbnailUrl?: string }) => void;
+  onReloadGenerations?: () => void | Promise<void>;
   modalGenerations?: GenerationItem[];
   modalGenerationsPlaceholderCount?: number;
   onModalGenerationOpen?: (url: string) => void;
   onModalGenerationSetBefore?: (url: string) => void;
   onModalGenerationSetAfter?: (url: string) => void;
+  onRefreshAfterImage?: () => void;
+  onSaveAfterImage?: () => void;
+  customPrompt?: string;
+  onCustomPromptChange?: (prompt: string) => void;
+  features?: Partial<TryOnResultFeatures>;
 };
 
-export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPanelProps>(function TryFabricPanel(props, ref) {
-  const { user, appSettings } = useApp();
+export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPanelProps>(
+  function TryFabricPanel(props, ref) {
+    const { user, appSettings } = useApp();
 
   const isSubscribed = React.useMemo(() => {
     if (!user) return false;
@@ -180,7 +192,9 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     templates: templatesProp,
     useExternalCards = false,
     externalTemplateImageUrl,
+    externalTemplateImageUrlForGeneration,
     externalFabricImageUrl,
+    selectedFabricId,
     comparisonOverride,
     onResultHelp,
     onResultToggleAdminAnchors,
@@ -191,12 +205,29 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     onMissingFabric,
     onRequestHelp,
     onGenerated,
+    onReloadGenerations,
     modalGenerations,
     modalGenerationsPlaceholderCount,
     onModalGenerationOpen,
     onModalGenerationSetBefore,
     onModalGenerationSetAfter,
+    onRefreshAfterImage,
+    onSaveAfterImage,
+    customPrompt,
+    onCustomPromptChange,
+    features,
   } = props;
+
+  const adminDriverPrompt = React.useMemo(() => {
+    const raw = (appSettings as any)?.aiTryOn?.driverPrompt;
+    return typeof raw === 'string' ? raw : '';
+  }, [appSettings]);
+
+  const effectiveCustomPrompt = React.useMemo(() => {
+    const local = typeof customPrompt === 'string' ? customPrompt.trim() : '';
+    if (local) return local;
+    return adminDriverPrompt;
+  }, [customPrompt, adminDriverPrompt]);
 
   const [fabricFile, setFabricFile] = React.useState<File | null>(null);
   const [fabricImageUrl, setFabricImageUrl] = React.useState<string | null>(null);
@@ -208,11 +239,37 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     sleeveStyle: initialOptions?.sleeveStyle || 'keep',
     fabricScale: initialOptions?.fabricScale ?? 1,
     colorPreservation: initialOptions?.colorPreservation || 'high',
+    applyMask: initialOptions?.applyMask ?? false,
+    watermarkEnabled: initialOptions?.watermarkEnabled ?? true,
+    model: initialOptions?.model ?? 'gemini-2.5-flash-image',
   });
+
+  const logEffectivePrompt = React.useCallback((reason: 'debug' | 'generate') => {
+    const local = typeof customPrompt === 'string' ? customPrompt.trim() : '';
+    const admin = typeof adminDriverPrompt === 'string' ? adminDriverPrompt.trim() : '';
+    const effective = typeof effectiveCustomPrompt === 'string' ? effectiveCustomPrompt : '';
+    const source = local ? 'customPrompt (UI override)' : admin ? 'adminDriverPrompt (saved settings)' : 'empty';
+
+    try {
+      // Always show a visible line (no collapsed group required)
+      console.log(`[TryOn] effective prompt sent (${reason}):`, effective);
+
+      console.group(`[TryOn] Driver prompt (${reason})`);
+      console.log('source:', source);
+      console.log('model:', options.model);
+      console.log('saved admin driverPrompt:', admin);
+      console.log('UI customPrompt:', local);
+      console.log('effective prompt sent:', effective);
+      console.groupEnd();
+    } catch {
+      // ignore
+    }
+  }, [adminDriverPrompt, customPrompt, effectiveCustomPrompt, options.model]);
 
   const portalTarget = typeof document !== 'undefined' ? document.body : null;
 
   const [showFabricPicker, setShowFabricPicker] = React.useState(false);
+  const [showFabricTilingModal, setShowFabricTilingModal] = React.useState(false);
   const [showFabricImageLibrary, setShowFabricImageLibrary] = React.useState(false);
   const [khuyootFabricCategories, setKhuyootFabricCategories] = React.useState<KhuyootFabricCategory[]>([]);
   const [khuyootSelectedCategoryId, setKhuyootSelectedCategoryId] = React.useState<string | null>(null);
@@ -220,6 +277,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
   const [khuyootFabricsLoading, setKhuyootFabricsLoading] = React.useState(false);
   const [khuyootFabricsError, setKhuyootFabricsError] = React.useState<string | null>(null);
   const [showDebugView, setShowDebugView] = React.useState(false);
+  const [debugPanelCollapsed, setDebugPanelCollapsed] = React.useState(true);
   const overlayScrollPositionRef = React.useRef<number>(0);
   const topRef = React.useRef<HTMLDivElement>(null);
   const resultRef = React.useRef<HTMLDivElement>(null);
@@ -290,8 +348,6 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     templateSidePreviewLoading,
     setTemplateSidePreviewLoading,
     templatePickerLeftScrollRef,
-    templatePickerLeftScrollThumb,
-    updateTemplatePickerLeftScrollThumb,
     recentTemplates,
     setRecentTemplates,
     showAllRecents,
@@ -299,11 +355,14 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     saveTemplateToHistory,
     setSaveTemplateToHistory,
     upsertRecentTemplate,
+    cachedTemplateThumbnailById,
     pagedCuratedTemplateItems,
     templatePickerTotalPages,
     resolvedTemplateImageUrl,
+    resolvedTemplateThumbnailUrlForUi,
     resolvedTemplateIdToApply,
     canSubmitTemplate,
+    cacheTemplateThumbnail,
     handleTemplateSelect: handleTemplateSelectInner,
     handleRecentClick: handleRecentClickInner,
   } = templatePicker;
@@ -331,6 +390,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     initialTemplateHeight,
     initialOptions,
     externalTemplateImageUrl: externalTemplateImageUrl ?? null,
+    externalTemplateImageUrlForGeneration: externalTemplateImageUrlForGeneration ?? null,
     externalFabricImageUrl: externalFabricImageUrl ?? null,
     selectedTemplateId,
     templates: generationTemplates,
@@ -338,12 +398,16 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     customTemplatePreview,
     fabricFile,
     fabricImageUrl,
+    selectedFabricId,
     options,
+    customPrompt: effectiveCustomPrompt,
+    comparisonBeforeImageUrl: comparisonOverride?.beforeImage ?? null,
     validateFabricFile: validateFile,
     resultRef,
     topRef,
     onApplyResult,
     onGenerated,
+    onReloadGenerations,
     onMissingTemplate,
     onMissingFabric,
     createCoverThumbnailDataUrl,
@@ -352,6 +416,11 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     recentThumbWidth: RECENT_THUMB_WIDTH,
     recentThumbHeight: RECENT_THUMB_HEIGHT,
   });
+
+  const handleRetryWithPromptLog = React.useCallback(() => {
+    logEffectivePrompt('generate');
+    retry();
+  }, [logEffectivePrompt, retry]);
 
   const onTemplateUpload = React.useCallback((file: File | null) => {
     setAnimateReveal(false);
@@ -370,7 +439,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
 
   // Prevent mobile background scrolling when our custom overlays are open.
   React.useEffect(() => {
-    const anyOverlayOpen = showTemplateImageLibrary || showFabricPicker;
+    const anyOverlayOpen = showTemplateImageLibrary || showFabricPicker || showFabricTilingModal;
     if (!anyOverlayOpen) return;
 
     overlayScrollPositionRef.current = window.scrollY;
@@ -386,7 +455,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
       document.body.style.overflow = '';
       window.scrollTo(0, overlayScrollPositionRef.current);
     };
-  }, [showTemplateImageLibrary, showFabricPicker]);
+  }, [showTemplateImageLibrary, showFabricPicker, showFabricTilingModal]);
 
   // Load persisted state from localStorage on mount
   React.useEffect(() => {
@@ -394,7 +463,14 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
       const savedState = localStorage.getItem('khuyoot_tryfabric_state');
       if (savedState) {
         const parsed = JSON.parse(savedState);
-        if (parsed.result) setResult(parsed.result);
+        // If the last saved result was a failure (e.g., missing template), drop it to avoid showing stale error on refresh.
+        if (parsed.result && parsed.result.status !== 'failed') {
+          setResult(parsed.result);
+        } else if (parsed.result && parsed.result.status === 'failed') {
+          // Clean up the bad persisted state so it doesn't reappear.
+          const { result: _removed, ...rest } = parsed;
+          localStorage.setItem('khuyoot_tryfabric_state', JSON.stringify(rest));
+        }
         if (parsed.customTemplatePreview) setCustomTemplatePreview(parsed.customTemplatePreview);
         if (parsed.fabricImageUrl) setFabricImageUrl(parsed.fabricImageUrl);
         if (parsed.fabricPreview) setFabricPreview(parsed.fabricPreview);
@@ -563,15 +639,60 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
   const closeTemplatePicker = React.useCallback(() => setShowTemplateImageLibrary(false), []);
   const closeFabricPicker = React.useCallback(() => setShowFabricPicker(false), []);
   const closeFabricImageLibrary = React.useCallback(() => setShowFabricImageLibrary(false), []);
+  const closeFabricTilingModal = React.useCallback(() => setShowFabricTilingModal(false), []);
 
-  const confirmTemplateSelection = React.useCallback(() => {
-    if (!resolvedTemplateImageUrl || !resolvedTemplateIdToApply) return;
+  const onApplyTiledFabric = React.useCallback((tiledDataUrl: string) => {
+    setAnimateReveal(false);
+    setFabricError(null);
+    setFabricFile(null);
+    setFabricImageUrl(tiledDataUrl);
+    setFabricPreview(tiledDataUrl);
+    setShowFabricTilingModal(false);
+  }, [setAnimateReveal]);
+
+  const confirmTemplateSelection = React.useCallback((override?: { templateId: string; templateImageUrl: string; originalImageUrl?: string }) => {
+    const templateId = override?.templateId || resolvedTemplateIdToApply;
+    const templateImageUrl = override?.templateImageUrl || resolvedTemplateImageUrl;
+    if (!templateId || !templateImageUrl) return;
     onTemplateSubmit?.({
-      templateId: resolvedTemplateIdToApply,
-      templateImageUrl: resolvedTemplateImageUrl,
+      templateId,
+      templateImageUrl,
+      originalImageUrl: override?.originalImageUrl,
     });
     closeTemplatePicker();
   }, [resolvedTemplateImageUrl, resolvedTemplateIdToApply, onTemplateSubmit, closeTemplatePicker]);
+
+  const lastAutoSubmittedUploadRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!customTemplatePreview || !customTemplateFile) {
+      lastAutoSubmittedUploadRef.current = null;
+      return;
+    }
+
+    // Prevent duplicate submits for the same upload.
+    if (lastAutoSubmittedUploadRef.current === customTemplatePreview) return;
+    lastAutoSubmittedUploadRef.current = customTemplatePreview;
+
+    // Save user template to Firebase
+    (async () => {
+      try {
+        if (templatePicker.saveUserUploadedTemplate) {
+          console.log('[TryFabricPanel] Saving uploaded template to Firebase');
+          await templatePicker.saveUserUploadedTemplate(customTemplateFile, customTemplateFile.name);
+          console.log('[TryFabricPanel] Template saved successfully');
+        }
+      } catch (error) {
+        console.error('[TryFabricPanel] Error saving template to Firebase:', error);
+        // Continue even if Firebase save fails - still use local template
+      }
+    })();
+
+    confirmTemplateSelection({
+      templateId: CUSTOM_UPLOAD_TEMPLATE_ID,
+      templateImageUrl: customTemplatePreview,
+      originalImageUrl: customTemplatePreview,
+    });
+  }, [confirmTemplateSelection, customTemplateFile, customTemplatePreview, templatePicker]);
 
   const onSelectFabricFromImageLibrary = React.useCallback((url: string) => {
     onFabricUrlSelect(url);
@@ -614,8 +735,6 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
 
   const templatePickerContentProps = React.useMemo(() => ({
     templatePickerLeftScrollRef,
-    updateTemplatePickerLeftScrollThumb,
-    templatePickerLeftScrollThumb,
     templateUploadInputRef,
     handleTemplateDrop,
     handleTemplateDragOver,
@@ -641,9 +760,21 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     onRecentClick: handleRecentClick,
     validateTemplateFile,
     onTemplateUpload,
+    cachedTemplateThumbnailById,
     pagedCuratedTemplateItems,
     selectedTemplateId,
     onSelectTemplateItem: handleTemplateSelect,
+    onConfirmTemplateItem: (item: any) => {
+      if (item?.isLocked) {
+        handleTemplateSelect(item);
+        return;
+      }
+      handleTemplateSelect(item);
+      // Use thumbnailUrl for optimized display, but pass full imageUrl for large version download
+      const templateImageUrl = item.thumbnailUrl || item.imageUrl;
+      const originalImageUrl = item.imageUrl; // Full URL for getting large version
+      confirmTemplateSelection({ templateId: item.id, templateImageUrl, originalImageUrl });
+    },
     templatePickerTotalPages,
     templatePickerPage,
     setTemplatePickerPage,
@@ -654,10 +785,30 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     setTemplateSidePreviewLoading,
     canSubmitTemplate,
     onConfirmTemplate: confirmTemplateSelection,
+    // User templates
+    userTemplates: templatePicker.userTemplates,
+    userTemplatesLoading: templatePicker.userTemplatesLoading,
+    onSelectUserTemplate: (item: any) => {
+      handleTemplateSelect(item);
+      const templateImageUrl = item.thumbnailUrl || item.imageUrl;
+      confirmTemplateSelection({ templateId: item.id, templateImageUrl, originalImageUrl: item.imageUrl });
+    },
+    onDeleteUserTemplate: async (templateId: string) => {
+      try {
+        await firebaseService.deleteUserTemplate(templateId);
+        // Reload user templates
+        const currentUser = firebaseService.auth?.currentUser;
+        if (currentUser?.uid) {
+          const updatedTemplates = await firebaseService.getUserTemplates(currentUser.uid);
+          // The hook will auto-update this through its fetch
+        }
+      } catch (error) {
+        console.error('Error deleting user template:', error);
+        alert('خطأ في حذف القالب');
+      }
+    },
   }), [
     templatePickerLeftScrollRef,
-    updateTemplatePickerLeftScrollThumb,
-    templatePickerLeftScrollThumb,
     templateUploadInputRef,
     handleTemplateDrop,
     handleTemplateDragOver,
@@ -673,6 +824,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     recentTemplates,
     showAllRecents,
     maxRecentTemplates,
+    cachedTemplateThumbnailById,
     pagedCuratedTemplateItems,
     selectedTemplateId,
     handleTemplateSelect,
@@ -685,6 +837,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     handleRecentClick,
     validateTemplateFile,
     onTemplateUpload,
+    templatePicker,
   ]);
 
   const templatePickerModal = (
@@ -738,10 +891,19 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
     />
   );
 
+  const fabricTilingModal = (
+    <FabricTilingModal
+      isOpen={showFabricTilingModal}
+      onClose={closeFabricTilingModal}
+      imageUrl={(fabricPreview || fabricImageUrl || externalFabricImageUrl) ?? null}
+      onApply={onApplyTiledFabric}
+    />
+  );
+
   const resultOriginalImageUrl = React.useMemo(() => {
-    if (useExternalCards) return externalTemplateImageUrl || undefined;
-    return customTemplatePreview || (selectedTemplateId ? templates.find(t => t.id === selectedTemplateId)?.imageUrl : undefined);
-  }, [useExternalCards, externalTemplateImageUrl, customTemplatePreview, selectedTemplateId, templates]);
+    // Prefer the currently selected/preview image (full or data URL) for the before panel; fall back to cached thumb.
+    return (resolvedTemplateImageUrl || resolvedTemplateThumbnailUrlForUi || null) || undefined;
+  }, [resolvedTemplateImageUrl, resolvedTemplateThumbnailUrlForUi]);
 
   const fabricSelectCard = !useExternalCards ? (
     <FabricSelectCard
@@ -759,8 +921,46 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
       {templatePickerModal}
       {fabricImageLibraryModal}
       {fabricPickerModal}
+      {fabricTilingModal}
 
-      <TryFabricMainCard fabricSelectCard={fabricSelectCard ?? undefined} onRequestHelp={onRequestHelp} />
+      {/* DEBUG PANEL: Show full URLs being sent to API - collapsible - HIDDEN ON MOBILE */}
+      {(resolvedTemplateImageUrl || fabricImageUrl || externalFabricImageUrl) && (
+        <div className="hidden md:block fixed top-0 left-0 right-0 z-50 bg-blue-900 text-white text-xs font-mono border-b-2 border-blue-700">
+          {/* Header with toggle */}
+          <button
+            onClick={() => setDebugPanelCollapsed(!debugPanelCollapsed)}
+            className="w-full flex items-center gap-2 p-2 hover:bg-blue-800 transition-colors"
+          >
+            <span className={`inline-block transition-transform ${debugPanelCollapsed ? '' : 'rotate-90'}`}>▶</span>
+            <span className="font-bold">🔍 DEBUG: API URLs</span>
+          </button>
+
+          {/* Collapsible content */}
+          {!debugPanelCollapsed && (
+            <div className="p-3 max-h-80 overflow-y-auto space-y-2 border-t border-blue-700 bg-blue-950">
+              <div className="bg-blue-800 p-2 rounded">
+                <div className="font-bold text-blue-200 mb-1">Template ID:</div>
+                <div className="break-all text-blue-100 text-[10px]">{selectedTemplateId || 'N/A'}</div>
+              </div>
+
+              <div className="bg-blue-800 p-2 rounded">
+                <div className="font-bold text-blue-200 mb-1">Template URL:</div>
+                <div className="break-all text-blue-100 whitespace-pre-wrap text-[10px]">{resolvedTemplateImageUrl || 'No URL'}</div>
+              </div>
+
+              <div className="bg-blue-800 p-2 rounded">
+                <div className="font-bold text-blue-200 mb-1">Fabric URL:</div>
+                <div className="break-all text-blue-100 whitespace-pre-wrap text-[10px]">{fabricImageUrl || externalFabricImageUrl || 'No URL'}</div>
+              </div>
+
+              <div className="bg-blue-800 p-2 rounded">
+                <div className="font-bold text-blue-200 mb-1">Template Dimensions:</div>
+                <div className="text-blue-100 text-[10px]">{initialTemplateWidth}x{initialTemplateHeight}</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       <TryOnResultSection
         ref={resultRef}
@@ -777,15 +977,28 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
         onToggleAdminAnchors={onResultToggleAdminAnchors}
         showAdminAnchors={!!showAdminAnchors}
         onSaveToProject={saveToProject}
-        onRetry={retry}
+        onRetry={handleRetryWithPromptLog}
+        onDebugPrompt={() => logEffectivePrompt('debug')}
+        applyMask={options.applyMask === true}
+        onApplyMaskChange={(v) => setOptions((prev) => ({ ...prev, applyMask: v }))}
+        watermarkEnabled={options.watermarkEnabled !== false}
+        onWatermarkChange={(v) => setOptions((prev) => ({ ...prev, watermarkEnabled: v }))}
+        selectedModel={options.model}
+        onModelChange={(v) => setOptions((prev) => ({ ...prev, model: v }))}
+        customPrompt={effectiveCustomPrompt || ''}
+        onCustomPromptChange={onCustomPromptChange}
         animateReveal={animateReveal}
         modalGenerations={modalGenerations}
         modalGenerationsPlaceholderCount={modalGenerationsPlaceholderCount}
         onModalGenerationOpen={onModalGenerationOpen}
         onModalGenerationSetBefore={onModalGenerationSetBefore}
         onModalGenerationSetAfter={onModalGenerationSetAfter}
+        onRefreshAfterImage={onRefreshAfterImage}
+        onSaveAfterImage={onSaveAfterImage}
         onOpenTemplatePicker={() => setShowTemplateImageLibrary(true)}
         onOpenFabricPicker={() => setShowFabricPicker(true)}
+        onOpenFabricTiling={() => setShowFabricTilingModal(true)}
+        features={features}
       />
     </div>
   );

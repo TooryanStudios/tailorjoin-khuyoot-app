@@ -4,6 +4,7 @@ import { Button } from '../../../../components/Button';
 import { FabricScaleControl } from '../../../../components/FabricScaleControl';
 import { FabricPatternSettings } from '../../../../types';
 import { AdminAnchor } from '../AdminAnchor';
+import { StableImage } from '../../../../src/components/StableImage';
 
 interface FabricSectionProps {
   anchorId?: string;
@@ -75,7 +76,13 @@ export const FabricSection: React.FC<FabricSectionProps> = ({
               className="w-20 h-20 rounded-lg border-2 border-slate-200 overflow-hidden cursor-pointer hover:border-emerald-500 transition-colors flex-none"
             >
               {fabricImage ? (
-                <img src={fabricImage} className="w-full h-full object-cover" />
+                <StableImage
+                  src={fabricImage}
+                  alt={fabricLabel || 'صورة القماش'}
+                  aspectClass="h-full"
+                  className="w-full h-full"
+                  imgClassName="object-cover"
+                />
               ) : (
                 <div className="w-full h-full bg-slate-100 flex items-center justify-center">
                   <Palette size={20} className="text-slate-400" />

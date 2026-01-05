@@ -1,6 +1,9 @@
 import 'dotenv/config';
 import http from 'node:http';
 import { handleTryOnFabric } from './tryon/tryonHandler';
+import { handleUpscale } from './upscale/upscaleHandler';
+import { handleFabricSwap } from './fabricSwap/fabricSwapHandler';
+import { getFirestore, verifyFirebaseIdToken } from './tryon/firebaseAdmin';
 
 console.log('Starting Try-On API dev server...');
 console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
@@ -296,6 +299,154 @@ const server = http.createServer(async (req, res) => {
     } catch (e: any) {
       res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ jobId: 'n/a', status: 'failed', error: e?.message || 'Server error' }));
+    }
+    return;
+  }
+  
+  // Upscale endpoint
+  if (req.url.startsWith('/api/upscale') && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const ip =
+        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
+        (req.socket?.remoteAddress || 'unknown');
+
+      const { status, json } = await handleUpscale(body, { ip, headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (err: any) {
+      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  // Designer V2.1 Fabric Swap endpoint
+  if (req.url.startsWith('/api/designer-v2-1/swap') && req.method === 'POST') {
+    try {
+      const body = await readJsonBody(req);
+      const ip =
+        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
+        (req.socket?.remoteAddress || 'unknown');
+
+      const { status, json } = await handleFabricSwap(body, { ip, headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (err: any) {
+      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  // Designer V2.1 History endpoint
+  if (req.url.startsWith('/api/designer-v2-1/history') && (req.method === 'GET' || req.method === 'DELETE')) {
+    try {
+      const historyHandler = await import('../api/designer-v2-1/history.js');
+      await historyHandler.default(req as any, res);
+    } catch (err: any) {
+      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  // Designer V2.1 Upscale endpoint
+  if (req.url.startsWith('/api/designer-v2-1/upscale') && req.method === 'POST') {
+    try {
+      const upscaleHandler = await import('../api/designer-v2-1/upscale.js');
+      await upscaleHandler.default(req as any, res);
+    } catch (err: any) {
+      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  // Credits: Upgrade bonus (adds 200 credits to the authenticated user)
+  if (req.url.startsWith('/api/credits/upgrade-bonus') && req.method === 'POST') {
+    setCors(res);
+    try {
+      const authHeader = String(req.headers.authorization || '');
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+      if (!token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
+        return;
+      }
+
+      const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded?.uid) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token' }));
+        return;
+      }
+
+      // Body is optional; allow overriding amount for dev, default 200.
+      let body: any = {};
+      try {
+        body = await readJsonBody(req, 64 * 1024);
+      } catch {
+        body = {};
+      }
+
+      const uid = decoded.uid;
+      const amountRaw = typeof body?.amount === 'number' ? body.amount : 200;
+      const amount = Math.max(1, Math.floor(amountRaw));
+      const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'Upgrade bonus';
+
+      const db = getFirestore();
+      const profileRef = db.collection('user_profiles').doc(uid);
+      const txRef = db.collection('credit_transactions').doc();
+
+      const result = await db.runTransaction(async (tx) => {
+        const snap = await tx.get(profileRef);
+        const current = snap.exists ? (snap.data() as any) : null;
+        const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
+        const newBalance = Math.max(0, currentBalance + amount);
+
+        if (snap.exists) {
+          tx.set(
+            profileRef,
+            {
+              user_id: uid,
+              credit_balance: newBalance,
+              updatedAt: new Date(),
+            },
+            { merge: true }
+          );
+        } else {
+          tx.set(profileRef, {
+            user_id: uid,
+            credit_balance: newBalance,
+            tier: 'Free',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          });
+        }
+
+        tx.set(txRef, {
+          transaction_id: txRef.id,
+          user_id: uid,
+          amount,
+          action_type: 'UPGRADE_BONUS',
+          status: 'completed',
+          meta: {
+            reason,
+            source: 'upgrade_modal',
+          },
+          createdAt: new Date(),
+          updatedAt: new Date(),
+        });
+
+        return { new_balance: newBalance, transaction_id: txRef.id };
+      });
+
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, ...result }));
+    } catch (err: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
     }
     return;
   }

@@ -2,6 +2,7 @@ import React from 'react';
 import { firebaseService } from '../../../services/firebase';
 import { GARMENT_TEMPLATES } from '../templates/garmentTemplates';
 import type { TemplatePickerItem } from '../components/TemplatePicker';
+import { getOptimizedImageUrl, preloadImage } from '../../utils/imageOptimization';
 
 export type GarmentTemplate = {
   id: string;
@@ -13,12 +14,25 @@ export type GarmentTemplate = {
   isPremium?: boolean;
 };
 
+export const CUSTOM_UPLOAD_TEMPLATE_ID = 'custom-upload';
+
 const isLikelyStorableUrl = (url: string): boolean => {
   if (!url) return false;
   if (url.startsWith('blob:')) return false;
   if (url.startsWith('data:image/')) return true;
   if (url.startsWith('http://') || url.startsWith('https://')) return true;
   return false;
+};
+
+// Add this helper to detect slow connections
+const getNetworkStatus = () => {
+  const conn = (navigator as any).connection;
+  if (!conn) return { slow: false, saveData: false };
+  return {
+    // Treat 2g or slow-3g as "slow"
+    slow: conn.effectiveType === '2g' || conn.effectiveType === 'slow-2g',
+    saveData: conn.saveData === true
+  };
 };
 
 export function useTryOnTemplatePicker(params: {
@@ -49,6 +63,9 @@ export function useTryOnTemplatePicker(params: {
     Array.isArray(templatesProp) && templatesProp.length > 0 ? templatesProp : (GARMENT_TEMPLATES as any)
   );
   const [templatesLoading, setTemplatesLoading] = React.useState(false);
+  
+  const [userTemplates, setUserTemplates] = React.useState<GarmentTemplate[]>([]);
+  const [userTemplatesLoading, setUserTemplatesLoading] = React.useState(false);
 
   const [selectedTemplateId, setSelectedTemplateId] = React.useState<string | null>(initialTemplateId || null);
   const [customTemplateFile, setCustomTemplateFile] = React.useState<File | null>(null);
@@ -64,16 +81,104 @@ export function useTryOnTemplatePicker(params: {
   const [templateDragActive, setTemplateDragActive] = React.useState(false);
 
   const templatePickerLeftScrollRef = React.useRef<HTMLDivElement | null>(null);
-  const [templatePickerLeftScrollThumb, setTemplatePickerLeftScrollThumb] = React.useState<{
-    hasOverflow: boolean;
-    topPx: number;
-    heightPx: number;
-  }>({ hasOverflow: false, topPx: 0, heightPx: 0 });
 
   const templateUploadInputRef = React.useRef<HTMLInputElement | null>(null);
 
   const [showTemplateImageLibrary, setShowTemplateImageLibrary] = React.useState(false);
   const [templatePickerPage, setTemplatePickerPage] = React.useState(1);
+  const prevShowTemplateImageLibraryRef = React.useRef<boolean>(false);
+
+  const [cachedTemplateThumbnailById, setCachedTemplateThumbnailById] = React.useState<Record<string, string>>({});
+  const cachedTemplateThumbnailByIdRef = React.useRef<Record<string, string>>({});
+  const cachedTemplateThumbDirtyIdsRef = React.useRef<Set<string>>(new Set());
+
+  const thumbCacheFlushTimerRef = React.useRef<number | null>(null);
+  const scheduleThumbCacheFlush = React.useCallback((mode: 'immediate' | 'debounced' = 'debounced') => {
+    if (thumbCacheFlushTimerRef.current !== null) return;
+    const delayMs = mode === 'immediate' ? 0 : 120;
+    thumbCacheFlushTimerRef.current = window.setTimeout(() => {
+      thumbCacheFlushTimerRef.current = null;
+
+      const flush = () => {
+        setCachedTemplateThumbnailById((prev) => {
+          const dirtySet = cachedTemplateThumbDirtyIdsRef.current;
+          if (dirtySet.size === 0) return prev;
+
+          // Snapshot IDs to avoid dropping updates added while flushing.
+          const dirtyIds = Array.from(dirtySet);
+
+          let next: Record<string, string> | null = null;
+          dirtyIds.forEach((id: string) => {
+            const value = cachedTemplateThumbnailByIdRef.current[id];
+            // Mark id as processed regardless; if it becomes dirty again it will be re-added.
+            dirtySet.delete(id);
+            if (!value) return;
+            if (prev[id] === value) return;
+            if (!next) next = { ...prev };
+            next[id] = value;
+          });
+          return next ?? prev;
+        });
+      };
+
+      // Make cache flush low priority to keep the picker interactions snappy.
+      if (typeof (React as any).startTransition === 'function') {
+        (React as any).startTransition(flush);
+      } else {
+        flush();
+      }
+    }, delayMs);
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      if (thumbCacheFlushTimerRef.current !== null) {
+        window.clearTimeout(thumbCacheFlushTimerRef.current);
+        thumbCacheFlushTimerRef.current = null;
+      }
+      Object.values(cachedTemplateThumbnailByIdRef.current).forEach((url) => {
+        if (typeof url === 'string' && url.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(url);
+          } catch {
+            // ignore
+          }
+        }
+      });
+    };
+  }, []);
+
+  const cacheTemplateThumbnail = React.useCallback(async (
+    id: string,
+    sourceUrl: string | null | undefined,
+    options?: { commit?: 'immediate' | 'debounced'; signal?: AbortSignal }
+  ) => {
+    if (!id || !sourceUrl) return;
+
+    // Check in-memory cache first
+    if (cachedTemplateThumbnailByIdRef.current[id]) return;
+
+    const commitMode = options?.commit ?? 'debounced';
+
+    // Handle blob/data URLs directly
+    if (sourceUrl.startsWith('blob:') || sourceUrl.startsWith('data:image/')) {
+      if (cachedTemplateThumbnailByIdRef.current[id] === sourceUrl) return;
+      cachedTemplateThumbnailByIdRef.current[id] = sourceUrl;
+      cachedTemplateThumbDirtyIdsRef.current.add(id);
+      scheduleThumbCacheFlush(commitMode);
+      return;
+    }
+
+    // Get optimized thumbnail URL (WebP, 300x400)
+    // If it doesn't exist, browser's <img> error handler will fall back to original
+    const optimizedUrl = getOptimizedImageUrl(sourceUrl, 'thumbnail');
+    const urlToUse = optimizedUrl || sourceUrl;
+
+    // Store URL (no preloading - let browser handle it)
+    cachedTemplateThumbnailByIdRef.current[id] = urlToUse;
+    cachedTemplateThumbDirtyIdsRef.current.add(id);
+    scheduleThumbCacheFlush(commitMode);
+  }, [scheduleThumbCacheFlush]);
 
   const [recentTemplates, setRecentTemplates] = React.useState<
     Array<{ id: string; imageUrl: string; thumbnailUrl?: string | null; name?: string; ts: number }>
@@ -118,6 +223,48 @@ export function useTryOnTemplatePicker(params: {
     };
   }, []);
 
+  // Load user-uploaded templates from Firestore
+  React.useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      try {
+        if (!firebaseService.isInitialized()) return;
+        const currentUser = firebaseService.auth?.currentUser;
+        if (!currentUser?.uid) return;
+
+        setUserTemplatesLoading(true);
+        const list = await firebaseService.getUserTemplates(currentUser.uid);
+        if (cancelled) return;
+
+        if (list && list.length > 0) {
+          setUserTemplates(
+            list.map((t) => ({
+              id: t.id,
+              name: t.name,
+              imageUrl: t.imageUrl,
+              thumbnailUrl: (t.thumbnailUrl || t.imageUrl) as any,
+              enabled: true,
+              order: undefined,
+              isPremium: false,
+            }))
+          );
+        } else {
+          setUserTemplates([]);
+        }
+      } catch (error) {
+        console.error('Error loading user templates from Firestore:', error);
+        setUserTemplates([]);
+      } finally {
+        if (!cancelled) setUserTemplatesLoading(false);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   // Keep template preview loading state in sync.
   React.useEffect(() => {
     if (!customTemplatePreview) {
@@ -134,16 +281,7 @@ export function useTryOnTemplatePicker(params: {
     }
   }, [customTemplatePreview]);
 
-  // When opening the template library, jump to the page containing the selected template.
-  React.useEffect(() => {
-    if (!showTemplateImageLibrary) return;
-    const idx = selectedTemplateId ? templates.findIndex((t) => t.id === selectedTemplateId) : -1;
-    if (idx >= 0) {
-      setTemplatePickerPage(Math.floor(idx / templatePickerPageSize) + 1);
-    } else {
-      setTemplatePickerPage(1);
-    }
-  }, [showTemplateImageLibrary, selectedTemplateId, templates, templatePickerPageSize]);
+  // (Moved) Jump-to-selected-page now runs only on open, and uses curated ordering.
 
   // External-mode: keep panel in sync with the designer's selected template id.
   React.useEffect(() => {
@@ -271,7 +409,9 @@ export function useTryOnTemplatePicker(params: {
     setSelectedTemplateId(item.id);
     setCustomTemplateFile(null);
     setCustomTemplatePreview(null);
-  }, []);
+
+    void cacheTemplateThumbnail(item.id, item.thumbnailUrl || item.imageUrl, { commit: 'immediate' });
+  }, [cacheTemplateThumbnail]);
 
   const handleRecentClick = React.useCallback((item: { id: string; imageUrl: string; name?: string }) => {
     const existsInLibrary = templates.some((t) => (t as any).id === item.id);
@@ -295,6 +435,31 @@ export function useTryOnTemplatePicker(params: {
     return null;
   }, [customTemplatePreview, selectedTemplateId, templates, useExternalCards, externalTemplateImageUrl]);
 
+  const resolvedTemplateThumbnailUrlForUi = React.useMemo(() => {
+    if (customTemplatePreview) return customTemplatePreview;
+    // If using external cards (like from DesignerV2), use the external URL
+    if (useExternalCards) return externalTemplateImageUrl || null;
+    const id = (selectedTemplateId || initialTemplateId || null) as string | null;
+    if (!id) return null;
+    return cachedTemplateThumbnailById[id] || null;
+  }, [customTemplatePreview, useExternalCards, externalTemplateImageUrl, selectedTemplateId, initialTemplateId, cachedTemplateThumbnailById, templates]);
+
+  // Always try to keep the currently-selected template's thumbnail cached.
+  // UI preview intentionally uses ONLY the cached blob/data URL (never the real http(s) URL).
+  React.useEffect(() => {
+    if (customTemplatePreview) return;
+
+    const id = (selectedTemplateId || initialTemplateId || null) as string | null;
+    if (!id) return;
+    if (cachedTemplateThumbnailByIdRef.current[id]) return;
+
+    const sourceUrl = useExternalCards
+      ? (externalTemplateImageUrl || null)
+      : (templates.find((t) => t.id === id)?.thumbnailUrl || templates.find((t) => t.id === id)?.imageUrl || null);
+
+    void cacheTemplateThumbnail(id, sourceUrl, { commit: 'immediate' });
+  }, [customTemplatePreview, selectedTemplateId, initialTemplateId, useExternalCards, externalTemplateImageUrl, templates, cacheTemplateThumbnail]);
+
   // Keep right-side preview spinner in sync.
   React.useEffect(() => {
     if (!showTemplateImageLibrary) {
@@ -316,53 +481,12 @@ export function useTryOnTemplatePicker(params: {
     }
   }, [showTemplateImageLibrary, resolvedTemplateImageUrl]);
 
-  const updateTemplatePickerLeftScrollThumb = React.useCallback(() => {
-    const el = templatePickerLeftScrollRef.current;
-    if (!el) return;
-
-    const scrollHeight = el.scrollHeight;
-    const clientHeight = el.clientHeight;
-    const maxScrollTop = Math.max(0, scrollHeight - clientHeight);
-
-    if (maxScrollTop <= 1) {
-      setTemplatePickerLeftScrollThumb({ hasOverflow: false, topPx: 0, heightPx: 0 });
-      return;
-    }
-
-    const trackInset = 8;
-    const trackHeight = Math.max(0, clientHeight - trackInset * 2);
-    const minThumb = 18;
-    const thumbHeight = Math.max(minThumb, Math.round((clientHeight / scrollHeight) * trackHeight));
-    const maxThumbTop = Math.max(0, trackHeight - thumbHeight);
-    const thumbTopWithinTrack = maxScrollTop > 0 ? Math.round((el.scrollTop / maxScrollTop) * maxThumbTop) : 0;
-
-    setTemplatePickerLeftScrollThumb({
-      hasOverflow: true,
-      topPx: trackInset + thumbTopWithinTrack,
-      heightPx: thumbHeight,
-    });
-  }, []);
-
-  React.useEffect(() => {
-    if (!showTemplateImageLibrary) return;
-
-    const t = window.setTimeout(updateTemplatePickerLeftScrollThumb, 0);
-    window.addEventListener('resize', updateTemplatePickerLeftScrollThumb);
-
-    const el = templatePickerLeftScrollRef.current;
-    const ro = typeof ResizeObserver !== 'undefined' && el ? new ResizeObserver(() => updateTemplatePickerLeftScrollThumb()) : null;
-    if (ro && el) ro.observe(el);
-
-    return () => {
-      window.clearTimeout(t);
-      window.removeEventListener('resize', updateTemplatePickerLeftScrollThumb);
-      if (ro) ro.disconnect();
-    };
-  }, [showTemplateImageLibrary, updateTemplatePickerLeftScrollThumb]);
 
   const curatedTemplateItems = React.useMemo(() => {
     const userIsPremium = isSubscribed;
-    const all: TemplatePickerItem[] = (templates || []).map((t) => ({
+    
+    // Admin-managed templates
+    const adminTemplates: TemplatePickerItem[] = (templates || []).map((t) => ({
       id: t.id,
       name: t.name,
       imageUrl: t.imageUrl,
@@ -371,10 +495,153 @@ export function useTryOnTemplatePicker(params: {
       isLocked: t.isPremium === true && !userIsPremium,
     }));
 
+    // User-uploaded templates (always free, always available)
+    const userUploads: TemplatePickerItem[] = (userTemplates || []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      imageUrl: t.imageUrl,
+      thumbnailUrl: t.thumbnailUrl || t.imageUrl,
+      isPremium: false,
+      isLocked: false,
+    }));
+
+    // Combine: user uploads first, then admin templates
+    const all = [...userUploads, ...adminTemplates];
     const free = all.filter((x) => !x.isPremium);
     const premium = all.filter((x) => x.isPremium);
     return [...free, ...premium];
-  }, [templates, isSubscribed]);
+  }, [templates, userTemplates, isSubscribed]);
+
+  const prefetchTemplateThumbsInFlightRef = React.useRef<Set<string>>(new Set());
+  const firstPagePrefetchKeyRef = React.useRef<string>('');
+  const prefetchPickerWasOpenRef = React.useRef<boolean>(false);
+
+  const prefetchThumbsForItems = React.useCallback((items: TemplatePickerItem[], options: {
+    maxWorkers: number;
+    delayMs: number;
+    commit: 'immediate' | 'debounced';
+    idleTimeoutMs?: number;
+    schedule?: 'immediate' | 'idle';
+    gapMs?: number;
+  }) => {
+    if (!items || items.length === 0) return () => {};
+
+    // BANDWIDTH CHECK: Don't background download if user is on a slow connection
+    const status = getNetworkStatus();
+    // Only skip if strictly idle scheduling AND connection is confirmed slow/save-data
+    if (options.schedule === 'idle' && (status.slow || status.saveData)) {
+      return () => {};
+    }
+
+    let cancelled = false;
+    const abortController = typeof AbortController !== 'undefined' ? new AbortController() : null;
+
+    const queue = items
+      .map((item) => ({ id: item.id, url: item.thumbnailUrl || item.imageUrl }))
+      .filter(({ id, url }) => {
+        if (!url) return false;
+        if (cachedTemplateThumbnailByIdRef.current[id]) return false;
+        if (prefetchTemplateThumbsInFlightRef.current.has(id)) return false;
+        return true;
+      });
+
+    if (queue.length === 0) return () => {};
+
+    // Mark queued IDs as in-flight up-front to avoid duplicate work across overlapping prefetch calls.
+    // IMPORTANT: cleanup must remove any ids that were queued but never processed.
+    const queuedIds = new Set(queue.map((q) => q.id));
+    queuedIds.forEach((id) => prefetchTemplateThumbsInFlightRef.current.add(id));
+
+    const runWorker = async () => {
+      while (!cancelled && queue.length > 0) {
+        const next = queue.shift();
+        if (!next) break;
+
+        prefetchTemplateThumbsInFlightRef.current.add(next.id);
+        try {
+          await cacheTemplateThumbnail(next.id, next.url, { 
+            commit: options.commit, 
+            signal: abortController?.signal 
+          });
+        } finally {
+          prefetchTemplateThumbsInFlightRef.current.delete(next.id);
+          queuedIds.delete(next.id);
+        }
+        
+        // IMPORTANT: 150ms gap between downloads to prevent bandwidth spikes
+        if (options.schedule === 'idle') {
+          await new Promise(r => setTimeout(r, 150)); 
+        }
+      }
+    };
+
+    const start = async () => {
+      // Use only 1 worker for background tasks to keep it silent
+      const workerCount = Math.min(options.maxWorkers, queue.length);
+      await Promise.all(Array.from({ length: workerCount }).map(() => runWorker()));
+    };
+
+    let timeoutId: number | null = null;
+    let idleId: number | null = null;
+    const scheduleMode = options.schedule ?? 'idle';
+    const schedule = () => {
+      if (scheduleMode === 'immediate') {
+        void start();
+        return;
+      }
+
+      if (typeof (window as any).requestIdleCallback === 'function') {
+        idleId = (window as any).requestIdleCallback(
+          () => {
+            void start();
+          },
+          { timeout: options.idleTimeoutMs ?? 4000 }
+        );
+      } else {
+        timeoutId = window.setTimeout(() => {
+          void start();
+        }, 50);
+      }
+    };
+
+    timeoutId = window.setTimeout(schedule, Math.max(0, options.delayMs));
+
+    return () => {
+      cancelled = true;
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+      if (idleId !== null && typeof (window as any).cancelIdleCallback === 'function') {
+        (window as any).cancelIdleCallback(idleId);
+      }
+      try {
+        abortController?.abort();
+      } catch {
+        // ignore
+      }
+
+      // Ensure we don't leak in-flight flags for ids that never got processed.
+      queuedIds.forEach((id) => prefetchTemplateThumbsInFlightRef.current.delete(id));
+    };
+  }, [cacheTemplateThumbnail]);
+
+  // On designer visit: ensure the first 20 templates are cached in the background.
+  React.useEffect(() => {
+    // Disabled: Background prefetching removed - only download when picker is opened
+  }, [curatedTemplateItems, prefetchThumbsForItems]);
+
+  // When opening the template library, jump to the page containing the selected template.
+  // Important: do NOT re-run on every selection change, otherwise clicking a card can "jump" pages.
+  React.useEffect(() => {
+    const wasOpen = prevShowTemplateImageLibraryRef.current;
+    prevShowTemplateImageLibraryRef.current = showTemplateImageLibrary;
+    if (!showTemplateImageLibrary || wasOpen) return;
+
+    const idx = selectedTemplateId ? curatedTemplateItems.findIndex((t) => t.id === selectedTemplateId) : -1;
+    if (idx >= 0) {
+      setTemplatePickerPage(Math.floor(idx / templatePickerPageSize) + 1);
+    } else {
+      setTemplatePickerPage(1);
+    }
+  }, [showTemplateImageLibrary, selectedTemplateId, curatedTemplateItems, templatePickerPageSize]);
 
   const templatePickerTotalPages = React.useMemo(() => {
     return Math.max(1, Math.ceil(curatedTemplateItems.length / templatePickerPageSize));
@@ -389,16 +656,45 @@ export function useTryOnTemplatePicker(params: {
     return curatedTemplateItems.slice(start, start + templatePickerPageSize);
   }, [curatedTemplateItems, templatePickerPage, templatePickerPageSize]);
 
+  // When the picker is open, ensure the current page thumbnails are available.
+  // Cache-first: if missing, download in the background.
+  React.useEffect(() => {
+    if (!showTemplateImageLibrary) return;
+    if (!pagedCuratedTemplateItems || pagedCuratedTemplateItems.length === 0) return;
+
+    // Track open transitions locally for prefetch aggressiveness.
+    const wasOpen = prefetchPickerWasOpenRef.current;
+    prefetchPickerWasOpenRef.current = true;
+
+    // When picker opens, aggressively download missing images from the current page
+    // Serial (1 worker) to avoid flooding, but immediate schedule for fast completion
+    return prefetchThumbsForItems(pagedCuratedTemplateItems, {
+      maxWorkers: 1,
+      delayMs: 0,
+      commit: 'immediate',
+      schedule: 'immediate', // Changed back to immediate for visible images
+      gapMs: 50, // Faster gap for visible items
+    });
+  }, [showTemplateImageLibrary, pagedCuratedTemplateItems, prefetchThumbsForItems]);
+
+  React.useEffect(() => {
+    if (showTemplateImageLibrary) return;
+    prefetchPickerWasOpenRef.current = false;
+  }, [showTemplateImageLibrary]);
+
   const resolvedTemplateIdToApply = React.useMemo(() => {
+    if (customTemplatePreview) return CUSTOM_UPLOAD_TEMPLATE_ID;
     if (useExternalCards) return (initialTemplateId || null);
     return (selectedTemplateId || initialTemplateId || null);
-  }, [useExternalCards, selectedTemplateId, initialTemplateId]);
+  }, [customTemplatePreview, useExternalCards, selectedTemplateId, initialTemplateId]);
 
   const canSubmitTemplate = Boolean(resolvedTemplateImageUrl && resolvedTemplateIdToApply);
 
   return {
     templates,
     templatesLoading,
+
+    cachedTemplateThumbnailById,
 
     showTemplateImageLibrary,
     setShowTemplateImageLibrary,
@@ -432,8 +728,6 @@ export function useTryOnTemplatePicker(params: {
     setTemplateSidePreviewLoading,
 
     templatePickerLeftScrollRef,
-    templatePickerLeftScrollThumb,
-    updateTemplatePickerLeftScrollThumb,
 
     recentTemplates,
     setRecentTemplates,
@@ -448,10 +742,63 @@ export function useTryOnTemplatePicker(params: {
     pagedCuratedTemplateItems,
 
     resolvedTemplateImageUrl,
+    resolvedTemplateThumbnailUrlForUi,
     resolvedTemplateIdToApply,
     canSubmitTemplate,
 
     handleTemplateSelect,
     handleRecentClick,
+    cacheTemplateThumbnail,
+
+    // User templates
+    userTemplates,
+    userTemplatesLoading,
+    saveUserUploadedTemplate: async (file: File, templateName?: string) => {
+      const currentUser = firebaseService.auth?.currentUser;
+      if (!currentUser?.uid) throw new Error('Not logged in');
+
+      try {
+        console.log('[saveUserUploadedTemplate] Uploading template:', file.name);
+        
+        // Upload the image to Firebase Storage
+        const imageUrl = await firebaseService.uploadUserTemplate({
+          userId: currentUser.uid,
+          file,
+          onProgress: (progress) => console.log('[saveUserUploadedTemplate] Upload progress:', progress),
+        });
+
+        console.log('[saveUserUploadedTemplate] Image uploaded:', imageUrl);
+
+        // Save metadata to Firestore
+        const docId = await firebaseService.saveUserTemplate({
+          userId: currentUser.uid,
+          name: templateName || file.name || 'My Template',
+          imageUrl,
+        });
+
+        console.log('[saveUserUploadedTemplate] Metadata saved:', docId);
+
+        // Reload user templates
+        const updatedTemplates = await firebaseService.getUserTemplates(currentUser.uid);
+        if (updatedTemplates) {
+          setUserTemplates(
+            updatedTemplates.map((t) => ({
+              id: t.id,
+              name: t.name,
+              imageUrl: t.imageUrl,
+              thumbnailUrl: (t.thumbnailUrl || t.imageUrl) as any,
+              enabled: true,
+              order: undefined,
+              isPremium: false,
+            }))
+          );
+        }
+
+        return docId;
+      } catch (error) {
+        console.error('[saveUserUploadedTemplate] Error:', error);
+        throw error;
+      }
+    },
   };
 }

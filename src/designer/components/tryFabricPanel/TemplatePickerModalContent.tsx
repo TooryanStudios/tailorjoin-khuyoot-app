@@ -1,11 +1,70 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { TemplatePicker, type TemplatePickerItem } from '../TemplatePicker';
+import { getOptimizedImageUrl } from '../../../utils/imageOptimization';
+
+// Feature flag: Set to true after all existing images have WebP versions
+// Migration completed - WebP generation in progress (wait 5-10 min)
+const USE_WEBP_OPTIMIZATION = true;
+
+const TEMPLATE_PICKER_SCROLL_KEY_PREFIX = 'khuyoot_template_picker_scrollTop_';
+
+const RecentTemplateItem = React.memo(function RecentTemplateItem(props: {
+  item: { id: string; imageUrl: string; thumbnailUrl?: string | null; name?: string; ts: number };
+  src: string | null;
+  onRecentClick: (item: { id: string; imageUrl: string; thumbnailUrl?: string | null; name?: string; ts: number }) => void;
+  onRemove: (item: { id: string; imageUrl: string; thumbnailUrl?: string | null; name?: string; ts: number }) => void;
+}) {
+  const { item, src, onRecentClick, onRemove } = props;
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => onRecentClick(item)}
+        className="relative aspect-[3/4] w-[100px] rounded-lg overflow-hidden border-2 transition-colors border-slate-200 dark:border-slate-700 hover:border-violet-500"
+      >
+        {src ? (
+          <>
+            <img
+              src={src}
+              alt={item.name || 'recent template'}
+              className="w-full h-full object-cover"
+              loading="lazy"
+              decoding="async"
+              onError={(e) => {
+                e.currentTarget.style.display = 'none';
+                const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
+                if (fallback) fallback.style.display = 'flex';
+              }}
+            />
+            <div className="absolute inset-0 hidden items-center justify-center text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800">لا صورة</div>
+          </>
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">—</div>
+        )}
+      </button>
+
+      <button
+        type="button"
+        onClick={(e) => {
+          e.stopPropagation();
+          onRemove(item);
+        }}
+        className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-colors z-10"
+        title="حذف"
+      >
+        <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+        </svg>
+      </button>
+    </div>
+  );
+});
 
 export function TemplatePickerModalContent(props: {
+  open?: boolean;
   onClose: () => void;
   templatePickerLeftScrollRef: React.RefObject<HTMLDivElement | null>;
-  updateTemplatePickerLeftScrollThumb: () => void;
-  templatePickerLeftScrollThumb: { hasOverflow: boolean; topPx: number; heightPx: number };
   templateUploadInputRef: React.RefObject<HTMLInputElement | null>;
 
   handleTemplateDrop: (e: React.DragEvent) => void;
@@ -37,28 +96,27 @@ export function TemplatePickerModalContent(props: {
   validateTemplateFile: (f: File) => boolean;
   onTemplateUpload: (f: File) => void;
 
+  cachedTemplateThumbnailById: Record<string, string>;
+
   pagedCuratedTemplateItems: TemplatePickerItem[];
   selectedTemplateId: string | null;
   onSelectTemplateItem: (item: TemplatePickerItem) => void;
+  onConfirmTemplateItem: (item: TemplatePickerItem) => void;
 
   templatePickerTotalPages: number;
   templatePickerPage: number;
   setTemplatePickerPage: (n: number) => void;
-
-  resolvedTemplateImageUrl: string | null;
-  templateSidePreviewImgElRef: React.RefObject<HTMLImageElement | null>;
-  templateSidePreviewSrcRef: React.MutableRefObject<string | null>;
-  templateSidePreviewLoading: boolean;
-  setTemplateSidePreviewLoading: (v: boolean) => void;
-
-  canSubmitTemplate: boolean;
   onConfirmTemplate: () => void;
+
+  userTemplates: Array<{ id: string; name: string; imageUrl: string; thumbnailUrl?: string }>;
+  userTemplatesLoading: boolean;
+  onSelectUserTemplate: (item: { id: string; name: string; imageUrl: string; thumbnailUrl?: string }) => void;
+  onDeleteUserTemplate?: (templateId: string) => Promise<void>;
 }) {
   const {
+    open,
     onClose,
     templatePickerLeftScrollRef,
-    updateTemplatePickerLeftScrollThumb,
-    templatePickerLeftScrollThumb,
     templateUploadInputRef,
     handleTemplateDrop,
     handleTemplateDragOver,
@@ -84,68 +142,205 @@ export function TemplatePickerModalContent(props: {
     onRecentClick,
     validateTemplateFile,
     onTemplateUpload,
+    cachedTemplateThumbnailById,
     pagedCuratedTemplateItems,
     selectedTemplateId,
     onSelectTemplateItem,
+    onConfirmTemplateItem,
     templatePickerTotalPages,
     templatePickerPage,
     setTemplatePickerPage,
-    resolvedTemplateImageUrl,
-    templateSidePreviewImgElRef,
-    templateSidePreviewSrcRef,
-    templateSidePreviewLoading,
-    setTemplateSidePreviewLoading,
-    canSubmitTemplate,
     onConfirmTemplate,
+    userTemplates,
+    userTemplatesLoading,
+    onSelectUserTemplate,
+    onDeleteUserTemplate,
   } = props;
+
+  const [activeTab, setActiveTab] = useState<'gallery' | 'uploads'>(() => {
+    try {
+      const stored = localStorage.getItem('khuyoot_template_picker_tab');
+      return (stored === 'uploads' ? 'uploads' : 'gallery') as 'gallery' | 'uploads';
+    } catch {
+      return 'gallery';
+    }
+  });
+
+  const scrollKey = React.useMemo(() => `${TEMPLATE_PICKER_SCROLL_KEY_PREFIX}${activeTab}`, [activeTab]);
+
+  const scrollSaveTimerRef = React.useRef<number | null>(null);
+  const lastScrollTopRef = React.useRef<number>(0);
+  const scrollSampleRafRef = React.useRef<number | null>(null);
+
+  React.useEffect(() => {
+    return () => {
+      if (scrollSampleRafRef.current !== null) {
+        cancelAnimationFrame(scrollSampleRafRef.current);
+        scrollSampleRafRef.current = null;
+      }
+      if (scrollSaveTimerRef.current !== null) {
+        window.clearTimeout(scrollSaveTimerRef.current);
+        scrollSaveTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  React.useEffect(() => {
+    if (!open) return;
+    const el = templatePickerLeftScrollRef.current;
+    if (!el) return;
+
+    let stored: number | null = null;
+    try {
+      const raw = sessionStorage.getItem(scrollKey);
+      if (raw) {
+        const parsed = Number(raw);
+        if (Number.isFinite(parsed)) stored = parsed;
+      }
+    } catch {
+      // ignore
+    }
+
+    if (stored === null) {
+      return;
+    }
+
+    // Use a single RAF so DOM paints once before restoring.
+    const raf = requestAnimationFrame(() => {
+      el.scrollTop = stored || 0;
+    });
+
+    return () => cancelAnimationFrame(raf);
+  }, [open, scrollKey, templatePickerLeftScrollRef]);
+
+  const handleRemoveRecent = React.useCallback((toRemove: { id: string; imageUrl: string; thumbnailUrl?: string | null; name?: string; ts: number }) => {
+    setRecentTemplates((prev) => {
+      const next = prev.filter((r) => !(r.id === toRemove.id && r.imageUrl === toRemove.imageUrl));
+      try {
+        localStorage.setItem(recentTemplatesStorageKey, JSON.stringify(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }, [setRecentTemplates, recentTemplatesStorageKey]);
+
+  const galleryItems = React.useMemo(() => {
+    if (activeTab !== 'gallery') return [];
+    if (!pagedCuratedTemplateItems || pagedCuratedTemplateItems.length === 0) return [];
+    
+    return pagedCuratedTemplateItems.map((item) => {
+      // Use imageUrl (original) for WebP generation, not thumbnailUrl (thumb)
+      // Extension creates: original_200x300.webp, not thumb_200x300.webp
+      const sourceUrl = item.imageUrl; // Changed from thumbnailUrl to imageUrl
+      const optimizedUrl = USE_WEBP_OPTIMIZATION 
+        ? getOptimizedImageUrl(sourceUrl, 'thumbnail')
+        : null;
+      
+      return {
+        ...item,
+        // Try optimized WebP first, browser will fall back to imageUrl on error
+        thumbnailUrl: optimizedUrl || item.thumbnailUrl || item.imageUrl,
+        imageUrl: item.imageUrl, // Keep original for fallback
+      };
+    });
+  }, [activeTab, pagedCuratedTemplateItems]);
+
+  const recentItemsForRender = React.useMemo(() => {
+    const items = recentTemplates || [];
+    const max = showAllRecents ? maxRecentTemplates : 6;
+    return Array.from({ length: max }).map((_, idx) => {
+      const item = items[idx] || null;
+      if (!item) return { key: `recent-placeholder-${idx}`, item: null as any, src: null as string | null };
+
+      const raw = (item.thumbnailUrl || item.imageUrl || '') as string;
+      
+      // Use WebP optimization for URLs, keep blob/data URLs as-is
+      let src: string | null;
+      if (raw.startsWith('blob:') || raw.startsWith('data:image/')) {
+        src = raw;
+      } else {
+        src = USE_WEBP_OPTIMIZATION ? getOptimizedImageUrl(raw, 'thumbnail') : raw;
+      }
+
+      return { key: `${item.id}-${idx}`, item, src: src || null };
+    });
+  }, [recentTemplates, showAllRecents, maxRecentTemplates]);
+
+  // Persist tab choice
+  const handleTabChange = (tab: 'gallery' | 'uploads') => {
+    setActiveTab(tab);
+    try {
+      localStorage.setItem('khuyoot_template_picker_tab', tab);
+    } catch {}
+  };
+
+  const wasOpenRef = React.useRef(false);
+  React.useEffect(() => {
+    const isOpening = Boolean(open) && !wasOpenRef.current;
+    wasOpenRef.current = Boolean(open);
+    if (!isOpening) return;
+
+    // Only auto-switch to uploads tab if there's a custom template preview and we're on first open ever
+    const hasNeverSwitched = !localStorage.getItem('khuyoot_template_picker_tab');
+    if (hasNeverSwitched) {
+      const selectedIsInUploads = Boolean(customTemplatePreview) || recentTemplates.some((t) => t.id === selectedTemplateId);
+      if (selectedIsInUploads) {
+        handleTabChange('uploads');
+      }
+    }
+  }, [open, customTemplatePreview, recentTemplates, selectedTemplateId]);
 
   return (
     <>
-      <div className="absolute top-3 left-1/2 -translate-x-1/2 text-[10px] bg-violet-600 text-white px-3 py-1.5 z-[9999] rounded-full font-black shadow-2xl ring-2 ring-white/80 select-text cursor-text">
-        MODAL: TRYON-TEMPLATE-PICKER
-      </div>
-
-      <div className="flex items-center justify-between p-6 pb-4 shrink-0">
-        <h3 className="text-lg font-bold text-slate-900 dark:text-white">اختر القالب</h3>
+      <div className="flex items-center justify-between p-3 pb-2 shrink-0">
+        <h3 className="text-lg font text-slate-900 dark:text-white">اختر القالب</h3>
         <button onClick={onClose} className="text-slate-500 hover:text-slate-700">✕</button>
       </div>
-
+      
       <div
-        className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden px-6"
+        className="flex-1 min-h-0 overflow-y-auto md:overflow-hidden px-3"
         style={{
           overscrollBehavior: 'contain',
           WebkitOverflowScrolling: 'touch',
           touchAction: 'pan-y',
         }}
       >
-        <div className="flex-1 min-h-0 md:h-full flex flex-col lg:flex-row gap-4">
+        <div className="flex-1 min-h-0 md:h-full flex flex-col lg:flex-row gap-3">
           <div
-            ref={templatePickerLeftScrollRef}
-            onScroll={updateTemplatePickerLeftScrollThumb}
             className="relative flex-1 min-h-0 md:h-full overflow-visible md:overflow-y-scroll md:pr-3"
+            ref={templatePickerLeftScrollRef}
+            onScroll={(e) => {
+              const target = e.currentTarget;
+
+              // Sample scrollTop at most once per frame.
+              if (scrollSampleRafRef.current === null) {
+                scrollSampleRafRef.current = requestAnimationFrame(() => {
+                  scrollSampleRafRef.current = null;
+                  lastScrollTopRef.current = target.scrollTop || 0;
+                });
+              }
+
+              // Persist scrollTop: debounce to avoid hammering sessionStorage while scrolling.
+              if (scrollSaveTimerRef.current !== null) window.clearTimeout(scrollSaveTimerRef.current);
+              scrollSaveTimerRef.current = window.setTimeout(() => {
+                scrollSaveTimerRef.current = null;
+                try {
+                  sessionStorage.setItem(scrollKey, String(lastScrollTopRef.current || 0));
+                } catch {
+                  // ignore
+                }
+              }, 250);
+            }}
             style={{
               overscrollBehavior: 'contain',
               WebkitOverflowScrolling: 'touch',
               scrollbarGutter: 'stable',
               touchAction: 'pan-y',
+              scrollBehavior: 'auto',
             }}
           >
-            <div className="hidden lg:block sticky top-0 z-20 bg-white dark:bg-slate-900 pt-1 pb-2">
-              <div className="text-[10px] font-black text-slate-700 dark:text-slate-200 text-right">TRYON-TEMPLATE-PICKER::LEFT</div>
-            </div>
-
-            <div className="hidden md:block pointer-events-none absolute top-0 bottom-0 right-0 w-3 z-10">
-              <div className="absolute top-2 bottom-2 right-1 w-[3px] rounded-full bg-slate-200 dark:bg-slate-700" />
-              {templatePickerLeftScrollThumb.hasOverflow ? (
-                <div
-                  className="absolute right-1 w-[3px] rounded-full bg-slate-500/80 dark:bg-slate-400/80"
-                  style={{ top: templatePickerLeftScrollThumb.topPx, height: templatePickerLeftScrollThumb.heightPx }}
-                />
-              ) : null}
-            </div>
-
             <div className="pt-1 pb-4">
-              <label className="text-sm font-bold text-slate-700 dark:text-slate-300 block mb-2">ارفع قالب مخصص</label>
 
               <div className="flex flex-row gap-3 items-start">
                 <div className="flex-shrink-0">
@@ -163,13 +358,13 @@ export function TemplatePickerModalContent(props: {
                     onDragOver={handleTemplateDragOver}
                     onDragEnter={handleTemplateDragEnter}
                     onDragLeave={handleTemplateDragLeave}
-                    className={`relative aspect-[3/4] w-[140px] rounded-xl overflow-hidden border-2 ${
+                    className={`relative aspect-[3/4] w-[126px] rounded-xl overflow-hidden border-2 ${
                       templateDragActive
                         ? 'border-solid border-amber-500 bg-amber-100 dark:bg-amber-900/40'
                         : 'border-dashed border-amber-300 dark:border-amber-700 hover:border-amber-400 dark:hover:border-amber-600'
                     } bg-gradient-to-br from-amber-50 to-white dark:from-amber-900/20 dark:to-slate-900 transition-all shadow-sm hover:shadow-lg`}
                   >
-                    anchorId_UploadCard
+                    
                     {customTemplatePreview ? (
                       <>
                         <img
@@ -179,7 +374,8 @@ export function TemplatePickerModalContent(props: {
                           className="w-full h-full object-cover"
                           onLoad={(e) => {
                             const current = e.currentTarget.src;
-                            if (!templatePreviewSrcRef.current || current === templatePreviewSrcRef.current) {
+                            const expected = templatePreviewSrcRef.current;
+                            if (!templatePreviewSrcRef.current || current === expected) {
                               setTemplatePreviewLoading(false);
                             }
                           }}
@@ -226,7 +422,7 @@ export function TemplatePickerModalContent(props: {
                     )}
                   </div>
                   {customTemplatePreview && customTemplateFile && (
-                    <div className="mt-1.5 text-[10px] text-center text-slate-600 dark:text-slate-400 truncate max-w-[140px]">
+                    <div className="mt-1.5 text-[10px] text-center text-slate-600 dark:text-slate-400 truncate max-w-[126px]">
                       {customTemplateFile.name}
                     </div>
                   )}
@@ -253,97 +449,9 @@ export function TemplatePickerModalContent(props: {
                       <span className="text-xs text-slate-700 dark:text-slate-300">حفظ الصور المرفوعة في السجل</span>
                     </label>
                   </div>
-                </div>
-              </div>
 
-              <div className="mt-3">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="text-sm font-bold text-slate-700 dark:text-slate-300">الصور المرفوعة مؤخراً</label>
-                  {recentTemplates.length > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRecentTemplates([]);
-                        try {
-                          localStorage.removeItem(recentTemplatesStorageKey);
-                        } catch {}
-                      }}
-                      className="text-[10px] text-red-600 dark:text-red-400 hover:underline font-bold"
-                    >
-                      مسح الكل
-                    </button>
-                  )}
-                </div>
-                <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-white/80 dark:bg-slate-800/40 p-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {Array.from({ length: showAllRecents ? maxRecentTemplates : 3 }).map((_, idx) => {
-                      const item = recentTemplates[idx];
-                      return (
-                        <div key={item ? `${item.id}-${idx}` : `recent-placeholder-${idx}`} className="relative">
-                          <button
-                            type="button"
-                            disabled={!item}
-                            onClick={() => item && onRecentClick(item)}
-                            className={`relative aspect-[3/4] w-[100px] rounded-lg overflow-hidden border-2 transition-colors ${
-                              item
-                                ? 'border-slate-200 dark:border-slate-700 hover:border-violet-500'
-                                : 'border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800'
-                            }`}
-                          >
-                            {item ? (
-                              <>
-                                <img
-                                  src={(item.thumbnailUrl || item.imageUrl) as string}
-                                  alt={item.name || 'recent template'}
-                                  className="w-full h-full object-cover"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                    const fallback = e.currentTarget.nextElementSibling as HTMLElement | null;
-                                    if (fallback) fallback.style.display = 'flex';
-                                  }}
-                                />
-                                <div className="absolute inset-0 hidden items-center justify-center text-[10px] text-slate-400 bg-slate-100 dark:bg-slate-800">لا صورة</div>
-                              </>
-                            ) : (
-                              <div className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400">—</div>
-                            )}
-                          </button>
-                          {item && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setRecentTemplates((prev) => {
-                                  const next = prev.filter((r) => !(r.id === item.id && r.imageUrl === item.imageUrl));
-                                  try {
-                                    localStorage.setItem(recentTemplatesStorageKey, JSON.stringify(next));
-                                  } catch {}
-                                  return next;
-                                });
-                              }}
-                              className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg transition-colors z-10"
-                              title="حذف"
-                            >
-                              <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                              </svg>
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    {recentTemplates.length > 3 && (
-                      <button
-                        type="button"
-                        onClick={() => setShowAllRecents(!showAllRecents)}
-                        className="text-xs font-bold text-violet-600 dark:text-violet-400 hover:underline"
-                      >
-                        {showAllRecents ? 'إخفاء' : `عرض الكل (${recentTemplates.length})`}
-                      </button>
-                    )}
-                  </div>
+
+                  
                 </div>
               </div>
 
@@ -361,100 +469,204 @@ export function TemplatePickerModalContent(props: {
               />
             </div>
 
-            <div className="mt-4 pt-4 border-t border-slate-200 dark:border-slate-700">
-              <div className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-3">أو اختر أحد من قوالب مجموعتنا المختارة</div>
-              <TemplatePicker
-                items={pagedCuratedTemplateItems}
-                selectedId={selectedTemplateId}
-                onSelect={(item) => onSelectTemplateItem(item)}
-              />
+            <div className="mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+              {/* Tabs */}
+              <div className="flex items-center gap-1 mb-3 border-b border-slate-200 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('gallery')}
+                  className={`flex-1 px-4 py-2 text-sm transition-all relative ${
+                    activeTab === 'gallery'
+                      ? 'text-violet-600 dark:text-violet-400'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  مجموعة القوالب
+                  {activeTab === 'gallery' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600 dark:bg-violet-400" />
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleTabChange('uploads')}
+                  className={`flex-1 px-4 py-2 text-sm transition-all relative ${
+                    activeTab === 'uploads'
+                      ? 'text-violet-600 dark:text-violet-400'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                  }`}
+                >
+                  القوالب المرفوعة ({recentTemplates.length})
+                  {activeTab === 'uploads' && (
+                    <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-violet-600 dark:bg-violet-400" />
+                  )}
+                </button>
+              </div>
 
-              {templatePickerTotalPages > 1 ? (
-                <div className="mt-3 flex items-center justify-center">
-                  <div className="flex items-center gap-1 overflow-x-auto max-w-full px-1 py-1">
-                    {Array.from({ length: templatePickerTotalPages }).map((_, idx) => {
-                      const pageNum = idx + 1;
-                      const isActive = pageNum === templatePickerPage;
-                      return (
+              {/* Gallery Tab */}
+              {activeTab === 'gallery' ? (
+              <div className={'pb-2'}>
+                <TemplatePicker
+                  items={galleryItems}
+                  selectedId={selectedTemplateId}
+                  onSelect={onSelectTemplateItem}
+                  onConfirm={onConfirmTemplateItem}
+                  maxItemWidthPx={108}
+                  preferThumbnailOnly
+                  showEndPlaceholders={templatePickerPage === templatePickerTotalPages}
+                />
+              </div>
+              ) : null}
+
+              {/* Uploads Tab */}
+              {activeTab === 'uploads' ? (
+              <div className={'pb-4'}>
+                {/* My Uploads Section */}
+                <div className="mb-4">
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 px-1">قوالبي</h3>
+                  {userTemplatesLoading ? (
+                    <div className="flex items-center justify-center h-24 text-slate-400">
+                      جاري التحميل...
+                    </div>
+                  ) : userTemplates.length === 0 ? (
+                    <div className="rounded-xl border border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/30 p-6 text-center text-sm text-slate-400">
+                      لم تقم برفع أي قوالب بعد
+                    </div>
+                  ) : (
+                    <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/30 p-3">
+                      <div className="flex flex-wrap gap-2">
+                        {userTemplates.map((template) => (
+                          <div key={template.id} className="relative group">
+                            <button
+                              type="button"
+                              onClick={() => onSelectUserTemplate(template)}
+                              className={`relative aspect-[3/4] w-[100px] rounded-lg overflow-hidden border-2 transition-all ${
+                                selectedTemplateId === template.id
+                                  ? 'ring-2 ring-violet-500 border-violet-500'
+                                  : 'border-slate-200 dark:border-slate-700 hover:border-violet-400'
+                              }`}
+                            >
+                              <img
+                                src={template.thumbnailUrl || template.imageUrl}
+                                alt={template.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                                decoding="async"
+                              />
+                            </button>
+                            {onDeleteUserTemplate && (
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  if (confirm(`حذف "${template.name}"؟`)) {
+                                    await onDeleteUserTemplate(template.id);
+                                  }
+                                }}
+                                className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-opacity"
+                                title="حذف"
+                              >
+                                <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                              </button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Recent Templates Section */}
+                <div>
+                  <h3 className="text-sm font-semibold text-slate-700 dark:text-slate-300 mb-2 px-1">المستخدمة مؤخراً</h3>
+                  <div className="flex items-center justify-between mb-2">
+                    {recentTemplates.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecentTemplates([]);
+                          try {
+                            localStorage.removeItem(recentTemplatesStorageKey);
+                          } catch {}
+                        }}
+                        className="text-[10px] text-red-600 dark:text-red-400 hover:underline font-bold"
+                      >
+                        مسح الكل
+                      </button>
+                    )}
+                  </div>
+                  <div className="rounded-xl border border-amber-100 dark:border-amber-900/40 bg-white/80 dark:bg-slate-800/40 p-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      {recentItemsForRender.map(({ key, item, src }) => {
+                        if (!item) {
+                          return (
+                            <div key={key} className="relative">
+                              <div className="relative aspect-[3/4] w-[100px] rounded-lg overflow-hidden border-2 border-dashed border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 flex items-center justify-center text-[10px] text-slate-400">
+                                —
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <RecentTemplateItem
+                            key={key}
+                            item={item}
+                            src={src}
+                            onRecentClick={onRecentClick}
+                            onRemove={handleRemoveRecent}
+                          />
+                        );
+                      })}
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      {recentTemplates.length > 6 && (
                         <button
-                          key={`template-picker-page-${pageNum}`}
                           type="button"
-                          onClick={() => setTemplatePickerPage(pageNum)}
-                          className={
-                            `min-w-[36px] h-9 px-2 rounded-xl border text-sm font-bold transition-colors ` +
-                            (isActive
-                              ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200'
-                              : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800')
-                          }
-                          aria-current={isActive ? 'page' : undefined}
-                          aria-label={`Page ${pageNum}`}
+                          onClick={() => setShowAllRecents(!showAllRecents)}
+                          className="text-xs font-bold text-violet-600 dark:text-violet-400 hover:underline"
                         >
-                          {pageNum}
+                          {showAllRecents ? 'إخفاء' : `عرض الكل (${recentTemplates.length})`}
                         </button>
-                      );
-                    })}
+                      )}
+                    </div>
                   </div>
                 </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="hidden lg:block w-[360px] xl:w-[420px] shrink-0">
-            <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/40 p-3">
-              <div className="sticky top-0 z-10 bg-slate-50 dark:bg-slate-900/40 text-[10px] font-black text-slate-700 dark:text-slate-200 mb-2 text-right">TRYON-TEMPLATE-PICKER::RIGHT</div>
-              <div className="relative w-full aspect-[3/4] rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                {resolvedTemplateImageUrl ? (
-                  <img
-                    ref={templateSidePreviewImgElRef}
-                    src={resolvedTemplateImageUrl}
-                    alt="Template preview"
-                    className="w-full h-full object-contain"
-                    onLoad={(e) => {
-                      const current = e.currentTarget.src;
-                      if (!templateSidePreviewSrcRef.current || current === templateSidePreviewSrcRef.current) {
-                        setTemplateSidePreviewLoading(false);
-                      }
-                    }}
-                    onError={() => {
-                      setTemplateSidePreviewLoading(false);
-                    }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-slate-500 dark:text-slate-400">
-                    اختر قالباً للمعاينة
-                  </div>
-                )}
-
-                {templateSidePreviewLoading && resolvedTemplateImageUrl ? (
-                  <div className="absolute inset-0 bg-black/30 flex items-center justify-center">
-                    <div className="w-10 h-10 rounded-full border-2 border-white/80 border-t-transparent animate-spin" />
-                  </div>
-                ) : null}
               </div>
+              ) : null}
             </div>
           </div>
         </div>
       </div>
 
-      <div className="p-6 pt-4 border-t border-slate-100 dark:border-slate-800 flex gap-3 shrink-0">
-        <button
-          type="button"
-          onClick={onConfirmTemplate}
-          disabled={!canSubmitTemplate}
-          className={`flex-1 px-4 py-3 rounded-2xl text-sm font-black text-white bg-gradient-to-r from-violet-600 to-indigo-600 hover:from-violet-700 hover:to-indigo-700 transition-colors ${
-            canSubmitTemplate ? '' : 'opacity-60 cursor-not-allowed'
-          }`}
-        >
-          اعتماد القالب
-        </button>
-        <button
-          type="button"
-          onClick={onClose}
-          className="flex-1 px-4 py-3 rounded-2xl text-sm font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
-        >
-          إغلاق
-        </button>
-      </div>
+      {/* Fixed pagination at bottom - only show for gallery tab */}
+      {activeTab === 'gallery' && templatePickerTotalPages > 1 && (
+        <div className="shrink-0 border-t border-slate-200 dark:border-slate-700 p-2 flex items-center justify-center">
+          <div className="flex items-center gap-1 overflow-x-auto max-w-full">
+            {Array.from({ length: templatePickerTotalPages }).map((_, idx) => {
+              const pageNum = idx + 1;
+              const isActive = pageNum === templatePickerPage;
+              return (
+                <button
+                  key={`template-picker-page-${pageNum}`}
+                  type="button"
+                  onClick={() => setTemplatePickerPage(pageNum)}
+                  className={
+                    `min-w-[32px] h-7 px-2 rounded-lg border text-xs font-bold transition-colors ` +
+                    (isActive
+                      ? 'border-blue-300 dark:border-blue-700 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-200'
+                      : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800')
+                  }
+                  aria-current={isActive ? 'page' : undefined}
+                  aria-label={`Page ${pageNum}`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </>
   );
 }

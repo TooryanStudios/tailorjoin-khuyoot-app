@@ -13,6 +13,7 @@ import { FabricUploader } from '../components/customization/FabricUploader';
 import { PreviewCanvas } from '../components/customization/PreviewCanvas';
 import { AITipsPanel } from '../components/customization/AITipsPanel';
 import { NextStepButton } from '../components/customization/NextStepButton';
+import { StudioLayout } from '../modules/studio/components/StudioLayout';
 
 // Mock data for models
 const AVAILABLE_MODELS: CustomizationModel[] = [
@@ -250,9 +251,9 @@ export const CustomizationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-24">
+    <div className="h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -282,89 +283,92 @@ export const CustomizationPage = () => {
         </div>
       </div>
 
-        {/* Debug Panel */}
-        <div className="bg-yellow-50 dark:bg-yellow-900/20 border-b border-yellow-200 dark:border-yellow-800 p-4">
-          <div className="max-w-5xl mx-auto">
-            <h3 className="font-bold text-yellow-900 dark:text-yellow-200 mb-2">Debug Info - CustomizationPage.tsx</h3>
-            <div className="grid gap-1 text-sm font-mono">
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Product ID:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">{productId || 'None'}</span>
-              </div>
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Category ID:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">{product?.categoryId || 'None'}</span>
-              </div>
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Templates Loaded:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">{isTemplatesLoading ? 'loading…' : templates.length}</span>
-              </div>
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Rule:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">Template.id === Product.categoryId</span>
-              </div>
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Comparison:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">
-                  T.id = {matchedTemplate?.id || '—'} | P.categoryId = {product?.categoryId || '—'}
-                  { matchedTemplate ? ' ✅' : ' ❌' }
-                </span>
-              </div>
-              <div>
-                <span className="text-yellow-700 dark:text-yellow-300 font-bold">Matched Template ID:</span>
-                <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate?.id || 'None'}</span>
-              </div>
-              {matchedTemplate && (
-                <>
-                  <div>
-                    <span className="text-yellow-700 dark:text-yellow-300 font-bold">Matched Template Name:</span>
-                    <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate.name}</span>
+      {/* Layered Studio Layout */}
+      <div className="h-full">
+        <StudioLayout
+          preview={
+            <PreviewCanvas
+              mode="canvas"
+              className="h-full"
+              selectedModel={state.selectedModel || null}
+              fabricImageUrl={state.fabricUpload?.url}
+              previewUrl={state.previewUrl}
+              previewStatus={state.previewStatus}
+              onRegeneratePreview={handleGeneratePreview}
+              errorMessage={state.errorMessage}
+            />
+          }
+          panel={
+            <div className="space-y-8 px-4 pt-10 pb-40 max-w-5xl mx-auto">
+              {/* Debug Panel */}
+              <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-2xl p-4">
+                <div className="max-w-5xl mx-auto">
+                  <h3 className="font-bold text-yellow-900 dark:text-yellow-200 mb-2">Debug Info - CustomizationPage.tsx</h3>
+                  <div className="grid gap-1 text-sm font-mono">
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Product ID:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">{productId || 'None'}</span>
+                    </div>
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Category ID:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">{product?.categoryId || 'None'}</span>
+                    </div>
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Templates Loaded:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">{isTemplatesLoading ? 'loading…' : templates.length}</span>
+                    </div>
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Rule:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">Template.id === Product.categoryId</span>
+                    </div>
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Comparison:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">
+                        T.id = {matchedTemplate?.id || '—'} | P.categoryId = {product?.categoryId || '—'}
+                        {matchedTemplate ? ' ✅' : ' ❌'}
+                      </span>
+                    </div>
+                    <div>
+                      <span className="text-yellow-700 dark:text-yellow-300 font-bold">Matched Template ID:</span>
+                      <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate?.id || 'None'}</span>
+                    </div>
+                    {matchedTemplate && (
+                      <>
+                        <div>
+                          <span className="text-yellow-700 dark:text-yellow-300 font-bold">Matched Template Name:</span>
+                          <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate.name}</span>
+                        </div>
+                        <div>
+                          <span className="text-yellow-700 dark:text-yellow-300 font-bold">Points Count:</span>
+                          <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate.points?.length || 0}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
-                  <div>
-                    <span className="text-yellow-700 dark:text-yellow-300 font-bold">Points Count:</span>
-                    <span className="ml-2 text-yellow-900 dark:text-yellow-100">{matchedTemplate.points?.length || 0}</span>
-                  </div>
-                </>
+                </div>
+              </div>
+
+              {/* Model Selection */}
+              <ModelSelector
+                models={AVAILABLE_MODELS}
+                selectedModelId={state.selectedModel?.id}
+                onModelSelect={handleModelSelect}
+              />
+
+              {/* Fabric Upload */}
+              <FabricUploader
+                onFabricSelected={handleFabricSelect}
+                currentFabric={fabricFile}
+                onRemove={handleFabricRemove}
+              />
+
+              {/* AI Tips */}
+              {state.previewStatus !== 'idle' && (
+                <AITipsPanel tips={state.aiTips} isLoading={state.previewStatus === 'processing'} />
               )}
             </div>
-          </div>
-        </div>
-
-      {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8 pb-32">
-        {/* Model Selection */}
-        <ModelSelector
-          models={AVAILABLE_MODELS}
-          selectedModelId={state.selectedModel?.id}
-          onModelSelect={handleModelSelect}
+          }
         />
-
-        {/* Fabric Upload */}
-        <FabricUploader
-          onFabricSelected={handleFabricSelect}
-          currentFabric={fabricFile}
-          onRemove={handleFabricRemove}
-        />
-
-        {/* Preview Canvas */}
-        {(state.selectedModel || fabricFile) && (
-          <PreviewCanvas
-            selectedModel={state.selectedModel || null}
-            fabricImageUrl={state.fabricUpload?.url}
-            previewUrl={state.previewUrl}
-            previewStatus={state.previewStatus}
-            onRegeneratePreview={handleGeneratePreview}
-            errorMessage={state.errorMessage}
-          />
-        )}
-
-        {/* AI Tips */}
-        {state.previewStatus !== 'idle' && (
-          <AITipsPanel
-            tips={state.aiTips}
-            isLoading={state.previewStatus === 'processing'}
-          />
-        )}
       </div>
 
       {/* Fixed Bottom Button */}

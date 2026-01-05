@@ -156,7 +156,7 @@ export const AdminApp = () => {
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    await saveAppSettings(localSettings);
+    await saveAppSettings(localSettings, { silent: true, optimistic: true });
     setIsSaving(false);
   };
 
@@ -277,7 +277,7 @@ export const AdminApp = () => {
                   onChange={(e) => {
                     const newSettings = { ...localSettings, measurementTemplateWidth: parseInt(e.target.value) || 800 };
                     setLocalSettings(newSettings);
-                    saveAppSettings(newSettings);
+                    saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                 />
@@ -292,7 +292,7 @@ export const AdminApp = () => {
                   onChange={(e) => {
                     const newSettings = { ...localSettings, measurementTemplateHeight: parseInt(e.target.value) || 1200 };
                     setLocalSettings(newSettings);
-                    saveAppSettings(newSettings);
+                    saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                 />

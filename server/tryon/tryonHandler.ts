@@ -93,36 +93,42 @@ function buildPrompt(req: TryOnRequest, templateWidth?: number, templateHeight?:
   const neck = req.options?.neckStyle || 'keep';
   const sleeve = req.options?.sleeveStyle || 'keep';
   const emb = req.options?.embroideryStyle || 'keep';
+  const colorPreservation = req.options?.colorPreservation || 'high';
 
   const dimensionGuidance = templateWidth && templateHeight 
-    ? `CRITICAL: Output image MUST be exactly ${templateWidth}x${templateHeight} pixels to match the template dimensions. Preserve the exact aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`
-    : `CRITICAL: Output image MUST match the exact dimensions and aspect ratio of Image A. Do NOT stretch, squish, or distort the garment or person.`;
+    ? `Output dimensions MUST be ${templateWidth}x${templateHeight} pixels.`
+    : ``;
 
-  return `You are a professional fabric texture replacement tool for fashion products.
+  return `You are an expert fabric texture replacement specialist using Nano Banana (Gemini 2.5 Flash Image).
 
-STRICT RULES - DO NOT DEVIATE:
-1. Image A (first image) is the BASE TEMPLATE - you MUST keep EVERYTHING from this image EXACTLY as-is
-2. Image B (second image) is ONLY the fabric texture/pattern to apply
-3. Your ONLY task: Replace the fabric/cloth texture visible on the garment in Image A with the pattern from Image B
-4. DO NOT generate a new image, person, background, or garment
-5. DO NOT change the garment's shape, cut, pose, draping, folds, wrinkles, or shadows
-6. DO NOT change the background, lighting, or any non-fabric elements
-7. DO NOT add or remove people, mannequins, or any objects
-8. PRESERVE the exact silhouette, edges, and structure of the garment from Image A
-9. ONLY modify the surface texture/pattern of the fabric areas visible on the garment
+INPUTS:
+- Image 1 (Template/Subject): The garment photo showing the person, pose, and original garment structure
+- Image 2 (Fabric Reference): The fabric texture/pattern to apply to the garment
 
-Task: Take Image A as your base. Locate the fabric/cloth areas on the garment. Replace ONLY those fabric textures with the pattern from Image B while preserving all shadows, folds, highlights, and garment structure.
+TASK: Replace the garment's fabric in Image 1 with the texture from Image 2. Make the replacement look photorealistic, as if the garment was originally made from the fabric shown in Image 2.
+
+CRITICAL RULES - USE IMAGE 1 FOR:
+1. Output dimensions and aspect ratio (MUST match Image 1 exactly)
+2. Person, pose, face, and body (keep EXACTLY the same)
+3. Garment shape, cut, draping, and wrinkles (preserve structure)
+4. Shadows, highlights, and lighting (keep perfectly intact)
+5. All original details: seams, stitching, buttons, zippers, collars, cuffs
+
+CRITICAL RULES - USE IMAGE 2 FOR:
+6. ONLY the fabric texture/pattern/color to apply to the garment surface
+7. Map this texture naturally onto the garment's folds and shadows
+
+FABRIC TRANSFORMATION OPTIONS:
+- Scale/thickness: ${scale > 1 ? 'Make pattern larger and bolder' : scale < 1 ? 'Make pattern smaller and finer' : 'Keep pattern at normal scale'}
+- Neck style: ${neck === 'modify' ? 'Adjust neckline if needed' : 'Keep neckline exactly as-is'}
+- Sleeve style: ${sleeve === 'modify' ? 'Adjust sleeves if needed' : 'Keep sleeves exactly as-is'}
+- Color preservation: ${colorPreservation === 'high' ? 'Maintain original garment colors' : colorPreservation === 'medium' ? 'Allow slight color shifts' : 'Allow significant color variation'}
 
 ${dimensionGuidance}
 
-Options (apply minimally, only if explicitly set to non-default values):
-- fabric scale: ${scale}
-- neck style: ${neck}
-- sleeve style: ${sleeve}
-- embroidery style: ${emb}
-
-Output: A single image that looks IDENTICAL to Image A except the fabric texture is now from Image B.`;
+OUTPUT: A single photorealistic image matching Image 1's dimensions and structure, where only the fabric texture has been replaced with the pattern from Image 2.`;
 }
+
 
 function clampNumber(value: number, min: number, max: number) {
   return Math.max(min, Math.min(max, value));
@@ -347,6 +353,8 @@ async function applyFabricScaleAndTile(
 }
 
 export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise<{ status: number; json: TryOnResponse }> {
+  const serverStartTime = Date.now(); // Track server processing start time
+  
   const validation = validateTryOnRequest(body);
   if (validation.ok !== true) {
     const v = validation as Extract<typeof validation, { ok: false }>;
@@ -381,9 +389,14 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
     bucket = null;
   }
 
-  // Resolve template image - either from predefined template or custom URL/data
+  // Resolve template image - either from predefined template, custom URL/data, or base64
   let templateImg: { base64: string; mimeType: string; buffer: Buffer };
-  if (req.garmentTemplateImageUrl) {
+  if (req.garmentTemplateImageBase64) {
+    // Custom template provided as base64
+    const mimeType = req.garmentTemplateMimeType || 'application/octet-stream';
+    const buffer = Buffer.from(req.garmentTemplateImageBase64, 'base64');
+    templateImg = { base64: req.garmentTemplateImageBase64, mimeType, buffer };
+  } else if (req.garmentTemplateImageUrl) {
     // Custom template provided as URL or data URL
     if (req.garmentTemplateImageUrl.startsWith('data:')) {
       // Data URL format: data:image/png;base64,xxxxx
@@ -458,20 +471,28 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
     if (!templateWidth || !templateHeight) {
       // Fallback: Get template dimensions from image (best-effort; depends on Sharp availability)
+      console.log('[TryOn] No client dimensions provided, extracting from image buffer...');
       const sharp = await getSharpFn();
       const templateMetadata = sharp ? await (sharp as any)(templateImg.buffer).metadata() : null;
       const oriented = orientedDimensions(templateMetadata || {});
       templateWidth = oriented.width;
       templateHeight = oriented.height;
     }
+
+    console.log('[TryOn] Using template dimensions:', { width: templateWidth, height: templateHeight, source: req.garmentTemplateWidth ? 'client' : 'extracted' });
     
-    const promptText = buildPrompt(req, templateWidth, templateHeight);
+    // Build prompt - use custom prompt if provided, otherwise use default
+    const promptText = req.options?.customPrompt && req.options.customPrompt.trim()
+      ? req.options.customPrompt
+      : buildPrompt(req, templateWidth, templateHeight);
+    
     const out = await generateTryOnImage({
       templateBase64: templateImg.base64,
       templateMimeType: templateImg.mimeType,
       fabricBase64: fabricImg.base64,
       fabricMimeType: fabricImg.mimeType,
       promptText,
+      model: req.options?.model,
     });
 
     let outBuffer = Buffer.from(out.imageBase64, 'base64');
@@ -485,27 +506,30 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
 
         // Only resize if dimensions don't match
         if (generatedWidth !== templateWidth || generatedHeight !== templateHeight) {
-          console.log(`Resizing generated image from ${generatedWidth}x${generatedHeight} to ${templateWidth}x${templateHeight}`);
+          console.log(`[TryOn] Resizing generated image from ${generatedWidth}x${generatedHeight} to ${templateWidth}x${templateHeight}`);
           outBuffer = await (sharp as any)(outBuffer)
             .rotate()
             .resize(templateWidth, templateHeight, {
-              fit: 'contain',
-              background: { r: 255, g: 255, b: 255, alpha: 1 },
+              fit: 'inside',
               kernel: 'lanczos3',
             })
-            .png()
+            .png({ quality: 100, compressionLevel: 6 })
             .toBuffer();
+          console.log('[TryOn] Resize complete');
+        } else {
+          console.log('[TryOn] Generated image dimensions already match template, no resize needed');
         }
       }
     } catch (resizeErr) {
-      console.warn('Failed to resize generated image to match template:', resizeErr);
+      console.warn('[TryOn] Failed to resize generated image to match template:', resizeErr);
       // Continue with original size if resize fails
     }
 
-    // Add watermark (logo) to the generated image
+    // Add watermark (logo + timing info) to the generated image (if enabled)
     try {
+      const shouldAddWatermark = req.options?.watermarkEnabled !== false;
       const sharp = await getSharpFn();
-      if (sharp) {
+      if (sharp && shouldAddWatermark) {
         const watermarkPath = await resolveWatermarkPath();
 
         const imgMetadata = await (sharp as any)(outBuffer).metadata();
@@ -524,49 +548,119 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
           .png()
           .toBuffer();
 
+        // Prepare timing and model text overlay
+        const composites: any[] = [
+          {
+            input: watermarkBuffer,
+            blend: 'over',
+            left,
+            top,
+          }
+        ];
+
+        // Calculate timing info
+        const serverEndTime = Date.now();
+        const serverProcessingTime = ((serverEndTime - serverStartTime) / 1000).toFixed(1);
+        
+        // Use client-side timing if available, otherwise use server timing
+        let startTime: Date;
+        let endTime: Date;
+        let totalSeconds: string;
+        
+        if (req.options?.generationStartTime) {
+          startTime = new Date(req.options.generationStartTime);
+          endTime = req.options.generationEndTime 
+            ? new Date(req.options.generationEndTime)
+            : new Date(serverEndTime);
+          const duration = req.options.generationEndTime 
+            ? req.options.generationEndTime - req.options.generationStartTime
+            : serverEndTime - req.options.generationStartTime;
+          totalSeconds = (duration / 1000).toFixed(1);
+        } else {
+          // Fallback to server timing
+          startTime = new Date(serverStartTime);
+          endTime = new Date(serverEndTime);
+          totalSeconds = serverProcessingTime;
+        }
+        
+        const modelName = req.options?.model === 'gemini-3-pro-image-preview' ? 'Pro Image' : 'Nano Banana';
+        
+        const fontSize = Math.max(12, Math.floor(imgWidth * 0.015));
+        const textLines = [
+          `Model: ${modelName}`,
+          `Start: ${startTime.toLocaleTimeString()}`,
+          `End: ${endTime.toLocaleTimeString()}`,
+          `Time: ${totalSeconds}s`,
+        ];
+
+        // Create text overlay using SVG
+        const textSvg = `
+          <svg width="${imgWidth}" height="${imgHeight}">
+            <style>
+              .timing-text { 
+                fill: white; 
+                font-family: Arial, sans-serif; 
+                font-size: ${fontSize}px; 
+                font-weight: bold;
+                text-shadow: 2px 2px 4px rgba(0,0,0,0.8);
+              }
+            </style>
+            ${textLines.map((line, i) => 
+              `<text x="${margin}" y="${margin + (fontSize + 4) * (i + 1)}" class="timing-text">${line}</text>`
+            ).join('')}
+          </svg>
+        `;
+
+        composites.push({
+          input: Buffer.from(textSvg),
+          blend: 'over',
+          top: 0,
+          left: 0,
+        });
+
         outBuffer = await (sharp as any)(outBuffer)
-          .composite([
-            {
-              input: watermarkBuffer,
-              blend: 'over',
-              left,
-              top,
-            }
-          ])
+          .composite(composites)
           .png()
           .toBuffer();
         
-        console.log('Watermark applied successfully');
+        console.log('[Watermark] Applied successfully with timing info (enabled in options)');
+      } else if (!shouldAddWatermark) {
+        console.log('[Watermark] Skipped (disabled in options)');
       } else {
-        console.warn('Sharp not available; skipping watermark');
+        console.warn('[Watermark] Sharp not available; skipping watermark');
       }
     } catch (watermarkErr) {
-      console.warn('Failed to apply watermark:', watermarkErr);
+      console.warn('[Watermark] Failed to apply watermark:', watermarkErr);
       // Continue without watermark if it fails
     }
 
     // Best-effort: preserve the original template background so patterns don't "bleed" everywhere.
     // This mitigates the common failure case where the model tiles the fabric across the entire canvas.
-    try {
-      const sharp = await getSharpFn();
-      if (sharp && templateWidth && templateHeight) {
-        const templatePng = await (sharp as any)(templateImg.buffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
-        const generatedPng = await (sharp as any)(outBuffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
-        outBuffer = await compositePreservingTemplateBackground({
-          sharp,
-          templatePng,
-          generatedPng,
-          width: templateWidth,
-          height: templateHeight,
-        });
+    const shouldApplyMask = req.options?.applyMask !== false;
+    if (shouldApplyMask) {
+      try {
+        const sharp = await getSharpFn();
+        if (sharp && templateWidth && templateHeight) {
+          const templatePng = await (sharp as any)(templateImg.buffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
+          const generatedPng = await (sharp as any)(outBuffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
+          outBuffer = await compositePreservingTemplateBackground({
+            sharp,
+            templatePng,
+            generatedPng,
+            width: templateWidth,
+            height: templateHeight,
+          });
+        }
+      } catch (e) {
+        console.warn('Failed to post-process try-on output with background-preserving composite:', e);
       }
-    } catch (e) {
-      console.warn('Failed to post-process try-on output with background-preserving composite:', e);
+    } else {
+      console.log('applyMask=false; skipping background-preserving composite');
     }
 
     if (bucket) {
       // Upload to Storage
-      const objectPath = `tryon_results/${jobId}.png`;
+      const objectPath = `khuyoot_ai_result/${jobId}.png`;
       const token = crypto.randomUUID();
       await bucket.file(objectPath).save(outBuffer, {
         contentType: 'image/png',
@@ -593,7 +687,7 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
             .jpeg({ quality: 78, mozjpeg: true })
             .toBuffer();
 
-          const thumbPath = `tryon_results/thumbs/${jobId}.jpg`;
+          const thumbPath = `khuyoot_ai_result/thumbs/${jobId}.jpg`;
           const thumbToken = crypto.randomUUID();
           await bucket.file(thumbPath).save(thumbBuffer, {
             contentType: 'image/jpeg',

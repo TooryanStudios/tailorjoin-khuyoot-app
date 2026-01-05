@@ -7,8 +7,14 @@ service cloud.firestore {
     // --------------------------------------------
     function isAdminUser() {
       return request.auth != null
-        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
-        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+        && (
+          request.auth.token.admin == true
+          || request.auth.token.role == 'admin'
+          || (
+            exists(/databases/$(database)/documents/users/$(request.auth.uid))
+            && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin'
+          )
+        );
     }
 
     function isOwnerCreate() {
@@ -134,6 +140,10 @@ service cloud.firestore {
     // ============================================================
     // SYSTEM COLLECTION
     // ============================================================
+    match /system/settings {
+      allow read: if true;
+      allow create, update, delete: if isAdminUser();
+    }
     match /system/{document=**} {
       allow read: if true;
       allow write: if false;
@@ -359,6 +369,134 @@ service cloud.firestore {
     match /measurementTemplates/{templateId} {
       allow read: if true;  // Anyone can read measurement templates
       allow write: if isAdminUser();  // Only admins can create/update/delete
+    }
+
+    // User-Uploaded Templates (for individual user custom try-on templates)
+    match /user_templates/{templateId} {
+      allow read: if request.auth != null && (request.auth.uid == resource.data.userId || request.auth != null);
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null && resource.data.userId == request.auth.uid && request.resource.data.userId == request.auth.uid;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // ============================================================
+    // CREDIT SYSTEM (pricing + wallets + ledger)
+    // Collections:
+    // - global_settings/{feature}
+    // - user_profiles/{uid}
+    // - credit_transactions/{txId}
+    // ============================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwnerUid(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isInt(n) {
+      return n is number && n == int(n);
+    }
+
+    function pricingDoc(feature) {
+      return get(/databases/$(database)/documents/global_settings/$(feature));
+    }
+
+    function pricingExists(feature) {
+      return exists(/databases/$(database)/documents/global_settings/$(feature));
+    }
+
+    match /global_settings/{feature} {
+      // Pricing is safe to be public-readable (buttons can show costs before auth).
+      allow read: if true;
+      allow create, update, delete: if isAdminUser();
+    }
+
+    match /user_profiles/{uid} {
+      allow read: if isAdminUser() || isOwnerUid(uid);
+      allow delete: if isAdminUser();
+
+      // Users may create their own empty wallet (0 credits). Admins can manage any.
+      allow create: if isAdminUser() || (
+        isOwnerUid(uid)
+        && request.resource.data.user_id == uid
+        && request.resource.data.credit_balance is number
+        && request.resource.data.credit_balance == 0
+        && request.resource.data.tier == 'Free'
+      );
+
+      // Users can only modify their balance as part of a priced reserve/refund flow.
+      // Admins can update freely.
+      allow update: if isAdminUser() || (
+        isOwnerUid(uid)
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.tier == resource.data.tier
+        && request.resource.data.credit_balance is number
+        && request.resource.data.credit_balance >= 0
+        && (
+          // RESERVE: balance decreases by priced cost, correlated with a pending tx.
+          (
+            request.resource.data.last_credit_op == 'reserve'
+            && request.resource.data.last_credit_tx is string
+            && request.resource.data.last_credit_action is string
+            && request.resource.data.last_credit_cost is number
+            && isInt(request.resource.data.last_credit_cost)
+            && request.resource.data.last_credit_cost > 0
+            && pricingExists(request.resource.data.last_credit_action)
+            && pricingDoc(request.resource.data.last_credit_action).data.is_active != false
+            && request.resource.data.last_credit_cost == pricingDoc(request.resource.data.last_credit_action).data.credit_cost
+            && request.resource.data.credit_balance == resource.data.credit_balance - request.resource.data.last_credit_cost
+            && existsAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx))
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.user_id == uid
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.status == 'pending'
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.action_type == request.resource.data.last_credit_action
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount == -request.resource.data.last_credit_cost
+          )
+          ||
+          // REFUND: balance increases by abs(amount) of a failed tx.
+          (
+            request.resource.data.last_credit_op == 'refund'
+            && request.resource.data.last_credit_tx is string
+            && existsAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx))
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.user_id == uid
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.status == 'failed'
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount is number
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount < 0
+            && request.resource.data.credit_balance == resource.data.credit_balance + (-getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount)
+          )
+        )
+      );
+    }
+
+    match /credit_transactions/{txId} {
+      allow read: if isAdminUser() || (isSignedIn() && request.auth.uid == resource.data.user_id);
+      allow delete: if isAdminUser();
+
+      // Users can create their own pending tx ONLY at the priced cost.
+      allow create: if isAdminUser() || (
+        isSignedIn()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.transaction_id == txId
+        && request.resource.data.status == 'pending'
+        && request.resource.data.action_type is string
+        && pricingExists(request.resource.data.action_type)
+        && pricingDoc(request.resource.data.action_type).data.is_active != false
+        && request.resource.data.amount is number
+        && request.resource.data.amount == -pricingDoc(request.resource.data.action_type).data.credit_cost
+      );
+
+      // Users can only change status from pending -> completed/failed.
+      allow update: if isAdminUser() || (
+        isSignedIn()
+        && resource.data.user_id == request.auth.uid
+        && resource.data.status == 'pending'
+        && request.resource.data.user_id == resource.data.user_id
+        && request.resource.data.transaction_id == resource.data.transaction_id
+        && request.resource.data.action_type == resource.data.action_type
+        && request.resource.data.amount == resource.data.amount
+        && (request.resource.data.status == 'completed' || request.resource.data.status == 'failed')
+      );
     }
     
     // ============================================================

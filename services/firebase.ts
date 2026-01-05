@@ -1,7 +1,8 @@
 import * as firebaseApp from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp, runTransaction } from 'firebase/firestore';
 import { getStorage, ref as storageRef, deleteObject, listAll, getDownloadURL, uploadBytes, uploadBytesResumable } from 'firebase/storage';
+import { urlCache } from '../src/utils/urlCache';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
 import { MOCK_PRODUCTS } from './mockService';
 import { applyUserDefaults } from '../utils/userDefaults';
@@ -158,6 +159,278 @@ function normalizeProductForSave(payload: any): any {
 export const firebaseService = {
   isInitialized: () => isFirebaseInitialized,
   auth: auth,
+
+  // ============================================================
+  // CREDIT SYSTEM (global_settings, user_profiles, credit_transactions)
+  // ============================================================
+
+  async getCreditPricing(): Promise<Record<string, { credit_cost: number; is_active: boolean }>> {
+    if (!isFirebaseInitialized) return {};
+    try {
+      const refCol = collection(db, 'global_settings');
+      const snap = await getDocs(refCol);
+      const out: Record<string, { credit_cost: number; is_active: boolean }> = {};
+      snap.docs.forEach((d) => {
+        const data: any = d.data() || {};
+        out[d.id] = {
+          credit_cost: typeof data.credit_cost === 'number' ? data.credit_cost : 0,
+          is_active: data.is_active !== false,
+        };
+      });
+      return out;
+    } catch (e) {
+      console.warn('[CreditSystem] getCreditPricing failed', e);
+      return {};
+    }
+  },
+
+  async upsertCreditPricing(params: { feature_name: string; credit_cost: number; is_active?: boolean }): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const feature = sanitizeFirestoreDocId(params.feature_name);
+    if (!feature) throw new Error('feature_name is required');
+    const refDoc = doc(db, 'global_settings', feature);
+    await setDoc(
+      refDoc,
+      {
+        feature_name: feature,
+        credit_cost: Math.max(0, Math.floor(Number(params.credit_cost || 0))),
+        is_active: params.is_active !== false,
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  },
+
+  async getUserCreditProfile(userId: string): Promise<{ user_id: string; credit_balance: number; tier?: string } | null> {
+    if (!isFirebaseInitialized) return null;
+    const uid = sanitizeFirestoreDocId(userId);
+    if (!uid) return null;
+    try {
+      const refDoc = doc(db, 'user_profiles', uid);
+      const snap = await getDoc(refDoc);
+      if (!snap.exists()) return null;
+      const data: any = snap.data() || {};
+      return {
+        user_id: uid,
+        credit_balance: typeof data.credit_balance === 'number' ? data.credit_balance : 0,
+        tier: typeof data.tier === 'string' ? data.tier : undefined,
+      };
+    } catch (e) {
+      console.warn('[CreditSystem] getUserCreditProfile failed', e);
+      return null;
+    }
+  },
+
+  async ensureUserCreditProfile(userId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const uid = sanitizeFirestoreDocId(userId);
+    if (!uid) throw new Error('userId is required');
+    const refDoc = doc(db, 'user_profiles', uid);
+    const snap = await getDoc(refDoc);
+    if (snap.exists()) return;
+    await setDoc(
+      refDoc,
+      {
+        user_id: uid,
+        credit_balance: 0,
+        tier: 'Free',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      },
+      { merge: true }
+    );
+  },
+
+  async reserveCredits(params: {
+    userId: string;
+    actionType: string;
+    cost: number;
+    meta?: Record<string, any>;
+  }): Promise<{ transaction_id: string; new_balance: number }>
+  {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const uid = sanitizeFirestoreDocId(params.userId);
+    const action = sanitizeFirestoreDocId(params.actionType);
+    const cost = Math.max(0, Math.floor(Number(params.cost || 0)));
+    if (!uid) throw new Error('userId is required');
+    if (!action) throw new Error('actionType is required');
+    if (cost <= 0) throw new Error('cost must be > 0');
+
+    const profileRef = doc(db, 'user_profiles', uid);
+    const txRef = doc(collection(db, 'credit_transactions'));
+
+    const result = await runTransaction(db, async (tx) => {
+      const profileSnap = await tx.get(profileRef);
+      const current = profileSnap.exists() ? (profileSnap.data() as any) : null;
+      const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
+      if (currentBalance < cost) {
+        throw new Error('INSUFFICIENT_CREDITS');
+      }
+
+      // Apply hold by decrementing now, then finalize or refund later.
+      const newBalance = currentBalance - cost;
+      if (profileSnap.exists()) {
+        tx.update(profileRef, {
+          credit_balance: newBalance,
+          last_credit_tx: txRef.id,
+          last_credit_action: action,
+          last_credit_cost: cost,
+          last_credit_op: 'reserve',
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(profileRef, {
+          user_id: uid,
+          credit_balance: newBalance,
+          tier: 'Free',
+          last_credit_tx: txRef.id,
+          last_credit_action: action,
+          last_credit_cost: cost,
+          last_credit_op: 'reserve',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      tx.set(txRef, {
+        transaction_id: txRef.id,
+        user_id: uid,
+        amount: -cost,
+        action_type: action,
+        status: 'pending',
+        meta: params.meta || {},
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return { transaction_id: txRef.id, new_balance: newBalance };
+    });
+
+    return result;
+  },
+
+  async finalizeCreditTransaction(params: { transactionId: string }): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const id = sanitizeFirestoreDocId(params.transactionId);
+    if (!id) throw new Error('transactionId is required');
+    const refDoc = doc(db, 'credit_transactions', id);
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(refDoc);
+      if (!snap.exists()) return;
+      const data: any = snap.data() || {};
+      if (data.status !== 'pending') return;
+      tx.update(refDoc, { status: 'completed', updatedAt: serverTimestamp() });
+    });
+  },
+
+  async refundCreditTransaction(params: { transactionId: string }): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const id = sanitizeFirestoreDocId(params.transactionId);
+    if (!id) throw new Error('transactionId is required');
+    const txRef = doc(db, 'credit_transactions', id);
+
+    await runTransaction(db, async (tx) => {
+      const snap = await tx.get(txRef);
+      if (!snap.exists()) return;
+      const data: any = snap.data() || {};
+      if (data.status !== 'pending') return;
+      const uid = String(data.user_id || '');
+      const amount = typeof data.amount === 'number' ? data.amount : 0;
+      const refund = Math.abs(amount);
+      if (!uid || refund <= 0) {
+        tx.update(txRef, { status: 'failed', updatedAt: serverTimestamp() });
+        return;
+      }
+
+      const profileRef = doc(db, 'user_profiles', uid);
+      const profileSnap = await tx.get(profileRef);
+      const current = profileSnap.exists() ? (profileSnap.data() as any) : null;
+      const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
+      const newBalance = currentBalance + refund;
+
+      if (profileSnap.exists()) {
+        tx.update(profileRef, {
+          credit_balance: newBalance,
+          last_credit_tx: id,
+          last_credit_action: String(data.action_type || ''),
+          last_credit_cost: refund,
+          last_credit_op: 'refund',
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        tx.set(profileRef, {
+          user_id: uid,
+          credit_balance: newBalance,
+          tier: 'Free',
+          last_credit_tx: id,
+          last_credit_action: String(data.action_type || ''),
+          last_credit_cost: refund,
+          last_credit_op: 'refund',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      tx.update(txRef, { status: 'failed', updatedAt: serverTimestamp() });
+    });
+  },
+
+  async adminAdjustCredits(params: {
+    userId: string;
+    amount: number;
+    reason: string;
+    adminId?: string;
+  }): Promise<{ new_balance: number; transaction_id: string }>
+  {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const uid = sanitizeFirestoreDocId(params.userId);
+    if (!uid) throw new Error('userId is required');
+    const amount = Math.floor(Number(params.amount || 0));
+    if (!Number.isFinite(amount) || amount === 0) throw new Error('amount must be a non-zero integer');
+
+    const reason = String(params.reason || '').trim();
+    if (!reason) throw new Error('reason is required');
+
+    const profileRef = doc(db, 'user_profiles', uid);
+    const txRef = doc(collection(db, 'credit_transactions'));
+
+    const result = await runTransaction(db, async (tx) => {
+      const profileSnap = await tx.get(profileRef);
+      const current = profileSnap.exists() ? (profileSnap.data() as any) : null;
+      const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
+      const newBalance = Math.max(0, currentBalance + amount);
+
+      if (profileSnap.exists()) {
+        tx.update(profileRef, { credit_balance: newBalance, updatedAt: serverTimestamp() });
+      } else {
+        tx.set(profileRef, {
+          user_id: uid,
+          credit_balance: newBalance,
+          tier: 'Free',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      tx.set(txRef, {
+        transaction_id: txRef.id,
+        user_id: uid,
+        amount,
+        action_type: 'MANUAL_ADJUSTMENT',
+        status: 'completed',
+        meta: {
+          reason,
+          admin_id: params.adminId || null,
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      return { new_balance: newBalance, transaction_id: txRef.id };
+    });
+
+    return result;
+  },
   
   async findUserByLoginId(loginId: string): Promise<{ uid: string; email: string | '' } | null> {
     if (!isFirebaseInitialized) return null;
@@ -171,6 +444,24 @@ export const firebaseService = {
       return { uid: docSnap.id, email: data.email || '' };
     } catch (e) {
       console.error('findUserByLoginId error', e);
+      return null;
+    }
+  },
+
+  async findUserByEmail(email: string): Promise<{ uid: string; email: string | '' } | null> {
+    if (!isFirebaseInitialized) return null;
+    try {
+      const normalized = String(email || '').trim().toLowerCase();
+      if (!normalized) return null;
+      const usersRef = collection(db, 'users');
+      const q = query(usersRef, where('email', '==', normalized));
+      const snap = await getDocs(q);
+      if (snap.empty) return null;
+      const docSnap = snap.docs[0];
+      const data: any = docSnap.data();
+      return { uid: docSnap.id, email: data.email || '' };
+    } catch (e) {
+      console.error('findUserByEmail error', e);
       return null;
     }
   },
@@ -627,7 +918,21 @@ export const firebaseService = {
       allowNewRegistrations: true,
       designerEnabled: true,
       cartEnabled: true,
+      showHeader: true,
+      showFooter: true,
+      designerCardsRail: {
+        enabled: true,
+        title: 'Explore',
+        maxCards: 12,
+        cardWidthPx: 220,
+        cardHeightPx: 140,
+        cardRadiusPx: 16,
+        gapPx: 12,
+        paddingXPx: 16,
+        cards: [],
+      },
       aiTryOn: {
+        driverPrompt: '',
         limits: {
           free: {
             maxPremiumTemplatesBrowse: 4,
@@ -697,6 +1002,91 @@ export const firebaseService = {
       console.error("Error fetching settings:", error);
       return defaultSettings;
     }
+  },
+
+  // --- Global App Settings (Strict / No-Fallback) ---
+
+  async getGlobalSettingsStrict(options?: { timeoutMs?: number }): Promise<AppSettings> {
+    const defaultSettings: AppSettings = {
+      storiesEnabled: true,
+      maintenanceMode: false,
+      allowNewRegistrations: true,
+      designerEnabled: true,
+      cartEnabled: true,
+      showHeader: true,
+      showFooter: true,
+      designerCardsRail: {
+        enabled: true,
+        title: 'Explore',
+        maxCards: 12,
+        cardWidthPx: 220,
+        cardHeightPx: 140,
+        cardRadiusPx: 16,
+        gapPx: 12,
+        paddingXPx: 16,
+        cards: [],
+      },
+      aiTryOn: {
+        driverPrompt: '',
+        limits: {
+          free: {
+            maxPremiumTemplatesBrowse: 4,
+            maxRecents: 3,
+            maxGenerationsStored: 4,
+          },
+          subscribed: {
+            maxPremiumTemplatesBrowse: 999999,
+            maxRecents: 9,
+            maxGenerationsStored: 50,
+          },
+        },
+        premiumFeatures: {
+          watermarkRemoval: true,
+          hdExport: true,
+          priorityQueue: true,
+          batchGeneration: true,
+          presets: true,
+        },
+      },
+      productCategories: [
+        { id: 'dishdasha', name: 'الدشاديش' },
+        { id: 'jacket', name: 'الجاكيت' },
+        { id: 'abaya', name: 'العبايات' },
+        { id: 'kids', name: 'الأطفال' },
+        { id: 'shoes', name: 'الأحذية' },
+      ],
+      matchingMeasurementsVideoUrl: '',
+      helpVideo: {
+        enabled: true,
+        url: 'https://www.youtube.com/watch?v=6eZtn5Du8O4',
+        buttonText: 'شاهد'
+      }
+    };
+
+    if (!isFirebaseInitialized) return defaultSettings;
+
+    const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 15000;
+
+    const settingsRef = doc(db, 'system', 'settings');
+    const fetchSettings = (async () => {
+      const docSnap = await getDoc(settingsRef);
+      if (docSnap.exists()) {
+        return { ...defaultSettings, ...docSnap.data() } as AppSettings;
+      }
+      await setDoc(settingsRef, defaultSettings);
+      return defaultSettings;
+    })();
+
+    if (!timeoutMs || timeoutMs <= 0) {
+      return fetchSettings;
+    }
+
+    return Promise.race([
+      fetchSettings,
+      new Promise<AppSettings>((_, reject) =>
+        setTimeout(() => reject(new Error('Global settings fetch timed out')), timeoutMs)
+      ),
+    ]);
   },
 
   async saveGlobalSettings(settings: AppSettings): Promise<void> {
@@ -1651,7 +2041,15 @@ export const firebaseService = {
               const imageUrl = String(t.imageUrl || '');
               if (imageUrl.startsWith('gs://') || imageUrl.startsWith('tryon_templates/')) {
                 try {
-                  resolved.imageUrl = await getDownloadURL(storageRef(storage, imageUrl));
+                  // Check cache first
+                  const cachedUrl = urlCache.get(imageUrl);
+                  if (cachedUrl) {
+                    resolved.imageUrl = cachedUrl;
+                  } else {
+                    const downloadUrl = await getDownloadURL(storageRef(storage, imageUrl));
+                    urlCache.set(imageUrl, downloadUrl);
+                    resolved.imageUrl = downloadUrl;
+                  }
                 } catch (e) {
                   console.warn('Failed to resolve template imageUrl to download URL:', t.id, imageUrl, e);
                   // Keep original URL - it may work as-is or will fail gracefully in <img>
@@ -1661,7 +2059,15 @@ export const firebaseService = {
               const thumbnailUrl = String(t.thumbnailUrl || '');
               if (thumbnailUrl && (thumbnailUrl.startsWith('gs://') || thumbnailUrl.startsWith('tryon_templates/'))) {
                 try {
-                  resolved.thumbnailUrl = await getDownloadURL(storageRef(storage, thumbnailUrl));
+                  // Check cache first
+                  const cachedUrl = urlCache.get(thumbnailUrl);
+                  if (cachedUrl) {
+                    resolved.thumbnailUrl = cachedUrl;
+                  } else {
+                    const downloadUrl = await getDownloadURL(storageRef(storage, thumbnailUrl));
+                    urlCache.set(thumbnailUrl, downloadUrl);
+                    resolved.thumbnailUrl = downloadUrl;
+                  }
                 } catch (e) {
                   console.warn('Failed to resolve template thumbnailUrl to download URL:', t.id, thumbnailUrl, e);
                   // Keep original URL - it may work as-is or will fail gracefully in <img>
@@ -1707,6 +2113,84 @@ export const firebaseService = {
     } catch (e) {
       console.warn('getTryOnJobById failed:', jobId, e);
       return null;
+    }
+  },
+
+  async saveTryOnJobResult(params: {
+    jobId: string;
+    userId?: string;
+    resultImageUrl: string;
+    resultThumbnailUrl?: string;
+    templateId?: string;
+    fabricId?: string;
+  }): Promise<void> {
+    if (!isFirebaseInitialized) {
+      console.warn('Firebase not initialized, skipping saveTryOnJobResult');
+      return;
+    }
+
+    const safeId = sanitizeFirestoreDocId(params.jobId);
+    if (!safeId) {
+      console.warn('Invalid jobId for saveTryOnJobResult');
+      return;
+    }
+
+    try {
+      const refDoc = doc(db, 'tryon_jobs', safeId);
+      await setDoc(
+        refDoc,
+        {
+          jobId: params.jobId,
+          userId: params.userId || null,
+          resultUrl: params.resultImageUrl,
+          thumbnailUrl: params.resultThumbnailUrl || null,
+          templateId: params.templateId || null,
+          fabricId: params.fabricId || null,
+          status: 'completed',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      console.log('[Firebase] Saved try-on job result:', safeId);
+    } catch (e) {
+      console.error('[Firebase] Failed to save try-on job result:', e);
+    }
+  },
+
+  async getUserTryOnJobs(userId: string, limitCount = 100): Promise<Array<{
+    jobId: string;
+    resultUrl: string;
+    thumbnailUrl?: string;
+    createdAt: number;
+    fabricId?: string;
+  }>> {
+    if (!isFirebaseInitialized) return [];
+    if (!userId) return [];
+
+    try {
+      const q = query(
+        collection(db, 'tryon_jobs'),
+        where('userId', '==', userId),
+        where('status', '==', 'completed'),
+        orderBy('createdAt', 'desc'),
+        limit(limitCount)
+      );
+      
+      const snap = await getDocs(q);
+      return snap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          jobId: docSnap.id,
+          resultUrl: data.resultUrl || '',
+          thumbnailUrl: data.thumbnailUrl || data.resultUrl || '',
+          createdAt: data.createdAt?.toMillis?.() || Date.now(),
+          fabricId: data.fabricId || undefined,
+        };
+      }).filter(job => job.resultUrl);
+    } catch (e) {
+      console.error('[Firebase] Failed to load user try-on jobs:', e);
+      return [];
     }
   },
 
@@ -1842,6 +2326,120 @@ export const firebaseService = {
     } catch (e) {
       console.warn('[firebaseService.getUserTryOnGenerations] failed:', e);
       return [];
+    }
+  },
+
+  async uploadUserTemplate(params: {
+    userId: string;
+    file: File;
+    onProgress?: (progress: number) => void;
+  }): Promise<string> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not initialized');
+
+    const { userId, file, onProgress } = params;
+    if (!userId) throw new Error('User ID required');
+
+    try {
+      const ext = file.name.split('.').pop() || 'jpg';
+      const timestamp = Date.now();
+      const fileName = `${timestamp}.${ext}`;
+      const objectRef = storageRef(storage, `user_templates/${userId}/${fileName}`);
+
+      const uploadTask = uploadBytesResumable(objectRef, file);
+
+      return new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', (snapshot) => {
+          const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+          onProgress?.(progress);
+        });
+
+        uploadTask.then(async () => {
+          try {
+            const downloadUrl = await getDownloadURL(objectRef);
+            resolve(downloadUrl);
+          } catch (e) {
+            reject(e);
+          }
+        }).catch(reject);
+      });
+    } catch (error) {
+      console.error('Error uploading user template:', error);
+      throw error;
+    }
+  },
+
+  async saveUserTemplate(params: {
+    userId: string;
+    name: string;
+    imageUrl: string;
+    thumbnailUrl?: string;
+  }): Promise<string> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not initialized');
+
+    const { userId, name, imageUrl, thumbnailUrl } = params;
+    if (!userId) throw new Error('User ID required');
+
+    try {
+      const docRef = doc(db, 'user_templates', `${userId}_${Date.now()}`);
+      const data = {
+        userId,
+        name: name.trim() || 'Untitled Template',
+        imageUrl,
+        thumbnailUrl: thumbnailUrl || imageUrl,
+        createdAt: serverTimestamp(),
+      };
+
+      await setDoc(docRef, data);
+      return docRef.id;
+    } catch (error) {
+      console.error('Error saving user template metadata:', error);
+      throw error;
+    }
+  },
+
+  async getUserTemplates(userId: string): Promise<Array<{
+    id: string;
+    name: string;
+    imageUrl: string;
+    thumbnailUrl?: string;
+    createdAt: number;
+  }>> {
+    if (!isFirebaseInitialized) return [];
+
+    try {
+      const refCol = collection(db, 'user_templates');
+      const q = query(
+        refCol,
+        where('userId', '==', userId),
+        orderBy('createdAt', 'desc'),
+        limit(100)
+      );
+
+      const snap = await getDocs(q);
+      return snap.docs.map((d) => {
+        const data: any = d.data() || {};
+        return {
+          id: d.id,
+          name: String(data.name || ''),
+          imageUrl: String(data.imageUrl || ''),
+          thumbnailUrl: data.thumbnailUrl ? String(data.thumbnailUrl) : undefined,
+          createdAt: data.createdAt?.toMillis?.() || 0,
+        };
+      }).filter(t => t.id && t.imageUrl);
+    } catch (error) {
+      console.error('Error fetching user templates:', error);
+      return [];
+    }
+  },
+
+  async deleteUserTemplate(templateId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not initialized');
+
+    try {
+      await deleteDoc(doc(db, 'user_templates', templateId));
+    } catch (error) {
+      console.error('Error deleting user template:', error);
+      throw error;
     }
   }
 };

@@ -8,6 +8,15 @@ interface ImageComparisonSliderProps {
   animateReveal?: boolean;
   controlledPosition?: number;
   isLoading?: boolean;
+  /** Multiplies the computed height (e.g. 0.9 makes it ~10% shorter). */
+  heightScale?: number;
+  /** TEST: Additional CSS classes for the after (right) image. TODO: Remove when finalizing */
+  afterImageClassName?: string;
+  /** When true, fills parent container height instead of calculating aspect ratio */
+  fixedHeight?: boolean;
+  /** Image fit mode */
+  fit?: 'cover' | 'contain';
+  className?: string;
 }
 
 const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparisonSliderProps>(function ImageComparisonSlider({
@@ -18,10 +27,15 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
   animateReveal = false,
   controlledPosition,
   isLoading = false,
+  heightScale = 1,
+  afterImageClassName = '',
+  fixedHeight = false,
+  fit = 'cover',
+  className = '',
 }, ref) {
   const [sliderPosition, setSliderPosition] = useState(animateReveal ? 0 : (controlledPosition ?? 50));
   const [isDragging, setIsDragging] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState<string>('3 / 4');
+  const [aspectRatio, setAspectRatio] = useState<number>(3 / 4);
   const [containerWidth, setContainerWidth] = useState<number>(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const beforeImageRef = useRef<HTMLDivElement>(null);
@@ -39,11 +53,8 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
     const percentage = (x / rect.width) * 100;
     currentPositionRef.current = percentage;
     
-    // Track container width for proper sizing
-    if (containerWidth !== rect.width) {
-      setContainerWidth(rect.width);
-    }
-    
+    // Track container width for proper sizing (no-op after initial render)
+
     // During drag, update DOM directly for better performance
     if (directUpdate && beforeImageRef.current && handleRef.current) {
       beforeImageRef.current.style.width = `${percentage}%`;
@@ -172,32 +183,59 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
   }, []);
 
   useEffect(() => {
-    // Initialize container width
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setContainerWidth(rect.width);
-    }
-  }, []);
-
-  useEffect(() => {
     // Match container aspect ratio to the actual template/original image.
     // This prevents cropping/zooming that causes before/after misalignment.
     const img = new Image();
     img.onload = () => {
       if (img.naturalWidth > 0 && img.naturalHeight > 0) {
-        setAspectRatio(`${img.naturalWidth} / ${img.naturalHeight}`);
+        setAspectRatio(img.naturalWidth / img.naturalHeight);
       }
     };
     img.src = beforeImage;
   }, [beforeImage]);
 
+  // Measure container width once and on resize to keep clipping stable without changing during drag
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const measure = () => {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (rect) setContainerWidth(rect.width);
+    };
+
+    measure();
+
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => measure());
+      ro.observe(containerRef.current);
+      return () => ro.disconnect();
+    }
+
+    window.addEventListener('resize', measure);
+    return () => window.removeEventListener('resize', measure);
+  }, []);
+
   // Memoize container styles to prevent unnecessary re-renders
-  const containerStyle = useMemo(() => ({
-    aspectRatio: window.innerWidth < 768 ? '600 / 960' : aspectRatio,
-    touchAction: 'pan-y' as const,
-    contain: 'layout style paint' as const,
-    transform: 'translateZ(0)'
-  }), [aspectRatio]);
+  const containerStyle = useMemo(() => {
+    if (fixedHeight) {
+      return {
+        height: '100%',
+        touchAction: 'pan-y' as const,
+        contain: 'layout style paint' as const,
+        transform: 'translateZ(0)'
+      };
+    }
+    const baseAspect = window.innerWidth < 768 ? (600 / 960) : aspectRatio;
+    // To make height shorter by heightScale, multiply aspect by (1/heightScale).
+    // E.g., heightScale=0.9 means height should be 90%, so aspect *= 1.111 to compensate.
+    const scaledAspect = baseAspect * (1 / Math.max(0.5, Math.min(2, heightScale || 1)));
+    return {
+      aspectRatio: scaledAspect,
+      touchAction: 'pan-y' as const,
+      contain: 'layout style paint' as const,
+      transform: 'translateZ(0)'
+    };
+  }, [aspectRatio, heightScale, fixedHeight]);
 
   // Memoize handle position style
   const handleStyle = useMemo(() => ({
@@ -213,14 +251,14 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
   }), [sliderPosition]);
 
   const beforeImageStyle = useMemo(() => ({
-    width: containerWidth > 0 ? `${containerWidth}px` : '100vw',
+    width: containerWidth > 0 ? `${containerWidth}px` : '100%',
     willChange: isDragging ? 'auto' : undefined
   }), [isDragging, containerWidth]);
 
   return (
     <div
       ref={containerRef}
-      className="relative w-full mx-auto overflow-hidden rounded-lg bg-gray-100 select-none"
+      className="relative w-full mx-auto overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-950 select-none"
       style={containerStyle}
     >
       {/* After Image (background) */}
@@ -228,9 +266,9 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
         <img
           src={afterImage}
           alt={afterLabel}
-          className={`w-full h-full object-contain transition-all duration-500 ${
+          className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} transition-all duration-500 ${
             isLoading ? 'blur-sm scale-105 opacity-70' : ''
-          }`}
+          } ${afterImageClassName}`}
           style={{
             animation: isLoading ? 'pulse 2s ease-in-out infinite' : undefined
           }}
@@ -240,13 +278,13 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
         />
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center">
-            <div className="bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
+            <div className="bg-black/60 dark:bg-black/60 backdrop-blur-sm text-white px-4 py-2 rounded-full text-sm font-medium flex items-center gap-2">
               <span className="inline-block w-4 h-4 border-2 border-white/80 border-t-transparent rounded-full animate-spin" />
               جارٍ الإنشاء...
             </div>
           </div>
         )}
-        <div className="absolute top-4 right-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-medium">
+        <div className="absolute top-4 right-4 bg-white/90 dark:bg-black/70 text-slate-900 dark:text-white px-2 py-0.5 rounded-full text-xs font-medium">
           {afterLabel}
         </div>
       </div>
@@ -264,12 +302,12 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
           <img
             src={beforeImage}
             alt={beforeLabel}
-            className="w-full h-full object-contain"
+            className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
             loading="eager"
             decoding="async"
             draggable={false}
           />
-          <div className="absolute top-4 left-4 bg-black/70 text-white px-3 py-1 rounded-full text-sm font-medium">
+          <div className="absolute top-4 left-4 bg-white/90 dark:bg-black/70 text-slate-900 dark:text-white px-2 py-0.5 rounded-full text-xs font-medium">
             {beforeLabel}
           </div>
         </div>
@@ -294,23 +332,20 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
           scheduleUpdate(touch.clientX, false);
         }}
       >
-        <div className="relative h-full w-0.5 bg-white/80 shadow-lg pointer-events-none">
-          {/* Handle Circle */}
-          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-white/80 rounded-full shadow-lg flex items-center justify-center border border-gray-300/50">
-            <svg
-              className="w-4 h-4 text-gray-700"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2.5}
-                d="M15 8l-4-4-4 4m6 8l4 4 4-4"
-                transform="rotate(90 12 12)"
-              />
-            </svg>
+        <div className="relative h-full w-px bg-slate-700 dark:bg-white pointer-events-none" style={{ boxShadow: '0 0 8px rgba(0,0,0,0.5), 0 0 2px rgba(255,255,255,0.5)' }}>
+          {/* Handle - 4-Hole Sewing Button */}
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-8 h-8 bg-slate-50 dark:bg-slate-800 rounded-full shadow-lg border-2 border-slate-400 dark:border-slate-600">
+            {/* 4 holes in a square pattern */}
+            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4">
+              {/* Top-left hole */}
+              <div className="absolute top-0 left-0 w-1 h-1 bg-slate-700 dark:bg-slate-300 rounded-full"></div>
+              {/* Top-right hole */}
+              <div className="absolute top-0 right-0 w-1 h-1 bg-slate-700 dark:bg-slate-300 rounded-full"></div>
+              {/* Bottom-left hole */}
+              <div className="absolute bottom-0 left-0 w-1 h-1 bg-slate-700 dark:bg-slate-300 rounded-full"></div>
+              {/* Bottom-right hole */}
+              <div className="absolute bottom-0 right-0 w-1 h-1 bg-slate-700 dark:bg-slate-300 rounded-full"></div>
+            </div>
           </div>
         </div>
       </div>

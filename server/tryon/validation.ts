@@ -15,6 +15,29 @@ export function validateTryOnRequest(body: any): ValidationResult {
     return { ok: false, status: 400, message: 'garmentTemplateId is required' };
   }
 
+  // Validate template source (URL or base64)
+  const templateHasBase64 = typeof req.garmentTemplateImageBase64 === 'string' && req.garmentTemplateImageBase64.length > 0;
+  const templateHasUrl = typeof req.garmentTemplateImageUrl === 'string' && req.garmentTemplateImageUrl.length > 0;
+  if (!templateHasBase64 && !templateHasUrl) {
+    return { ok: false, status: 400, message: 'garmentTemplateImageBase64 or garmentTemplateImageUrl is required' };
+  }
+  if (templateHasBase64 && templateHasUrl) {
+    return { ok: false, status: 400, message: 'Provide only one of garmentTemplateImageBase64 or garmentTemplateImageUrl' };
+  }
+
+  if (templateHasBase64) {
+    const templateMime = (req.garmentTemplateMimeType || '').toLowerCase();
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(templateMime)) {
+      return { ok: false, status: 400, message: 'Unsupported garmentTemplateMimeType' };
+    }
+
+    // Approx bytes: base64Len * 3/4
+    const approxBytes = Math.floor((req.garmentTemplateImageBase64!.length * 3) / 4);
+    if (approxBytes > MAX_BASE64_BYTES) {
+      return { ok: false, status: 413, message: 'Template image too large (max 5MB)' };
+    }
+  }
+
   const hasBase64 = typeof req.fabricImageBase64 === 'string' && req.fabricImageBase64.length > 0;
   const hasUrl = typeof req.fabricImageUrl === 'string' && req.fabricImageUrl.length > 0;
   if (!hasBase64 && !hasUrl) {
@@ -81,6 +104,10 @@ export function validateTryOnRequest(body: any): ValidationResult {
     return { ok: false, status: 400, message: 'Invalid colorPreservation value' };
   }
 
+  if (req.options.applyMask !== undefined && typeof req.options.applyMask !== 'boolean') {
+    return { ok: false, status: 400, message: 'applyMask must be a boolean' };
+  }
+
   return { ok: true };
 }
 
@@ -91,17 +118,23 @@ export function isAllowedRemoteImageUrl(urlString: string): boolean {
 
     // SSRF guard: allow only known hosts.
     const host = url.hostname.toLowerCase();
-    const allowedHosts = [
+    
+    // Allow Firebase Storage URLs (including bucket-specific domains like khuyoot-app01.firebasestorage.app)
+    const allowedPatterns = [
       'images.unsplash.com',
       'firebasestorage.googleapis.com',
       'storage.googleapis.com',
       'localhost',
       '127.0.0.1',
     ];
+    
+    // Check exact matches
+    if (allowedPatterns.includes(host)) return true;
+    
+    // Allow any firebasestorage.app domain (covers bucket-specific subdomains)
+    if (host.endsWith('.firebasestorage.app') || host === 'firebasestorage.app') return true;
 
-    if (!allowedHosts.includes(host)) return false;
-
-    return true;
+    return false;
   } catch {
     return false;
   }

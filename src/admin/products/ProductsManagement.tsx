@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, RefreshCw } from 'lucide-react';
 import { Category, ProductTemplate, CategoryTreeNode, CategoryFormData, ProductTemplateFormData } from './types';
 import {
@@ -18,8 +19,20 @@ import { CategoryTreeItem } from './components/CategoryTreeItem';
 
 type TabType = 'categories' | 'templates';
 
+const PRODUCT_TABS: ReadonlyArray<TabType> = ['categories', 'templates'];
+
+function getProductsTabFromPathname(pathname: string): TabType {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'products', ':tab?']
+  const tab = parts[2];
+  if (PRODUCT_TABS.includes(tab as TabType)) return tab as TabType;
+  return 'categories';
+}
+
 export const ProductsManagement: React.FC = () => {
-  const [activeTab, setActiveTab] = useState<TabType>('categories');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = getProductsTabFromPathname(location.pathname);
   const [categories, setCategories] = useState<Category[]>([]);
   const [categoryTree, setCategoryTree] = useState<CategoryTreeNode[]>([]);
   const [products, setProducts] = useState<ProductTemplate[]>([]);
@@ -39,6 +52,19 @@ export const ProductsManagement: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    const parts = String(pathname || '').split('/').filter(Boolean);
+    if (parts[0] !== 'admin' || parts[1] !== 'products') return;
+
+    const rawTab = parts[2];
+    const canonical = `/admin/products/${getProductsTabFromPathname(pathname)}`;
+
+    if (!rawTab || !PRODUCT_TABS.includes(rawTab as TabType)) {
+      if (pathname !== canonical) navigate(canonical, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   useEffect(() => {
     if (searchQuery) {
@@ -207,7 +233,7 @@ export const ProductsManagement: React.FC = () => {
       {/* التبويبات */}
       <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
         <button
-          onClick={() => setActiveTab('categories')}
+          onClick={() => navigate('/admin/products/categories')}
           className={`px-6 py-3 font-medium transition-colors ${
             activeTab === 'categories'
               ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'
@@ -217,7 +243,7 @@ export const ProductsManagement: React.FC = () => {
           التصنيفات ({categories.length})
         </button>
         <button
-          onClick={() => setActiveTab('templates')}
+          onClick={() => navigate('/admin/products/templates')}
           className={`px-6 py-3 font-medium transition-colors ${
             activeTab === 'templates'
               ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'

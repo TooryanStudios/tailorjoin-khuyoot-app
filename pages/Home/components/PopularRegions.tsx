@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
-import { MapPin, Compass } from 'lucide-react';
-import { PopularRegion } from '../../../types';
-import { firebaseService } from '../../../services/firebase';
+import React from 'react';
+import { Compass } from 'lucide-react';
+import { usePopularRegions } from '../../../src/hooks/useHomeData';
 
 interface PopularRegionsProps {
   onRegionSelect: (region: string | null) => void;
@@ -14,8 +13,7 @@ export const PopularRegions: React.FC<PopularRegionsProps> = ({
   selectedRegion, 
   maxRegions = 8 
 }) => {
-  const [regions, setRegions] = useState<PopularRegion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: regions = [], isPending } = usePopularRegions(maxRegions);
 
   const emojiFor = (name: string) => {
     const map: Record<string, string> = {
@@ -26,27 +24,9 @@ export const PopularRegions: React.FC<PopularRegionsProps> = ({
     return map[name] || '📍';
   };
 
-  useEffect(() => {
-    loadRegions();
-  }, []);
-
-  const loadRegions = async () => {
-    try {
-      const data = await firebaseService.getPopularRegions?.();
-      const list: PopularRegion[] = Array.isArray(data) ? data : [];
-      const enabledRegions = list
-        .filter(r => !!r && (r as any).enabled === true)
-        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
-        .slice(0, maxRegions);
-      setRegions(enabledRegions);
-    } catch (error) {
-      setRegions([]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  if (loading) return <div className="h-28 w-full bg-slate-100 dark:bg-slate-800 animate-pulse mb-8" />;
+  if (isPending && regions.length === 0) {
+    return <div className="h-28 w-full bg-slate-100 dark:bg-slate-800 animate-pulse mb-8" />;
+  }
   if (regions.length === 0) return null;
 
   return (

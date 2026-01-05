@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { Sparkles, ArrowLeft, ArrowUpLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../context/AppContext';
-import { getActiveAdvertisements, incrementAdViews, incrementAdClicks, Advertisement } from '../../../services/advertisementService';
+import type { Advertisement } from '../../../services/advertisementService';
+import { useHomeAdvertisements } from '../../../src/hooks/useHomeData';
 
 export const DesignSection: React.FC = () => {
   const navigate = useNavigate();
@@ -28,6 +29,8 @@ export const DesignSection: React.FC = () => {
           src={designImage} 
           alt="Design Section" 
           className="w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105"
+          loading="eager"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-4 flex flex-col justify-end">
           {user?.role === 'admin' && (
@@ -81,35 +84,28 @@ export const DesignSection: React.FC = () => {
 export const AdsSection: React.FC = () => {
   const { appSettings, user } = useApp();
   const navigate = useNavigate();
-  const [currentAd, setCurrentAd] = useState<Advertisement | null>(null);
-  const [ads, setAds] = useState<Advertisement[]>([]);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [hasTrackedView, setHasTrackedView] = useState(false);
   
-  // تحميل الإعلانات النشطة للصفحة الرئيسية فقط
+  // ✅ Use cache-first React Query hook for ads
+  const { data: ads = [], isPending } = useHomeAdvertisements('homepage_main');
+  const [currentAd, setCurrentAd] = useState<Advertisement | null>(ads[0] || null);
+  
+  // Update current ad when ads data changes
   useEffect(() => {
-    const loadAds = async () => {
-      try {
-        const activeAds = await getActiveAdvertisements();
-        // فلترة الإعلانات حسب الموقع (الصفحة الرئيسية فقط)
-        const homepageAds = activeAds.filter(ad => ad.adLocation === 'homepage_main');
-        console.log('🎯 Homepage ads loaded:', homepageAds.length, homepageAds);
-        if (homepageAds.length > 0) {
-          setAds(homepageAds);
-          setCurrentAd(homepageAds[0]);
-        }
-      } catch (error) {
-        console.error('Error loading ads:', error);
-      }
-    };
-    loadAds();
-  }, []);
+    if (ads.length > 0 && !currentAd) {
+      console.log('🎯 Homepage ads loaded:', ads.length, ads);
+      setCurrentAd(ads[0]);
+    }
+  }, [ads, currentAd]);
 
   // تسجيل المشاهدة عند تحميل الإعلان
   useEffect(() => {
     if (currentAd && !hasTrackedView) {
       console.log('👁️ Ad view tracked:', currentAd.title, currentAd.id);
-      incrementAdViews(currentAd.id);
+      void import('../../../services/advertisementService').then(({ incrementAdViews }) => {
+        incrementAdViews(currentAd.id);
+      });
       setHasTrackedView(true);
     }
   }, [currentAd, hasTrackedView]);
@@ -135,7 +131,9 @@ export const AdsSection: React.FC = () => {
   const handleAdClick = () => {
     if (currentAd) {
       console.log('🖱️ Ad clicked:', { shopId: currentAd.shopId, shopType: currentAd.shopType, shopName: currentAd.shopName });
-      incrementAdClicks(currentAd.id);
+      void import('../../../services/advertisementService').then(({ incrementAdClicks }) => {
+        incrementAdClicks(currentAd.id);
+      });
       
       // التوجه إلى صفحة المحل حسب النوع
       if (currentAd.shopType === 'tailor') {
@@ -164,6 +162,13 @@ export const AdsSection: React.FC = () => {
   // إذا لم يكن هناك إعلانات نشطة، استخدم الصورة من الإعدادات أو الافتراضية
   const fallbackImage = appSettings.homePageSettings?.bannerImages?.ads || "https://picsum.photos/600/400?random=fabric";
   
+  // Show skeleton while loading and no cached data
+  if (isPending && ads.length === 0) {
+    return (
+      <div className="bg-slate-200 dark:bg-slate-800 rounded-2xl h-[160px] animate-pulse" />
+    );
+  }
+  
   return (
     <div 
       onClick={currentAd ? handleAdClick : undefined}
@@ -173,6 +178,8 @@ export const AdsSection: React.FC = () => {
         src={currentAd?.image || fallbackImage} 
         alt={currentAd?.title || "Ad"} 
         className="w-full h-full object-cover opacity-90 transition-transform duration-700 group-hover:scale-105"
+        loading="eager"
+        decoding="async"
       />
       <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/40 to-transparent p-3 flex flex-col justify-end">
         {user?.role === 'admin' && (

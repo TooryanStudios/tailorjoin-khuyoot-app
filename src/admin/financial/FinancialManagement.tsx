@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { TrendingUp, FileText, Wallet, ArrowDownToLine, Download } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
+import { useLocation, useNavigate } from 'react-router-dom';
 import {
   getTransactions,
   getAllBalances,
@@ -25,9 +26,21 @@ import { AdjustBalanceModal } from './modals/AdjustBalanceModal';
 
 type FinancialTab = 'dashboard' | 'transactions' | 'balances' | 'withdrawals' | 'reports';
 
+const FINANCIAL_TABS: ReadonlyArray<FinancialTab> = ['dashboard', 'transactions', 'balances', 'withdrawals', 'reports'];
+
+function getFinancialTabFromPathname(pathname: string): FinancialTab {
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'financial', ':tab?']
+  const tab = parts[2];
+  if (FINANCIAL_TABS.includes(tab as FinancialTab)) return tab as FinancialTab;
+  return 'dashboard';
+}
+
 export const FinancialManagement: React.FC = () => {
   const { user } = useApp();
-  const [activeTab, setActiveTab] = useState<FinancialTab>('dashboard');
+  const navigate = useNavigate();
+  const location = useLocation();
+  const activeTab = useMemo(() => getFinancialTabFromPathname(location.pathname), [location.pathname]);
   const [loading, setLoading] = useState(true);
   
   // البيانات
@@ -55,6 +68,19 @@ export const FinancialManagement: React.FC = () => {
   useEffect(() => {
     loadData();
   }, []);
+
+  useEffect(() => {
+    const pathname = location.pathname;
+    const parts = String(pathname || '').split('/').filter(Boolean);
+    if (parts[0] !== 'admin' || parts[1] !== 'financial') return;
+
+    const rawTab = parts[2];
+    const canonical = `/admin/financial/${getFinancialTabFromPathname(pathname)}`;
+
+    if (!rawTab || !FINANCIAL_TABS.includes(rawTab as FinancialTab)) {
+      if (pathname !== canonical) navigate(canonical, { replace: true });
+    }
+  }, [location.pathname, navigate]);
 
   const loadData = async () => {
     setLoading(true);
@@ -158,7 +184,7 @@ export const FinancialManagement: React.FC = () => {
             return (
               <button
                 key={tab.id}
-                onClick={() => setActiveTab(tab.id)}
+                onClick={() => navigate(`/admin/financial/${tab.id}`)}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-lg font-medium transition-all whitespace-nowrap ${
                   activeTab === tab.id
                     ? 'bg-blue-600 text-white shadow-md'

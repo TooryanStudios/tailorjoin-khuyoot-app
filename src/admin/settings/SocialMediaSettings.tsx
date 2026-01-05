@@ -36,7 +36,7 @@ export const SocialMediaSettings: React.FC = () => {
       await saveAppSettings({
         ...appSettings,
         socialMedia
-      });
+      }, { silent: true, optimistic: true });
       
       setMessage('✅ تم حفظ روابط السوشيال ميديا بنجاح');
       setTimeout(() => setMessage(''), 3000);

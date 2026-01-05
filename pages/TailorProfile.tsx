@@ -8,6 +8,7 @@ import { ProductCard } from '../components/ProductCard';
 import { Button } from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { getSpecializationLabel } from '../utils/specializationHelper';
+import { StableImage } from '../src/components/StableImage';
 
 type ViewMode = 'grid' | 'compact' | 'list';
 
@@ -55,8 +56,12 @@ export const TailorProfile = () => {
   return (
     <div className="pb-24">
       {/* Cover Image */}
-      <div className="h-48 md:h-64 bg-slate-200 dark:bg-slate-800 relative">
-         <img src={tailor.coverImage || 'https://picsum.photos/1000/400?blur=2'} alt="Cover" className="w-full h-full object-cover" />
+         <div className="h-48 md:h-64 bg-slate-200 dark:bg-slate-800 relative">
+             <StableImage
+                src={tailor.coverImage || 'https://picsum.photos/1000/400?blur=2'}
+                alt="Cover"
+                aspectClass="h-full"
+             />
          <div className="absolute inset-0 bg-black/30"></div>
          <button 
            onClick={() => navigate(-1)}
@@ -69,8 +74,8 @@ export const TailorProfile = () => {
       {/* Profile Header */}
       <div className="px-4 md:px-8 max-w-5xl mx-auto -mt-16 relative">
          <div className="bg-white dark:bg-[#0f172a] rounded-2xl p-6 shadow-xl border border-slate-100 dark:border-slate-800 flex flex-col md:flex-row gap-6 items-start md:items-end">
-            <div className="w-32 h-32 rounded-2xl bg-slate-100 p-1 bg-white shadow-lg -mt-16 md:-mt-20">
-               <img src={tailor.image} alt={tailor.name} className="w-full h-full object-cover rounded-xl" />
+            <div className="w-32 h-32 rounded-2xl bg-slate-100 p-1 bg-white shadow-lg -mt-16 md:-mt-20 overflow-hidden">
+               <StableImage src={tailor.image} alt={tailor.name} aspectClass="h-full" className="rounded-xl" />
             </div>
             
             <div className="flex-1">
@@ -256,9 +261,14 @@ export const TailorProfile = () => {
                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   {tailor.portfolio && tailor.portfolio.length > 0 ? (
                      tailor.portfolio.map((img, idx) => (
-                        <div key={idx} className="aspect-[3/4] rounded-xl overflow-hidden bg-slate-100">
-                           <img src={img} alt={`Work ${idx}`} className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
-                        </div>
+                                    <StableImage
+                                       key={idx}
+                                       src={img}
+                                       alt={`Work ${idx}`}
+                                       aspectClass="aspect-[3/4]"
+                                       className="rounded-xl"
+                                       imgClassName="hover:scale-105 duration-500"
+                                    />
                      ))
                   ) : (
                      <div className="col-span-full py-10 text-center text-slate-400">

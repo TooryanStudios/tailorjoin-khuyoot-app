@@ -2,6 +2,7 @@ import React from 'react';
 import { ChevronDown, Shirt } from 'lucide-react';
 import { Button } from '../../../../components/Button';
 import { AdminAnchor } from '../AdminAnchor';
+import { StableImage } from '../../../../src/components/StableImage';
 
 interface TemplateSectionProps {
   anchorId?: string;
@@ -57,7 +58,13 @@ export const TemplateSection: React.FC<TemplateSectionProps> = ({
             className="cursor-pointer group relative aspect-[3/4] max-w-[260px] mx-auto rounded-lg overflow-hidden border-2 border-dashed border-slate-200 hover:border-violet-500 transition-colors bg-slate-50"
           >
             {templatePreviewUrl ? (
-              <img src={templatePreviewUrl} className="w-full h-full object-cover" />
+              <StableImage
+                src={templatePreviewUrl}
+                alt={selectedTemplateName || 'نموذج التصميم'}
+                aspectClass="h-full"
+                className="h-full w-full"
+                imgClassName="object-cover"
+              />
             ) : (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400">
                 <Shirt size={32} className="mb-2" />

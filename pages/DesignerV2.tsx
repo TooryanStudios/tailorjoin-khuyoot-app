@@ -2,7 +2,8 @@
 // Designer V2
 
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import { Sparkles, Wand2, Check, Shirt, Layers, User, ShoppingCart, RotateCcw, Anchor, HelpCircle } from 'lucide-react';
 import { Button } from '../components/Button';
@@ -16,13 +17,20 @@ import { getImageCategories } from '../services/imageLibraryService';
 import { firebaseService } from '../services/firebase';
 import { useOnlineStatus } from '../utils/useOnlineStatus';
 import { TryFabricPanel, type TryFabricPanelHandle } from '../src/designer/components/TryFabricPanel';
+import { getOptimizedImageUrl, preloadImage } from '../src/utils/imageOptimization';
 import { CanvasPanel } from './designerV2/components/CanvasPanel';
-import { RightPanel } from './designerV2/components/RightPanel';
 import { GenerationsRail, GenerationItem } from './designerV2/components/GenerationsRail';
 import { TemplateSection } from './designerV2/components/sections/TemplateSection';
 import { FabricSection } from './designerV2/components/sections/FabricSection';
 import { FabricScaleControl, FabricScaleApplyPayload } from '../components/FabricScaleControl';
 import { AdminAnchor } from './designerV2/components/AdminAnchor';
+import { ModalsSection } from './designerV2/sections/ModalsSection';
+import { TryOnSection } from './designerV2/sections/TryOnSection';
+import { FeatureToggleBar } from './designerV2/components/FeatureToggleBar';
+import type { TryOnResultFeatures } from '../src/designer/components/tryOnResult/TryOnResultFeatures';
+import { DEFAULT_FEATURES } from '../src/designer/components/tryOnResult/TryOnResultFeatures';
+import { useTabState } from '../src/hooks/useTabState';
+import { useAppStore } from '../src/store/useAppStore';
 
 // ... (KEEP ALL INTERFACES, TYPES, AND MOCK DATA EXACTLY THE SAME)
 // Types for design data persistence
@@ -108,33 +116,171 @@ const SHOPS_FABRICS = [
 
 const DESIGN_DRAFT_KEY = 'khuyoot_design_draft';
 
+const MAX_STORABLE_DATA_URL_CHARS = 200_000;
+
+const isLikelyStorableUrl = (url: string | null | undefined): url is string => {
+  if (!url) return false;
+  if (url.startsWith('blob:')) return false;
+  if (url.startsWith('http://') || url.startsWith('https://')) return true;
+  if (url.startsWith('data:image/')) return url.length <= MAX_STORABLE_DATA_URL_CHARS;
+  return false;
+};
+
+const sanitizePersistedImageUrl = (url: string | null | undefined): string | null => {
+  if (!url) return null;
+  return isLikelyStorableUrl(url) ? url : null;
+};
+
 export const DesignerV2 = () => {
+  // **HIBERNATION CHECK: Exit early if not active**
+  const routeLocation = useLocation();
+  const isActive = routeLocation.pathname === '/designer' || routeLocation.pathname.startsWith('/designer/');
+
+  // **ZUSTAND SELECTOR FIX: Use specific selectors instead of destructuring entire state**
+  const designerSession = useAppStore((state) => state.designerSession);
+  const setDesignerSession = useAppStore((state) => state.setDesignerSession);
+  const clearDesignerSession = useAppStore((state) => state.clearDesignerSession);
+
   // ... (KEEP ALL STATE AND LOGIC EXACTLY THE SAME - NO CHANGES HERE)
   const { user, appSettings } = useApp();
+
   const isAdminUser = user?.role === 'admin';
   const isOnline = useOnlineStatus();
   const navigate = useNavigate();
-  const location = useLocation();
   const { id: routeId } = useParams();
-  const [selectedTemplate, setSelectedTemplate] = useState('dishdasha');
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generatedImage, setGeneratedImage] = useState<string | null>(null);
-  const [generations, setGenerations] = useState<GenerationItem[]>([]);
-  const [generationsBeforeUrl, setGenerationsBeforeUrl] = useState<string | null>(null);
-  const [generationsAfterUrl, setGenerationsAfterUrl] = useState<string | null>(null);
-  const [currentStep, setCurrentStep] = useState(1);
-  
-  const [fabricSource, setFabricSource] = useState<FabricSource>('khuyoot');
-  const [selectedFabricId, setSelectedFabricId] = useState<string | null>(null);
-  const [fabricImage, setFabricImage] = useState<string | null>(null);
-  const [showFabricScale, setShowFabricScale] = useState(false);
-  const [fabricSettings, setFabricSettings] = useState<FabricPatternSettings>({
+
+  // Only mirror state to CreationContext for the default creation flow (/designer).
+  // Editing a saved design (/designer/:id) should not overwrite the global creation resume state.
+  const isCreationFlow = !routeId;
+  const [fabricSettingsLocal, setFabricSettingsLocal] = useState<FabricPatternSettings>({
     patternScale: 1.0,
     patternOffsetX: 0,
     patternOffsetY: 0,
     patternRotation: 0,
     patternRepeatMode: 'repeat'
   });
+  const [selectedTemplateLocal, setSelectedTemplateLocal] = useState('dishdasha');
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generatedImageLocal, setGeneratedImageLocal] = useState<string | null>(null);
+  const [generationsLocal, setGenerationsLocal] = useState<GenerationItem[]>([]);
+  const [generationsBeforeUrl, setGenerationsBeforeUrl] = useState<string | null>(null);
+  const [generationsAfterUrl, setGenerationsAfterUrl] = useState<string | null>(null);
+  const [currentStepLocal, setCurrentStepLocal] = useState(1);
+  
+  const [fabricSourceLocal, setFabricSourceLocal] = useState<FabricSource>('khuyoot');
+  const [selectedFabricIdLocal, setSelectedFabricIdLocal] = useState<string | null>(null);
+  const [fabricImageLocal, setFabricImageLocal] = useState<string | null>(null);
+  const [showFabricScale, setShowFabricScale] = useState(false);
+  
+  const selectedTemplate = isCreationFlow ? designerSession.selectedTemplate || 'dishdasha' : selectedTemplateLocal;
+  const selectedFabricId = isCreationFlow ? designerSession.selectedFabricId : selectedFabricIdLocal;
+  const generatedImage = isCreationFlow ? designerSession.generatedImage : generatedImageLocal;
+  const fabricImage = isCreationFlow ? designerSession.fabricImage : fabricImageLocal;
+  const fabricSource = isCreationFlow ? designerSession.fabricSource : fabricSourceLocal;
+  const fabricSettings = isCreationFlow ? designerSession.fabricSettings : fabricSettingsLocal;
+  const generations = isCreationFlow ? designerSession.generations : generationsLocal;
+  const currentStep = isCreationFlow ? designerSession.currentStep : currentStepLocal;
+
+  const setSelectedTemplate = useCallback(
+    (action: React.SetStateAction<string>) => {
+      const resolved = typeof action === 'function' ? action(selectedTemplate) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ selectedTemplate: resolved });
+      } else {
+        setSelectedTemplateLocal(resolved);
+      }
+    },
+    [isCreationFlow, selectedTemplate, setDesignerSession]
+  );
+
+  const setSelectedFabricId = useCallback(
+    (action: React.SetStateAction<string | null>) => {
+      const resolved = typeof action === 'function' ? action(selectedFabricId) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ selectedFabricId: resolved });
+      } else {
+        setSelectedFabricIdLocal(resolved);
+      }
+    },
+    [isCreationFlow, selectedFabricId, setDesignerSession]
+  );
+
+  const setGeneratedImage = useCallback(
+    (action: React.SetStateAction<string | null>) => {
+      const resolved = typeof action === 'function' ? action(generatedImage) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ generatedImage: resolved });
+      } else {
+        setGeneratedImageLocal(resolved);
+      }
+    },
+    [isCreationFlow, generatedImage, setDesignerSession]
+  );
+
+  const setFabricImage = useCallback(
+    (action: React.SetStateAction<string | null>) => {
+      const resolved = typeof action === 'function' ? action(fabricImage) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ fabricImage: resolved });
+      } else {
+        setFabricImageLocal(resolved);
+      }
+    },
+    [isCreationFlow, fabricImage, setDesignerSession]
+  );
+
+  const setFabricSource = useCallback(
+    (action: React.SetStateAction<FabricSource>) => {
+      const resolved = typeof action === 'function' ? action(fabricSource) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ fabricSource: resolved });
+      } else {
+        setFabricSourceLocal(resolved);
+      }
+    },
+    [isCreationFlow, fabricSource, setDesignerSession]
+  );
+
+  const setFabricSettings = useCallback(
+    (action: React.SetStateAction<FabricPatternSettings>) => {
+      const resolved = typeof action === 'function' ? action(fabricSettings) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ fabricSettings: resolved });
+      } else {
+        setFabricSettingsLocal(resolved);
+      }
+    },
+    [isCreationFlow, fabricSettings, setDesignerSession]
+  );
+
+  const setGenerations = useCallback(
+    (action: React.SetStateAction<GenerationItem[]>) => {
+      const resolved = typeof action === 'function' ? action(generations) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ generations: resolved });
+      } else {
+        setGenerationsLocal(resolved);
+      }
+    },
+    [isCreationFlow, generations, setDesignerSession]
+  );
+
+  const setCurrentStep = useCallback(
+    (action: React.SetStateAction<number>) => {
+      const resolved = typeof action === 'function' ? action(currentStep) : action;
+      if (isCreationFlow) {
+        setDesignerSession({ currentStep: resolved });
+      } else {
+        setCurrentStepLocal(resolved);
+      }
+    },
+    [isCreationFlow, currentStep, setDesignerSession]
+  );
+
+  const resetCreation = useCallback(() => {
+    clearDesignerSession();
+  }, [clearDesignerSession]);
+
   const [fabricSettingsDraft, setFabricSettingsDraft] = useState<FabricPatternSettings | null>(null);
   const [fabricPreviewCache, setFabricPreviewCache] = useState<Record<string, FabricPreviewCacheEntry>>({});
   // Live preview blend options (kept local to avoid type changes)
@@ -158,6 +304,16 @@ export const DesignerV2 = () => {
     } catch {
       return false;
     }
+  });
+
+  // Feature toggles state
+  const [features, setFeatures] = useState<TryOnResultFeatures>(DEFAULT_FEATURES);
+
+  const imageCategoriesQuery = useQuery({
+    queryKey: ['image-categories'],
+    queryFn: () => getImageCategories(),
+    staleTime: 1000 * 60 * 10,
+    gcTime: 1000 * 60 * 30, // Keep in cache 30min instead of default 5min
   });
 
   useEffect(() => {
@@ -187,15 +343,15 @@ export const DesignerV2 = () => {
     if (!isAdminUser && showAdminLabels) {
       setShowAdminLabels(false);
       try {
-        const params = new URLSearchParams(location.search);
+        const params = new URLSearchParams(routeLocation.search);
         params.delete('anchors');
         const qs = params.toString();
-        navigate(`${location.pathname}${qs ? `?${qs}` : ''}${location.hash || ''}`, { replace: true });
+        navigate(`${routeLocation.pathname}${qs ? `?${qs}` : ''}${routeLocation.hash || ''}`, { replace: true });
       } catch {
         // ignore
       }
     }
-  }, [isAdminUser, showAdminLabels, navigate, location.pathname, location.search, location.hash]);
+  }, [isAdminUser, showAdminLabels, navigate, routeLocation.pathname, routeLocation.search, routeLocation.hash]);
 
   useEffect(() => {
     if (!selectedFabricId) return;
@@ -254,6 +410,9 @@ export const DesignerV2 = () => {
             url: x.url as string,
             thumbnailUrl: (typeof x.thumbnailUrl === 'string' ? x.thumbnailUrl : null) as string | null,
             createdAt: x.createdAt as number,
+            fabricId: (typeof x.fabricId === 'string' ? x.fabricId : null) as string | null,
+            width: (typeof x.width === 'number' && Number.isFinite(x.width) ? x.width : null) as number | null,
+            height: (typeof x.height === 'number' && Number.isFinite(x.height) ? x.height : null) as number | null,
           }))
           .slice(0, maxStoredGenerations)
       );
@@ -280,6 +439,9 @@ export const DesignerV2 = () => {
               url: x.url,
               thumbnailUrl: (typeof (x as any).thumbnailUrl === 'string' ? (x as any).thumbnailUrl : null) as string | null,
               createdAt: x.createdAt,
+              fabricId: (typeof (x as any).fabricId === 'string' ? (x as any).fabricId : null) as string | null,
+              width: (typeof (x as any).width === 'number' && Number.isFinite((x as any).width) ? (x as any).width : null) as number | null,
+              height: (typeof (x as any).height === 'number' && Number.isFinite((x as any).height) ? (x as any).height : null) as number | null,
             }))
             .slice(0, maxStoredGenerations);
 
@@ -404,10 +566,16 @@ export const DesignerV2 = () => {
   const [templatesLoading, setTemplatesLoading] = useState<boolean>(false);
   const [templatesFallback, setTemplatesFallback] = useState<boolean>(false);
   const [templateModalOpen, setTemplateModalOpen] = useState<boolean>(false);
+
+
+
   const [templateSearch, setTemplateSearch] = useState<string>('');
   const [showTemplateImageLibrary, setShowTemplateImageLibrary] = useState<boolean>(false);
   const tryFabricPanelRef = React.useRef<TryFabricPanelHandle | null>(null);
+  const [pendingTryOnFabricPickerOpen, setPendingTryOnFabricPickerOpen] = useState(false);
+  const [pendingTryOnTemplatePickerOpen, setPendingTryOnTemplatePickerOpen] = useState(false);
   const [templateImageOverrides, setTemplateImageOverrides] = useState<Record<string, string>>({});
+  const [templateFullSizeCache, setTemplateFullSizeCache] = useState<Record<string, string>>({});
   const [imageCategories, setImageCategories] = useState<any[]>([]);
   const [womenRootId, setWomenRootId] = useState<string | null>(null);
   const [womenLevel1, setWomenLevel1] = useState<any[]>([]);
@@ -461,20 +629,36 @@ export const DesignerV2 = () => {
   }, [currentTemplate, measurementTemplates, selectedTemplate]);
 
   // Load template dimensions when template image changes
+  // IMPORTANT: Use getOptimizedImageUrl with 'original' to load the full-resolution image
+  // (not a resized thumbnail) to get accurate dimensions
   useEffect(() => {
     if (!templatePreviewUrl) {
       setTemplateDimensions(null);
       return;
     }
 
+    // Force loading the original full-size image (not a resized thumbnail)
+    const originalUrl = getOptimizedImageUrl(templatePreviewUrl, 'original');
+    const urlToLoad = originalUrl || templatePreviewUrl;
+
     const img = new Image();
     img.onload = () => {
-      setTemplateDimensions({ width: img.naturalWidth, height: img.naturalHeight });
+      const dims = { width: img.naturalWidth, height: img.naturalHeight };
+      console.log('[DesignerV2] Template image loaded:', { 
+        url: urlToLoad,
+        naturalWidth: img.naturalWidth,
+        naturalHeight: img.naturalHeight,
+        displayWidth: img.width,
+        displayHeight: img.height,
+        completeImage: img.complete
+      });
+      setTemplateDimensions(dims);
     };
     img.onerror = () => {
+      console.error('[DesignerV2] Template image failed to load:', urlToLoad);
       setTemplateDimensions(null);
     };
-    img.src = templatePreviewUrl;
+    img.src = urlToLoad;
 
     return () => {
       img.onload = null;
@@ -550,7 +734,7 @@ export const DesignerV2 = () => {
       if (next) params.set('anchors', '1');
       else params.delete('anchors');
       const qs = params.toString();
-      navigate(`${location.pathname}${qs ? `?${qs}` : ''}${location.hash || ''}`, { replace: true });
+      navigate(`${routeLocation.pathname}${qs ? `?${qs}` : ''}${routeLocation.hash || ''}`, { replace: true });
     } catch {}
   };
 
@@ -598,19 +782,78 @@ export const DesignerV2 = () => {
       img.src = dataUrl;
     });
   };
-  const upsertGeneration = React.useCallback((jobId: string, url: string, thumbnailUrl?: string | null) => {
+  const loadImageDims = React.useCallback((url: string): Promise<{ width: number; height: number } | null> => {
+    return new Promise((resolve) => {
+      if (!url) return resolve(null);
+      const img = new Image();
+      img.onload = () => {
+        const w = Number((img as any).naturalWidth || img.width || 0);
+        const h = Number((img as any).naturalHeight || img.height || 0);
+        if (!w || !h) return resolve(null);
+        resolve({ width: w, height: h });
+      };
+      img.onerror = () => resolve(null);
+      img.src = url;
+    });
+  }, []);
+
+  const upsertGeneration = React.useCallback((
+    jobId: string,
+    url: string,
+    thumbnailUrl?: string | null,
+    meta?: { fabricId?: string | null }
+  ) => {
     const finalThumb = thumbnailUrl ?? url;
     console.log('[DesignerV2] upsertGeneration:', { jobId, url: url?.substring(0, 50), thumbnailUrl: finalThumb?.substring(0, 50) });
+
+    const createdAt = Date.now();
+    const key = `${jobId}:${url}`;
     
     setGenerations(prev => {
-      const key = `${jobId}:${url}`;
       const filtered = prev.filter(g => `${g.jobId}:${g.url}` !== key);
       return [
-        { jobId, url, thumbnailUrl: finalThumb, createdAt: Date.now() },
+        { jobId, url, thumbnailUrl: finalThumb, createdAt, fabricId: meta?.fabricId ?? null, width: null, height: null },
         ...filtered,
       ].slice(0, 20);
     });
-  }, []);
+
+    // Hydrate image dimensions async (best effort) for hover details.
+    // Prefer thumbnail for speed; fallback to full URL.
+    (async () => {
+      const dims = await loadImageDims(finalThumb || url);
+      if (!dims) return;
+      setGenerations((prev) => {
+        const next = prev.map((g) => {
+          const k = `${g.jobId}:${g.url}`;
+          if (k !== key) return g;
+          if (g.width && g.height) return g;
+          return { ...g, width: dims.width, height: dims.height };
+        });
+        return next;
+      });
+    })();
+  }, [loadImageDims]);
+
+  // Callback to reload generations from Firestore
+  const reloadGenerations = useCallback(async () => {
+    if (!user?.id || !firebaseService.isInitialized()) return;
+    
+    try {
+      const jobs = await firebaseService.getUserTryOnJobs(user.id, 100);
+      console.log('[DesignerV2] Reloaded try-on jobs from Firestore:', jobs.length);
+      
+      jobs.forEach((job) => {
+        upsertGeneration(job.jobId, job.resultUrl, job.thumbnailUrl, { fabricId: job.fabricId || null });
+      });
+    } catch (e) {
+      console.error('[DesignerV2] Failed to reload try-on jobs:', e);
+    }
+  }, [user?.id, upsertGeneration]);
+
+  // Load user's try-on jobs from Firestore on mount
+  useEffect(() => {
+    reloadGenerations();
+  }, [reloadGenerations]);
 
   // If thumbnails are already stored in Firestore (tryon_jobs.thumbnailUrl), hydrate them for the rail.
   useEffect(() => {
@@ -692,6 +935,31 @@ export const DesignerV2 = () => {
     setGenerationsAfterUrl(url);
     showToast('تم تعيين كـ بعد', 'success');
   };
+  
+  // Refresh the after image with the latest generation
+  const handleRefreshAfterImage = React.useCallback(() => {
+    if (lastTryOnResultUrl) {
+      setGenerationsAfterUrl(lastTryOnResultUrl);
+      showToast('تم تحديث صورة النتيجة', 'success');
+    } else if (generations.length > 0) {
+      setGenerationsAfterUrl(generations[0].url);
+      showToast('تم تحديث صورة النتيجة', 'success');
+    }
+  }, [lastTryOnResultUrl, generations, showToast]);
+
+  // Save the current after image to the generations rail
+  const handleSaveAfterImage = React.useCallback(() => {
+    if (!generationsAfterUrl) {
+      showToast('لا توجد صورة لحفظها', 'error');
+      return;
+    }
+    
+    // Create a new generation entry with current timestamp
+    const jobId = `saved-${Date.now()}`;
+    upsertGeneration(jobId, generationsAfterUrl, generationsAfterUrl, { fabricId: selectedFabricId || null });
+    showToast('✅ تم حفظ الصورة في التوليدات', 'success');
+  }, [generationsAfterUrl, selectedFabricId, upsertGeneration, showToast]);
+  
   // ... (Keep existing useEffects for loading/saving logic)
   useEffect(() => {
     const loadTemplates = async () => {
@@ -708,25 +976,61 @@ export const DesignerV2 = () => {
       }
     };
     loadTemplates();
-    const loadImageCats = async () => {
+    if (imageCategoriesQuery.data) {
       try {
-        const cats = await getImageCategories();
+        const cats = imageCategoriesQuery.data;
         setImageCategories(cats);
         const womenRoot = cats.find((c: any) => (c.level === 0 || !c.parentId) && ((c.nameAr || c.name || '').includes('الأزياء')));
         setWomenRootId(womenRoot?.id || null);
         const level1 = womenRoot ? cats.filter((c: any) => c.parentId === womenRoot.id && (c.hasChildren || c.level === 1)) : [];
         setWomenLevel1(level1);
       } catch (e) {}
-    };
-    loadImageCats();
+    }
     const savedDraft = localStorage.getItem(DESIGN_DRAFT_KEY);
+
+    // If there's no local draft, hydrate the rest of the UI from the persisted context values
+    // (selectedFabric/selectedTemplate/generatedResult survive refresh/navigation).
+    if (!savedDraft && isCreationFlow) {
+      try {
+        if (selectedFabricId) {
+          const kh = KHUYOOT_FABRICS.find((f) => f.id === selectedFabricId);
+          const sh = SHOPS_FABRICS.find((f) => f.fabricId === selectedFabricId);
+          if (kh) {
+            setFabricSource('khuyoot');
+            setFabricImage(kh.imageUrl);
+            setKhuyootSel({ fabricId: kh.id, name: kh.name, imageUrl: kh.imageUrl, settings: fabricSettings });
+            setCurrentStep((prev) => Math.max(prev, 2));
+          } else if (sh) {
+            setFabricSource('shops');
+            setFabricImage(sh.imageUrl);
+            setShopsSel({ shopId: sh.shopId, shopName: sh.shopName, fabricId: sh.fabricId, imageUrl: sh.imageUrl, settings: fabricSettings });
+            setCurrentStep((prev) => Math.max(prev, 2));
+          }
+        }
+
+        if (generatedImage) {
+          setCurrentStep(3);
+        } else if (selectedFabricId) {
+          setCurrentStep((prev) => Math.max(prev, 2));
+        }
+      } catch {
+        // Ignore hydration errors; local draft may still load.
+      }
+    }
     if (savedDraft) {
       try {
         const draft: DesignDraft = JSON.parse(savedDraft);
         setSelectedTemplate(draft.selectedTemplate);
         setFabricSource(draft.fabricSource ?? 'khuyoot');
         setSelectedFabricId(draft.fabricId);
-        setFabricImage(draft.fabricImage);
+        // If we couldn't persist the full image (e.g. big data URL), recover from stored selection.
+        const recoveredFabricImage =
+          draft.fabricImage ||
+          (draft.fabricSource === 'khuyoot' ? draft.khuyoot?.imageUrl : null) ||
+          (draft.fabricSource === 'shops' ? draft.shops?.imageUrl : null) ||
+          (draft.fabricSource === 'upload' ? draft.upload?.imageUrl : null) ||
+          null;
+        setFabricImage(recoveredFabricImage);
         setFabricSettings(draft.fabricSettings);
         setKhuyootSel(draft.khuyoot || null);
         setShopsSel(draft.shops || null);
@@ -742,7 +1046,7 @@ export const DesignerV2 = () => {
         else if (Object.values(draft.selections).some(Boolean) || draft.fabricImage) setCurrentStep(2);
       } catch (e) {}
     }
-  }, [isOnline, upsertGeneration]);
+  }, [isOnline, upsertGeneration, isCreationFlow, selectedFabricId, generatedImage, imageCategoriesQuery.data]);
 
   useEffect(() => {
     const loadByRouteId = async () => {
@@ -802,34 +1106,71 @@ export const DesignerV2 = () => {
     loadByRouteId();
   }, [routeId, user, location.search, upsertGeneration]);
 
-  useEffect(() => {
-    const loadDesigns = async () => {
-      if (!user) return;
+  const designsQuery = useQuery({
+    queryKey: ['designer-designs', user?.id],
+    queryFn: async () => {
+      if (!user) return [] as PersistedDesign[];
       const list = await designService.listDesigns(user.id);
-      setMyDesigns(list.sort((a, b) => b.updatedAt - a.updatedAt));
-    };
-    loadDesigns();
-  }, [user]);
+      return list.sort((a, b) => b.updatedAt - a.updatedAt);
+    },
+    enabled: !!user,
+    staleTime: 1000 * 60 * 5,
+    gcTime: 1000 * 60 * 15, // Keep in cache 15min instead of default 5min
+  });
 
   useEffect(() => {
+    if (designsQuery.data) {
+      setMyDesigns(designsQuery.data);
+    }
+  }, [designsQuery.data]);
+
+  useEffect(() => {
+    const sanitizedFabricImage = sanitizePersistedImageUrl(fabricImage);
+    const sanitizedUpload = uploadSel && sanitizePersistedImageUrl(uploadSel.imageUrl)
+      ? { ...uploadSel, imageUrl: sanitizePersistedImageUrl(uploadSel.imageUrl)! }
+      : null;
+
+    // If upload image can't be stored (usually too large), don't keep an unusable upload selection.
+    const sanitizedFabricSource: FabricSource = (fabricSource === 'upload' && !sanitizedUpload) ? null : fabricSource;
+    const sanitizedFabricId: string | null = (fabricSource === 'upload' && !sanitizedUpload) ? null : selectedFabricId;
+
     const draft: DesignDraft = {
       id: currentDesignId || `draft-${Date.now()}`,
       selectedTemplate,
-      fabricSource,
+      fabricSource: sanitizedFabricSource,
       khuyoot: khuyootSel || null,
       shops: shopsSel || null,
-      upload: uploadSel || null,
-      fabricId: selectedFabricId,
-      fabricImage,
+      upload: sanitizedUpload,
+      fabricId: sanitizedFabricId,
+      fabricImage: sanitizedFabricImage,
       fabricSettings,
       selections,
-      generatedImage,
+      generatedImage: sanitizePersistedImageUrl(generatedImage),
       tryOnJobId: lastTryOnJobId || null,
-      tryOnResultUrl: lastTryOnResultUrl || null,
+      tryOnResultUrl: sanitizePersistedImageUrl(lastTryOnResultUrl),
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
-    localStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(draft));
+
+    try {
+      localStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(draft));
+    } catch (error) {
+      // If we still exceed quota, fall back to a minimal draft that preserves IDs.
+      try {
+        const minimal: DesignDraft = {
+          ...draft,
+          khuyoot: draft.khuyoot ? { ...draft.khuyoot, imageUrl: sanitizePersistedImageUrl(draft.khuyoot.imageUrl) || draft.khuyoot.imageUrl } : null,
+          shops: draft.shops ? { ...draft.shops, imageUrl: sanitizePersistedImageUrl(draft.shops.imageUrl) || draft.shops.imageUrl } : null,
+          upload: null,
+          fabricImage: null,
+          generatedImage: null,
+          tryOnResultUrl: null,
+        };
+        localStorage.setItem(DESIGN_DRAFT_KEY, JSON.stringify(minimal));
+      } catch (e2) {
+        console.warn('Failed to persist design draft', error, e2);
+      }
+    }
   }, [selectedTemplate, fabricSource, selectedFabricId, fabricImage, fabricSettings, selections, generatedImage, currentDesignId, khuyootSel, shopsSel, uploadSel, lastTryOnJobId, lastTryOnResultUrl]);
 
   const handleFabricUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -893,7 +1234,7 @@ export const DesignerV2 = () => {
     };
   }, []);
 
-  const handleSaveDesign = async () => {
+  const handleSaveDesign = React.useCallback(async () => {
     if (!user) { showToast('يرجى تسجيل الدخول لحفظ التصميم', 'error'); return; }
     let id = currentDesignId;
     if (!id) {
@@ -909,15 +1250,15 @@ export const DesignerV2 = () => {
     setSavedFlash(true);
     if (savedFlashTimer.current) { window.clearTimeout(savedFlashTimer.current); savedFlashTimer.current = null; }
     savedFlashTimer.current = window.setTimeout(() => { setSavedFlash(false); savedFlashTimer.current = null; }, 4000);
-  };
+  }, [user, currentDesignId, selectedTemplate, fabricSource, khuyootSel, shopsSel, uploadSel, selectedFabricId, fabricImage, fabricSettings, selections, generatedImage, lastTryOnJobId, lastTryOnResultUrl, navigate, buildQuery, showToast]);
 
-  const handleAddToCart = async () => {
+  const handleAddToCart = React.useCallback(async () => {
     if (!user || !currentDesignId) { showToast('يرجى تسجيل الدخول أولاً', 'error'); return; }
     await trackDesignEvent(user.id, 'added_to_cart', currentDesignId, selectedFabricId || undefined, Object.values(selections).filter((o): o is DesignOption => o !== null).map(o => o.id));
     showToast('🛒 تمت الإضافة إلى السلة!', 'success');
-  };
+  }, [user, currentDesignId, selectedFabricId, selections, showToast]);
 
-  const handleReset = () => {
+  const handleReset = React.useCallback(() => {
     setGeneratedImage(null);
     setSelections({});
     setFabricImage(null);
@@ -931,7 +1272,10 @@ export const DesignerV2 = () => {
     setLastTryOnResultUrl(null);
     setFabricMeters(3);
     localStorage.removeItem(DESIGN_DRAFT_KEY);
-  };
+    if (isCreationFlow) {
+      resetCreation();
+    }
+  }, [isCreationFlow, resetCreation]);
   const startNewDesign = () => { handleReset(); ensureDesignId(); setStartModalOpen(false); };
   const openExistingDesign = (d: PersistedDesign) => { navigate(`/designer/${d.id}`); handleLoadDesign(d); setStartModalOpen(false); };
   const handleLoadDesign = async (d: PersistedDesign) => {
@@ -998,14 +1342,66 @@ export const DesignerV2 = () => {
     setFabricMeters(Math.min(50, meters));
   };
   const openFabricPicker = () => {
-    tryFabricPanelRef.current?.openFabricPicker();
+    if (tryFabricPanelRef.current) {
+      tryFabricPanelRef.current.openFabricPicker();
+    } else {
+      setPendingTryOnFabricPickerOpen(true);
+    }
     tryFabricSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
 
   const openTryOnTemplatePicker = () => {
-    tryFabricPanelRef.current?.openTemplatePicker();
+    if (tryFabricPanelRef.current) {
+      tryFabricPanelRef.current.openTemplatePicker();
+    } else {
+      setPendingTryOnTemplatePickerOpen(true);
+    }
     tryFabricSectionRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   };
+
+  React.useEffect(() => {
+    if (!pendingTryOnFabricPickerOpen) return;
+
+    let tries = 0;
+    const id = window.setInterval(() => {
+      const panel = tryFabricPanelRef.current;
+      if (panel) {
+        panel.openFabricPicker();
+        setPendingTryOnFabricPickerOpen(false);
+        window.clearInterval(id);
+        return;
+      }
+      tries += 1;
+      if (tries >= 30) {
+        setPendingTryOnFabricPickerOpen(false);
+        window.clearInterval(id);
+      }
+    }, 50);
+
+    return () => window.clearInterval(id);
+  }, [pendingTryOnFabricPickerOpen]);
+
+  React.useEffect(() => {
+    if (!pendingTryOnTemplatePickerOpen) return;
+
+    let tries = 0;
+    const id = window.setInterval(() => {
+      const panel = tryFabricPanelRef.current;
+      if (panel) {
+        panel.openTemplatePicker();
+        setPendingTryOnTemplatePickerOpen(false);
+        window.clearInterval(id);
+        return;
+      }
+      tries += 1;
+      if (tries >= 30) {
+        setPendingTryOnTemplatePickerOpen(false);
+        window.clearInterval(id);
+      }
+    }, 50);
+
+    return () => window.clearInterval(id);
+  }, [pendingTryOnTemplatePickerOpen]);
 
   const openFabricScale = React.useCallback(() => {
     if (fabricImage) {
@@ -1061,330 +1457,184 @@ export const DesignerV2 = () => {
 
   const handleTryOnFabricSubmit = React.useCallback(
     ({ fabricImageUrl }: { fabricImageUrl: string; fabricPreviewUrl?: string | null }) => {
-      if (!fabricImageUrl) return;
-      const newId = `tryon-${Date.now()}`;
-      setFabricSource('upload');
-      setSelectedFabricId(newId);
-      setFabricImage(fabricImageUrl);
-      setUploadSel({ fileName: 'قماش Try-On', imageUrl: fabricImageUrl, settings: { ...fabricSettings } });
-      setKhuyootSel(null);
-      setShopsSel(null);
-      setCurrentStep(prev => Math.max(prev, 2));
+      // Empty - no action taken
     },
-    [fabricSettings]
+    []
   );
 
   const handleTryOnTemplateSubmit = React.useCallback(
-    ({ templateId, templateImageUrl }: { templateId: string; templateImageUrl: string }) => {
+    async ({ templateId, templateImageUrl, originalImageUrl }: { templateId: string; templateImageUrl: string; originalImageUrl?: string }) => {
       if (!templateId) return;
       setSelectedTemplate(templateId);
       if (templateImageUrl) {
         setTemplateImageOverrides(prev => ({ ...prev, [templateId]: templateImageUrl }));
+        
+        // Download and cache the large/full-size version for comparison before panel
+        // Use originalImageUrl (full URL) to get the large version, not the thumbnail
+        const sourceUrl = originalImageUrl || templateImageUrl;
+        if (!templateFullSizeCache[templateId]) {
+          const largeUrl = getOptimizedImageUrl(sourceUrl, 'large');
+          if (largeUrl) {
+            try {
+              console.log('[DesignerV2] Downloading large template image:', { sourceUrl, largeUrl });
+              // Preload the large image to cache it
+              await preloadImage(largeUrl);
+              // Store in cache
+              setTemplateFullSizeCache(prev => ({ ...prev, [templateId]: largeUrl }));
+              // Set as comparison before image
+              setGenerationsBeforeUrl(largeUrl);
+              console.log('[DesignerV2] Large template image cached and set as before image');
+            } catch (error) {
+              console.error('[DesignerV2] Failed to preload large template image:', error);
+              // Fallback to source URL if large fails
+              setGenerationsBeforeUrl(sourceUrl);
+            }
+          } else {
+            setGenerationsBeforeUrl(sourceUrl);
+          }
+        } else {
+          // Use cached version
+          console.log('[DesignerV2] Using cached large template image');
+          setGenerationsBeforeUrl(templateFullSizeCache[templateId]);
+        }
       }
       setTemplateSectionCollapsed(false);
       setCurrentStep(prev => Math.max(prev, 1));
     },
-    []
+    [templateFullSizeCache]
   );
 
   const totalPrice = Object.values(selections).filter((o): o is DesignOption => o !== null).reduce((sum, opt) => sum + (opt.price || 0), 0);
   const selectedCount = Object.values(selections).filter(Boolean).length;
 
+  // **HIBERNATION: If Designer is not active (e.g., Keep-Alive with display:none), return null to stop all rendering**
+  if (!isActive) {
+    return null;
+  }
+
   return (
     // NOTE: Keep the parent page as the ONLY scroll container.
     // Avoid `h-screen` / `overflow-auto` wrappers here to prevent double-scroll + scroll chaining.
-    <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-50 font-sans">
+    <div className="mobile-app-frame">
 
-      {/* --- MAIN LAYOUT --- */}
-      <main className="flex flex-1 flex-col md:flex-row min-h-0 bg-[#F5F5F7] dark:bg-[#050505]">
+      {/* BREAKPOINT DEBUG INDICATOR */}
+      <div className="fixed top-2 right-2 z-[9999] pointer-events-none">
+        <div className="bg-red-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg border-2 border-white">
+          <span className="sm:hidden">📱 XS (&lt;640px)</span>
+          <span className="hidden sm:inline md:hidden">📱 SM (≥640px)</span>
+          <span className="hidden md:inline lg:hidden">📱 MD (≥768px)</span>
+          <span className="hidden lg:inline xl:hidden">💻 LG (≥1024px)</span>
+          <span className="hidden xl:inline 2xl:hidden">💻 XL (≥1280px)</span>
+          <span className="hidden 2xl:inline">🖥️ 2XL (≥1536px)</span>
+        </div>
+      </div>
+
+      <div className="flex flex-col min-h-screen bg-slate-50 dark:bg-[#0B1120] text-slate-900 dark:text-slate-50 font-sans">
+
+        {/* --- MAIN LAYOUT --- */}
+        <main className="flex flex-1 flex-col md:flex-row min-h-0 bg-[#F5F5F7] dark:bg-[#050505] pb-safe">
         <CanvasPanel anchorId="designer-canvas" showAdminLabels={showAdminLabels} tryFabricSectionRef={tryFabricSectionRef}>
-          <AdminAnchor
-          
-            ref={tryFabricSectionRef}
-            anchorId="panel-try-fabric"
-            label="panel-try-fabric"
-            visible={showAdminLabels}
-            className=""
-          >
-            <AdminAnchor
-              anchorId="panel-try-fabric-header"
-              label="panel-try-fabric-header"
-              visible={showAdminLabels}
-              className="contents"
-            />
 
-            <AdminAnchor
-              anchorId="panel-try-fabric-controls"
+          <TryOnSection
+            tryFabricPanelRef={tryFabricPanelRef}
+            tryFabricSectionRef={tryFabricSectionRef}
+            showAdminLabels={showAdminLabels}
+            selectedTemplate={selectedTemplate}
+            templatePreviewUrl={templatePreviewUrl}
+            templateDimensions={templateDimensions}
+            templateFullSizeCache={templateFullSizeCache}
+            fabricImage={fabricImage}
+            selectedFabricId={selectedFabricId}
+            generationsBeforeUrl={generationsBeforeUrl}
+            generationsAfterUrl={generationsAfterUrl}
+            showToast={showToast}
+            onResultHelp={() => setStartModalOpen(true)}
+            onResultToggleAdminAnchors={isAdminUser ? toggleAdminAnchors : undefined}
+            onTemplateSubmit={handleTryOnTemplateSubmit}
+            onFabricSubmit={handleTryOnFabricSubmit}
+            onOpenTiling={openFabricScale}
+            onOpenNeck={() => handleCategoryClick('neck')}
+            onOpenSleeve={() => handleCategoryClick('sleeve')}
+            features={features}
+            onReloadGenerations={reloadGenerations}
+            onGenerated={async ({ jobId, resultImageUrl, resultThumbnailUrl }) => {
+              console.log('[DesignerV2] onGenerated:', { jobId, resultImageUrl: resultImageUrl?.substring(0, 50), resultThumbnailUrl: resultThumbnailUrl?.substring(0, 50) });
               
-              label="panel-try-fabric-controls"
-              visible={showAdminLabels}
-              className="block"
-            >
-              <TryFabricPanel
-                ref={tryFabricPanelRef}
-                initialTemplateId={selectedTemplate}
-                initialTemplateImageUrl={templatePreviewUrl}
-                initialTemplateWidth={templateDimensions?.width || null}
-                initialTemplateHeight={templateDimensions?.height || null}
-                useExternalCards={true}
-                externalTemplateImageUrl={templatePreviewUrl}
-                externalFabricImageUrl={fabricImage}
-                comparisonOverride={{
-                  beforeImage: generationsBeforeUrl,
-                  afterImage: generationsAfterUrl,
-                  beforeLabel: 'قبل',
-                  afterLabel: 'بعد',
-                }}
-                onResultHelp={() => setStartModalOpen(true)}
-                onResultToggleAdminAnchors={isAdminUser ? toggleAdminAnchors : undefined}
-                showAdminAnchors={showAdminLabels}
-                onTemplateSubmit={handleTryOnTemplateSubmit}
-                onFabricSubmit={handleTryOnFabricSubmit}
-                modalGenerations={generations}
-                modalGenerationsPlaceholderCount={Math.max(0, 8 - generations.length)}
-                onModalGenerationOpen={handleOpenImage}
-                onModalGenerationSetBefore={handleSetGenerationBefore}
-                onModalGenerationSetAfter={handleSetGenerationAfter}
-                onGenerated={async ({ jobId, resultImageUrl, resultThumbnailUrl }) => {
-                  console.log('[DesignerV2] onGenerated:', { jobId, resultImageUrl: resultImageUrl?.substring(0, 50), resultThumbnailUrl: resultThumbnailUrl?.substring(0, 50) });
-                  
-                  if (resultThumbnailUrl) {
-                    console.log('[DesignerV2] Using API-provided thumbnail');
-                    setTryOnThumbnailsByJobId((prev) => ({ ...prev, [jobId]: resultThumbnailUrl }));
-                  } else if (resultImageUrl?.startsWith('data:')) {
-                    // API returned data URL (no Storage) - generate thumbnail client-side
-                    console.log('[DesignerV2] Generating client-side thumbnail from data URL');
-                    try {
-                      const thumb = await generateThumbnailFromDataUrl(resultImageUrl, 240, 320);
-                      if (thumb) {
-                        console.log('[DesignerV2] Client thumbnail generated:', thumb.substring(0, 50));
-                        setTryOnThumbnailsByJobId((prev) => ({ ...prev, [jobId]: thumb }));
-                      }
-                    } catch (e) {
-                      console.warn('[DesignerV2] Failed to generate client thumbnail:', e);
-                    }
+              if (resultThumbnailUrl) {
+                console.log('[DesignerV2] Using API-provided thumbnail');
+                setTryOnThumbnailsByJobId((prev) => ({ ...prev, [jobId]: resultThumbnailUrl }));
+              } else if (resultImageUrl?.startsWith('data:')) {
+                console.log('[DesignerV2] Generating client-side thumbnail from data URL');
+                try {
+                  const thumb = await generateThumbnailFromDataUrl(resultImageUrl, 240, 320);
+                  if (thumb) {
+                    console.log('[DesignerV2] Client thumbnail generated:', thumb.substring(0, 50));
+                    setTryOnThumbnailsByJobId((prev) => ({ ...prev, [jobId]: thumb }));
                   }
-                  
-                  setLastTryOnJobId(jobId);
-                  setLastTryOnResultUrl(resultImageUrl);
-                  
-                  // Add to generations list immediately
-                  const thumbToUse = resultThumbnailUrl || resultImageUrl;
-                  upsertGeneration(jobId, resultImageUrl, thumbToUse);
-                }}
-                initialOptions={{
-                  neckStyle:
-                    selections.neck?.id === 'neck-round'
-                      ? 'round'
-                      : selections.neck?.id === 'neck-v'
-                        ? 'v'
-                        : selections.neck?.id === 'neck-collar'
-                          ? 'collar'
-                          : 'keep',
-                  sleeveStyle:
-                    selections.sleeve?.id === 'sleeve-long'
-                      ? 'long'
-                      : selections.sleeve?.id === 'sleeve-short'
-                        ? 'short'
-                        : selections.sleeve?.id === 'sleeve-none'
-                          ? 'none'
-                          : 'keep',
-                  embroideryStyle:
-                    selections.embroidery?.id === 'emb-chest'
-                      ? 'chest'
-                      : selections.embroidery?.id === 'emb-collar'
-                        ? 'collar'
-                        : selections.embroidery?.id === 'emb-full'
-                          ? 'full'
-                          : 'keep',
-                  fabricScale: (fabricSettings?.patternScale as any) ?? 1,
-                  colorPreservation: 'high',
-                }}
-                onApplyResult={({ jobId, resultImageUrl }) => {
-                  const thumbToUse = tryOnThumbnailsByJobId[jobId] || resultImageUrl;
-                  console.log('[DesignerV2] onApplyResult:', { jobId, hasThumb: !!tryOnThumbnailsByJobId[jobId], thumbUrl: thumbToUse?.substring(0, 50) });
-                  
-                  setGeneratedImage(resultImageUrl);
-                  setLastTryOnJobId(jobId);
-                  setLastTryOnResultUrl(resultImageUrl);
-                  upsertGeneration(jobId, resultImageUrl, thumbToUse);
-                  setCurrentStep(3);
-                  showToast('✅ تم توليد الصورة وإضافتها للتصميم', 'success');
-                }}
-              />
-            </AdminAnchor>
-            {lastTryOnJobId ? (
-              <AdminAnchor
-                anchorId="panel-try-fabric-meta"
-                label="panel-try-fabric-meta"
-                visible={showAdminLabels}
-                className="block"
-              >
-                <div className="text-[11px] text-slate-500 dark:text-slate-400">
-                  آخر عملية Try-On: {lastTryOnJobId}
-                </div>
-              </AdminAnchor>
-            ) : null}
-            
-          </AdminAnchor>
-
-          <div className="mt-1">
-            <GenerationsRail
-              anchorId="section-generations"
-              showAdminLabels={showAdminLabels}
-              generations={generations}
-              onOpenImage={(url) => handleOpenImage(url)}
-              onSetBefore={handleSetGenerationBefore}
-              onSetAfter={handleSetGenerationAfter}
-              placeholderCount={Math.max(0, 8 - generations.length)}
-            />
-          </div>
+                } catch (e) {
+                  console.warn('[DesignerV2] Failed to generate client thumbnail:', e);
+                }
+              }
+              
+              setLastTryOnJobId(jobId);
+              setLastTryOnResultUrl(resultImageUrl);
+              
+              // Auto-update the after image to show the latest result
+              setGenerationsAfterUrl(resultImageUrl);
+              
+              const thumbToUse = resultThumbnailUrl || resultImageUrl;
+              upsertGeneration(jobId, resultImageUrl, thumbToUse, { fabricId: selectedFabricId || null });
+            }}
+            initialOptions={{
+              neckStyle:
+                selections.neck?.id === 'neck-round'
+                  ? 'round'
+                  : selections.neck?.id === 'neck-v'
+                    ? 'v'
+                    : selections.neck?.id === 'neck-collar'
+                      ? 'collar'
+                      : 'keep',
+              sleeveStyle:
+                selections.sleeve?.id === 'sleeve-long'
+                  ? 'long'
+                  : selections.sleeve?.id === 'sleeve-short'
+                    ? 'short'
+                    : selections.sleeve?.id === 'sleeve-none'
+                      ? 'none'
+                      : 'keep',
+              embroideryStyle:
+                selections.embroidery?.id === 'emb-chest'
+                  ? 'chest'
+                  : selections.embroidery?.id === 'emb-collar'
+                    ? 'collar'
+                    : selections.embroidery?.id === 'emb-full'
+                      ? 'full'
+                      : 'keep',
+              fabricScale: (fabricSettings?.patternScale as any) ?? 1,
+              colorPreservation: 'high',
+            }}
+            onApplyResult={({ jobId, resultImageUrl }) => {
+              const thumbToUse = tryOnThumbnailsByJobId[jobId] || resultImageUrl;
+              console.log('[DesignerV2] onApplyResult:', { jobId, hasThumb: !!tryOnThumbnailsByJobId[jobId], thumbUrl: thumbToUse?.substring(0, 50) });
+              
+              setGeneratedImage(resultImageUrl);
+              setLastTryOnJobId(jobId);
+              setLastTryOnResultUrl(resultImageUrl);
+              upsertGeneration(jobId, resultImageUrl, thumbToUse, { fabricId: selectedFabricId || null });
+              setCurrentStep(3);
+              showToast('✅ تم توليد الصورة وإضافتها للتصميم', 'success');
+            }}
+            generations={generations}
+            onModalGenerationOpen={handleOpenImage}
+            onModalGenerationSetBefore={handleSetGenerationBefore}
+            onModalGenerationSetAfter={handleSetGenerationAfter}
+            onRefreshAfterImage={handleRefreshAfterImage}
+            onSaveAfterImage={handleSaveAfterImage}
+            lastTryOnJobId={lastTryOnJobId}
+          />
           
         </CanvasPanel>
-
-        <RightPanel
-          anchorId="section-right"
-          showAdminLabels={showAdminLabels}
-          onReset={handleReset}
-          onSave={handleSaveDesign}
-          onGenerate={handleGenerate}
-          selectedTemplateName={selectedTemplateName}
-        >
-          <div className="space-y-2">
-            <TemplateSection
-              anchorId="section-template"
-              showAdminLabels={showAdminLabels}
-              sectionRef={templateSectionRef}
-              isCollapsed={templateSectionCollapsed}
-              onToggle={() => setTemplateSectionCollapsed(prev => !prev)}
-              templatePreviewUrl={templatePreviewUrl}
-              selectedTemplateName={selectedTemplateName}
-              onOpenTemplateLibrary={openTryOnTemplatePicker}
-              onOpenTemplateImageLibrary={() => setShowTemplateImageLibrary(true)}
-              onSetBefore={(url) => {
-                setGenerationsBeforeUrl(url);
-                showToast('تم تعيين الموديل كـ قبل', 'success');
-              }}
-              onSetAfter={(url) => {
-                setGenerationsAfterUrl(url);
-                showToast('تم تعيين الموديل كـ بعد', 'success');
-              }}
-            />
-
-            <AdminAnchor
-              anchorId="panel-fabric-source"
-              label="panel-fabric-source"
-              visible={showAdminLabels}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-900/60 p-3"
-            >
-              <div className="text-[11px] font-bold text-slate-500 dark:text-slate-400 mb-2">مصدر القماش</div>
-              <div className="flex gap-2 overflow-x-auto pb-1">
-                {(['khuyoot', 'shops', 'upload'] as const).map(src => (
-                  <button
-                    key={src}
-                    onClick={() => handleFabricSourceSelect(src)}
-                    className={`px-4 py-2 rounded-full text-[11px] font-bold border transition-all ${fabricSource === src ? 'bg-slate-900 text-white border-slate-900 dark:bg-white dark:text-slate-900' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600'}`}
-                  >
-                    {src === 'khuyoot' ? 'متجر خيوط' : src === 'shops' ? 'من المتاجر' : 'رفع صورة'}
-                  </button>
-                ))}
-                {fabricImage && (
-                  <button onClick={clearFabricSelection} className="px-3 py-2 text-[11px] text-red-500 font-bold">
-                    مسح
-                  </button>
-                )}
-              </div>
-            </AdminAnchor>
-
-            <FabricSection
-              anchorId="section-fabric"
-              showAdminLabels={showAdminLabels}
-              sectionRef={fabricSectionRef}
-              isCollapsed={fabricSectionCollapsed}
-              onToggle={() => setFabricSectionCollapsed(prev => !prev)}
-              fabricImage={fabricImage}
-              fabricLabel={fabricLabel}
-              onPickFabric={openFabricPicker}
-              onOpenTiling={openFabricScale}
-              fabricUploadInputRef={fabricUploadInputRef}
-              onFabricUpload={handleFabricUpload}
-              fabricSettings={fabricSettings}
-              onFabricSettingsChange={setFabricSettings}
-              fabricUnitPriceOMR={fabricUnitPrice}
-              fabricMeters={fabricMeters}
-              onFabricMetersChange={handleFabricMetersChange}
-              fabricCostValue={fabricCostEstimate}
-              showTilingControls={true}
-            />
-
-            <AdminAnchor
-              anchorId="panel-design-details"
-              label="panel-design-details"
-              visible={showAdminLabels}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white/90 dark:bg-slate-900/60 p-4"
-            >
-              <div className="flex items-center justify-between mb-3">
-                <div className="text-sm font-bold">التفاصيل والإضافات</div>
-                <span className="text-[10px] text-slate-500">{selectedCount}/{DESIGN_CATEGORIES.length}</span>
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                {DESIGN_CATEGORIES.map(cat => {
-                  const isSelected = !!selections[cat.id];
-                  const selected = selections[cat.id];
-                  return (
-                    <button
-                      key={cat.id}
-                      onClick={() => handleCategoryClick(cat.id)}
-                      className={`w-full flex flex-col items-center p-3 rounded-2xl border transition-all duration-300 shadow-sm hover:shadow ${isSelected ? 'bg-slate-900 dark:bg-white text-white dark:text-slate-900 border-slate-900 dark:border-white' : 'bg-white dark:bg-slate-800 border-slate-100 dark:border-slate-700 text-slate-600 hover:border-slate-300'}`}
-                    >
-                      <div className="w-full aspect-square rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600">
-                        {isSelected && selected?.thumbnailUrl ? (
-                          <img src={selected.thumbnailUrl!} alt={selected.name} className="w-full h-full object-cover" />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-[10px] sm:text-[11px] text-slate-500">اضغط للاختيار</div>
-                        )}
-                      </div>
-                      <div className="mt-2 text-center">
-                        <div className="text-xs sm:text-sm font-bold">{cat.name}</div>
-                        <div className="text-[10px] sm:text-[11px] opacity-80">
-                          {isSelected ? selected?.name : 'اضغط للاختيار'}
-                        </div>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </AdminAnchor>
-
-            <AdminAnchor
-              anchorId="panel-cost-summary"
-              label="panel-cost-summary"
-              visible={showAdminLabels}
-              className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 space-y-2"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-bold text-slate-900 dark:text-white">التكلفة التقديرية</span>
-                <span className="text-base font-black text-emerald-600 dark:text-emerald-400">{(totalPrice + fabricCostEstimate).toFixed(2)} ر.ع</span>
-              </div>
-              <div className="text-[11px] text-slate-500 dark:text-slate-400">يشمل قيمة القماش والإضافات المختارة</div>
-              <div className="flex flex-col gap-1 text-xs text-slate-500 dark:text-slate-400">
-                <div className="flex items-center justify-between">
-                  <span>الإضافات</span>
-                  <span>{totalPrice.toFixed(2)} ر.ع</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>القماش</span>
-                  <span>{fabricCostEstimate.toFixed(2)} ر.ع</span>
-                </div>
-              </div>
-              <Button onClick={handleAddToCart} className="w-full bg-emerald-600 hover:bg-emerald-500 text-white rounded-2xl flex items-center justify-center gap-2">
-                <ShoppingCart size={16} />
-                أضف إلى السلة
-              </Button>
-            </AdminAnchor>
-          </div>
-        </RightPanel>
-      </main>
+        </main>
 
       {/* --- TOAST --- */}
       {toast.open && (
@@ -1394,186 +1644,76 @@ export const DesignerV2 = () => {
         </div>
       )}
 
-      {/* --- MODALS (Reusing existing structures but styled minimally) --- */}
-      <Modal isOpen={startModalOpen} onClose={() => setStartModalOpen(false)} title="ابدأ التصميم" showFooter={true} maxWidth="max-w-2xl" onConfirm={async () => { await persistDontShowStart(); setStartModalOpen(false); }}>
-         <div className="space-y-2">
-            {/* Help video at the top */}
-            {appSettings?.helpVideo?.enabled && appSettings?.helpVideo?.url && (
-              <div className="w-full aspect-video rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-black">
-                {(() => {
-                  const raw = appSettings.helpVideo.url;
-                  let embedSrc = raw;
-                  try {
-                    const u = new URL(raw);
-                    let id = '';
-                    if (u.hostname.includes('youtu.be')) {
-                      id = u.pathname.replace('/','');
-                    } else if (u.hostname.includes('youtube.com')) {
-                      id = u.searchParams.get('v') || '';
-                    }
-                    if (id) {
-                      embedSrc = `https://www.youtube-nocookie.com/embed/${id}?rel=0&modestbranding=1&controls=0&iv_load_policy=3`;
-                    } else {
-                      embedSrc = `${raw.replace('watch?v=', 'embed/')}?rel=0&modestbranding=1&controls=0&iv_load_policy=3`;
-                    }
-                  } catch {}
-                  return (
-                    <iframe
-                      className="w-full h-full"
-                      src={embedSrc}
-                      title="كيفية التصميم"
-                      frameBorder="0"
-                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
-                      allowFullScreen
-                    />
-                  );
-                })()}
-              </div>
-            )}
-            {/* Video importance note */}
-            <div className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
-              هذا الفيديو مهم لمعرفة طريقة التفصيل خطوة بخطوة.
-            </div>
+      {/* --- MODALS --- */}
+      <ModalsSection
+        startModalOpen={startModalOpen}
+        onCloseStartModal={() => setStartModalOpen(false)}
+        appSettings={appSettings}
+        startMode={startMode}
+        onSetStartMode={setStartMode}
+        myDesigns={myDesigns}
+        onStartNewDesign={startNewDesign}
+        onOpenExistingDesign={openExistingDesign}
+        formatRelativeTime={formatRelativeTime}
+        dontShowStart={dontShowStart}
+        onToggleDontShowStart={toggleDontShowStart}
+        onPersistDontShowStart={persistDontShowStart}
+        modalOpen={modalOpen}
+        onCloseModal={() => setModalOpen(false)}
+        onConfirmSelection={confirmSelection}
+        activeCategory={activeCategory}
+        designOptions={MOCK_DESIGN_OPTIONS}
+        pendingSelection={pendingSelection}
+        onOptionSelect={handleOptionSelect}
+        onOpenLibraryForOption={openLibraryForOption}
+        fabricModalOpen={fabricModalOpen}
+        onCloseFabricModal={() => setFabricModalOpen(false)}
+        khuyootFabrics={KHUYOOT_FABRICS}
+        onKhuyootFabricSelect={handleKhuyootFabricSelect}
+        shopsModalOpen={shopsModalOpen}
+        onCloseShopsModal={() => setShopsModalOpen(false)}
+        shopsFabrics={SHOPS_FABRICS}
+        onShopsFabricSelect={(f) => {
+          setSelectedFabricId(f.fabricId);
+          setFabricImage(f.imageUrl);
+          setShopsSel({ shopId: f.shopId, shopName: f.shopName, fabricId: f.fabricId, imageUrl: f.imageUrl, settings: fabricSettings });
+          setShopsModalOpen(false);
+          setCurrentStep(Math.max(currentStep, 2));
+        }}
+        showFabricScale={showFabricScale}
+        onCloseFabricScale={closeFabricScale}
+        fabricImage={fabricImage}
+        fabricSettings={fabricSettings}
+        fabricSettingsDraft={fabricSettingsDraft}
+        onFabricSettingsChange={(next) => setFabricSettingsDraft(next)}
+        onFabricScaleApply={handleFabricScaleApply}
+        onFabricScaleCancel={handleFabricScaleCancel}
+        imagePickerOpen={imagePickerOpen}
+        onCloseImagePicker={() => setImagePickerOpen({ open: false })}
+        onImageSelect={(imageUrl) => {
+          if (pendingSelection) {
+            setPendingSelection({ ...pendingSelection, thumbnailUrl: imageUrl });
+          } else if (activeCategory) {
+            const id = `${activeCategory}-lib-${Date.now()}`;
+            setPendingSelection({ id, category: activeCategory, name: 'اختيار من المكتبة', thumbnailUrl: imageUrl, price: 0 });
+          }
+        }}
+        showTemplateImageLibrary={showTemplateImageLibrary}
+        onCloseTemplateImageLibrary={() => setShowTemplateImageLibrary(false)}
+        womenRootId={womenRootId}
+        onTemplateImageSelect={(url) => setTemplateImageOverrides(prev => ({ ...prev, [selectedTemplate]: url }))}
+        selectedTemplate={selectedTemplate}
+        showMyDesigns={showMyDesigns}
+        onCloseMyDesigns={() => setShowMyDesigns(false)}
+        onLoadDesign={handleLoadDesign}
+      />
 
-            {/* Two options in one row */}
-            <div className="grid grid-cols-2 gap-3">
-              <button onClick={startNewDesign} className="w-full p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center justify-between transition-colors text-right">
-                  <div className="text-right">
-                    <div className="font-bold">تصميم جديد</div>
-                    <div className="text-xs text-slate-500">ابدأ من الصفر</div>
-                  </div>
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-2xl">✨</div>
-              </button>
-              <button onClick={() => setStartMode('edit')} className="w-full p-4 bg-slate-50 hover:bg-slate-100 rounded-2xl flex items-center justify-between transition-colors text-right">
-                  <div className="text-right">
-                    <div className="font-bold">مشاريعي</div>
-                    <div className="text-xs text-slate-500">استكمل تصاميم سابقة</div>
-                  </div>
-                  <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-sm text-2xl">📂</div>
-              </button>
-            </div>
-
-            {/* Designs list when edit mode */}
-            {startMode === 'edit' && myDesigns.map(d => (
-                <button key={d.id} onClick={() => openExistingDesign(d)} className="w-full flex items-center gap-3 p-2 hover:bg-slate-50 rounded-lg">
-                    <img src={d.fabricImage || d.generatedImage || ''} className="w-10 h-10 rounded bg-slate-200 object-cover" />
-                    <span className="text-sm font-bold flex-1 text-right">{d.selectedTemplate}</span>
-                    <span className="text-[10px] text-slate-400">{formatRelativeTime(d.updatedAt)}</span>
-                </button>
-            ))}
-
-            {/* Do not show again toggle button (persisted on confirm) */}
-            <button
-              type="button"
-              onClick={() => toggleDontShowStart(!dontShowStart)}
-              className={`mt-2 text-xs sm:text-sm px-3 py-2 rounded-xl border transition-all ${dontShowStart ? 'bg-emerald-600 text-white border-emerald-600' : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700'}`}
-            >
-              {dontShowStart ? 'سيتم إخفاء هذه النافذة لاحقاً' : 'لا تعرض هذه النافذة مرة أخرى'}
-            </button>
-         </div>
-      </Modal>
-
-      <Modal 
-        isOpen={modalOpen} 
-        onClose={() => setModalOpen(false)} 
-        onConfirm={confirmSelection}
-        title="اختر" 
-        showFooter={true}
-      >
-         <div className="grid grid-cols-2 gap-3">
-            {activeCategory && MOCK_DESIGN_OPTIONS.filter(o => o.category === activeCategory).map(op => (
-                <div 
-                  key={op.id} 
-                  onClick={() => handleOptionSelect(op)} 
-                  role="button"
-                  tabIndex={0}
-                  className={`p-3 rounded-2xl border text-center transition-all cursor-pointer ${pendingSelection?.id === op.id ? 'border-slate-900 ring-1 ring-slate-900 bg-slate-50' : 'border-slate-200 hover:border-slate-400'}`}
-                >
-                    <img src={(pendingSelection?.id === op.id && pendingSelection?.thumbnailUrl) ? pendingSelection.thumbnailUrl : op.thumbnailUrl} className="w-full h-24 object-cover rounded-xl mb-2" />
-                    <div className="font-bold text-sm">{op.name}</div>
-                    {op.price > 0 && <div className="text-xs text-slate-500">+{op.price} ر.ع</div>}
-                    {(op.id === 'emb-chest' || op.id === 'emb-collar' || op.id === 'emb-full' || op.id.startsWith('neck-') || op.id.startsWith('sleeve-')) && (
-                      <div onClick={(e) => { e.stopPropagation(); openLibraryForOption(op.id); }} className="mt-2 w-full text-[11px] px-2 py-1 bg-slate-100 hover:bg-blue-100 text-slate-700 rounded">
-                        اختر من مكتبة الصور
-                      </div>
-                    )}
-                </div>
-            ))}
-         </div>
-      </Modal>
-
-      <Modal isOpen={fabricModalOpen} onClose={() => setFabricModalOpen(false)} title="أقمشة خيوط" showFooter={false}>
-        <div className="grid grid-cols-2 gap-3">
-             {KHUYOOT_FABRICS.map(f => (
-                 <button key={f.id} onClick={() => handleKhuyootFabricSelect(f)} className="group relative aspect-square rounded-2xl overflow-hidden">
-                     <img src={f.imageUrl} className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="font-bold text-sm">{f.name}</div>
-                        <div className="text-xs">{f.price} ر.ع</div>
-                     </div>
-                 </button>
-             ))}
-        </div>
-      </Modal>
-
-      {imagePickerOpen.open && (
-        <ImageLibraryPicker
-          onSelect={(imageUrl) => {
-            if (pendingSelection) {
-              setPendingSelection({ ...pendingSelection, thumbnailUrl: imageUrl });
-            } else if (activeCategory) {
-              const id = `${activeCategory}-lib-${Date.now()}`;
-              setPendingSelection({ id, category: activeCategory, name: 'اختيار من المكتبة', thumbnailUrl: imageUrl, price: 0 });
-            }
-          }}
-          onClose={() => setImagePickerOpen({ open: false })}
-          preselectParentId={imagePickerOpen.preselectParentId}
-          preselectChildId={imagePickerOpen.preselectChildId}
-          rootParentId={imagePickerOpen.rootParentId}
-          hideLevel0={false}
-        />
-      )}
-
-      {/* KEEP OTHER MODALS (Shops, ImageLibrary, etc.) FUNCTIONAL */}
-      <Modal isOpen={shopsModalOpen} onClose={() => setShopsModalOpen(false)} title="من المتاجر" showFooter={false}>
-         <div className="grid grid-cols-2 gap-3">
-             {SHOPS_FABRICS.map(f => (
-                 <button key={f.fabricId} onClick={() => { setSelectedFabricId(f.fabricId); setFabricImage(f.imageUrl); setShopsSel({ shopId: f.shopId, shopName: f.shopName, fabricId: f.fabricId, imageUrl: f.imageUrl, settings: fabricSettings }); setShopsModalOpen(false); setCurrentStep(Math.max(currentStep, 2)); }} className="group relative aspect-square rounded-2xl overflow-hidden">
-                     <img src={f.imageUrl} className="w-full h-full object-cover" />
-                     <div className="absolute inset-0 bg-black/40 flex flex-col justify-end p-3 text-white opacity-0 group-hover:opacity-100 transition-opacity">
-                        <div className="font-bold text-sm">{f.name}</div>
-                        <div className="text-[10px]">{f.shopName}</div>
-                     </div>
-                 </button>
-             ))}
-         </div>
-      </Modal>
-
-      <Modal
-        isOpen={showFabricScale}
-        onClose={closeFabricScale}
-        title="تكرار القماش (تجريبي)"
-        maxWidth="max-w-xl"
-      >
-        {fabricImage ? (
-          <FabricScaleControl
-            imageUrl={fabricImage}
-            settings={fabricSettingsDraft ?? fabricSettings}
-            onSettingsChange={(next) => setFabricSettingsDraft(next)}
-            onPreview={() => {}}
-            onApply={handleFabricScaleApply}
-            onCancel={handleFabricScaleCancel}
-          />
-        ) : (
-          <div className="text-sm text-slate-600 dark:text-slate-300">
-            اختر قماشاً أولاً لعرض أدوات التكرار.
-          </div>
-        )}
-      </Modal>
-
-      {showTemplateImageLibrary && <ImageLibraryPicker rootParentId={womenRootId || undefined} hideLevel0={true} onSelect={(url) => setTemplateImageOverrides(prev => ({ ...prev, [selectedTemplate]: url }))} onClose={() => setShowTemplateImageLibrary(false)} />}
-      {showMyDesigns && <Modal isOpen={showMyDesigns} onClose={() => setShowMyDesigns(false)} title="مشاريعي">{myDesigns.map(d => <button key={d.id} onClick={() => { handleLoadDesign(d); setShowMyDesigns(false); }} className="block w-full text-right p-3 hover:bg-slate-50 border-b">{d.selectedTemplate}</button>)}</Modal>}
-
+      </div>
     </div>
   );
 };
+
+// Wrap with React.memo to prevent unnecessary re-renders during navigation
+export const DesignerV2Memoized = React.memo(DesignerV2);
+// Export as default for backwards compatibility
+export default DesignerV2Memoized;

@@ -59,7 +59,7 @@ export const SiteTextsSettings: React.FC = () => {
       await saveAppSettings({
         ...appSettings,
         siteTexts: texts
-      });
+      }, { silent: true, optimistic: true });
       
       setMessage('✅ تم حفظ النصوص بنجاح');
       setTimeout(() => setMessage(''), 3000);

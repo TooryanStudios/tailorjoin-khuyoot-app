@@ -10,6 +10,50 @@
       content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
     />
 
+    <!-- CRITICAL: Apply theme before first paint to prevent flash -->
+    <script>
+      (function() {
+        try {
+          // Prevent layout chrome (header/footer) from flashing before config loads
+          document.documentElement.setAttribute('data-shell-ready', '0');
+          document.documentElement.classList.add('hide-shell-elements');
+
+          const savedTheme = localStorage.getItem('theme');
+          const appSettings = localStorage.getItem('app_settings');
+          let theme = 'dark'; // default
+          
+          if (savedTheme) {
+            theme = savedTheme;
+          } else if (appSettings) {
+            try {
+              const settings = JSON.parse(appSettings);
+              if (settings.defaultTheme) theme = settings.defaultTheme;
+            } catch (e) {}
+          }
+          
+          if (theme === 'dark') {
+            document.documentElement.classList.add('dark');
+          }
+        } catch (e) {
+          // Fallback to dark mode on error
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
+    <style>
+      /* Zero-flash guard: do not allow header/footer to paint until the app marks shell ready */
+      html[data-shell-ready="0"] .app-header,
+      html[data-shell-ready="0"] .app-footer {
+        display: none !important;
+      }
+
+      html.hide-shell-elements .app-header,
+      html.hide-shell-elements .app-footer {
+        display: none !important;
+      }
+    </style>
+
     <!-- Security Headers -->
             <meta http-equiv="Content-Security-Policy" 
               content="default-src 'self'; 
@@ -17,9 +61,10 @@
                script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
                style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
                img-src 'self' data: blob: https: http:; 
+               media-src 'self' data: blob: https: http: https://static.higgsfield.ai https://*.higgsfield.ai;
                font-src 'self' https://fonts.gstatic.com;
                frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
-               connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com ws: wss:; 
+               connect-src 'self' https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://queue.fal.run https://fal.media https://cdn.jsdelivr.net ws: wss:; 
                worker-src 'self' blob:;">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -186,19 +231,29 @@
         font-family: 'Cairo', sans-serif;
         color: #0f172a;
         transition: background-color 0.3s ease, color 0.3s ease;
+        overflow-x: hidden;
+        width: 100%;
         overscroll-behavior-x: none; /* لتخفيف السحب الأفقي */
       }
 
       /* الجذر يأخذ ارتفاع الشاشة بالكامل حتى لا يكون في فراغ حوله */
       #root {
+        width: 100vw;
         min-height: 100vh;
-        background-color: #f8fafc;
+        margin: 0 !important;
+        padding: 0 !important;
+        display: block !important; /* Prevents flex-centering of the whole app */
+        background-color: inherit;
       }
       
       /* Dark mode overrides (في حال استخدمت html.classList.add('dark')) */
       .dark body {
         background-color: #050817;
         color: #f8fafc;
+      }
+
+      .dark #root {
+        background-color: inherit;
       }
 
       /* Hide scrollbar for chrome/safari/opera */
@@ -309,6 +364,16 @@
       }
       .animate-fade-in {
         animation: fade-in 0.2s ease-out;
+      }
+
+      /* Shimmer animation for skeleton loaders */
+      @keyframes shimmer {
+        0% {
+          transform: translateX(-100%);
+        }
+        100% {
+          transform: translateX(100%);
+        }
       }
 
       /* Better mobile scrolling */

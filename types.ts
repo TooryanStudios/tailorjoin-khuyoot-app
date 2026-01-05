@@ -201,12 +201,39 @@ export interface Category {
   icon: string;
 }
 
+export interface DesignerCardsRailCard {
+  id: string;
+  title: string;
+  type?: 'image' | 'video';
+  mediaUrl: string;
+  href?: string;
+  enabled?: boolean;
+}
+
+export interface DesignerCardsRailSettings {
+  enabled?: boolean;
+  title?: string;
+  maxCards?: number;
+  cardWidthPx?: number;
+  cardHeightPx?: number;
+  cardRadiusPx?: number;
+  gapPx?: number;
+  paddingXPx?: number;
+}
+
 export interface AppSettings {
   storiesEnabled: boolean;
   maintenanceMode: boolean;
   allowNewRegistrations: boolean;
   designerEnabled: boolean;
   cartEnabled: boolean;
+  /**
+   * Mobile Designer V2/V2.1: optional cards rail rendered under the history strip.
+   * Configurable from Admin > Home Page Settings.
+   */
+  designerCardsRail?: DesignerCardsRailSettings & {
+    cards?: DesignerCardsRailCard[];
+  };
   // Globally managed product categories used by homepage filters and join flow
   productCategories?: Array<{ id: string; name: string }>;
   storeEnabled?: boolean; // تفعيل/تعطيل متجر خيوط
@@ -222,6 +249,11 @@ export interface AppSettings {
    * Stored in Firestore under system/settings.
    */
   aiTryOn?: {
+    /**
+     * Global driver prompt used to guide Try-On generations.
+     * Configured from Admin Control Panel and stored in Firestore under system/settings.
+     */
+    driverPrompt?: string;
     limits?: {
       free?: {
         maxPremiumTemplatesBrowse?: number;
@@ -244,6 +276,8 @@ export interface AppSettings {
   };
   measurementTemplateWidth?: number; // عرض صورة قالب المقاسات (بكسل)
   measurementTemplateHeight?: number; // ارتفاع صورة قالب المقاسات (بكسل)
+  showHeader?: boolean; // إظهار/إخفاء الهيدر
+  showFooter?: boolean; // إظهار/إخفاء الفوتر
   homeSections?: {
     installButton?: boolean;
     notificationButton?: boolean;
@@ -252,6 +286,9 @@ export interface AppSettings {
     heroBanner?: boolean;
     designSection?: boolean;
     adsSection?: boolean;
+    popularRegions?: boolean;
+    filteredTailors?: boolean;
+    fabricStores?: boolean;
     browseShopsButton?: boolean;
     featuredTailors?: boolean;
     categoriesFilter?: boolean;

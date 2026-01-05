@@ -1,21 +1,34 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { Star, MapPin, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useQueryClient } from '@tanstack/react-query';
 import { Tailor } from '../../../types';
 import { useApp } from '../../../context/AppContext';
+import { firebaseService } from '../../../services/firebase';
 
 interface TailorsSectionProps {
   tailors: Tailor[];
 }
 
-export const TailorsSection: React.FC<TailorsSectionProps> = ({ tailors }) => {
+// ✅ Memoized to prevent re-renders when parent updates
+export const TailorsSection = React.memo<TailorsSectionProps>(({ tailors }) => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const { appSettings } = useApp();
   const tailorsScrollRef = useRef<HTMLDivElement>(null);
   const [tailorsScrollable, setTailorsScrollable] = useState(false);
   
   const tailorsTitle = appSettings.siteTexts?.featuredTailorsTitle || 'خياطون مميزون';
   const tailorsSubtitle = appSettings.siteTexts?.featuredTailorsSubtitle || 'أفضل الخياطين المتميزين';
+
+  // ✅ Prefetch tailor details on hover (200-500ms head start)
+  const handlePrefetchTailor = (tailorId: string) => {
+    queryClient.prefetchQuery({
+      queryKey: ['tailor-profile', tailorId],
+      queryFn: () => firebaseService.getUserProfile(tailorId),
+      staleTime: 1000 * 60 * 5, // Cache for 5 minutes
+    });
+  };
 
   // Detect if running as installed PWA + on mobile
   const [isStandalone, setIsStandalone] = useState(false);
@@ -128,6 +141,7 @@ export const TailorsSection: React.FC<TailorsSectionProps> = ({ tailors }) => {
           {tailors.map((tailor) => (
             <div
               key={tailor.id}
+              onMouseEnter={() => handlePrefetchTailor(tailor.id)} // ✅ Prefetch on hover
               onClick={() => navigate(`/tailor/${tailor.id}`)}
               className="min-w-[280px] bg-white dark:bg-slate-800/50 rounded-xl p-4 border border-slate-200 dark:border-slate-700 hover:border-amber-400 transition-colors cursor-pointer group"
             >
@@ -141,6 +155,8 @@ export const TailorsSection: React.FC<TailorsSectionProps> = ({ tailors }) => {
                     }
                   }}
                   alt={tailor.name}
+                  loading="eager"
+                  decoding="async"
                   className="w-14 h-14 rounded-full object-cover border-2 border-slate-100 dark:border-slate-600"
                 />
                 <div>
@@ -175,4 +191,4 @@ export const TailorsSection: React.FC<TailorsSectionProps> = ({ tailors }) => {
       </div>
     </div>
   );
-};
+});

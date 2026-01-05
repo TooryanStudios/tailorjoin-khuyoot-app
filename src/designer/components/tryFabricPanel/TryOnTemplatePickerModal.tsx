@@ -19,7 +19,7 @@ export function TryOnTemplatePickerModal(props: {
       onClose={onClose}
       dataDebugModal="TRYON-TEMPLATE-PICKER"
       overlayClassName="fixed inset-0 z-[2147483647] bg-black/50 flex items-start justify-center p-4 overflow-y-auto"
-      containerClassName="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl lg:max-w-5xl w-full max-h-[80vh] md:h-[80vh] flex flex-col relative"
+      containerClassName="bg-white dark:bg-slate-900 rounded-2xl max-w-2xl lg:max-w-3xl w-full max-h-[80vh] md:h-[80vh] flex flex-col relative"
       overlayStyle={{
         touchAction: 'pan-y',
         overscrollBehavior: 'contain',

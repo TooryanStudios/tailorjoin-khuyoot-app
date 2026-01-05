@@ -1,5 +1,6 @@
 import { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
+import { urlCache } from '../src/utils/urlCache';
 
 // تهيئة Firebase Storage
 let storage: any = null;
@@ -88,6 +89,9 @@ async function uploadSingleImage(file: File, path: string): Promise<string> {
   
   // الحصول على رابط التحميل
   const downloadURL = await getDownloadURL(storageRef);
+  
+  // Cache the URL
+  urlCache.set(path, downloadURL);
   
   return downloadURL;
 }
@@ -320,6 +324,33 @@ export function validateImageFile(file: File): { valid: boolean; error?: string 
   return { valid: true };
 }
 
+/**
+ * Get download URL with caching
+ * Checks cache first before calling Firebase getDownloadURL
+ */
+export async function getDownloadURLCached(path: string): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage not initialized');
+  }
+
+  // Check cache first
+  const cachedUrl = urlCache.get(path);
+  if (cachedUrl) {
+    console.log('✅ URL from cache:', path);
+    return cachedUrl;
+  }
+
+  // Not in cache, fetch from Firebase
+  const storageRef = ref(storage, path);
+  const downloadURL = await getDownloadURL(storageRef);
+  
+  // Cache it for next time
+  urlCache.set(path, downloadURL);
+  console.log('📥 URL cached:', path);
+  
+  return downloadURL;
+}
+
 export const storageService = {
   uploadProductImage,
   uploadAvatar,
@@ -328,6 +359,7 @@ export const storageService = {
   uploadSettingsImage,
   deleteImage,
   deleteProductImages,
+  getDownloadURLCached,
   previewImage,
   validateImageFile
 };

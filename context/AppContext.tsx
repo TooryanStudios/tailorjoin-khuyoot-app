@@ -1,10 +1,10 @@
 
 import React, { createContext, useContext, useState, ReactNode, PropsWithChildren, useEffect } from 'react';
 import { User, Product, UserRole, AppSettings } from '../types';
-import { mockLogin } from '../services/mockService';
 import { firebaseService, mapFirebaseUser } from '../services/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useOnlineStatus } from '../utils/useOnlineStatus';
+
 
 type Theme = 'light' | 'dark';
 
@@ -30,12 +30,14 @@ interface AppContextType {
   appSettings: AppSettings;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => Promise<void>;
-  logout: () => void;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
   addToCart: (product: Product) => void;
+  clearCart: () => void;
   toggleAuthModal: (isOpen: boolean, mode?: 'login' | 'register') => void;
   toggleTheme: () => void;
   updateAppSettings: (newSettings: Partial<AppSettings>) => void; // Local update
-  saveAppSettings: (newSettings: AppSettings) => Promise<void>; // Persist to DB
+  saveAppSettings: (newSettings: AppSettings, options?: { silent?: boolean; optimistic?: boolean }) => Promise<void>; // Persist to DB
   debugSetRole: (role: UserRole) => void; // For dev tool
 }
 
@@ -66,24 +68,150 @@ const getFirebaseErrorMessage = (error: any) => {
   }
 };
 
-export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true); // يبدأ بـ true لانتظار Firebase auth check
+export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppSettings }>> = ({
+  children,
+  initialAppSettings,
+}) => {
+  // Normalize user payloads (Firebase profile + legacy fields) - defined BEFORE use
+  const normalizeUser = (u: any): any => {
+    if (!u) return u;
+    let role = typeof u.role === 'string' ? u.role.toLowerCase() : u.role;
+    const shopType = (u as any).shopType ? String((u as any).shopType).toLowerCase() : null;
+
+    // Map shopType-based roles if they exist as primary role
+    if (shopType === 'boutique' || shopType === 'بوتيك') role = 'boutique';
+    else if (shopType === 'tailor' || shopType === 'خياط') role = 'tailor';
+
+    // Default guest when missing
+    if (!role) role = 'guest';
+    const { shopType: _, ...rest } = u;
+    return { ...rest, role };
+  };
+
+  const USER_STORAGE_KEY = 'currentUser';
+  const getCachedUser = (): User | null => {
+    try {
+      const raw = localStorage.getItem(USER_STORAGE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== 'object') return null;
+      const anyParsed = parsed as any;
+      if (typeof anyParsed.id !== 'string') return null;
+      return anyParsed as User;
+    } catch {
+      return null;
+    }
+  };
+
+  const [user, setUser] = useState<User | null>(() => {
+    const cached = getCachedUser();
+    return cached ? normalizeUser(cached) : null;
+  });
+  const [loading, setLoading] = useState(false);
   const [cart, setCart] = useState<Product[]>([]);
   const [ordersCount, setOrdersCount] = useState<number>(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
-  const [theme, setTheme] = useState<Theme>('light');
-  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  // Initialize theme synchronously from localStorage/app_settings to match the inline script in index.html
+  const getInitialTheme = (): Theme => {
+    try {
+      const stored = localStorage.getItem('theme') as Theme | null;
+      if (stored === 'dark' || stored === 'light') return stored;
+      const cachedSettings = localStorage.getItem('app_settings');
+      if (cachedSettings) {
+        const parsed = JSON.parse(cachedSettings);
+        if (parsed?.defaultTheme === 'dark' || parsed?.defaultTheme === 'light') {
+          return parsed.defaultTheme as Theme;
+        }
+      }
+    } catch (e) {
+      // fall through to default
+    }
+    return 'dark';
+  };
+
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
   const isOnline = useOnlineStatus();
+
+  const CART_STORAGE_KEY = 'khuyoot.cart.v1';
+
+  const loadFromStorage = React.useCallback(<T,>(key: string, validate?: (value: unknown) => value is T): T | null => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (validate && !validate(parsed)) return null;
+      return parsed as T;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const validateCart = (value: unknown): value is Product[] => {
+    if (!Array.isArray(value)) return false;
+    return value.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const anyItem = item as any;
+      return (
+        typeof anyItem.id === 'string' &&
+        typeof anyItem.name === 'string' &&
+        typeof anyItem.price === 'number' &&
+        typeof anyItem.image === 'string' &&
+        typeof anyItem.category === 'string'
+      );
+    });
+  };
+
+  // Hydrate cart once
+  useEffect(() => {
+    try {
+      const hydrated = loadFromStorage<Product[]>(CART_STORAGE_KEY, validateCart);
+      if (hydrated) setCart(hydrated);
+    } catch (e) {
+      console.warn('Failed to hydrate cart', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist cart to localStorage directly (simplified)
+  React.useEffect(() => {
+    if (cart && cart.length > 0) {
+      const timer = setTimeout(() => {
+        try {
+          const cartData = cart.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            image: p.image,
+            category: p.category,
+            categoryId: p.categoryId ?? undefined,
+            images: p.images ?? undefined,
+            coverImageIndex: p.coverImageIndex ?? undefined,
+            tailorId: p.tailorId ?? undefined,
+            tailorName: p.tailorName ?? undefined,
+            location: p.location ?? undefined,
+            rating: p.rating ?? undefined,
+            duration: p.duration ?? undefined,
+          }));
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData));
+        } catch (e) {
+          console.error('[AppContext] Cart persist error:', e);
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [cart]);
   
   // App Control Settings
-  const [appSettings, setAppSettings] = useState<AppSettings>({
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => ({
     storiesEnabled: true,
     maintenanceMode: false,
     allowNewRegistrations: true,
     designerEnabled: true,
     cartEnabled: true,
+    showHeader: true,
+    showFooter: true,
+    defaultTheme: 'dark', // Default theme is dark
     storeEnabled: false, // متجر خيوط تجريبي مبدئياً
     aiTryOn: {
       limits: {
@@ -113,40 +241,22 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       enabled: true,
       url: 'https://www.youtube.com/watch?v=6eZtn5Du8O4',
       buttonText: 'شاهد'
-    }
-  });
+    },
+    ...((initialAppSettings || {}) as AppSettings),
+  }));
 
-  // Initialize Theme
+  // AppInitializer already blocked until the config is available.
+  // Keeping this true prevents any "default settings" paint.
+  const settingsLoaded = true;
+
+  // Cache settings to localStorage for immediate theme application on next load
   useEffect(() => {
-    const savedTheme = localStorage.getItem('theme') as Theme | null;
-    if (savedTheme) {
-      setTheme(savedTheme);
+    try {
+      localStorage.setItem('app_settings', JSON.stringify(appSettings));
+    } catch {
+      // ignore
     }
-  }, []);
-
-  // Initialize Settings from Firebase (skip noisy errors when offline)
-  useEffect(() => {
-    const loadSettings = async () => {
-      if (firebaseService.isInitialized()) {
-        const settings = await firebaseService.getGlobalSettings();
-        setAppSettings(settings);
-        setSettingsLoaded(true);
-      } else {
-        setSettingsLoaded(true);
-      }
-    };
-    // Add watchdog to avoid indefinite wait if Firestore is slow
-    const watchdog = setTimeout(() => {
-      if (!settingsLoaded) {
-        try { console.warn('⚠️ Settings load watchdog triggered; using defaults'); } catch {}
-        setSettingsLoaded(true);
-      }
-    }, 3000);
-
-    loadSettings().finally(() => {
-      try { clearTimeout(watchdog); } catch {}
-    });
-  }, [isOnline]);
+  }, [appSettings]);
 
   // Apply Theme to DOM
   useEffect(() => {
@@ -167,33 +277,18 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
            const mappedUser = mapFirebaseUser(currentUser);
            const extendedUser = isOnline ? await firebaseService.getUserProfile(currentUser.uid) : null;
 
-           const normalizeUser = (u: any): any => {
-            if (!u) return u;
-            //
-            let role = typeof u.role === 'string' ? u.role.toLowerCase() : u.role;
-            const shopType = (u as any).shopType ? String((u as any).shopType).toLowerCase() : null;
-            
-            // Keep role='shop' as-is (distinct shop account)
-            // No conversion needed
-            
-            // Map shopType-based roles if they exist as primary role
-            if (shopType === 'boutique' || shopType === 'بوتيك') role = 'boutique';
-            else if (shopType === 'tailor' || shopType === 'خياط') role = 'tailor';
-            
-            // Default guest when missing
-            if (!role) role = 'guest';
-            const { shopType: _, ...rest } = u;
-            //
-            return { ...rest, role };
-           };
-
            if (extendedUser) {
-             setUser(normalizeUser(extendedUser));
+             const normalized = normalizeUser(extendedUser);
+             setUser(normalized);
+             try { localStorage.setItem('currentUser', JSON.stringify(normalized)); } catch {}
            } else {
-             setUser(normalizeUser(mappedUser));
+             const normalized = normalizeUser(mappedUser);
+             setUser(normalized);
+             try { localStorage.setItem('currentUser', JSON.stringify(normalized)); } catch {}
            }
         } else {
           setUser(null);
+          try { localStorage.removeItem('currentUser'); } catch {}
         }
         setLoading(false); // انتهى التحميل بعد التحقق من المستخدم
       });
@@ -219,6 +314,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         //
       } else {
         const t0 = performance.now?.() || Date.now();
+        const { mockLogin } = await import('../services/mockService');
         const userData = await mockLogin(email);
         setUser(userData);
         const t1 = performance.now?.() || Date.now();
@@ -241,6 +337,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       if (isLocalDev && error?.code === 'auth/network-request-failed') {
         console.warn('⚠️ Firebase Auth network failed on localhost; falling back to mock login for development.');
         try {
+          const { mockLogin } = await import('../services/mockService');
           const userData = await mockLogin(email);
           setUser(userData);
           setIsAuthModalOpen(false);
@@ -273,6 +370,7 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
         //
       } else {
         const t0 = performance.now?.() || Date.now();
+        const { mockLogin } = await import('../services/mockService');
         const userData = await mockLogin(email);
         userData.name = name;
         userData.role = role;
@@ -291,6 +389,26 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     } finally {
       setLoading(false);
       //
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      if (!firebaseService.isInitialized()) return;
+      const current = firebaseService.auth?.currentUser;
+      if (!current?.uid) return;
+      if (!isOnline) {
+        // When offline, best we can do is keep current context user.
+        return;
+      }
+      const profile = await firebaseService.getUserProfile(current.uid);
+      if (profile) {
+        setUser(normalizeUser(profile));
+      } else {
+        setUser(normalizeUser(mapFirebaseUser(current)));
+      }
+    } catch (e) {
+      console.warn('refreshUser failed', e);
     }
   };
 
@@ -341,21 +459,24 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       setUser(null);
       setCart([]);
       setLoading(false);
-      
-      // الانتقال إلى صفحة الحساب التي ستعرض GuestPrompt تلقائياً
-      window.location.href = '/#/account';
     } catch (error) {
       console.error("Logout failed", error);
       // حتى لو حدث خطأ، نقوم بمسح البيانات المحلية
       setUser(null);
       setCart([]);
       setLoading(false);
-      window.location.href = '/#/account';
     }
   };
 
   const addToCart = (product: Product) => {
-    setCart([...cart, product]);
+    setCart((prev) => [...prev, product]);
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } catch {}
   };
 
   // Derive cart count from cart array
@@ -391,16 +512,31 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
     setAppSettings(prev => ({ ...prev, ...newSettings }));
   };
 
-  const saveAppSettings = async (newSettings: AppSettings) => {
+  const saveAppSettings = async (newSettings: AppSettings, options?: { silent?: boolean; optimistic?: boolean }) => {
+    const silent = options?.silent === true;
+    const optimistic = options?.optimistic === true;
+    const prevSettings = appSettings;
+
     try {
+      if (optimistic) setAppSettings(newSettings);
       if (firebaseService.isInitialized()) {
         await firebaseService.saveGlobalSettings(newSettings);
       }
-      setAppSettings(newSettings);
-      alert('تم حفظ الإعدادات بنجاح وتطبيقها على التطبيق.');
+      if (!optimistic) setAppSettings(newSettings);
+      if (!silent) alert('تم حفظ الإعدادات بنجاح وتطبيقها على التطبيق.');
     } catch (error) {
       console.error("Failed to save settings", error);
-      alert('حدث خطأ أثناء حفظ الإعدادات');
+      const anyErr = error as any;
+      const code = String(anyErr?.code || '');
+      if (optimistic) setAppSettings(prevSettings);
+      if (code.includes('permission-denied') || code.includes('insufficient-permission')) {
+        if (!silent) alert('ليس لديك صلاحية لحفظ الإعدادات. تأكد أن حسابك "admin" وأن قواعد Firestore تسمح بالتعديل.');
+      } else {
+        if (!silent) alert('حدث خطأ أثناء حفظ الإعدادات');
+      }
+
+      // Let callers (Admin UI) handle error states without forcing a hard UI reset.
+      throw error;
     }
   };
 
@@ -438,7 +574,9 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
       login,
       register,
       logout,
+      refreshUser,
       addToCart,
+      clearCart,
       toggleAuthModal,
       toggleTheme,
       updateAppSettings,

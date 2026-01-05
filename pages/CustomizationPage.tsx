@@ -14,6 +14,7 @@ import { PreviewCanvas } from '../src/components/customization/PreviewCanvas';
 import { AITipsPanel } from '../src/components/customization/AITipsPanel';
 import { NextStepButton } from '../src/components/customization/NextStepButton';
 import DebugPanel from '../components/DebugPanel';
+import { StudioLayout } from '../src/modules/studio/components/StudioLayout';
 
 // Mock data for models
 const AVAILABLE_MODELS: CustomizationModel[] = [
@@ -273,9 +274,9 @@ export const CustomizationPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-24">
+    <div className="h-screen bg-slate-50 dark:bg-slate-900 overflow-hidden">
       {/* Header */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
         <div className="max-w-5xl mx-auto px-4 py-4 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
@@ -295,91 +296,96 @@ export const CustomizationPage = () => {
         </div>
       </div>
 
-      {/* Product Info Card */}
-      {(productId || state.selectedModel) && (
-        <div className="max-w-5xl mx-auto px-4 py-4">
-          <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-4 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
-                <Sparkles size={32} className="text-white" />
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-white/80 mb-1">المنتج المراد تخصيصه</p>
-                <h2 className="text-lg font-bold text-white mb-1">
-                  {state.selectedModel?.name || 'تخصيص جديد'}
-                </h2>
-                <div className="flex gap-2 flex-wrap">
-                  {state.selectedModel?.id && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      {state.selectedModel.id}
-                    </span>
-                  )}
-                  {state.selectedModel?.type && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      {state.selectedModel.type}
-                    </span>
-                  )}
-                  {productId && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      Product: {productId.slice(0, 8)}...
-                    </span>
-                  )}
-                  {product?.categoryId && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      Cat: {product.categoryId}
-                    </span>
-                  )}
-                </div>
-              </div>
-              {fabricFile && (
-                <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white/30 flex-shrink-0">
-                  <img 
-                    src={fabricFile.preview} 
-                    alt="القماش المختار" 
-                    className="w-full h-full object-cover"
-                  />
+      {/* Layered Studio Layout */}
+      <div className="h-full pt-20">
+        <StudioLayout
+          preview={
+            <div className="h-full w-full bg-slate-50 dark:bg-slate-900">
+              <PreviewCanvas
+                mode="canvas"
+                className="h-full p-4"
+                selectedModel={state.selectedModel || null}
+                fabricImageUrl={state.fabricUpload?.url}
+                previewUrl={state.previewUrl}
+                previewStatus={state.previewStatus}
+                onRegeneratePreview={handleGeneratePreview}
+                errorMessage={state.errorMessage}
+              />
+            </div>
+          }
+          panel={
+            <div className="space-y-8 pb-40">
+              {/* Product Info Card */}
+              {(productId || state.selectedModel) && (
+                <div>
+                  <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-4 shadow-lg">
+                    <div className="flex items-center gap-4">
+                      <div className="w-16 h-16 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
+                        <Sparkles size={32} className="text-white" />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-white/80 mb-1">المنتج المراد تخصيصه</p>
+                        <h2 className="text-lg font-bold text-white mb-1">
+                          {state.selectedModel?.name || 'تخصيص جديد'}
+                        </h2>
+                        <div className="flex gap-2 flex-wrap">
+                          {state.selectedModel?.id && (
+                            <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
+                              {state.selectedModel.id}
+                            </span>
+                          )}
+                          {state.selectedModel?.type && (
+                            <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
+                              {state.selectedModel.type}
+                            </span>
+                          )}
+                          {productId && (
+                            <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
+                              Product: {productId.slice(0, 8)}...
+                            </span>
+                          )}
+                          {product?.categoryId && (
+                            <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
+                              Cat: {product.categoryId}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {fabricFile && (
+                        <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white/30 flex-shrink-0">
+                          <img
+                            src={fabricFile.preview}
+                            alt="القماش المختار"
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
               )}
+
+              {/* Model Selection */}
+              <ModelSelector
+                models={AVAILABLE_MODELS}
+                selectedModelId={state.selectedModel?.id}
+                onModelSelect={handleModelSelect}
+              />
+
+              {/* Fabric Upload */}
+              <FabricUploader
+                onFabricSelected={handleFabricSelect}
+                currentFabric={fabricFile}
+                onRemove={handleFabricRemove}
+              />
+
+              {/* AI Tips */}
+              {state.previewStatus !== 'idle' && (
+                <AITipsPanel tips={state.aiTips} isLoading={state.previewStatus === 'processing'} />
+              )}
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Main Content */}
-      <div className="max-w-5xl mx-auto px-4 py-8 space-y-8 pb-32">
-        {/* Model Selection */}
-        <ModelSelector
-          models={AVAILABLE_MODELS}
-          selectedModelId={state.selectedModel?.id}
-          onModelSelect={handleModelSelect}
+          }
         />
-
-        {/* Fabric Upload */}
-        <FabricUploader
-          onFabricSelected={handleFabricSelect}
-          currentFabric={fabricFile}
-          onRemove={handleFabricRemove}
-        />
-
-        {/* Preview Canvas */}
-        {(state.selectedModel || fabricFile) && (
-          <PreviewCanvas
-            selectedModel={state.selectedModel || null}
-            fabricImageUrl={state.fabricUpload?.url}
-            previewUrl={state.previewUrl}
-            previewStatus={state.previewStatus}
-            onRegeneratePreview={handleGeneratePreview}
-            errorMessage={state.errorMessage}
-          />
-        )}
-
-        {/* AI Tips */}
-        {state.previewStatus !== 'idle' && (
-          <AITipsPanel
-            tips={state.aiTips}
-            isLoading={state.previewStatus === 'processing'}
-          />
-        )}
       </div>
 
       {/* Fixed Bottom Buttons */}

@@ -19,6 +19,8 @@ import { MeasurementTemplates } from './measurements/MeasurementTemplates';
 import { ProductsManagement } from './products/ProductsManagement';
 import { OrphanedProducts } from './products/OrphanedProducts';
 import { HomePageSettings } from './settings/HomePageSettings';
+import { HomePageV2Settings } from './settings/HomePageV2Settings';
+import { DesignerSettings } from './settings/DesignerSettings';
 import { SiteTextsSettings } from './settings/SiteTextsSettings';
 import { SocialMediaSettings } from './settings/SocialMediaSettings';
 import { SEOSettings } from './settings/SEOSettings';
@@ -28,6 +30,7 @@ import { AdsManagement } from './ads/AdsManagement';
 import { FinancialManagement } from './financial/FinancialManagement';
 import { RegionsManagement } from './regions/RegionsManagement';
 import { TryOnTemplates } from './tryon/TryOnTemplates';
+import { CreditsManagement } from './credits/CreditsManagement';
 
 type AdminSection = 
   | 'dashboard' 
@@ -50,23 +53,62 @@ type AdminSection =
   | 'ads'
   | 'regions'
   | 'financial'
+  | 'credits'
   | 'config' 
   | 'logs';
+
+type ConfigSection = 'general' | 'homepage' | 'homepage-v2' | 'texts' | 'social' | 'seo' | 'advanced';
+
+type ExtendedConfigSection = ConfigSection | 'designer';
+
+const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'homepage-v2', 'texts', 'social', 'seo', 'advanced'];
+
+function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
+  // Supported:
+  // - /admin/config
+  // - /admin/config/
+  // - /admin/config/:tab
+  // - /admin/config/:tab/
+  const parts = String(pathname || '').split('/').filter(Boolean);
+  // parts: ['admin', 'config', ':tab?']
+  const tab = parts[2];
+  if (CONFIG_SECTIONS.includes(tab as ExtendedConfigSection)) return tab as ExtendedConfigSection;
+  return 'general';
+}
 
 export const AdminApp = () => {
   const { appSettings, saveAppSettings, user, logout, login, loading, theme, toggleTheme } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  const getDefaultSidebarOpen = () => {
+    try {
+      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+    } catch {
+      return false;
+    }
+  };
+
+  const getIsSmallScreen = () => {
+    try {
+      return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+    } catch {
+      return true;
+    }
+  };
   
   // استخرج القسم النشط من URL بدلاً من state
   const getActiveSectionFromPath = () => {
-    const path = location.pathname.replace('/admin/', '') || 'dashboard';
-    return path as AdminSection;
+    const raw = String(location.pathname || '');
+    const remainder = raw.replace(/^\/admin\/?/, '');
+    const first = (remainder.split('/')[0] || 'dashboard').trim();
+    return (first || 'dashboard') as AdminSection;
   };
   const activeSection = getActiveSectionFromPath();
   const [localSettings, setLocalSettings] = useState<AppSettings>(appSettings);
   const [isSaving, setIsSaving] = useState(false);
-  const [isSidebarOpen, setSidebarOpen] = useState(false);
+  const [isSidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
+  const [isSmallScreen, setIsSmallScreen] = useState(getIsSmallScreen);
   
   // Admin Login Form State
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -75,6 +117,19 @@ export const AdminApp = () => {
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+
+  useEffect(() => {
+    const onResize = () => {
+      const small = getIsSmallScreen();
+      setIsSmallScreen(small);
+      // Keep the sidebar open on desktop to make admin settings discoverable.
+      if (!small) setSidebarOpen(true);
+    };
+
+    onResize();
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []);
 
   // Data States
   const [users, setUsers] = useState<User[]>([]);
@@ -110,6 +165,13 @@ export const AdminApp = () => {
     // إعادة توجيه إلى dashboard إذا كان المسار /admin فقط
     if (location.pathname === '/admin' || location.pathname === '/admin/') {
       navigate('/admin/dashboard', { replace: true });
+    }
+  }, [location.pathname, navigate]);
+
+  // Ensure Config has a stable deep link (no implicit tab).
+  useEffect(() => {
+    if (location.pathname === '/admin/config' || location.pathname === '/admin/config/') {
+      navigate('/admin/config/general', { replace: true });
     }
   }, [location.pathname, navigate]);
 
@@ -170,12 +232,18 @@ export const AdminApp = () => {
   }, [user]);
 
   const handleToggle = (key: keyof AppSettings) => {
-    setLocalSettings(prev => ({ ...prev, [key]: !prev[key] }));
+    setLocalSettings((prev) => {
+      const next = { ...prev, [key]: !prev[key] } as AppSettings;
+      // Persist immediately to keep the app (Home) in sync with the admin toggle.
+      // Uses optimistic+silent to avoid UI flicker/alerts.
+      saveAppSettings(next, { silent: true, optimistic: true });
+      return next;
+    });
   };
 
   const handleSaveSettings = async () => {
     setIsSaving(true);
-    await saveAppSettings(localSettings);
+    await saveAppSettings(localSettings, { silent: true, optimistic: true });
     setIsSaving(false);
   };
 
@@ -251,10 +319,10 @@ export const AdminApp = () => {
   );
 
   const ConfigView = () => {
-    const [configSection, setConfigSection] = useState<'general' | 'homepage' | 'texts' | 'social' | 'seo' | 'advanced'>('general');
+    const configSection = getConfigSectionFromPathname(location.pathname);
 
     return (
-      <div className="space-y-6 max-w-4xl">
+      <div className="space-y-6 w-full max-w-none min-w-0">
         <div className="flex justify-between items-center mb-6">
           <h2 className="text-xl font-bold text-slate-800 dark:text-white">إعدادات النظام</h2>
           {configSection === 'general' && (
@@ -268,7 +336,7 @@ export const AdminApp = () => {
         {/* Tabs */}
         <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
           <button
-            onClick={() => setConfigSection('general')}
+            onClick={() => navigate('/admin/config/general')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'general'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -278,7 +346,7 @@ export const AdminApp = () => {
             الإعدادات العامة
           </button>
           <button
-            onClick={() => setConfigSection('homepage')}
+            onClick={() => navigate('/admin/config/homepage')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'homepage'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -288,7 +356,27 @@ export const AdminApp = () => {
             الصفحة الرئيسية
           </button>
           <button
-            onClick={() => setConfigSection('texts')}
+            onClick={() => navigate('/admin/config/designer')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+              configSection === 'designer'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            المصمم
+          </button>
+          <button
+            onClick={() => navigate('/admin/config/homepage-v2')}
+            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+              configSection === 'homepage-v2'
+                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
+                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+            }`}
+          >
+            Homepage 2.1
+          </button>
+          <button
+            onClick={() => navigate('/admin/config/texts')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'texts'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -298,7 +386,7 @@ export const AdminApp = () => {
             نصوص الموقع
           </button>
           <button
-            onClick={() => setConfigSection('social')}
+            onClick={() => navigate('/admin/config/social')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'social'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -308,7 +396,7 @@ export const AdminApp = () => {
             السوشيال ميديا
           </button>
           <button
-            onClick={() => setConfigSection('seo')}
+            onClick={() => navigate('/admin/config/seo')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'seo'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -318,7 +406,7 @@ export const AdminApp = () => {
             SEO
           </button>
           <button
-            onClick={() => setConfigSection('advanced')}
+            onClick={() => navigate('/admin/config/advanced/orders')}
             className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
               configSection === 'advanced'
                 ? 'border-blue-600 text-blue-600 dark:text-blue-400'
@@ -331,6 +419,10 @@ export const AdminApp = () => {
 
         {configSection === 'homepage' ? (
           <HomePageSettings />
+          ) : configSection === 'designer' ? (
+            <DesignerSettings />
+        ) : configSection === 'homepage-v2' ? (
+          <HomePageV2Settings />
         ) : configSection === 'texts' ? (
           <SiteTextsSettings />
         ) : configSection === 'social' ? (
@@ -484,7 +576,7 @@ export const AdminApp = () => {
                   onChange={(e) => {
                     const newSettings = { ...localSettings, measurementTemplateWidth: parseInt(e.target.value) || 800 };
                     setLocalSettings(newSettings);
-                    saveAppSettings(newSettings);
+                    saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                 />
@@ -499,7 +591,7 @@ export const AdminApp = () => {
                   onChange={(e) => {
                     const newSettings = { ...localSettings, measurementTemplateHeight: parseInt(e.target.value) || 1200 };
                     setLocalSettings(newSettings);
-                    saveAppSettings(newSettings);
+                    saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
                   className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                 />
@@ -606,6 +698,7 @@ export const AdminApp = () => {
       case 'ads': return <AdsManagement />;
       case 'regions': return <RegionsManagement />;
       case 'financial': return <FinancialManagement />;
+      case 'credits': return <CreditsManagement />;
       case 'config': return <ConfigView />;
       case 'logs': return <PlaceholderView title="سجلات النظام" icon={FileText} />;
       default: return <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />;
@@ -756,23 +849,12 @@ export const AdminApp = () => {
         shopsCount={shopsCount}
       />
 
-      {isSidebarOpen && (
+      {isSidebarOpen && isSmallScreen && (
         <div
           className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
           onClick={() => setSidebarOpen(false)}
           aria-hidden="true"
         />
-      )}
-
-      {/* زر إظهار الشريط الجانبي عندما يكون مخفياً */}
-      {!isSidebarOpen && (
-        <button
-          onClick={() => setSidebarOpen(true)}
-          className="fixed left-4 top-1/2 -translate-y-1/2 z-50 p-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg shadow-lg transition-all hover:scale-110"
-          title="إظهار الشريط الجانبي"
-        >
-          <Menu size={20} />
-        </button>
       )}
 
       <div className="flex-1 flex flex-col min-w-0">

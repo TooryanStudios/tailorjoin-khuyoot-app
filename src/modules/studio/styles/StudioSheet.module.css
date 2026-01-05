@@ -1,0 +1,75 @@
+.sheetContainer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  /* Keep the draggable sheet above the app bottom nav/footer */
+  bottom: calc(var(--footer-height) + env(safe-area-inset-bottom));
+  /* Ensure it sits above the master footer */
+  z-index: 200;
+  background: rgba(24, 24, 27, 0.95); /* zinc-900 */
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 -20px 60px rgba(0, 0, 0, 0.9);
+  display: flex;
+  flex-direction: column;
+  touch-action: none;
+  /* Compensate for the bottom offset so the top doesn't jump upward */
+  height: calc(92vh - var(--footer-height));
+}
+
+.dragHandleArea {
+  width: 100%;
+  padding: 10px 0 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: grab;
+  background: linear-gradient(to bottom, rgba(24, 24, 27, 0.98), transparent);
+  border-top-left-radius: 24px;
+  border-top-right-radius: 24px;
+}
+
+.dragHandleArea::after {
+  content: 'اسحب للأعلى للمزيد';
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.3);
+  margin-top: 6px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+.dragHandleArea:active {
+  cursor: grabbing;
+}
+
+.dragHandle {
+  width: 36px;
+  height: 4px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 2px;
+}
+
+.scrollableContent {
+  flex: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 12px 40px;
+  touch-action: pan-y; /* Allow scrolling inside */
+}
+
+/* Glassmorphic transition at the top of content */
+.scrollableContent::before {
+  content: '';
+  position: sticky;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 8px;
+  background: linear-gradient(to bottom, rgba(24, 24, 27, 0.95), transparent);
+  z-index: 10;
+  pointer-events: none;
+  display: block;
+}

@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { Product, Tailor, Story, Shop } from '../../types';
-import { firebaseService } from '../../services/firebase';
-import { getStories, getFabricStores } from '../../services/mockService';
+import { Product } from '../../types';
 import { useApp } from '../../context/AppContext';
-import { requestNotificationPermission, showLocalTestNotification, isNotificationSupported } from '../../utils/notifications';
+import { useHomeTailors, useFabricStores, useStories, useHomeProducts } from '../../src/hooks/useHomeData';
+import { useAppStore } from '../../src/store/useAppStore';
+import { useNavigate } from 'react-router-dom';
 
 // Import components
-import { InstallButton } from './components/InstallButton';
-import { NotificationButton } from './components/NotificationButton';
 import { StoriesSection } from './components/StoriesSection';
 import { SearchBar } from './components/SearchBar';
 import { HeroBanner } from './components/HeroBanner';
@@ -20,7 +18,8 @@ import { ProductsGrid } from './components/ProductsGrid';
 import { ContactFooter } from './components/ContactFooter';
 import { PopularRegions } from './components/PopularRegions';
 import { FilteredTailors } from './components/FilteredTailors';
-import { usePWAInstall } from '@/src/hooks/usePWAInstall';
+import { StandardContainer } from '@/src/components/layout/StandardContainer';
+import { HomepageOrchestrator as HomepageV2Orchestrator } from '../../src/modules/homepage-v2';
 
 // Categories are driven by global appSettings.productCategories
 // Fallback to sensible defaults if settings not yet loaded
@@ -33,111 +32,65 @@ const DEFAULT_CATEGORIES = [
   { id: 'shoes', name: 'الأحذية' },
 ];
 
+const DesignerV2_1Card: React.FC<{ onClick: () => void }> = ({ onClick }) => {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="relative h-[160px] p-4 bg-slate-900 border border-purple-500 rounded-2xl hover:scale-[1.02] transition-transform text-right overflow-hidden"
+    >
+      <span className="absolute -top-2 -left-2 bg-purple-600 text-[10px] px-2 py-1 rounded-full text-white">
+        NEW V2.1
+      </span>
+      <div className="absolute inset-0 pointer-events-none">
+        <div className="absolute -top-16 -right-16 w-48 h-48 bg-purple-500/15 rounded-full blur-3xl" />
+        <div className="absolute -bottom-16 -left-16 w-48 h-48 bg-fuchsia-500/10 rounded-full blur-3xl" />
+      </div>
+      <div className="relative z-10 flex flex-col justify-center h-full">
+        <div className="text-lg font-black text-white">Designer V2.1 (Beta)</div>
+        <p className="text-slate-400 text-xs mt-1">Leonardo-style creative refinement</p>
+        <div className="mt-3 text-purple-300 text-xs font-bold">Open Upscaler →</div>
+      </div>
+    </button>
+  );
+};
+
 export const Home = () => {
-  const [products, setProducts] = useState<Product[]>([]);
-  const [tailors, setTailors] = useState<Tailor[]>([]);
-  const [fabricStores, setFabricStores] = useState<Shop[]>([]);
-  const [stories, setStories] = useState<Story[]>([]);
+  // ✅ Use React Query hooks with cache-first pattern
+  const { user, appSettings, settingsLoaded } = useApp();
+  const navigate = useNavigate();
+
+  // Compute section permissions early so hooks can be gated (no extra network/chunk loads).
+  const canShowSection = (section: string) => {
+    const sectionSettings = (appSettings?.homeSections ?? {}) as Record<string, boolean | undefined>;
+    const visibility = appSettings?.sectionVisibility?.[section];
+    if (visibility?.adminOnly && user?.role !== 'admin') return false;
+    return sectionSettings[section] ?? true;
+  };
+
+  const shouldLoadFabricStores = canShowSection('fabricStores');
+  const shouldLoadStories = Boolean(appSettings?.storiesEnabled) && canShowSection('stories');
+  const shouldLoadAds = canShowSection('adsSection');
+  
+  // ✅ React Query hooks - use cached data immediately, refetch in background
+  const { data: tailors = [], isPending: isTailorsLoading } = useHomeTailors();
+  const { data: fabricStores = [], isPending: isFabricStoresLoading } = useFabricStores(shouldLoadFabricStores);
+  const { data: stories = [], isPending: isStoriesLoading } = useStories(shouldLoadStories);
+  
+  // Local state
   const [activeCategory, setActiveCategory] = useState('all');
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
-  const [notificationStatus, setNotificationStatus] = useState<string>('');
-  const [selectedRegion, setSelectedRegion] = useState<string | null>(null);
-  const { user, appSettings, settingsLoaded } = useApp();
-  const { showInstallButton, isInstalled, promptInstall } = usePWAInstall();
-
-  // Debug rendering log removed
-
-  useEffect(() => {
-    firebaseService.getProducts(activeCategory).then(setProducts);
-  }, [activeCategory]);
-
-  useEffect(() => {
-    if (!settingsLoaded) {
-      return;
-    }
-
-    let isMounted = true;
-    const isStoriesEnabled = Boolean(appSettings?.storiesEnabled);
-
-    const fetchData = async () => {
-      const tailorsPromise = firebaseService
-        .getApprovedTailors()
-        .catch(error => {
-          console.error('Failed to load approved tailors', error);
-          return [] as Tailor[];
-        });
-
-      const fabricStoresPromise = getFabricStores().catch(error => {
-        console.error('Failed to load fabric stores', error);
-        return [] as Shop[];
-      });
-
-      const storiesPromise: Promise<Story[]> = isStoriesEnabled
-        ? getStories().catch(error => {
-            console.error('Failed to load stories', error);
-            return [] as Story[];
-          })
-        : Promise.resolve([] as Story[]);
-
-      const [approvedTailors, approvedStores, fetchedStories] = await Promise.all([
-        tailorsPromise,
-        fabricStoresPromise,
-        storiesPromise,
-      ]);
-
-      if (!isMounted) {
-        return;
-      }
-
-      setTailors(approvedTailors);
-      setFabricStores(approvedStores);
-      setStories(isStoriesEnabled ? fetchedStories : []);
-    };
-
-    fetchData();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [appSettings?.storiesEnabled, settingsLoaded]);
-
-  const handleTestNotification = async () => {
-    if (!isNotificationSupported()) {
-      setNotificationStatus('❌ التنبيهات غير مدعومة في هذا المتصفح');
-      setTimeout(() => setNotificationStatus(''), 3000);
-      return;
-    }
-
-    const permission = await requestNotificationPermission();
-    
-    if (permission === 'granted') {
-      showLocalTestNotification(
-        'خيوط - Khuyoot',
-        'تم تفعيل تنبيهات خيوط بنجاح! 🎉'
-      );
-      setNotificationStatus('✅ تم إرسال التنبيه بنجاح');
-      setTimeout(() => setNotificationStatus(''), 3000);
-    } else if (permission === 'denied') {
-      setNotificationStatus('❌ تم رفض إذن التنبيهات. يرجى تفعيلها من إعدادات المتصفح');
-      setTimeout(() => setNotificationStatus(''), 5000);
-    } else {
-      setNotificationStatus('⚠️ لم يتم منح إذن التنبيهات');
-      setTimeout(() => setNotificationStatus(''), 3000);
-    }
-  };
+  
+  // ✅ Use Zustand for selected region (persistent across navigation)
+  const selectedRegion = useAppStore((state) => state.homeCache.selectedRegion);
+  const setSelectedRegion = useAppStore((state) => state.setSelectedRegion);
+  
+  // ✅ Products query depends on category
+  const { data: products = [], isPending: isProductsLoading } = useHomeProducts(activeCategory);
 
   // Default to true if homeSections is not set
   const showSection = useCallback(
-    (section: string) => {
-      const sectionSettings = (appSettings?.homeSections ?? {}) as Record<string, boolean | undefined>;
-      const visibility = appSettings?.sectionVisibility?.[section];
-
-      if (visibility?.adminOnly && user?.role !== 'admin') {
-        return false;
-      }
-
-      return sectionSettings[section] ?? true;
-    },
+    (section: string) => canShowSection(section),
     [appSettings?.homeSections, appSettings?.sectionVisibility, user?.role]
   );
 
@@ -150,95 +103,154 @@ export const Home = () => {
     );
   }
 
+  // Homepage V2 (Omani Boutique) mode
+  if (Boolean(appSettings?.homePageSettings?.enableHomepageV2)) {
+    return <HomepageV2Orchestrator />;
+  }
+
+  // ✅ Only show skeleton if we have NO data AND it's still loading (first visit)
+  const showTailorsSkeleton = isTailorsLoading && tailors.length === 0;
+  const showStoresSkeleton = isFabricStoresLoading && fabricStores.length === 0;
+  const showStoriesSkeleton = isStoriesLoading && stories.length === 0;
+  const showProductsSkeleton = isProductsLoading && products.length === 0;
+
   return (
-    <div className="pb-24 px-4 md:px-6 lg:px-8">
-      {/* Install Button */}
-      {showSection('installButton') && showInstallButton && (
-        <InstallButton onInstallClick={promptInstall} isInstalled={isInstalled} />
-      )}
-
-      {/* Notification Button */}
-      {showSection('notificationButton') && (
-        <NotificationButton 
-          onTestNotification={handleTestNotification} 
-          notificationStatus={notificationStatus} 
-        />
-      )}
-
+    <div className="pb-24">
       {/* Stories Section */}
-      {appSettings.storiesEnabled && showSection('stories') && (
-        <StoriesSection stories={stories} userRole={user?.role} />
+      {shouldLoadStories && (
+        <StandardContainer>
+          {showStoriesSkeleton ? (
+            <div className="mb-6 h-24 bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+          ) : (
+            <StoriesSection stories={stories} userRole={user?.role} />
+          )}
+        </StandardContainer>
       )}
 
       {/* Search Bar */}
       {showSection('searchBar') && (
-        <SearchBar />
+        <StandardContainer>
+          <SearchBar />
+        </StandardContainer>
       )}
 
       {/* Hero Banner */}
       {showSection('heroBanner') && (
-        <HeroBanner />
+        <StandardContainer>
+          <HeroBanner />
+        </StandardContainer>
       )}
 
       {/* Design & Ads Sections */}
-      {(showSection('designSection') || showSection('adsSection')) && (
-        <div className={`mb-8 grid grid-cols-1 gap-4 md:gap-6 ${
-          showSection('designSection') && showSection('adsSection') ? 'md:grid-cols-2' : ''
-        }`}>
-          {showSection('designSection') && <DesignSection />}
-          {showSection('adsSection') && <AdsSection />}
-        </div>
+      {(showSection('designSection') || shouldLoadAds) && (
+        <StandardContainer>
+          <div className={`mb-8 grid gap-4 ${
+            showSection('designSection') && shouldLoadAds ? 'grid-cols-2' : 'grid-cols-1'
+          }`}>
+            {showSection('designSection') && (
+              <div className="grid gap-4">
+                <DesignSection />
+                <DesignerV2_1Card onClick={() => navigate('/designer-v2-1')} />
+              </div>
+            )}
+            {shouldLoadAds && <AdsSection />}
+          </div>
+        </StandardContainer>
       )}
 
       {/* Popular Regions Section */}
-      <PopularRegions 
-        onRegionSelect={setSelectedRegion}
-        selectedRegion={selectedRegion}
-        maxRegions={appSettings.homePageSettings?.maxRegions ?? 5}
-      />
+      {showSection('popularRegions') && (
+        <StandardContainer>
+          <PopularRegions 
+            onRegionSelect={setSelectedRegion}
+            selectedRegion={selectedRegion}
+            maxRegions={appSettings.homePageSettings?.maxRegions ?? 5}
+          />
+        </StandardContainer>
+      )}
 
       {/* Filtered Tailors by Region - Always show when region selection is active */}
-      <FilteredTailors region={selectedRegion} />
+      {showSection('filteredTailors') && (
+        <StandardContainer>
+          <FilteredTailors region={selectedRegion} />
+        </StandardContainer>
+      )}
 
       {/* Popular Fabric Stores - Top 6 Highest Rated */}
-      <FabricStoresSection stores={[...fabricStores].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6)} />
+      {shouldLoadFabricStores && (
+        <StandardContainer>
+          {showStoresSkeleton ? (
+            <div className="my-8 space-y-4">
+              <div className="h-6 w-48 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4, 5, 6].map((i) => (
+                  <div key={i} className="aspect-square bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <FabricStoresSection stores={[...fabricStores].sort((a, b) => (b.rating || 0) - (a.rating || 0)).slice(0, 6)} />
+          )}
+        </StandardContainer>
+      )}
 
       {/* Browse Shops Button */}
       {showSection('browseShopsButton') && (
-        <BrowseShopsButton />
+        <StandardContainer>
+          <BrowseShopsButton />
+        </StandardContainer>
       )}
 
       {/* Featured Tailors - Hide when FilteredTailors is showing */}
       {false && showSection('featuredTailors') && (
-        <TailorsSection 
-          tailors={tailors.slice(0, appSettings.homePageSettings?.featuredTailorsCount || 6)} 
-        />
+        <StandardContainer>
+          <TailorsSection 
+            tailors={tailors.slice(0, appSettings.homePageSettings?.featuredTailorsCount || 6)} 
+          />
+        </StandardContainer>
       )}
 
       {/* Categories Filter */}
       {showSection('categoriesFilter') && (
-        <CategoriesFilter 
-              categories={[
-                { id: 'all', name: 'الكل' },
-                ...((appSettings.productCategories || []).map((c: any) => ({ id: c.id, name: c.name })) || DEFAULT_CATEGORIES.slice(1))
-              ]}
-          activeCategory={activeCategory}
-          onCategoryChange={setActiveCategory}
-        />
+        <StandardContainer>
+          <CategoriesFilter 
+                categories={[
+                  { id: 'all', name: 'الكل' },
+                  ...((appSettings.productCategories || []).map((c: any) => ({ id: c.id, name: c.name })) || DEFAULT_CATEGORIES.slice(1))
+                ]}
+            activeCategory={activeCategory}
+            onCategoryChange={setActiveCategory}
+          />
+        </StandardContainer>
       )}
 
       {/* Products Grid */}
       {showSection('productsGrid') && (
-        <ProductsGrid 
-          products={products}
-          viewMode={viewMode}
-          onViewModeChange={setViewMode}
-        />
+        <StandardContainer>
+          {showProductsSkeleton ? (
+            <div className="space-y-4">
+              <div className="h-10 w-40 bg-slate-200 dark:bg-slate-800 rounded animate-pulse" />
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div key={i} className="aspect-square bg-slate-200 dark:bg-slate-800 rounded-xl animate-pulse" />
+                ))}
+              </div>
+            </div>
+          ) : (
+            <ProductsGrid 
+              products={products}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+            />
+          )}
+        </StandardContainer>
       )}
 
       {/* Contact Footer */}
       {showSection('contactFooter') && (
-        <ContactFooter />
+        <StandardContainer>
+          <ContactFooter />
+        </StandardContainer>
       )}
 
     </div>

@@ -20,11 +20,13 @@ export const HeroBanner: React.FC = () => {
 
   return (
     <div className="mb-8">
-      <div className="relative w-full aspect-[3/1] md:aspect-[4/1] lg:aspect-[5/1] rounded-2xl overflow-hidden shadow-2xl group">
+      <div className="relative w-full aspect-[5/1] md:aspect-[7/1] lg:aspect-[8/1] xl:aspect-[10/1] 2xl:aspect-[12/1] max-h-[350px] rounded-2xl overflow-hidden shadow-2xl group">
         <img 
           src={imageSrc}
           alt="Eid Collection" 
           className="hero-banner-img w-full h-full object-cover group-hover:scale-105 transition-transform duration-700"
+          loading="eager"
+          decoding="async"
         />
         <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/40 to-transparent flex items-center justify-between px-6 md:px-12">
           {/* Admin debug button removed */}

@@ -3,6 +3,56 @@ import React from 'react';
 import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle, Star } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
+type SidebarItemProps = {
+  id: string;
+  icon: any;
+  label: string;
+  count?: number;
+  to?: string;
+  activeSection: string;
+  showDevPrefixes: boolean;
+  onNavigate: (to: string) => void;
+  onAfterNavigate: () => void;
+};
+
+const SidebarItem = React.memo<SidebarItemProps>(function SidebarItem({
+  id,
+  icon: Icon,
+  label,
+  count,
+  to,
+  activeSection,
+  showDevPrefixes,
+  onNavigate,
+  onAfterNavigate,
+}) {
+  const isActive = activeSection === id;
+
+  return (
+    <button
+      onClick={() => {
+        onNavigate(to || `/admin/${id}`);
+        onAfterNavigate();
+      }}
+      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
+        isActive
+          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20'
+          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+      }`}
+    >
+      <Icon size={16} />
+      <span className="font-medium text-xs flex-1 text-right">
+        {showDevPrefixes ? `${id} · ` : ''}{label}
+      </span>
+      {count !== undefined && count > 0 && (
+        <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
+          {count}
+        </span>
+      )}
+    </button>
+  );
+});
+
 interface SidebarProps {
   activeSection: string;
   isOpen: boolean;
@@ -29,27 +79,16 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
 
   const showDevPrefixes = Boolean((import.meta as any)?.env?.DEV);
-  
-  const SidebarItem = ({ id, icon: Icon, label, count }: { id: string, icon: any, label: string, count?: number }) => (
-    <button 
-      onClick={() => { navigate(`/admin/${id}`); setIsOpen(false); }}
-      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
-        activeSection === id 
-          ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-          : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-      }`}
-    >
-      <Icon size={16} />
-      <span className="font-medium text-xs flex-1 text-right">
-        {showDevPrefixes ? `${id} · ` : ''}{label}
-      </span>
-      {count !== undefined && count > 0 && (
-        <span className="bg-amber-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full min-w-[20px] text-center">
-          {count}
-        </span>
-      )}
-    </button>
-  );
+
+  const onAfterNavigate = () => {
+    // Keep the sidebar open on desktop so the user always sees the menu.
+    try {
+      const isSmallScreen = window.matchMedia('(max-width: 767px)').matches;
+      if (isSmallScreen) setIsOpen(false);
+    } catch {
+      setIsOpen(false);
+    }
+  };
 
   return (
     <aside
@@ -75,38 +114,39 @@ export const Sidebar: React.FC<SidebarProps> = ({
         
         <div className="flex-1 overflow-y-auto py-6 px-3" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 128px)' }}>
           <p className="px-4 text-[9px] font-bold text-slate-500 mb-2 uppercase tracking-wider">الرئيسية</p>
-          <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" />
-          <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" />
-          <SidebarItem id="approvals" icon={CheckCircle} label="موافقات التجار" count={tailorsCount + boutiquesCount + shopsCount} />
+          <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="approvals" icon={CheckCircle} label="موافقات التجار" count={tailorsCount + boutiquesCount + shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">المحلات التجارية</p>
-          <SidebarItem id="tailors" icon={Scissors} label="جميع محلات الخياطة" count={tailorsCount} />
-          <SidebarItem id="boutiques" icon={Store} label="البوتيكات" count={boutiquesCount} />
-          <SidebarItem id="shops" icon={Building2} label="المحلات الأخرى" count={shopsCount} />
+          <SidebarItem id="tailors" icon={Scissors} label="جميع محلات الخياطة" count={tailorsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="boutiques" icon={Store} label="البوتيكات" count={boutiquesCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="shops" icon={Building2} label="المحلات الأخرى" count={shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الإدارة</p>
-          <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" />
-          <SidebarItem id="products" icon={Package} label="المنتجات" />
-          <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" />
-          <SidebarItem id="store" icon={Store} label="إدارة المتجر" />
+          <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="products" icon={Package} label="المنتجات" to="/admin/products/categories" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="store" icon={Store} label="إدارة المتجر" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">الأصول</p>
-          <SidebarItem id="images" icon={ImagePlus} label="*++** مكتبة الصور" />
-          <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" />
-          <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" />
-          <SidebarItem id="family" icon={Users} label="ملفات العائلة" />
+          <SidebarItem id="images" icon={ImagePlus} label="*++** مكتبة الصور" to="/admin/images/all" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="family" icon={Users} label="ملفات العائلة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">Try-On</p>
-          <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" />
+          <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" to="/admin/tryon-templates/templates" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
           <p className="px-4 text-[9px] font-bold text-slate-500 mt-6 mb-2 uppercase tracking-wider">النظام</p>
-          <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" />
-          <SidebarItem id="notifications" icon={Bell} label="إرسال الإشعارات" />
-          <SidebarItem id="ads" icon={Megaphone} label="إدارة الإعلانات" />
-          <SidebarItem id="regions" icon={MapPin} label="المناطق الشائعة" />
-          <SidebarItem id="financial" icon={DollarSign} label="الإدارة المالية" />
-          <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" />
-          <SidebarItem id="logs" icon={FileText} label="System Logs" />
+          <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="notifications" icon={Bell} label="إرسال الإشعارات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="ads" icon={Megaphone} label="إدارة الإعلانات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="regions" icon={MapPin} label="المناطق الشائعة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="financial" icon={DollarSign} label="الإدارة المالية" to="/admin/financial/dashboard" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="credits" icon={DollarSign} label="إدارة الرصيد" to="/admin/credits" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" to="/admin/config/general" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="logs" icon={FileText} label="System Logs" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
         </div>
 
         <div className="p-4 border-t border-white/10">

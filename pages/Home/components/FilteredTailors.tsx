@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Star, MapPin, ArrowUpRight, ChevronLeft } from 'lucide-react';
 import { Tailor, SHOP_TYPE_LABELS, TAILOR_GENDER_LABELS } from '../../../types';
-import { firebaseService } from '../../../services/firebase';
 import { useApp } from '../../../context/AppContext';
+import { useFilteredTailors } from '../../../src/hooks/useHomeData';
 
 interface FilteredTailorsProps {
   region: string | null;
@@ -12,42 +12,17 @@ interface FilteredTailorsProps {
 export const FilteredTailors: React.FC<FilteredTailorsProps> = ({ region }) => {
   const navigate = useNavigate();
   const { appSettings } = useApp();
-  const [tailors, setTailors] = useState<Tailor[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadTailors();
-  }, [region]);
-
-  const loadTailors = async () => {
-    setLoading(true);
-    try {
-      if (region) {
-        const maxTailors = appSettings.homePageSettings?.filteredTailorsByRegionCount || 8;
-        const data = await firebaseService.getTailorsByRegion(region, maxTailors);
-        setTailors(data);
-      } else {
-        // Try to get featured tailors first, fallback to all approved if none featured
-        let data = await firebaseService.getFeaturedTailors();
-        if (data.length === 0) {
-          // No featured tailors, show all approved tailors instead
-          data = await firebaseService.getApprovedTailors();
-        }
-        setTailors(data);
-      }
-    } catch (error) {
-      console.error('❌ Error loading tailors:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const maxTailors = appSettings.homePageSettings?.filteredTailorsByRegionCount || 8;
+  
+  // ✅ Use cache-first React Query hook
+  const { data: tailors = [], isPending } = useFilteredTailors(region, maxTailors);
 
   const handleViewAll = () => {
     navigate(region ? `/tailors?region=${encodeURIComponent(region)}` : '/tailors');
   };
 
-  // Skeleton Loading (Portrait aspect ratio)
-  if (loading) {
+  // ✅ Show skeleton only when loading AND no cached data
+  if (isPending && tailors.length === 0) {
     return (
       <div className="mb-8 px-4 w-full">
         <div className="flex justify-between items-center mb-4">
@@ -101,6 +76,8 @@ export const FilteredTailors: React.FC<FilteredTailorsProps> = ({ region }) => {
               <img
                 src={tailor.image}
                 alt={tailor.name}
+                loading="eager"
+                decoding="async"
                 className="absolute inset-0 w-full h-full object-cover transition-transform duration-700 group-hover:scale-110"
               />
             ) : (

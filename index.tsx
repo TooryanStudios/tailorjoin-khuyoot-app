@@ -1,6 +1,30 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
+import { QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
+import { queryClient } from './src/lib/queryClient';
+
+// Hash-route compatibility (Option A): convert legacy `#/...` URLs to real paths
+// before React Router (BrowserRouter) mounts.
+// Example: http://localhost:3000/#/admin/config -> http://localhost:3000/admin/config
+try {
+  if (typeof window !== 'undefined') {
+    const hash = window.location.hash || '';
+    if (hash.startsWith('#/')) {
+      const target = hash.slice(1); // '/admin/config' (and maybe '?x=1')
+      if (target && target !== '/') {
+        const hasQueryInTarget = target.includes('?');
+        const nextUrl = hasQueryInTarget ? target : `${target}${window.location.search || ''}`;
+        window.history.replaceState(null, '', nextUrl);
+      } else {
+        // Clear pointless hashes like '#/'
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  }
+} catch {
+  // ignore
+}
 
 // Unregister Service Worker and clear cache in development (FORCE)
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
@@ -53,7 +77,9 @@ if (!rootElement) {
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
-    <App />
+    <QueryClientProvider client={queryClient}>
+      <App />
+    </QueryClientProvider>
   </React.StrictMode>
 );
 

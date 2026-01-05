@@ -20,8 +20,8 @@ export const AITipsPanel: React.FC<AITipsPanelProps> = ({ tips, isLoading }) => 
         </div>
         
         <div className="space-y-3">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded animate-pulse" />
+          {[1, 2, 3].map((id) => (
+            <div key={`skeleton-${id}`} className="h-4 bg-slate-200/50 dark:bg-slate-700/50 rounded animate-pulse" />
           ))}
         </div>
       </div>
@@ -63,7 +63,7 @@ export const AITipsPanel: React.FC<AITipsPanelProps> = ({ tips, isLoading }) => 
       <div className="space-y-3">
         {tips.map((tip, index) => (
           <div
-            key={index}
+            key={`tip-${index}-${tip.substring(0, 20)}`}
             className="flex items-start gap-3 p-4 bg-white/60 dark:bg-slate-800/60 rounded-xl border border-amber-100 dark:border-amber-900/30"
           >
             <div className="w-6 h-6 bg-amber-100 dark:bg-amber-900/30 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
