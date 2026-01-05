@@ -55,7 +55,12 @@ const DesignerV2_1Card: React.FC<{ onClick: () => void }> = ({ onClick }) => {
   );
 };
 
-export const Home = () => {
+// Add forceClassic prop to bypass V2.1 check
+interface HomeProps {
+  forceClassic?: boolean;
+}
+
+export const Home: React.FC<HomeProps> = ({ forceClassic = false }) => {
   // ✅ Use React Query hooks with cache-first pattern
   const { user, appSettings, settingsLoaded } = useApp();
   const navigate = useNavigate();
@@ -103,8 +108,8 @@ export const Home = () => {
     );
   }
 
-  // Homepage V2 (Omani Boutique) mode
-  if (Boolean(appSettings?.homePageSettings?.enableHomepageV2)) {
+  // Homepage V2 (Omani Boutique) mode - unless forceClassic is true
+  if (!forceClassic && Boolean(appSettings?.homePageSettings?.enableHomepageV2)) {
     return <HomepageV2Orchestrator />;
   }
 

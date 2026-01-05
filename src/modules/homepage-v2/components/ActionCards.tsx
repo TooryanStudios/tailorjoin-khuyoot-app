@@ -83,14 +83,16 @@ export default function ActionCards() {
   }, [scrollStep]);
 
   const cards: ActionCard[] = Array.isArray(cfg?.items) && cfg!.items!.length
-    ? cfg!.items!.map((item, index) => ({
-        id: item.id,
-        title: item.title,
-        subtitle: index === 0 ? 'Start designing' : index === 1 ? 'Browse designs' : 'Open',
-        href: item.href,
-        mediaType: item.mediaType,
-        mediaUrl: item.mediaUrl,
-      }))
+    ? cfg!.items!
+        .filter((item) => item.enabled !== false)
+        .map((item, index) => ({
+          id: item.id,
+          title: item.title,
+          subtitle: index === 0 ? 'Start designing' : index === 1 ? 'Browse designs' : 'Open',
+          href: item.href,
+          mediaType: item.mediaType,
+          mediaUrl: item.mediaUrl,
+        }))
     : DEFAULT_CARDS;
 
   return (
@@ -125,7 +127,7 @@ export default function ActionCards() {
 
         {/* Horizontal Scroll Rail */}
         <div ref={scrollerRef} className={`overflow-x-auto ${styles.hideScrollbar}`}>
-          <div className="grid grid-flow-col auto-cols-max gap-6 pb-4 px-4">
+          <div className="grid grid-flow-col auto-cols-max gap-6 px-4">
             {cards.slice(0, maxItems).map((card) => (
               <div key={card.id} className="shrink-0" style={{ width: `${cardWidthPx}px` }}>
                 <BoutiqueCard

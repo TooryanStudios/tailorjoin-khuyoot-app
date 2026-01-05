@@ -6,6 +6,7 @@ import { HelmetProvider } from 'react-helmet-async';
 import { AppProvider } from './context/AppContext';
 import { MainLayout } from './src/components/MainLayout';
 import { Home } from './pages/Home';
+import { HomeClassic } from './pages/Home/HomeClassic';
 import { ProductList } from './pages/ProductList';
 import { Account } from './pages/Account';
 import { DesignerV2 as Designer } from './pages/DesignerV2';
@@ -122,6 +123,7 @@ const App: React.FC = () => {
                {/* Public App Routes */}
                <Route element={<ClientLayout />}>
                  <Route path="/" element={<Home />} />
+                 <Route path="/home-classic" element={<HomeClassic />} />
                  <Route path="/jackets" element={<ProductList />} />
                  <Route path="/tailor-account" element={<TailorAccount />} />
                  <Route path="/boutique-account" element={<BoutiqueAccount />} />

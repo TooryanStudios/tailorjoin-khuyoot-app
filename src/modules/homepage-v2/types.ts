@@ -17,6 +17,7 @@ export type HomePageV2CardItem = {
   href: string;
   mediaType: HeroMediaType;
   mediaUrl: string;
+  enabled?: boolean;
 };
 
 export type HomePageV2BlockConfig = {

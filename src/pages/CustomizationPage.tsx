@@ -10,7 +10,6 @@ import type { MeasurementTemplate } from '../../types';
 // Components
 import { ModelSelector } from '../components/customization/ModelSelector';
 import { FabricUploader } from '../components/customization/FabricUploader';
-import { PreviewCanvas } from '../components/customization/PreviewCanvas';
 import { AITipsPanel } from '../components/customization/AITipsPanel';
 import { NextStepButton } from '../components/customization/NextStepButton';
 import { StudioLayout } from '../modules/studio/components/StudioLayout';
@@ -286,18 +285,7 @@ export const CustomizationPage = () => {
       {/* Layered Studio Layout */}
       <div className="h-full">
         <StudioLayout
-          preview={
-            <PreviewCanvas
-              mode="canvas"
-              className="h-full"
-              selectedModel={state.selectedModel || null}
-              fabricImageUrl={state.fabricUpload?.url}
-              previewUrl={state.previewUrl}
-              previewStatus={state.previewStatus}
-              onRegeneratePreview={handleGeneratePreview}
-              errorMessage={state.errorMessage}
-            />
-          }
+          preview={null}
           panel={
             <div className="space-y-8 px-4 pt-10 pb-40 max-w-5xl mx-auto">
               {/* Debug Panel */}

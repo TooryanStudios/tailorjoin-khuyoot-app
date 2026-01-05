@@ -36,7 +36,7 @@ export const BoutiqueCard = React.memo(
         className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden border border-white/10 group cursor-pointer"
       >
         {/* Media Layer with Zoom on Hover */}
-        {mediaType === 'video' ? (
+        {mediaUrl && mediaType === 'video' ? (
           <motion.video
             ref={videoRef}
             src={mediaUrl}
@@ -52,11 +52,12 @@ export const BoutiqueCard = React.memo(
             onLoadedData={() => setImageLoaded(true)}
             draggable={false}
           />
-        ) : (
+        ) : mediaUrl ? (
           <motion.img
             src={mediaUrl}
             alt={title}
             onLoad={() => setImageLoaded(true)}
+            onError={() => setImageLoaded(false)}
             initial={{ scale: 1 }}
             whileHover={{ scale: 1.1 }}
             transition={{ duration: 0.5, ease: 'easeOut' }}
@@ -65,10 +66,10 @@ export const BoutiqueCard = React.memo(
             } transition-opacity duration-500`}
             draggable={false}
           />
-        )}
+        ) : null}
 
-        {/* Skeleton Loader (if image not loaded) */}
-        {!imageLoaded && (
+        {/* Skeleton Loader (if image not loaded or no mediaUrl) */}
+        {(!imageLoaded || !mediaUrl) && (
           <div className="absolute inset-0 bg-gradient-to-r from-white/10 via-white/5 to-white/10 animate-pulse" />
         )}
 

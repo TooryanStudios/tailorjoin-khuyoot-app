@@ -8,6 +8,52 @@ import { Button } from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { ProductPageLayout } from '../src/modules/product/components/ProductPageLayout';
 
+type StarActionChoiceCardProps = {
+  title: string;
+  subtitle: string;
+  cta: string;
+  imageUrl?: string;
+  onClick: () => void;
+};
+
+const StarActionChoiceCard = React.memo<StarActionChoiceCardProps>(function StarActionChoiceCard({
+  title,
+  subtitle,
+  cta,
+  imageUrl,
+  onClick,
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="text-right rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700/60 transition-colors"
+    >
+      <div className="relative w-full aspect-[16/9] bg-slate-100 dark:bg-slate-900">
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={title}
+            className="absolute inset-0 w-full h-full object-cover"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : null}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+        <div className="absolute bottom-2 right-2 left-2">
+          <div className="text-white font-black text-base leading-tight">{title}</div>
+          <div className="text-white/80 text-xs mt-1">{subtitle}</div>
+        </div>
+      </div>
+      <div className="p-3">
+        <div className="w-full rounded-xl bg-slate-900 text-white dark:bg-white dark:text-slate-900 py-2 text-sm font-bold">
+          {cta}
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -16,6 +62,7 @@ export const ProductDetails = () => {
   const [tailor, setTailor] = useState<Tailor | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
+  const [showStartTailoringActions, setShowStartTailoringActions] = useState(false);
 
   // Prevent the underlying (parent) page from scrolling while this full-screen view is open.
   useEffect(() => {
@@ -59,6 +106,9 @@ export const ProductDetails = () => {
   }, [id]);
 
   if (!product) return <div className="p-10 text-center">جاري التحميل...</div>;
+
+  const previewA = productImages[0];
+  const previewB = productImages[1] || productImages[0];
 
   const quickFacts = [
     { label: 'الفئة', value: product.category ? `#${product.category}` : 'تفصيل مخصص' },
@@ -200,7 +250,9 @@ export const ProductDetails = () => {
               </div>
               <div className="grid sm:grid-cols-2 gap-3">
                 <button
-                  onClick={() => navigate(`/customization/${product.id}`)}
+                  type="button"
+                  aria-expanded={showStartTailoringActions}
+                  onClick={() => setShowStartTailoringActions((v) => !v)}
                   className="w-full bg-white text-slate-900 font-bold py-3 rounded-xl flex items-center justify-center gap-2 shadow-lg hover:bg-slate-50 transition-colors"
                 >
                   <ShoppingBag size={20} className="text-blue-700" />
@@ -214,6 +266,32 @@ export const ProductDetails = () => {
                   أضف إلى السلة
                 </button>
               </div>
+
+              {showStartTailoringActions && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <StarActionChoiceCard
+                    title="جرّبي القماش"
+                    subtitle="افتحي المصمم لتجربة القماش"
+                    cta="فتح المصمم"
+                    imageUrl={previewA}
+                    onClick={() => {
+                      setShowStartTailoringActions(false);
+                      navigate('/designer-v2-1');
+                    }}
+                  />
+                  <StarActionChoiceCard
+                    title="اذهبي للمقاسات"
+                    subtitle="انتقلي مباشرة لإدخال المقاسات"
+                    cta="إدخال المقاسات"
+                    imageUrl={previewB}
+                    onClick={() => {
+                      setShowStartTailoringActions(false);
+                      navigate(`/measurements/${product.id}`);
+                    }}
+                  />
+                </div>
+              )}
+
               <p className="text-xs text-white/80 flex items-center gap-2">
                 <ArrowRight size={14} className="text-white/70" />
                 يشمل العرض جلسة استشارة سريعة ومراجعة للمقاسات قبل التفصيل

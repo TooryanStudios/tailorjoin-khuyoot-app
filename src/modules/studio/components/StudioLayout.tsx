@@ -53,9 +53,11 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
         )}
         
         {/* Preview Canvas */}
-        <div className={styles.previewWrapper}>
-          {preview}
-        </div>
+        {preview && (
+          <div className={styles.previewWrapper}>
+            {preview}
+          </div>
+        )}
 
         {/* Generate Button */}
         {generateAction && (

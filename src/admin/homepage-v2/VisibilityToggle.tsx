@@ -46,7 +46,8 @@ function normalizeCardItems(items: unknown, idPrefix: string): HomePageV2CardIte
       const href = typeof raw?.href === 'string' ? raw.href : '';
       const mediaUrl = typeof raw?.mediaUrl === 'string' ? raw.mediaUrl : '';
       const mediaType = raw?.mediaType === 'video' ? 'video' : 'image';
-      return { id, title, href, mediaType, mediaUrl } as HomePageV2CardItem;
+      const enabled = typeof raw?.enabled === 'boolean' ? raw.enabled : true;
+      return { id, title, href, mediaType, mediaUrl, enabled } as HomePageV2CardItem;
     });
 }
 
@@ -507,6 +508,7 @@ export const VisibilityToggle: React.FC = () => {
                                   href: '',
                                   mediaType: 'image',
                                   mediaUrl: '',
+                                  enabled: true,
                                 });
                                 setBlockConfig(key, { items: next } as any);
                               };
@@ -533,8 +535,18 @@ export const VisibilityToggle: React.FC = () => {
                                     {items.map((it) => (
                                       <div key={it.id} className="rounded-md border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
                                         <div className="flex items-center justify-between gap-2">
-                                          <div className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
-                                            {it.title?.trim() ? it.title : 'Untitled card'}
+                                          <div className="flex items-center gap-2">
+                                            <label className="inline-flex items-center gap-1.5 cursor-pointer">
+                                              <input
+                                                type="checkbox"
+                                                checked={it.enabled !== false}
+                                                onChange={(e) => updateItem(it.id, { enabled: e.target.checked })}
+                                                className="w-4 h-4 rounded border-slate-300 dark:border-slate-600 text-blue-600 focus:ring-2 focus:ring-blue-500"
+                                              />
+                                              <span className="text-xs font-semibold text-slate-700 dark:text-slate-200 truncate">
+                                                {it.title?.trim() ? it.title : 'Untitled card'}
+                                              </span>
+                                            </label>
                                           </div>
                                           <button
                                             type="button"

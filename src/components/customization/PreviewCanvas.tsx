@@ -105,21 +105,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
       );
     }
 
-    // Idle state - waiting for selection
+    // Idle state - waiting for selection (removed empty state message)
     if (!selectedModel || !fabricImageUrl) {
-      return (
-        <div className="flex flex-col items-center justify-center h-full p-8 text-center">
-          <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mb-4">
-            <Sparkles size={32} className="text-slate-400" />
-          </div>
-          <h3 className="font-bold text-slate-900 dark:text-white mb-2">
-            اختاري التصميم والقماش
-          </h3>
-          <p className="text-sm text-slate-600 dark:text-slate-400 max-w-xs">
-            بعد اختيار التصميم ورفع صورة القماش، سيتم عرض معاينة بالذكاء الاصطناعي هنا
-          </p>
-        </div>
-      );
+      return null;
     }
 
     // Showing fabric while waiting
