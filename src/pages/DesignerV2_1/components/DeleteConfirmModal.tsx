@@ -12,7 +12,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
   isOpen,
   onConfirm,
   onCancel,
-  itemName = 'this generation',
+  itemName = 'هذا التوليد',
 }) => {
   if (!isOpen) return null;
 
@@ -25,7 +25,7 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             <div className="p-2 bg-red-600/20 rounded-lg">
               <Trash2 className="w-5 h-5 text-red-500" />
             </div>
-            <h3 className="text-lg font-semibold text-zinc-100">Confirm Deletion</h3>
+            <h3 className="text-lg font-semibold text-zinc-100">تأكيد الحذف</h3>
           </div>
           <button
             onClick={onCancel}
@@ -39,10 +39,10 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
         {/* Body */}
         <div className="px-6 py-5">
           <p className="text-sm text-zinc-300">
-            Are you sure you want to delete <span className="font-semibold text-zinc-100">{itemName}</span>?
+            هل أنت متأكد من حذف <span className="font-semibold text-zinc-100">{itemName}</span>؟
           </p>
           <p className="text-xs text-zinc-500 mt-2">
-            This action cannot be undone.
+            لا يمكن التراجع عن هذا الإجراء.
           </p>
         </div>
 
@@ -52,14 +52,14 @@ export const DeleteConfirmModal: React.FC<DeleteConfirmModalProps> = ({
             onClick={onCancel}
             className="px-4 py-2 text-sm font-medium text-zinc-300 hover:text-zinc-100 hover:bg-zinc-800 rounded-lg transition-colors"
           >
-            Cancel
+            إلغاء
           </button>
           <button
             onClick={onConfirm}
             className="px-4 py-2 text-sm font-medium text-white bg-red-600 hover:bg-red-500 rounded-lg transition-colors flex items-center gap-2"
           >
             <Trash2 className="w-4 h-4" />
-            Delete
+            حذف
           </button>
         </div>
       </div>

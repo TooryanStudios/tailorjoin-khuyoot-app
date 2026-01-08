@@ -16,11 +16,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
   const [phase, setPhase] = React.useState<'idle' | 'progress' | 'done'>('idle');
   const [error, setError] = React.useState<string>('');
+  const [activeTab, setActiveTab] = React.useState<'onetime' | 'monthly'>('onetime');
   const timeoutsRef = React.useRef<number[]>([]);
 
   React.useEffect(() => {
     setPhase('idle');
     setError('');
+    setActiveTab('onetime');
 
     return () => {
       timeoutsRef.current.forEach((t) => window.clearTimeout(t));
@@ -39,7 +41,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
       timeoutsRef.current.push(window.setTimeout(() => onClose(), 700));
     } catch (e: any) {
       setPhase('idle');
-      setError(e?.message || 'Upgrade failed. Please try again.');
+      setError(e?.message || 'فشلت عملية الترقية. يرجى المحاولة مرة أخرى.');
     }
   };
 
@@ -65,69 +67,102 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         </button>
 
         {/* Header with Badge */}
-        <div className="px-6 pt-8 pb-4 text-center">
-          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-purple-500/20 border border-purple-500/40">
-            <Crown className="w-4 h-4 text-purple-400" />
-            <span className="text-xs font-bold text-purple-300">KHUYOOT PRO</span>
+        <div className="px-5 pt-5 pb-3 text-center">
+          <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40">
+            <Crown className="w-3.5 h-3.5 text-purple-400" />
+            <span className="text-[10px] font-bold text-purple-300">خيوط احترافي</span>
           </div>
-          <h2 className="text-2xl font-bold text-white mb-2">Upgrade to Pro</h2>
-          <p className="text-sm text-zinc-400">Unlock premium features and create watermark-free designs</p>
+          <h2 className="text-xl font-bold text-white mb-1">الترقية إلى احترافي</h2>
+          <p className="text-xs text-zinc-400">افتح الميزات المتقدمة وأنشئ تصاميم بدون علامة مائية</p>
         </div>
 
         {/* Features List */}
-        <div className="px-6 py-6 space-y-3">
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">Remove Watermarks</p>
-              <p className="text-xs text-zinc-400">Clean, professional images without watermarks</p>
-            </div>
+        <div className="px-5 py-3 space-y-1.5">
+          <div className="flex items-center gap-2 text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span className="text-zinc-300">إزالة العلامات المائية</span>
           </div>
-
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">4K Exports</p>
-              <p className="text-xs text-zinc-400">Ultra-high resolution downloads for print</p>
-            </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span className="text-zinc-300">تصدير 4K</span>
           </div>
-
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">Priority Processing</p>
-              <p className="text-xs text-zinc-400">Faster generation without rate limits</p>
-            </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span className="text-zinc-300">معالجة ذات أولوية</span>
           </div>
-
-          <div className="flex items-start gap-3">
-            <div className="flex-shrink-0 mt-0.5">
-              <Sparkles className="w-5 h-5 text-purple-400" />
-            </div>
-            <div>
-              <p className="text-sm font-semibold text-white">Advanced Models</p>
-              <p className="text-xs text-zinc-400">Access to latest AI fabric swap engines</p>
-            </div>
+          <div className="flex items-center gap-2 text-xs">
+            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
+            <span className="text-zinc-300">نماذج متقدمة</span>
           </div>
         </div>
 
         {/* Pricing */}
-        <div className="px-6 py-4 bg-zinc-900/50 border-t border-zinc-800">
-          <div className="flex items-baseline justify-center gap-1 mb-2">
-            <span className="text-3xl font-bold text-white">$9.99</span>
-            <span className="text-sm text-zinc-400">/month</span>
+        <div className="px-5 py-3 bg-zinc-900/50 border-t border-zinc-800">
+          {/* Tabs */}
+          <div className="flex gap-1.5 mb-3">
+            <button
+              onClick={() => setActiveTab('onetime')}
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'onetime'
+                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              حزم الرصيد
+            </button>
+            <button
+              onClick={() => setActiveTab('monthly')}
+              className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
+                activeTab === 'monthly'
+                  ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+              }`}
+            >
+              الاشتراك الشهري
+            </button>
           </div>
-          <p className="text-xs text-zinc-500 text-center">or $99/year (save 17%)</p>
+
+          {/* One-Time Packs */}
+          {activeTab === 'onetime' && (
+            <div className="space-y-1.5 animate-in fade-in duration-200">
+              <div className="text-[10px] text-center text-purple-400 mb-2 font-medium">لا تنتهي صلاحيته أبدًا</div>
+              <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
+                <span className="text-zinc-300">البداية: 25 توليد</span>
+                <span className="text-white font-semibold">2 ر.ع</span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
+                <span className="text-zinc-300">القيمة: 75 توليد</span>
+                <span className="text-white font-semibold">5 ر.ع</span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-2 px-2.5 bg-purple-500/20 border border-purple-500/40 rounded-lg">
+                <span className="text-purple-200 font-medium">الاحترافي: 200 توليد</span>
+                <span className="text-white font-bold">10 ر.ع</span>
+              </div>
+            </div>
+          )}
+
+          {/* Monthly Subscriptions */}
+          {activeTab === 'monthly' && (
+            <div className="space-y-1.5 animate-in fade-in duration-200">
+              <div className="text-[10px] text-center text-emerald-400 mb-2 font-medium">ينتهي كل شهر • يتجدد تلقائيًا</div>
+              <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
+                <span className="text-zinc-300">الأساسي: 100 توليد/شهر</span>
+                <span className="text-white font-semibold">3 ر.ع</span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
+                <span className="text-zinc-300">القياسي: 250 توليد/شهر</span>
+                <span className="text-white font-semibold">6 ر.ع</span>
+              </div>
+              <div className="flex items-center justify-between text-xs py-2 px-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-lg">
+                <span className="text-emerald-200 font-medium">بلس: 600 توليد/شهر</span>
+                <span className="text-white font-bold">12 ر.ع</span>
+              </div>
+            </div>
+          )}
         </div>
 
         {/* Action Buttons */}
-        <div className="px-6 py-6 space-y-3">
+        <div className="px-5 py-4 space-y-2.5">
           {error && (
             <div className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
               {error}
@@ -136,7 +171,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           <button
             onClick={handleUpgradeClick}
             disabled={phase !== 'idle'}
-            className={`w-full px-4 py-3 text-white font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 ${
+            className={`w-full px-4 py-2.5 text-sm text-white font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 ${
               phase === 'idle'
                 ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600'
                 : phase === 'progress'
@@ -144,37 +179,37 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                   : 'bg-gradient-to-r from-emerald-600 to-emerald-700'
             }`}
           >
-            {phase === 'idle' && 'Upgrade Now'}
+            {phase === 'idle' && 'الترقية الآن'}
             {phase === 'progress' && (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Upgrading…</span>
+                <span>جاري الترقية…</span>
               </>
             )}
             {phase === 'done' && (
               <>
                 <Check className="w-4 h-4" />
-                <span>Upgraded</span>
+                <span>تمت الترقية</span>
               </>
             )}
           </button>
           <button
             onClick={phase === 'idle' ? onClose : undefined}
             disabled={phase !== 'idle'}
-            className={`w-full px-4 py-2 font-medium rounded-lg transition-colors ${
+            className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               phase === 'idle'
                 ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
                 : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
             }`}
           >
-            Maybe Later
+            ربما لاحقًا
           </button>
         </div>
 
         {/* Footer Note */}
-        <div className="px-6 pb-4 text-center">
+        <div className="px-5 pb-3 text-center">
           <p className="text-xs text-zinc-500">
-            7-day free trial. Cancel anytime.
+            تجربة مجانية لمدة 7 أيام. الإلغاء في أي وقت.
           </p>
         </div>
       </div>

@@ -9,6 +9,7 @@ import { FeatureToggleBar } from './components/FeatureToggleBar';
 import { DesignerV2Features, DEFAULT_FEATURES, DesignerUIState } from './types';
 import { generateFabricSwap } from '../../services/fabricSwapService';
 import { firebaseService } from '../../../services/firebase';
+import { getProductById } from '../../../services/mockService';
 import { useApp } from '../../../context/AppContext';
 import { useGenerationHistory } from './hooks/useGenerationHistory';
 import { HistoryFilmstrip } from './components/HistoryFilmstrip';
@@ -269,7 +270,7 @@ const ControlGroup: React.FC<ControlGroupProps> = ({
 );
 
 const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: string; onCopy: (url: string, label: string) => void }) => {
-  if (!url) return <div className="text-zinc-600 italic">Not available</div>;
+  if (!url) return <div className="text-zinc-600 italic">غير متوفر</div>;
   const filename = url.split('/').pop()?.split('?')[0] || 'file';
   return (
     <div className="space-y-1">
@@ -286,7 +287,7 @@ const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: st
         <button
           onClick={() => onCopy(url, label)}
           className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
-          title={`Copy ${label} URL`}
+          title={`نسخ رابط ${label}`}
         >
           <Copy className="w-3 h-3 text-zinc-400" />
         </button>
@@ -300,7 +301,7 @@ export const DesignerV2_1: React.FC = () => {
   const isMobile = useMobileDetection();
 
   // ========== ROUTING & TASK ID ==========
-  const { taskId: urlTaskId } = useParams<{ taskId?: string }>();
+  const { taskId: urlTaskId, productId } = useParams<{ taskId?: string; productId?: string }>();
   const navigate = useNavigate();
 
   // ========== AUTH & ADMIN ==========
@@ -536,6 +537,103 @@ export const DesignerV2_1: React.FC = () => {
   const [sourceForComparison, setSourceForComparison] = React.useState(ORIGINAL);
   const [beforeUpscaleImage, setBeforeUpscaleImage] = React.useState<string | null>(null); // Store pre-upscale image
   const [isLoadingHistoryImage, setIsLoadingHistoryImage] = React.useState(false); // Loading state for history selection
+  
+  // Product images for template picker
+  const [productTemplates, setProductTemplates] = React.useState<Array<{id: string; imageUrl: string; name: string}> | null>(null);
+  const [shouldAutoSelectProduct, setShouldAutoSelectProduct] = React.useState(false);
+
+  // Track loaded product to prevent duplicate loads
+  const loadedProductRef = React.useRef<string | null>(null);
+  
+  // Blob cache for instant image switching (used by product images and history)
+  const MAX_CACHE_SIZE = 10;
+  const blobCache = React.useRef<Map<string, string>>(new Map());
+
+  // Load product image if productId is in URL
+  React.useEffect(() => {
+    if (productId && loadedProductRef.current !== productId) {
+      loadedProductRef.current = productId;
+      const loadProductImage = async () => {
+        try {
+          const product = await getProductById(productId);
+          
+          if (product) {
+            // Determine which images to use
+            let productImages: string[] = [];
+            
+            // Collect all available images
+            if (product.images && product.images.length > 0) {
+              productImages = product.images;
+            } else if (product.image) {
+              productImages = [product.image];
+            }
+            
+            // Determine the main image (cover) index
+            let mainImageIndex = 0;
+            if (product.coverImageIndex !== undefined && productImages[product.coverImageIndex]) {
+              mainImageIndex = product.coverImageIndex;
+            }
+            
+            if (productImages.length > 0) {
+              console.log(`Loading product "${product.name}" with ${productImages.length} image(s)`);
+              
+              // Prefetch all product images as blobs for instant access
+              const blobPromises = productImages.map(async (imageUrl, index) => {
+                const imageId = `product-${productId}-${index}`;
+                
+                try {
+                  const res = await fetch(imageUrl);
+                  if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                  
+                  const blob = await res.blob();
+                  const blobUrl = URL.createObjectURL(blob);
+                  
+                  // Add to blob cache
+                  blobCache.current.set(imageId, blobUrl);
+                  console.log(`[ProductCache] Cached product image: ${imageId}`);
+                  
+                  return { index, blobUrl, imageUrl };
+                } catch (e) {
+                  console.warn(`[ProductCache] Failed to cache ${imageId}:`, e);
+                  return { index, blobUrl: imageUrl, imageUrl }; // Fallback to original URL
+                }
+              });
+              
+              const cachedImages = await Promise.all(blobPromises);
+              
+              // Create template items with blob URLs
+              const templates = cachedImages.map(({ index, blobUrl, imageUrl }) => ({
+                id: `product-${productId}-${index}`,
+                imageUrl: blobUrl, // Use blob URL for instant loading
+                name: index === mainImageIndex ? `${product.name} (Main)` : `${product.name} - ${index + 1}`,
+                isPremium: false,
+                isProductImage: true // Custom flag to identify product images
+              }));
+              
+              // Set the product templates for the Shop tab
+              setProductTemplates(templates);
+              
+              // Auto-load the main image using blob URL
+              const mainImage = cachedImages.find(img => img.index === mainImageIndex);
+              if (mainImage) {
+                setSourcePreviewUrl(mainImage.blobUrl);
+                setSourceForComparison(mainImage.blobUrl);
+                
+                // Store a lightweight reference instead of full base64
+                persistTemplateSelection({
+                  templateId: `product-${productId}-${mainImageIndex}`,
+                  image: null // Don't store base64 for product images
+                });
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Failed to load product:', error);
+        }
+      };
+      loadProductImage();
+    }
+  }, [productId, persistTemplateSelection, setSourcePreviewUrl, setSourceForComparison]);
 
   const [lastRequestDebug, setLastRequestDebug] = React.useState<any>(null);
   const [lastResponseDebug, setLastResponseDebug] = React.useState<any>(null);
@@ -588,10 +686,6 @@ export const DesignerV2_1: React.FC = () => {
       showError('Privacy Shield failed');
     }
   }, [processWithPrivacyShield, showError, sliderPos, sourceImageBase64, sourceImageMimeType]);
-
-  // ========== BLOB CACHE FOR INSTANT IMAGE SWITCHING ==========
-  const MAX_CACHE_SIZE = 10; // Limit to 10 most recent images to prevent memory bloat
-  const blobCache = React.useRef<Map<string, string>>(new Map());
 
   // Avoid temporal-dead-zone issues: template selection is initialized later in the file.
   // Keep a ref for templateId so getApiPayload can read it safely.
@@ -818,10 +912,10 @@ export const DesignerV2_1: React.FC = () => {
 
   const getApiPayload = React.useCallback((opts?: { lightingPreset?: LightingPreset }) => {
     if (!sourceImageBase64 || !sourceImageMimeType) {
-      throw new Error('Please upload a Model/Template image first.');
+      throw new Error('يرجى رفع صورة النموذج/القالب أولاً.');
     }
     if (!fabricImageBase64 || !fabricImageMimeType) {
-      throw new Error('Please upload a Fabric/Pattern image.');
+      throw new Error('يرجى رفع صورة القماش/النقشة.');
     }
 
     // Get userId from Firebase auth if available
@@ -1013,13 +1107,13 @@ export const DesignerV2_1: React.FC = () => {
           removePendingGeneration(pendingClientId);
         }
 
-        const errorMsg = e?.message || 'Fabric swap failed. Please try again.';
+        const errorMsg = e?.message || 'فشل تبديل القماش. يرجى المحاولة مرة أخرى.';
         const isConnectionError = errorMsg.includes('fetch') || errorMsg.includes('network');
 
         showError(
           isConnectionError
-            ? 'Connection error - image may be too large. Please try with smaller images or try again.'
-            : `Error: ${errorMsg}`
+            ? 'خطأ في الاتصال - قد تكون الصورة كبيرة جدًا. يرجى المحاولة بصور أصغر أو المحاولة مجددًا.'
+            : `خطأ: ${errorMsg}`
         );
       }
     });
@@ -1146,7 +1240,7 @@ export const DesignerV2_1: React.FC = () => {
         window.clearInterval(interval);
         setIsUpscaling(false);
         setUpscaleProgress(0);
-        showError(`Upscale error: ${e?.message || 'Failed to upscale. Please try again.'}`);
+        showError(`خطأ في التحسين: ${e?.message || 'فشل التحسين. يرجى المحاولة مرة أخرى.'}`);
       }
     });
 
@@ -1194,7 +1288,7 @@ export const DesignerV2_1: React.FC = () => {
       setSliderPos(0);
       setActiveId(null);
     } catch (e: any) {
-      showError(e?.message || 'Failed to load image');
+      showError(e?.message || 'فشل تحميل الصورة');
     } finally {
       setIsProcessingTemplate(false);
     }
@@ -1213,14 +1307,26 @@ export const DesignerV2_1: React.FC = () => {
   const handleTemplateSelect = React.useCallback(
     async (templateData: any) => {
       const isPremium = templateData?.meta?.premium === true;
+      const isProductImage = templateData?.id?.startsWith('product-');
 
-      // Persist selection id immediately for navigation resilience (Directive 3)
-      persistTemplateId(templateData?.id ?? null);
+      // For product images, skip persistence to avoid localStorage quota errors
+      if (!isProductImage) {
+        persistTemplateId(templateData?.id ?? null);
+      }
 
       const doSelect = async () => {
         selectTemplate(templateData);
         selectedTemplateIdRef.current = templateData?.id;
         if (!templateData) return;
+
+        // Special handling for product images - use cached blob URL
+        if (isProductImage && templateData?.imageUrl) {
+          // The imageUrl is already a blob URL from the cache
+          setSourcePreviewUrl(templateData.imageUrl);
+          setSourceForComparison(templateData.imageUrl);
+          // Blob URLs work directly without file conversion
+          return;
+        }
 
         if (templateData?.file instanceof File) {
           await onPickSource(templateData.file);
@@ -1266,7 +1372,7 @@ export const DesignerV2_1: React.FC = () => {
             await onPickSource(file);
           } catch (e) {
             console.warn('[TemplatePicker] Failed to fetch template src:', e);
-            showError('Failed to load selected template');
+            showError('فشل تحميل القالب المختار');
           }
         }
       };
@@ -1316,7 +1422,7 @@ export const DesignerV2_1: React.FC = () => {
         image: { base64, mimeType },
       });
     } catch (e: any) {
-      showError(e?.message || 'Failed to load fabric image');
+      showError(e?.message || 'فشل تحميل صورة القماش');
     } finally {
       setIsProcessingFabric(false);
     }
@@ -1600,8 +1706,8 @@ export const DesignerV2_1: React.FC = () => {
             <div className="mb-2">
               <div className="flex flex-col items-end gap-2 min-w-0">
                 <div className="text-right min-w-0">
-                  <div className="text-sm font-bold text-white whitespace-nowrap">Designer V2.1</div>
-                  <div className="text-[11px] text-zinc-500 max-w-[220px] truncate">Fabric Swap (Powered by NanoBana)</div>
+                  <div className="text-sm font-bold text-white whitespace-nowrap">مصمم الأقمشة V2.1</div>
+                  <div className="text-[11px] text-zinc-500 max-w-[220px] truncate">تبديل القماش (مدعوم بـ NanoBana)</div>
                 </div>
                 <CreditBadge onRefill={() => setIsUpgradeModalOpen(true)} />
               </div>
@@ -1610,17 +1716,18 @@ export const DesignerV2_1: React.FC = () => {
             {/* Model/Template Image */}
             {features.showTemplateUpload && (
               <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Model / Template</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">النموذج / القالب</div>
                 <div className={uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''}>
                   <TemplateSelectorView
                     onSelect={handleTemplateSelect}
                     currentId={selectedTemplate?.id}
                     studioItems={undefined}
-                    shopItems={undefined}
+                    shopItems={productTemplates || undefined}
                     closetItems={undefined}
                     enableUpload
                     isSubscribed={isSubscribed || canAfford('premium_template')}
                     onPremiumClick={() => setIsUpgradeModalOpen(true)}
+                    defaultTab={productTemplates ? 'Shop' : undefined}
                   />
                 </div>
               </div>
@@ -1629,7 +1736,7 @@ export const DesignerV2_1: React.FC = () => {
             {/* Fabric/Pattern Image */}
             {features.showFabricUpload && (
               <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">Fabric / Pattern</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">القماش / النقشة</div>
                 <label
                   className={`relative h-28 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 flex flex-col items-center justify-center gap-2 overflow-hidden cursor-pointer ${
                     uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''
@@ -1655,12 +1762,12 @@ export const DesignerV2_1: React.FC = () => {
                   ) : (
                     <>
                       <Upload className="w-5 h-5 text-zinc-500" />
-                      <div className="text-xs text-zinc-500">Upload</div>
+                      <div className="text-xs text-zinc-500">رفع</div>
                     </>
                   )}
                   {fabricPreviewUrl && (
                     <div className="absolute bottom-2 left-2 text-[10px] px-2 py-0.5 rounded bg-black/50 border border-zinc-700">
-                      Change
+                      تغيير
                     </div>
                   )}
                 </label>
@@ -1669,12 +1776,12 @@ export const DesignerV2_1: React.FC = () => {
 
             {/* Privacy Shield Section */}
             <div className="pt-6 border-t border-zinc-800">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">Privacy Protection</div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">حماية الخصوصية</div>
               
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-zinc-300">Privacy Mode</label>
-                  <span className="text-[10px] text-purple-400">🛡️ Local Only</span>
+                  <label className="text-sm text-zinc-300">وضع الخصوصية</label>
+                  <span className="text-[10px] text-purple-400">🛡️ محلي فقط</span>
                 </div>
                 <button
                   onClick={() => {
@@ -1701,14 +1808,14 @@ export const DesignerV2_1: React.FC = () => {
                   <>
                     <div className="flex items-start gap-2 mb-2">
                       <span className="text-emerald-400">✓</span>
-                      <span>Faces will be automatically blurred <strong>locally</strong> before upload</span>
+                      <span>سيتم طمس الوجوه تلقائيًا <strong>محليًا</strong> قبل الرفع</span>
                     </div>
                     <div className="text-[9px] text-zinc-500">
-                      Processing happens on your device. Original unblurred images never leave your computer.
+                      تتم المعالجة على جهازك. الصور الأصلية غير المطموسة لا تغادر جهازك أبدًا.
                     </div>
                   </>
                 ) : (
-                  <span>Enable to automatically blur faces in uploaded images for privacy protection</span>
+                  <span>فعّل لطمس الوجوه تلقائيًا في الصور المرفوعة لحماية الخصوصية</span>
                 )}
               </div>
 
@@ -1716,18 +1823,18 @@ export const DesignerV2_1: React.FC = () => {
               {isPrivacyMode && (
                 <details className="mb-4">
                   <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    Masking Style & Settings
+                    نمط الإخفاء والإعدادات
                   </summary>
 
                   <div className="mt-3 p-3 bg-zinc-900/50 border-2 border-purple-500/30 rounded-lg space-y-3">
                       {/* Masking Style Cards */}
                       <div>
-                        <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">Style</label>
+                        <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">النمط</label>
                         <div className="grid grid-cols-3 gap-3">
                           {[
-                            { value: 'feathered-blur', icon: '🎭', label: 'Blur' },
-                            { value: 'pixelate', icon: '🔲', label: 'Pixelation' },
-                            { value: 'emoji', icon: '😊', label: 'Emoji' },
+                            { value: 'feathered-blur', icon: '🎭', label: 'ضبابية' },
+                            { value: 'pixelate', icon: '🔲', label: 'بكسلة' },
+                            { value: 'emoji', icon: '😊', label: 'إيموجي' },
                           ].map((style) => (
                             <button
                               key={style.value}
@@ -1856,10 +1963,10 @@ export const DesignerV2_1: React.FC = () => {
                   {isProcessingPrivacy ? (
                     <span className="flex items-center justify-center gap-2">
                       <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                      Applying...
+                      جاري التطبيق...
                     </span>
                   ) : (
-                    '🛡️ Apply Privacy Shield'
+                    '🛡️ تطبيق حماية الخصوصية'
                   )}
                 </button>
               )}
@@ -1868,18 +1975,18 @@ export const DesignerV2_1: React.FC = () => {
           {(features.showModelSelection || features.showRefinementPrompt) && (
             <details className="pt-6 border-t border-zinc-800">
               <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                Advanced Settings
+                إعدادات متقدمة
               </summary>
 
               {/* Model Selection */}
               {features.showModelSelection && (
                 <div className="mt-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Model Selection</div>
+                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">اختيار النموذج</div>
                     <div className="group relative">
                       <Info className="w-3.5 h-3.5 text-zinc-500 cursor-help" />
                       <div className="invisible group-hover:visible absolute left-0 top-full mt-1 w-40 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-[10px] text-zinc-300 z-50">
-                        Select between fast fabric swap (NanoBana) or high-quality results (Pro).
+                        اختر بين التبديل السريع (NanoBana) أو النتائج عالية الجودة (Pro).
                       </div>
                     </div>
                   </div>
@@ -1887,13 +1994,13 @@ export const DesignerV2_1: React.FC = () => {
                     options={[
                       {
                         label: 'NanoBana',
-                        badge: 'FAST',
-                        description: 'Best for quick fabric replacement while preserving pose and features.',
+                        badge: 'سريع',
+                        description: 'الأفضل للاستبدال السريع للقماش مع الحفاظ على الوضعية والميزات.',
                       },
                       {
                         label: 'Pro',
-                        badge: 'HIGH QUALITY',
-                        description: 'Deep understanding with artistic fabric blending and natural draping.',
+                        badge: 'جودة عالية',
+                        description: 'فهم عميق مع مزج فني للقماش وتدلي طبيعي.',
                       },
                     ]}
                     active={selectedModel}
@@ -1908,13 +2015,13 @@ export const DesignerV2_1: React.FC = () => {
               {features.showRefinementPrompt && (
                 <div className="mt-4">
                   <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                    Refinement Instructions (Optional)
+                    تعليمات التحسين (اختياري)
                   </div>
                   <textarea
                     value={refinementPrompt}
                     onChange={(e) => setRefinementPrompt(e.target.value)}
                     disabled={uiState.inputsDisabled}
-                    placeholder="E.g., 'Make the fabric flow naturally' or 'Preserve the original background'"
+                    placeholder="مثلًا، 'اجعل القماش يتدلى بشكل طبيعي' أو 'حافظ على الخلفية الأصلية'"
                     className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40 resize-none"
                     rows={3}
                   />
@@ -1937,11 +2044,11 @@ export const DesignerV2_1: React.FC = () => {
             >
               {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
               {isProcessing ? (
-                'Processing...'
+                'جاري المعالجة...'
               ) : (
                 <span className="flex items-center justify-center gap-2">
                   <span className="animate-pulse">✨</span>
-                  <span>{`Generate${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
+                  <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
                 </span>
               )}
             </button>
@@ -1950,11 +2057,11 @@ export const DesignerV2_1: React.FC = () => {
           {/* Output Quality Section */}
           {features.showOutputQuality && (
             <div className="pt-6 border-t border-zinc-800">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">Output Quality</div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">جودة المخرجات</div>
 
               {features.showUpscaleEngine && (
                 <div className="mb-3">
-                  <div className="text-xs text-zinc-500 mb-1.5">Upscale Engine</div>
+                  <div className="text-xs text-zinc-500 mb-1.5">محرك التحسين</div>
                   <div className={`relative ${uiState.allDisabled ? 'opacity-60' : ''}`}>
                     <select
                       value={upscaleEngine}
@@ -1962,8 +2069,8 @@ export const DesignerV2_1: React.FC = () => {
                       onChange={(e) => setUpscaleEngine(e.target.value as 'standard' | 'creative')}
                       className="w-full appearance-none bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                     >
-                      <option value="standard">Standard Sharp</option>
-                      <option value="creative">Creative Detail</option>
+                      <option value="standard">حاد قياسي</option>
+                      <option value="creative">تفاصيل إبداعية</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   </div>
@@ -1972,7 +2079,7 @@ export const DesignerV2_1: React.FC = () => {
 
               {features.showOutputFit && (
                 <div className="mb-1">
-                  <div className="text-xs text-zinc-500 mb-1.5">Output Fit</div>
+                  <div className="text-xs text-zinc-500 mb-1.5">ملاءمة المخرج</div>
                   <div className={`relative ${uiState.inputsDisabled ? 'opacity-60' : ''}`}>
                     <select
                       value={outputFit}
@@ -1980,8 +2087,8 @@ export const DesignerV2_1: React.FC = () => {
                       onChange={(e) => setOutputFit(e.target.value as 'contain' | 'cover')}
                       className="w-full appearance-none bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                     >
-                      <option value="contain">Fit (No Crop)</option>
-                      <option value="cover">Fill (Crop)</option>
+                      <option value="contain">ملائم (بدون قص)</option>
+                      <option value="cover">ممتلئ (مع القص)</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   </div>
@@ -2002,19 +2109,19 @@ export const DesignerV2_1: React.FC = () => {
                     {isUpscaling ? (
                       <span className="flex items-center justify-center gap-2">
                         <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                        Upscaling ({Math.round(upscaleProgress)}%)
+                        جاري التحسين ({Math.round(upscaleProgress)}%)
                       </span>
                     ) : (
                       <span className="flex items-center justify-center gap-2">
                         <span>
-                          ✨ Upscale Result (2x)
+                          ✨ تحسين النتيجة (2x)
                           {creditsEnabled && upscaleCost > 0 ? ` (${upscaleCost})` : ''}
                         </span>
                       </span>
                     )}
                   </button>
                   <div className="text-xs text-zinc-500 text-center mt-2">
-                    Generated image will become "Before", upscaled version becomes "After"
+                    الصورة المولدة ستصبح "قبل"، والنسخة المحسنة ستصبح "بعد"
                   </div>
                 </div>
               )}
@@ -2025,7 +2132,7 @@ export const DesignerV2_1: React.FC = () => {
           {features.showExportSettings && (
             <details className="pt-6 border-t border-zinc-800">
               <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                Export Settings
+                إعدادات التصدير
               </summary>
 
               <div className="mt-3">
@@ -2034,9 +2141,9 @@ export const DesignerV2_1: React.FC = () => {
                 <>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-zinc-300">Add Watermark</label>
-                      {!isSubscribed && <span className="text-[10px] text-purple-400">🔒 Free Mode</span>}
-                      {isSubscribed && <span className="text-[10px] text-emerald-400">✓ Pro</span>}
+                      <label className="text-sm text-zinc-300">إضافة علامة مائية</label>
+                      {!isSubscribed && <span className="text-[10px] text-purple-400">🔒 الوضع المجاني</span>}
+                      {isSubscribed && <span className="text-[10px] text-emerald-400">✓ احترافي</span>}
                     </div>
                     <button
                       onClick={() => {
@@ -2068,7 +2175,7 @@ export const DesignerV2_1: React.FC = () => {
 
                   {isWatermarkEnabled && (
                     <div className="text-[10px] text-zinc-400 p-2 bg-zinc-900/50 rounded border border-zinc-800 mb-4">
-                      Generated by Khuyoot watermark will be added to your image.
+                      سيتم إضافة علامة مائية "تم التوليد بواسطة خيوط" على الصورة.
                     </div>
                   )}
                 </>
@@ -2079,13 +2186,13 @@ export const DesignerV2_1: React.FC = () => {
                   onClick={() => setIsUpgradeModalOpen(true)}
                   className="w-full mt-4 px-3 py-2 text-sm font-semibold text-purple-300 bg-purple-500/10 border border-purple-500/30 rounded-lg hover:bg-purple-500/20 hover:border-purple-500/50 transition-all"
                 >
-                  Upgrade to Pro (Remove Watermarks)
+                  الترقية إلى احترافي (إزالة العلامات المائية)
                 </button>
               )}
 
               {features.showSubscriptionControls && uiState.showProFeatures && (
                 <div className="w-full mt-4 px-3 py-2 text-sm font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
-                  ✓ Pro Features Unlocked!
+                  ✓ تم فتح الميزات الاحترافية!
                 </div>
               )}
               </div>
@@ -2095,7 +2202,7 @@ export const DesignerV2_1: React.FC = () => {
           {features.showDebugSection && (
           <details className="rounded-lg border border-zinc-800 bg-zinc-950/40">
           <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            Debug
+            تصحيح الأخطاء
           </summary>
           <div className="px-3 pb-3 text-[11px] text-zinc-300">
             <div className="text-zinc-500 mb-2">Last request/response (dev only)</div>
@@ -2129,8 +2236,8 @@ export const DesignerV2_1: React.FC = () => {
           >
             {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
             {isProcessing
-              ? 'Processing...'
-              : `Generate & Enhance${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}
+              ? 'جاري المعالجة...'
+              : `توليد وتحسين${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}
           </button>
         </div>
         )}
@@ -2162,7 +2269,7 @@ export const DesignerV2_1: React.FC = () => {
 
         {/* Scrollable Content */}
         <div
-          className={`flex-1 min-h-0 ${mainHasVisibleContent ? 'overflow-y-auto custom-scrollbar' : 'overflow-y-hidden'} bg-zinc-950`}
+          className={`flex-1 min-h-0 ${mainHasVisibleContent ? 'overflow-y-auto custom-scrollbar' : 'overflow-y-hidden'} bg-zinc-950 pb-24`}
         >
           {/* Main Viewport */}
           <div className="p-8 bg-zinc-950">
@@ -2197,7 +2304,7 @@ export const DesignerV2_1: React.FC = () => {
                     <div className="absolute top-1/2 -translate-y-1/2 right-4 flex flex-col gap-2 z-50">
                       <button
                         type="button"
-                        title={shareUrlCopied ? 'URL Copied!' : 'Share Design'}
+                        title={shareUrlCopied ? 'تم نسخ الرابط!' : 'مشاركة التصميم'}
                         onClick={handleShareTask}
                         disabled={!currentTaskId}
                         className={`p-3 bg-zinc-900/90 border rounded-xl transition-all ${
@@ -2214,21 +2321,21 @@ export const DesignerV2_1: React.FC = () => {
                       </button>
                       <button
                         type="button"
-                        title="Download Result"
+                        title="تحميل النتيجة"
                         className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
                       >
                         <Download className="w-5 h-5 text-zinc-300" />
                       </button>
                       <button
                         type="button"
-                        title="Zoom In"
+                        title="تكبير"
                         className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
                       >
                         <ZoomIn className="w-5 h-5 text-zinc-300" />
                       </button>
                       <button
                         type="button"
-                        title="Full Screen"
+                        title="وضع ملء الشاشة"
                         className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
                       >
                         <Maximize2 className="w-5 h-5 text-zinc-300" />
@@ -2240,7 +2347,7 @@ export const DesignerV2_1: React.FC = () => {
             </div>
 
             {/* Lighting presets row (below canvas) */}
-            <div className="mt-3 flex justify-center">
+            <div className="mt-2 mb-1 flex justify-center">
               <LightingPresets value={lightingGenerator.value} onChange={lightingGenerator.onSelectPreset} />
             </div>
           </div>
@@ -2259,28 +2366,71 @@ export const DesignerV2_1: React.FC = () => {
           />
           )}
 
+          {/* Full Size Comparison Section */}
+          {features.showFullComparison && (
+          <div className="border-t border-zinc-800 bg-zinc-950 p-6" dir="ltr">
+            <div className="grid grid-cols-2 gap-6 max-w-7xl mx-auto min-h-[420px]">
+              {/* Source Image */}
+              <div className="space-y-2 flex flex-col">
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">النموذج الأصلي</div>
+                <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
+                  <img
+                    src={sourceForComparison}
+                    alt="Source"
+                    className="absolute inset-0 w-full h-full object-contain"
+                  />
+                </div>
+              </div>
+
+              {/* Result Image */}
+              <div className="space-y-2 flex flex-col">
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">نتيجة الذكاء الاصطناعي</div>
+                <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
+                  {afterImage && afterImage !== '' ? (
+                    <img
+                      src={afterImage}
+                      alt="Result"
+                      className="absolute inset-0 w-full h-full object-contain"
+                    />
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-4 text-zinc-500">
+                      <div className="w-24 h-24 rounded-full bg-zinc-800/50 border-2 border-dashed border-zinc-700 flex items-center justify-center">
+                        <svg className="w-12 h-12 text-zinc-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                      </div>
+                      <div className="text-sm font-medium">لا توجد نتيجة بعد</div>
+                      <div className="text-xs text-zinc-600">قم بالتوليد لرؤية تصميمك</div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+          )}
+
           {/* Metadata Panel - Shows details of selected thumbnail */}
           {features.showFullComparison && activeId && history.find(h => h.jobId === activeId) && (() => {
             const activeItem = history.find(h => h.jobId === activeId);
             return (
-              <div className="border-t border-zinc-800 bg-zinc-950 px-6 pt-6">
+              <div className="border-t border-zinc-800 bg-zinc-950 px-6 pt-6 pb-6">
                 <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800 max-w-7xl mx-auto">
                   <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <Info className="w-4 h-4" />
-                    Generation Details
+                    تفاصيل التوليد
                   </div>
                   
                   {/* Currently Displayed Images Info */}
                   <div className="mb-6 p-3 bg-zinc-950 rounded-lg border border-zinc-700">
-                    <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-3">Currently Displayed</div>
+                    <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-3">المعروض حاليًا</div>
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div>
                         <div className="text-zinc-500 mb-1 flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          Source Template (Left)
+                          النموذج الأصلي (يسار)
                         </div>
                         <div className="text-zinc-300 font-mono text-[10px]">
-                          {sourceImageDimensions ? `${sourceImageDimensions.width} × ${sourceImageDimensions.height}px` : 'Loading...'}
+                          {sourceImageDimensions ? `${sourceImageDimensions.width} × ${sourceImageDimensions.height}px` : 'جاري التحميل...'}
                         </div>
                         <div className="text-zinc-600 text-[9px] mt-1 truncate" title={sourceForComparison}>
                           {sourceForComparison === ORIGINAL ? 'Placeholder' : sourceForComparison.split('/').pop()?.split('?')[0]}
@@ -2289,10 +2439,10 @@ export const DesignerV2_1: React.FC = () => {
                       <div>
                         <div className="text-zinc-500 mb-1 flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                          AI Result (Right)
+                          نتيجة الذكاء الاصطناعي (يمين)
                         </div>
                         <div className="text-zinc-300 font-mono text-[10px]">
-                          {afterImageDimensions ? `${afterImageDimensions.width} × ${afterImageDimensions.height}px` : 'Loading...'}
+                          {afterImageDimensions ? `${afterImageDimensions.width} × ${afterImageDimensions.height}px` : 'جاري التحميل...'}
                         </div>
                         <div className="text-zinc-600 text-[9px] mt-1 truncate" title={afterImage}>
                           {afterImage === ORIGINAL ? 'Placeholder' : afterImage.split('/').pop()?.split('?')[0]}
@@ -2304,7 +2454,7 @@ export const DesignerV2_1: React.FC = () => {
                   {/* Selected Generation Data */}
                   <div className="space-y-4">
                     <div>
-                      <div className="text-zinc-500 mb-1 text-xs">Job ID</div>
+                      <div className="text-zinc-500 mb-1 text-xs">معرف العملية</div>
                       <div className="flex items-center gap-2">
                         <div className="text-zinc-300 font-mono text-xs flex-1 break-all">{activeId}</div>
                         <button
@@ -2323,25 +2473,25 @@ export const DesignerV2_1: React.FC = () => {
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">Full Image URL</div>
+                        <div className="text-zinc-500 mb-2 text-xs">رابط الصورة الكاملة</div>
                         <URLDisplay label="Full Image" url={activeItem?.fullImageUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">Thumbnail URL</div>
+                        <div className="text-zinc-500 mb-2 text-xs">رابط الصورة المصغرة</div>
                         <URLDisplay label="Thumbnail" url={activeItem?.thumbnailUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">Template URL</div>
+                        <div className="text-zinc-500 mb-2 text-xs">رابط النموذج</div>
                         <URLDisplay label="Template" url={activeItem?.templateUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">Fabric URL</div>
+                        <div className="text-zinc-500 mb-2 text-xs">رابط القماش</div>
                         <URLDisplay label="Fabric" url={activeItem?.fabricUrl} onCopy={copyToClipboard} />
                       </div>
                     </div>
                     
                     <div>
-                      <div className="text-zinc-500 mb-1 text-xs">Created At</div>
+                      <div className="text-zinc-500 mb-1 text-xs">تاريخ الإنشاء</div>
                       <div className="text-zinc-300 text-xs">
                         {new Date(activeItem?.createdAt || '').toLocaleString()}
                       </div>
@@ -2351,37 +2501,6 @@ export const DesignerV2_1: React.FC = () => {
               </div>
             );
           })()}
-
-          {/* Full Size Comparison Section */}
-          {features.showFullComparison && (
-          <div className="border-t border-zinc-800 bg-zinc-950 p-6" dir="ltr">
-            <div className="grid grid-cols-2 gap-6 max-w-7xl mx-auto min-h-[420px]">
-              {/* Source Image */}
-              <div className="space-y-2 flex flex-col">
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">Source Template</div>
-                <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
-                  <img
-                    src={sourceForComparison}
-                    alt="Source"
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-
-              {/* Result Image */}
-              <div className="space-y-2 flex flex-col">
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">AI Result</div>
-                <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
-                  <img
-                    src={afterImage}
-                    alt="Result"
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-          )}
         </div>
 
         {/* Upgrade Modal */}
@@ -2399,13 +2518,13 @@ export const DesignerV2_1: React.FC = () => {
       isOpen={deleteModalOpen}
       onConfirm={confirmDelete}
       onCancel={cancelDelete}
-      itemName="this generation"
+      itemName="هذا التوليد"
     />
     
     <ErrorModal
       isOpen={errorModalOpen}
       onClose={() => setErrorModalOpen(false)}
-      title="Error"
+      title="خطأ"
       message={errorMessage}
     />
     </>
