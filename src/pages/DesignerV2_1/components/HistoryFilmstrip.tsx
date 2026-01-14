@@ -43,11 +43,28 @@ export const HistoryFilmstrip: React.FC<HistoryFilmstripProps> = ({
 
   React.useEffect(() => {
     // Warm visible thumbnails (LRU). This avoids repeated decode/network churn when the filmstrip re-renders.
-    prefetchThumbnails(
-      history
-        .map((item) => ('thumbnailUrl' in item ? item.thumbnailUrl : undefined))
-        .filter(Boolean)
-    );
+    const thumbnailUrls = history
+      .map((item) => ('thumbnailUrl' in item ? item.thumbnailUrl : undefined))
+      .filter(Boolean);
+    
+    prefetchThumbnails(thumbnailUrls);
+
+    // Also prefetch the full images for visible thumbnails in the background
+    const fullImageUrls = history
+      .map((item) => (item as GenerationRecord).fullImageUrl)
+      .filter(Boolean);
+    
+    if (fullImageUrls.length > 0) {
+      fullImageUrls.forEach((url) => {
+        if (url && !prefetched.has(url)) {
+          prefetched.add(url);
+          const img = new Image();
+          img.src = url;
+          // Preload without blocking UI
+          img.loading = 'lazy';
+        }
+      });
+    }
   }, [history, prefetchThumbnails]);
 
   return (
@@ -96,11 +113,11 @@ export const HistoryFilmstrip: React.FC<HistoryFilmstripProps> = ({
               >
                 {isPending ? (
                   <div className="w-full h-full bg-zinc-800 flex items-center justify-center">
-                    <div className="relative">
-                      <div className="w-12 h-12 rounded-full border-4 border-zinc-700 border-t-purple-500 animate-spin" />
-                      <div className="absolute inset-0 flex items-center justify-center">
-                        <div className="w-6 h-6 rounded-full bg-purple-500/20 animate-pulse" />
-                      </div>
+                    <div className="relative w-16 h-16">
+                      {/* Outer ring background */}
+                      <div className="absolute inset-0 rounded-full border-4 border-zinc-700" />
+                      {/* Animated spinning ring */}
+                      <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-purple-500 border-r-purple-400 animate-spin" />
                     </div>
                   </div>
                 ) : 'thumbnailUrl' in item && item.thumbnailUrl ? (

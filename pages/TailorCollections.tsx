@@ -1,14 +1,15 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, ChevronLeft, ChevronRight } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
 import { Button } from '../components/Button';
 import { firebaseService } from '../services/firebase';
 import { storageService } from '../services/storageService';
 import { Product } from '../types';
 import { useApp } from '../context/AppContext';
 import { storage } from '../services/firebase';
-import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { ref, uploadBytes, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 import imageCompression from 'browser-image-compression';
 import { getActiveOrdersForProduct } from '../services/orderService';
 import { getDefaultImagesForCategory, type DefaultImageOption } from '../utils/defaultImages';
@@ -16,8 +17,101 @@ import { useAppStore } from '../src/store/useAppStore';
 import { preloadImages } from '../src/utils/imagePreloader';
 import { StableImage } from '../src/components/StableImage';
 
+type UploadItemStatus = 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
+type SaveJobStatus = 'uploading' | 'saving' | 'done' | 'error';
+
+type UploadItem = {
+  id: string;
+  fileName: string;
+  status: UploadItemStatus;
+  progress: number; // 0..100
+  error?: string;
+};
+
+type SaveJob = {
+  id: string;
+  title: string;
+  status: SaveJobStatus;
+  createdAt: number;
+  items: UploadItem[];
+  message?: string;
+};
+
+const UploadJobsPanel = React.memo(function UploadJobsPanel(props: {
+  jobs: SaveJob[];
+  onDismiss: (jobId: string) => void;
+}) {
+  if (props.jobs.length === 0) return null;
+
+  const activeJobs = props.jobs
+    .slice()
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .slice(0, 5);
+
+  return (
+    <div className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
+      <div className="flex items-center justify-between gap-2">
+        <div className="text-sm font-bold text-slate-900 dark:text-white">عمليات الرفع والحفظ</div>
+        <div className="text-xs text-slate-500">{props.jobs.length} عملية</div>
+      </div>
+
+      <div className="mt-3 space-y-3">
+        {activeJobs.map((job) => {
+          const total = job.items.length;
+          const done = job.items.filter((i) => i.status === 'done').length;
+          const uploading = job.items.find((i) => i.status === 'uploading' || i.status === 'compressing');
+          const overall = total === 0 ? 100 : Math.round(job.items.reduce((s, i) => s + (i.progress || 0), 0) / total);
+
+          const statusLabel =
+            job.status === 'done'
+              ? 'تم'
+              : job.status === 'error'
+                ? 'خطأ'
+                : job.status === 'saving'
+                  ? 'حفظ المنتج…'
+                  : 'رفع الصور…';
+
+          return (
+            <div key={job.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{job.title}</div>
+                  <div className="text-xs text-slate-500 mt-0.5">
+                    {statusLabel} • {done}/{total}
+                    {uploading ? ` • ${uploading.fileName}` : ''}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => props.onDismiss(job.id)}
+                  className="shrink-0 p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
+                  title="إخفاء"
+                >
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
+                <div
+                  className={`h-full transition-all ${job.status === 'error' ? 'bg-red-500' : job.status === 'done' ? 'bg-green-600' : 'bg-blue-600'}`}
+                  style={{ width: `${overall}%` }}
+                />
+              </div>
+
+              {(job.message || job.status === 'error') && (
+                <div className="mt-2 text-xs text-red-600 dark:text-red-400">{job.message || 'حدث خطأ أثناء العملية'}</div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+});
+
 export const TailorCollections = () => {
   const { user } = useApp();
+  const navigate = useNavigate();
   const tailorProducts = useAppStore((state) => state.tailorProducts);
   const setTailorProducts = useAppStore((state) => state.setTailorProducts);
   const viewMode = useAppStore((state) => state.tailorViewMode);
@@ -29,6 +123,7 @@ export const TailorCollections = () => {
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [filterMode, setFilterMode] = useState<'all' | 'published' | 'drafts'>('all');
+  const [bulkMode, setBulkMode] = useState(false); // Quick add mode
 
   const productsQuery = useQuery({
     queryKey: ['tailor-products', user?.id],
@@ -80,9 +175,12 @@ export const TailorCollections = () => {
   const [newPrice, setNewPrice] = useState('');
   const [newDuration, setNewDuration] = useState('');
   const [newCategory, setNewCategory] = useState('');
+  const [categorySearch, setCategorySearch] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [newTags, setNewTags] = useState('');
   const [allProductImages, setAllProductImages] = useState<string[]>([]); // Array of all product images
+  const [pendingImageFiles, setPendingImageFiles] = useState<File[]>([]); // Files waiting to be uploaded on submit
+  const [pendingBlobUrls, setPendingBlobUrls] = useState<string[]>([]); // Maps 1:1 with pendingImageFiles
   const [uploadError, setUploadError] = useState<string>('');
   const [coverImageIndex, setCoverImageIndex] = useState<number>(0); // index صورة الغلاف
   const [showDefaultImagesModal, setShowDefaultImagesModal] = useState(false); // modal الصور الافتراضية
@@ -98,6 +196,34 @@ export const TailorCollections = () => {
     isParent?: boolean;
   }>>([]);
   const [showCategoryModal, setShowCategoryModal] = useState(false); // modal اختيار التصنيف
+  const [uploadJobs, setUploadJobs] = useState<SaveJob[]>([]);
+  const [isImageDragOver, setIsImageDragOver] = useState(false);
+  const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+
+  const groupedCategoryOptions = React.useMemo(() => {
+    const groups = new Map<string, Array<{ id: string; nameAr: string; image?: string }>>();
+    let currentGroupName = '';
+    for (const cat of availableCategories) {
+      if (cat.isParent) {
+        currentGroupName = cat.nameAr;
+        if (!groups.has(currentGroupName)) groups.set(currentGroupName, []);
+        continue;
+      }
+      const groupName = cat.parentName || currentGroupName || 'تصنيفات';
+      if (!groups.has(groupName)) groups.set(groupName, []);
+      groups.get(groupName)!.push({ id: cat.id, nameAr: cat.nameAr, image: cat.image });
+    }
+
+    const q = categorySearch.trim().toLowerCase();
+    const result: Array<{ groupName: string; children: Array<{ id: string; nameAr: string; image?: string }> }> = [];
+    for (const [groupName, children] of groups.entries()) {
+      const filtered = q
+        ? children.filter((c) => c.nameAr.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
+        : children;
+      if (filtered.length > 0) result.push({ groupName, children: filtered });
+    }
+    return result;
+  }, [availableCategories, categorySearch]);
 
   // تصفية المنتجات حسب filterMode
   const filteredProducts = React.useMemo(() => {
@@ -114,11 +240,28 @@ export const TailorCollections = () => {
       const { collection, query, where, getDocs } = await import('firebase/firestore');
       const { db } = await import('../services/firebase');
       
-      // تحديد جنس الخياط من user (الافتراضي: رجالي)
-      const tailorGender = user?.tailorGender || 'male'; // 'male' أو 'female'
+      // تحديد جنس الخياط من user (تحقق من tailorGender أولاً ثم specialization كبديل)
+      let tailorGender: 'male' | 'female' = 'male'; // الافتراضي
       
-      if (!user?.tailorGender) {
+      if (user?.tailorGender) {
+        tailorGender = user.tailorGender;
+      } else if (user?.specialization) {
+        // Fallback: check specialization field for old data
+        const spec = String(user.specialization).toLowerCase();
+        if (spec.includes('female') || spec.includes('نسائي') || spec.includes('women')) {
+          tailorGender = 'female';
+        }
+      }
+      
+      console.log('🔍 [TailorCollections] Loading categories for gender:', tailorGender);
+      console.log('   User:', user?.name);
+      console.log('   tailorGender field:', user?.tailorGender);
+      console.log('   specialization field:', user?.specialization);
+      
+      if (!user?.tailorGender && !user?.specialization) {
         console.warn('⚠️ لم يتم تحديد جنس الخياط، سيتم عرض التصنيفات الرجالية (افتراضي)');
+      } else if (!user?.tailorGender && user?.specialization) {
+        console.warn('⚠️ استخدام حقل specialization كبديل لـ tailorGender');
       }
       
       const categoriesRef = collection(db, 'productCategories');
@@ -132,24 +275,33 @@ export const TailorCollections = () => {
       const level1Snapshot = await getDocs(level1Query);
       const parentCategories = new Map();
       
+      console.log('📦 Found', level1Snapshot.size, 'Level 1 categories');
+      
       level1Snapshot.docs.forEach(doc => {
         const data = doc.data();
         const nameAr = data.nameAr;
         
+        console.log('  - Checking category:', nameAr);
+        
         // فلترة حسب جنس الخياط
         if (tailorGender === 'male' && nameAr === 'الملابس النسائية') {
+          console.log('    ❌ Skipped (female category for male tailor)');
           return; // تجاهل التصنيفات النسائية للخياط الرجالي
         }
         if (tailorGender === 'female' && nameAr === 'الملابس الرجالية') {
+          console.log('    ❌ Skipped (male category for female tailor)');
           return; // تجاهل التصنيفات الرجالية للخياط النسائي
         }
         
+        console.log('    ✅ Included');
         parentCategories.set(doc.id, {
           id: doc.id,
           nameAr: data.nameAr,
           nameEn: data.nameEn
         });
       });
+      
+      console.log('✅ Filtered parent categories:', parentCategories.size);
       
       // جلب التصنيفات Level 2 (الأبناء)
       const level2Query = query(
@@ -205,7 +357,8 @@ export const TailorCollections = () => {
         }
       });
       
-      console.log('📋 التصنيفات الهرمية المحملة:', hierarchicalList);
+      console.log('📋 التصنيفات الهرمية المحملة:', hierarchicalList.length, 'items');
+      console.log('📋 Categories:', hierarchicalList.map(c => c.nameAr).join(', '));
       setAvailableCategories(hierarchicalList);
       
       // تعيين أول قسم فرعي كافتراضي
@@ -238,6 +391,19 @@ export const TailorCollections = () => {
       loadCategories();
     }
   }, [showAddForm]);
+
+  // Auto-fill product name when category matches
+  useEffect(() => {
+    if (newCategory) {
+      const cat = availableCategories.find(c => c.id === newCategory);
+      if (cat && cat.nameAr) {
+        // Only set if empty to avoid overwriting user input
+        if (newName.trim() === '') {
+           setNewName(cat.nameAr);
+        }
+      }
+    }
+  }, [newCategory, availableCategories]);
 
   // Check scroll position for filter tabs
   const checkFilterScroll = () => {
@@ -289,6 +455,253 @@ export const TailorCollections = () => {
     }
   };
 
+  const dismissUploadJob = React.useCallback((jobId: string) => {
+    setUploadJobs((prev) => prev.filter((j) => j.id !== jobId));
+  }, []);
+
+  const addImageFilesToForm = React.useCallback(
+    (files: File[]) => {
+      const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+      if (imageFiles.length === 0) return;
+
+      const totalImages = allProductImages.length + pendingImageFiles.length;
+      const remainingSlots = 10 - totalImages;
+      const filesToAdd = imageFiles.slice(0, Math.max(0, remainingSlots));
+
+      if (filesToAdd.length === 0) {
+        alert('وصلت للحد الأقصى (10 صور)');
+        return;
+      }
+
+      if (imageFiles.length > remainingSlots) {
+        alert(`يمكنك رفع ${remainingSlots} صور فقط`);
+      }
+
+      const blobUrls = filesToAdd.map((file) => URL.createObjectURL(file));
+      setPendingImageFiles((prev) => [...prev, ...filesToAdd]);
+      setPendingBlobUrls((prev) => [...prev, ...blobUrls]);
+      setAllProductImages((prev) => [...prev, ...blobUrls]);
+      setUploadError('');
+    },
+    [allProductImages.length, pendingImageFiles.length]
+  );
+
+  const reorderImages = React.useCallback(
+    (fromIndex: number, toIndex: number) => {
+      if (fromIndex === toIndex) return;
+      if (fromIndex < 0 || toIndex < 0) return;
+      if (fromIndex >= allProductImages.length || toIndex >= allProductImages.length) return;
+
+      const currentBlobUrls = pendingBlobUrls;
+      const currentFiles = pendingImageFiles;
+      const fileByBlob = new Map<string, File>();
+      for (let i = 0; i < currentBlobUrls.length; i++) {
+        const blobUrl = currentBlobUrls[i];
+        const file = currentFiles[i];
+        if (blobUrl && file) fileByBlob.set(blobUrl, file);
+      }
+
+      const nextImages = allProductImages.slice();
+      const [moved] = nextImages.splice(fromIndex, 1);
+      nextImages.splice(toIndex, 0, moved);
+
+      // Rebuild pending lists from nextImages order
+      const nextPendingBlobUrls = nextImages.filter((u) => u.startsWith('blob:'));
+      const nextPendingFiles = nextPendingBlobUrls.map((u) => fileByBlob.get(u)).filter(Boolean) as File[];
+
+      setAllProductImages(nextImages);
+      setPendingBlobUrls(nextPendingBlobUrls);
+      setPendingImageFiles(nextPendingFiles);
+
+      // Adjust cover index
+      setCoverImageIndex((prev) => {
+        if (prev === fromIndex) return toIndex;
+        // moving item from left to right
+        if (fromIndex < toIndex) {
+          if (prev > fromIndex && prev <= toIndex) return prev - 1;
+          return prev;
+        }
+        // moving item from right to left
+        if (toIndex <= prev && prev < fromIndex) return prev + 1;
+        return prev;
+      });
+    },
+    [allProductImages, pendingBlobUrls, pendingImageFiles]
+  );
+
+  const createSaveJob = React.useCallback((title: string, files: File[]): SaveJob => {
+    const jobId = `${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    return {
+      id: jobId,
+      title,
+      status: 'uploading',
+      createdAt: Date.now(),
+      items: files.map((f, idx) => ({
+        id: `${jobId}_${idx}`,
+        fileName: f.name,
+        status: 'queued',
+        progress: 0,
+      })),
+    };
+  }, []);
+
+  const updateJob = React.useCallback(
+    (jobId: string, updater: (prev: SaveJob) => SaveJob) => {
+      setUploadJobs((prev) => prev.map((j) => (j.id === jobId ? updater(j) : j)));
+    },
+    []
+  );
+
+  const uploadPendingImagesPreservingOrderWithProgress = React.useCallback(
+    async (params: {
+      jobId: string;
+      userId: string;
+      images: string[];
+      pendingFiles: File[];
+      pendingBlobs: string[];
+    }) => {
+      const { jobId, userId, images, pendingFiles, pendingBlobs } = params;
+      if (images.length === 0 && pendingFiles.length === 0) return [] as string[];
+
+      const fileByBlob = new Map<string, File>();
+      for (let i = 0; i < pendingBlobs.length; i++) {
+        const blobUrl = pendingBlobs[i];
+        const file = pendingFiles[i];
+        if (blobUrl && file) fileByBlob.set(blobUrl, file);
+      }
+
+      const options = {
+        maxSizeMB: 1,
+        maxWidthOrHeight: 1920,
+        useWebWorker: true,
+      };
+
+      const finalUrls: string[] = [];
+      const blobUrlsInOrder = images.filter((u) => u.startsWith('blob:'));
+      const blobIndexByUrl = new Map<string, number>();
+      blobUrlsInOrder.forEach((u, idx) => blobIndexByUrl.set(u, idx));
+
+      for (const url of images) {
+        if (!url.startsWith('blob:')) {
+          finalUrls.push(url);
+          continue;
+        }
+
+        const file = fileByBlob.get(url);
+        if (!file) continue;
+
+        const itemIndex = blobIndexByUrl.get(url) ?? 0;
+        const itemId = `${jobId}_${itemIndex}`;
+
+        updateJob(jobId, (prevJob) => {
+          const items = prevJob.items.map((it) => (it.id === itemId ? { ...it, status: 'compressing', progress: 0 } : it));
+          return { ...prevJob, items };
+        });
+
+        const compressedFile = await imageCompression(file, options);
+        const uniqueId = `${Date.now()}_${itemIndex}_${Math.random().toString(36).substring(7)}`;
+        const storageRef = ref(storage, `products/${userId}/${uniqueId}_${file.name}`);
+
+        const uploadedUrl = await new Promise<string>((resolve, reject) => {
+          const task = uploadBytesResumable(storageRef, compressedFile);
+
+          updateJob(jobId, (prevJob) => {
+            const items = prevJob.items.map((it) => (it.id === itemId ? { ...it, status: 'uploading', progress: 0 } : it));
+            return { ...prevJob, items };
+          });
+
+          task.on(
+            'state_changed',
+            (snapshot) => {
+              const progress = snapshot.totalBytes ? Math.round((snapshot.bytesTransferred / snapshot.totalBytes) * 100) : 0;
+              updateJob(jobId, (prevJob) => {
+                const items = prevJob.items.map((it) => (it.id === itemId ? { ...it, progress } : it));
+                return { ...prevJob, items };
+              });
+            },
+            (err) => reject(err),
+            async () => {
+              try {
+                const url = await getDownloadURL(task.snapshot.ref);
+                resolve(url);
+              } catch (e) {
+                reject(e);
+              }
+            }
+          );
+        });
+
+        updateJob(jobId, (prevJob) => {
+          const items = prevJob.items.map((it) => (it.id === itemId ? { ...it, status: 'done', progress: 100 } : it));
+          return { ...prevJob, items };
+        });
+
+        finalUrls.push(uploadedUrl);
+      }
+
+      // Safety: append any pending files that are not represented by blob previews
+      const remaining = pendingFiles.filter((f) => !Array.from(fileByBlob.values()).includes(f));
+      for (const file of remaining) {
+        const compressedFile = await imageCompression(file, options);
+        const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+        const storageRef = ref(storage, `products/${userId}/${uniqueId}_${file.name}`);
+        await uploadBytes(storageRef, compressedFile);
+        const uploadedUrl = await getDownloadURL(storageRef);
+        finalUrls.push(uploadedUrl);
+      }
+
+      return finalUrls;
+    },
+    [updateJob]
+  );
+
+  const runAddOrUpdateJob = React.useCallback(
+    async (params: {
+      title: string;
+      userId: string;
+      images: string[];
+      pendingFiles: File[];
+      pendingBlobs: string[];
+      buildAndSave: (uploadedUrls: string[]) => Promise<void>;
+    }) => {
+      const blobUrlsInOrder = params.images.filter((u) => u.startsWith('blob:'));
+      const fileByBlob = new Map<string, File>();
+      for (let i = 0; i < params.pendingBlobs.length; i++) {
+        const blobUrl = params.pendingBlobs[i];
+        const file = params.pendingFiles[i];
+        if (blobUrl && file) fileByBlob.set(blobUrl, file);
+      }
+      const orderedPendingFiles = blobUrlsInOrder.map((u) => fileByBlob.get(u)).filter(Boolean) as File[];
+
+      const job = createSaveJob(params.title, orderedPendingFiles);
+      setUploadJobs((prev) => [job, ...prev]);
+
+      try {
+        updateJob(job.id, (j) => ({ ...j, status: 'uploading', message: undefined }));
+        const uploadedUrls = await uploadPendingImagesPreservingOrderWithProgress({
+          jobId: job.id,
+          userId: params.userId,
+          images: params.images,
+          pendingFiles: params.pendingFiles,
+          pendingBlobs: params.pendingBlobs,
+        });
+
+        updateJob(job.id, (j) => ({ ...j, status: 'saving' }));
+        await params.buildAndSave(uploadedUrls);
+        updateJob(job.id, (j) => ({ ...j, status: 'done' }));
+      } catch (err: any) {
+        console.error('Save job failed:', err);
+        updateJob(job.id, (j) => ({
+          ...j,
+          status: 'error',
+          message: typeof err?.message === 'string' ? err.message : 'فشل حفظ المنتج',
+        }));
+        throw err;
+      }
+    },
+    [createSaveJob, updateJob, uploadPendingImagesPreservingOrderWithProgress]
+  );
+
   const handleAddProduct = async (e: React.FormEvent, saveAsDraft: boolean = false) => {
     e.preventDefault();
     if (!user?.id) {
@@ -297,39 +710,56 @@ export const TailorCollections = () => {
     }
 
     // إذا لم توجد صور، عرض modal الصور الافتراضية
-    if (allProductImages.length === 0) {
+    if (allProductImages.length === 0 && pendingImageFiles.length === 0) {
       setShowDefaultImagesModal(true);
       return;
     }
     
-    setLoading(true);
-    
     try {
+      setLoading(true);
       const selectedCategory = availableCategories.find(cat => cat.id === newCategory);
-      const newProduct: Product = {
-        id: '', // سيتم إنشاؤه تلقائياً في Firebase
-        name: newName,
-        category: selectedCategory?.nameAr || newCategory, // للعرض فقط (deprecated)
-        categoryId: newCategory, // معرف التصنيف الفعلي
-        price: parseFloat(newPrice),
-        duration: newDuration,
-        image: allProductImages[coverImageIndex] || allProductImages[0],
-        coverImageIndex: coverImageIndex,
-        images: allProductImages, // جميع الصور
-        rating: 0,
-        location: user.location || 'عمان',
-        tailorId: user.id,
-        tailorName: user.name,
-        description: newDescription || undefined,
-        tags: newTags ? newTags.split(',').map(t => t.trim()).filter(t => t) : undefined,
-        isDraft: saveAsDraft // حفظ كمسودة أو منشور
-      };
+      const trimmedDescription = newDescription.trim();
+      const parsedTags = newTags
+        .split(',')
+        .map(t => t.trim())
+        .filter(Boolean);
+      const title = `${saveAsDraft ? 'مسودة' : 'نشر'}: ${newName || 'منتج جديد'}`;
 
-      // حفظ المنتج في Firebase
-      await firebaseService.addProduct(newProduct);
-      
-      // إعادة تحميل المنتجات
-      await refreshProducts();
+      await runAddOrUpdateJob({
+        title,
+        userId: user.id,
+        images: allProductImages,
+        pendingFiles: pendingImageFiles,
+        pendingBlobs: pendingBlobUrls,
+        buildAndSave: async (uploadedUrls) => {
+          if (uploadedUrls.length === 0) {
+            setShowDefaultImagesModal(true);
+            return;
+          }
+
+          const newProduct: Product = {
+            id: '', // سيتم إنشاؤه تلقائياً في Firebase
+            name: newName,
+            category: selectedCategory?.nameAr || newCategory, // للعرض فقط (deprecated)
+            categoryId: newCategory, // معرف التصنيف الفعلي
+            price: parseFloat(newPrice),
+            duration: newDuration,
+            image: uploadedUrls[coverImageIndex] || uploadedUrls[0],
+            coverImageIndex: coverImageIndex,
+            images: uploadedUrls, // جميع الصور
+            rating: 0,
+            location: user.location || 'عمان',
+            tailorId: user.id,
+            tailorName: user.name,
+            ...(trimmedDescription ? { description: trimmedDescription } : {}),
+            ...(parsedTags.length > 0 ? { tags: parsedTags } : {}),
+            isDraft: saveAsDraft,
+          };
+
+          await firebaseService.addProduct(newProduct);
+          await refreshProducts();
+        },
+      });
       
       // إخفاء النموذج وإعادة تعيين الحقول
       setShowAddForm(false);
@@ -374,6 +804,8 @@ export const TailorCollections = () => {
     setNewTags(product.tags?.join(', ') || '');
     // تحميل الصور الموجودة
     setAllProductImages(product.images || (product.image ? [product.image] : []));
+    setPendingImageFiles([]);
+    setPendingBlobUrls([]);
     // تحميل index صورة الغلاف
     setCoverImageIndex(product.coverImageIndex || 0);
     setShowAddForm(false);
@@ -384,7 +816,7 @@ export const TailorCollections = () => {
     if (!editingProduct) return;
 
     // التحقق من وجود طلبات نشطة إذا تم حذف جميع الصور
-    if (allProductImages.length === 0) {
+    if (allProductImages.length === 0 && pendingImageFiles.length === 0) {
       const activeOrders = await getActiveOrdersForProduct(editingProduct.id);
       if (activeOrders.length > 0) {
         alert(`لا يمكن حذف جميع صور المنتج لأن لديه ${activeOrders.length} طلب نشط. يرجى إكمال أو إلغاء الطلبات أولاً.`);
@@ -395,8 +827,9 @@ export const TailorCollections = () => {
       return;
     }
 
-    setLoading(true);
     try {
+      setLoading(true);
+      
       // إرسال التحديثات فقط بدلاً من المنتج كاملاً
       const selectedCategory = availableCategories.find(cat => cat.id === newCategory);
       const updates: Partial<Product> = {
@@ -411,18 +844,33 @@ export const TailorCollections = () => {
         updatedAt: new Date().toISOString()
       };
 
-      // تحديث الصور (يجب أن تكون موجودة)
-      updates.image = allProductImages[coverImageIndex] || allProductImages[0];
-      updates.coverImageIndex = coverImageIndex;
-      updates.images = allProductImages;
+      const title = `${publishDraft ? 'نشر' : 'تحديث'}: ${editingProduct.name}`;
+      await runAddOrUpdateJob({
+        title,
+        userId: user.id,
+        images: allProductImages,
+        pendingFiles: pendingImageFiles,
+        pendingBlobs: pendingBlobUrls,
+        buildAndSave: async (uploadedUrls) => {
+          if (uploadedUrls.length === 0) {
+            setShowDefaultImagesModal(true);
+            return;
+          }
 
-      // إذا كان المنتج مسودة ونريد نشره
-      if (publishDraft && editingProduct.isDraft) {
-        updates.isDraft = false;
-      }
+          // تحديث الصور (يجب أن تكون موجودة)
+          updates.image = uploadedUrls[coverImageIndex] || uploadedUrls[0];
+          updates.coverImageIndex = coverImageIndex;
+          updates.images = uploadedUrls;
 
-      await firebaseService.updateProduct(editingProduct.id, updates);
-      await refreshProducts();
+          // إذا كان المنتج مسودة ونريد نشره
+          if (publishDraft && editingProduct.isDraft) {
+            updates.isDraft = false;
+          }
+
+          await firebaseService.updateProduct(editingProduct.id, updates);
+          await refreshProducts();
+        },
+      });
       
       setEditingProduct(null);
       resetForm();
@@ -440,12 +888,129 @@ export const TailorCollections = () => {
     }
   };
 
+  const resetFormForBatch = () => {
+    // Revoke blob URLs to prevent memory leaks
+    pendingBlobUrls.forEach((url) => {
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    });
+    
+    setNewName('');
+    setNewPrice('');
+    // Keep duration & category for reuse
+    setNewDescription('');
+    setNewTags('');
+    setAllProductImages([]);
+    setPendingImageFiles([]);
+    setPendingBlobUrls([]);
+    setCoverImageIndex(0);
+    setUploadError('');
+    
+    // Focus on name input
+    setTimeout(() => {
+      document.getElementById('product-name-input')?.focus();
+    }, 100);
+  };
+
+  const handleSaveAndAddAnother = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (!newName || !newPrice || !newCategory) {
+      alert('الرجاء تعبئة جميع الحقول المطلوبة (الاسم، السعر، التصنيف)');
+      return;
+    }
+
+    if (allProductImages.length === 0 && pendingImageFiles.length === 0) {
+      alert('يجب إضافة صورة واحدة على الأقل');
+      return;
+    }
+
+    try {
+      const trimmedDescription = newDescription.trim();
+      const parsedTags = newTags
+        .split(',')
+        .map(tag => tag.trim())
+        .filter(tag => tag.length > 0);
+
+      // Snapshot state for async background job
+      const snapshot = {
+        name: newName,
+        price: newPrice,
+        duration: newDuration,
+        categoryId: newCategory,
+        description: trimmedDescription,
+        tags: parsedTags,
+        coverIndex: coverImageIndex,
+        images: allProductImages.slice(),
+        pendingFiles: pendingImageFiles.slice(),
+        pendingBlobs: pendingBlobUrls.slice(),
+      };
+
+      const title = `نشر (سريع): ${snapshot.name || 'منتج'}`;
+
+      // Reset immediately so user can add next product while uploads run
+      resetFormForBatch();
+
+      void (async () => {
+        await runAddOrUpdateJob({
+          title,
+          userId: user?.id as string,
+          images: snapshot.images,
+          pendingFiles: snapshot.pendingFiles,
+          pendingBlobs: snapshot.pendingBlobs,
+          buildAndSave: async (uploadedUrls) => {
+            if (uploadedUrls.length === 0) throw new Error('يجب إضافة صورة واحدة على الأقل');
+
+            const productData = {
+              name: snapshot.name,
+              price: parseFloat(snapshot.price),
+              duration: snapshot.duration,
+              category: availableCategories.find(cat => cat.id === snapshot.categoryId)?.nameAr || 'غير محدد',
+              categoryId: snapshot.categoryId,
+              ...(snapshot.description ? { description: snapshot.description } : {}),
+              image: uploadedUrls[snapshot.coverIndex] || uploadedUrls[0],
+              images: uploadedUrls,
+              coverImageIndex: snapshot.coverIndex,
+              tailorId: user?.id,
+              tailorName: user?.shopName || user?.name,
+              tailorLocation: user?.location || '',
+              tailorImage: user?.photoURL || '',
+              likes: 0,
+              isDraft: false,
+              rating: 0,
+              reviews: 0,
+              createdAt: new Date().toISOString(),
+              ...(snapshot.tags.length > 0 ? { tags: snapshot.tags } : {}),
+            };
+
+            await firebaseService.addProduct(productData);
+            productsQuery.refetch();
+          },
+        });
+      })().catch((error) => {
+        console.error('Background bulk save failed:', error);
+        alert('حدث خطأ أثناء إضافة المنتج');
+      });
+      
+      // Show small toast or notification instead of blocking alert? 
+      // For now, no alert to be fast, just a sound or visual cue would be better, but console log is fine.
+      // Or separate UI message in the form "Last item added: Name"
+    } catch (error) {
+      console.error('Error adding product:', error);
+      alert('حدث خطأ أثناء إضافة المنتج');
+    }
+  };
+
   const cancelEdit = () => {
     setEditingProduct(null);
     resetForm();
   };
 
   const resetForm = () => {
+    // Revoke blob URLs to prevent memory leaks
+    pendingBlobUrls.forEach((url) => {
+      if (url.startsWith('blob:')) URL.revokeObjectURL(url);
+    });
+    
     setNewName('');
     setNewPrice('');
     setNewDuration('');
@@ -454,6 +1019,8 @@ export const TailorCollections = () => {
     setNewDescription('');
     setNewTags('');
     setAllProductImages([]);
+    setPendingImageFiles([]);
+    setPendingBlobUrls([]);
     setCoverImageIndex(0);
     setUploadError('');
   };
@@ -464,9 +1031,28 @@ export const TailorCollections = () => {
     setTimeout(() => setRefreshing(false), 500);
   };
 
+  // Group products by category for the Shelf View
+  const groupedProducts = React.useMemo(() => {
+    if (filteredProducts.length === 0) return null;
+    
+    // Group by category name
+    const groups: Map<string, Product[]> = new Map();
+    
+    filteredProducts.forEach(product => {
+      const catName = product.category || 'أخرى';
+      if (!groups.has(catName)) {
+        groups.set(catName, []);
+      }
+      groups.get(catName)?.push(product);
+    });
+    
+    return groups;
+  }, [filteredProducts]);
+
   return (
     <div className="pb-24 pt-6 px-4">
       <div className="max-w-3xl mx-auto">
+        <UploadJobsPanel jobs={uploadJobs} onDismiss={dismissUploadJob} />
         <div className="flex items-center justify-between mb-6">
            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">إدارة منتجاتي</h1>
            <div className="flex items-center gap-2">
@@ -519,6 +1105,12 @@ export const TailorCollections = () => {
              <Button onClick={() => setShowAddForm(true)} size="sm" className="flex items-center gap-2">
                <Plus size={16} /> إضافة منتج
              </Button>
+             <button
+               onClick={() => navigate('/tailor/product/new')}
+               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium text-sm transition-all shadow-lg"
+             >
+               <Sparkles size={16} /> تجربة الواجهة الجديدة
+             </button>
            </div>
         </div>
 
@@ -639,10 +1231,21 @@ export const TailorCollections = () => {
                </div>
              </div>
              
-             <form onSubmit={editingProduct ? handleUpdateProduct : handleAddProduct} className="space-y-4">
-               <div>
-                 <label className="block text-xs font-medium text-slate-500 mb-1">اسم المنتج</label>
-                 <div className="flex items-center gap-2">
+             <div className="flex justify-end mb-4">
+               {!editingProduct && (
+                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
+                   <button type="button" onClick={() => setBulkMode(false)} className={`px-3 py-1 text-xs font-medium rounded-md transition ${!bulkMode ? 'bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>عادي</button>
+                   <button type="button" onClick={() => setBulkMode(true)} className={`px-3 py-1 text-xs font-medium rounded-md transition ${bulkMode ? 'bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>إدخال سريع</button>
+                 </div>
+               )}
+             </div>
+
+             <form onSubmit={editingProduct ? handleUpdateProduct : (bulkMode ? handleSaveAndAddAnother : handleAddProduct)} className="space-y-4">
+               <div className={bulkMode ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-4"}>
+                 <div className={bulkMode ? "md:col-span-8 space-y-4 order-1" : "space-y-4"}>
+                   <div>
+                     <label className="block text-xs font-medium text-slate-500 mb-1">اسم المنتج</label>
+                     <div className="flex items-center gap-2">
                    <input 
                       type="text" 
                       value={newName}
@@ -699,23 +1302,69 @@ export const TailorCollections = () => {
                </div>
 
                <div>
-                 <label className="block text-xs font-medium text-slate-500 mb-1">الفئة</label>
-                 <div className="flex gap-2">
-                   <div className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 text-slate-800 dark:text-slate-200">
-                     {availableCategories.find(cat => cat.id === newCategory)?.nameAr || 'اختر التصنيف'}
-                   </div>
-                   <button
-                     type="button"
-                     onClick={() => setShowCategoryModal(true)}
-                     className="px-3 py-2 bg-blue-500 hover:bg-blue-600 text-white rounded-lg transition-colors flex items-center gap-2 whitespace-nowrap text-sm"
-                   >
-                     <LayoutGrid size={16} />
-                     <span>اختيار من القائمة</span>
-                   </button>
-                   <span className="text-xs font-mono bg-purple-100 dark:bg-purple-900/30 text-purple-800 dark:text-purple-200 px-2 py-1 rounded whitespace-nowrap self-center">
-                     ID: {newCategory || 'none'}
-                   </span>
-                 </div>
+                  <label className="block text-xs font-medium text-slate-500 mb-1">الفئة</label>
+                  
+                  {newCategory ? (
+                    <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg group hover:border-blue-400 transition-colors">
+                       {(() => {
+                          const cat = availableCategories.find(c => c.id === newCategory);
+                          return (
+                            <>
+                              <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
+                                {cat?.image ? <img src={cat.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><LayoutGrid size={20}/></div>}
+                              </div>
+                              <div className="flex-1">
+                                <div className="font-bold text-slate-900 dark:text-white">{cat?.nameAr}</div>
+                                <div className="text-xs text-slate-500">{cat?.parentName || 'تصنيف'}</div>
+                              </div>
+                              <button type="button" onClick={() => setNewCategory('')} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
+                                <Edit size={16} />
+                              </button>
+                            </>
+                          );
+                       })()}
+                    </div>
+                  ) : (
+                    <div className="space-y-2 animate-in fade-in zoom-in-95 duration-200">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={categorySearch}
+                          onChange={(e) => setCategorySearch(e.target.value)}
+                          placeholder="ابحث... (جلابية، فستان، دشداشة)"
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 pl-10 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
+                          autoFocus={bulkMode}
+                        />
+                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
+                           <LayoutGrid size={16} />
+                         </div>
+                      </div>
+
+                      <div className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-2 custom-scrollbar">
+                        {/* Compact Grouped List */}
+                        {groupedCategoryOptions.map(({ groupName, children }) => (
+                           <div key={groupName} className="mb-3 last:mb-0">
+                             <h4 className="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1.5 tracking-wider">{groupName}</h4>
+                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                               {children.map((child) => (
+                                 <button
+                                   key={child.id}
+                                   type="button"
+                                   onClick={() => setNewCategory(child.id)}
+                                   className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group text-right"
+                                 >
+                                    <div className="w-8 h-8 rounded bg-slate-100 dark:bg-slate-700 overflow-hidden shrink-0 group-hover:scale-110 transition-transform">
+                                      {child.image && <img src={child.image} className="w-full h-full object-cover" loading="lazy" />}
+                                    </div>
+                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{child.nameAr}</span>
+                                 </button>
+                               ))}
+                             </div>
+                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                </div>
 
                <div>
@@ -747,6 +1396,9 @@ export const TailorCollections = () => {
                  </div>
                </div>
                
+               </div>
+               
+               <div className={bulkMode ? "md:col-span-4 order-2" : ""}>
                {/* Image Management Section */}
                <div>
                  <div className="flex items-center justify-between mb-2">
@@ -760,75 +1412,46 @@ export const TailorCollections = () => {
                  
                  {/* منطقة رفع الصور */}
                  {allProductImages.length < 10 && (
-                   <div className="border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-xl p-8 text-center hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10 transition-all mb-4">
+                   <div
+                     className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 ${
+                       isImageDragOver
+                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10'
+                         : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'
+                     }`}
+                     onDragEnter={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       setIsImageDragOver(true);
+                     }}
+                     onDragOver={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       setIsImageDragOver(true);
+                     }}
+                     onDragLeave={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       setIsImageDragOver(false);
+                     }}
+                     onDrop={(e) => {
+                       e.preventDefault();
+                       e.stopPropagation();
+                       setIsImageDragOver(false);
+                       const files = Array.from(e.dataTransfer.files || []);
+                       addImageFilesToForm(files);
+                     }}
+                   >
                      <button
                        type="button"
                        onClick={() => {
                          const input = document.createElement('input');
                          input.type = 'file';
-                         input.accept = 'image/*';
+                         input.accept = 'image/*,image/avif';
                          input.multiple = true;
-                       input.onchange = async (e) => {
+                       input.onchange = (e) => {
                          const files = Array.from((e.target as HTMLInputElement).files || []);
                          if (files.length === 0) return;
-                         
-                         const remainingSlots = 10 - allProductImages.length;
-                         const filesToUpload = files.slice(0, remainingSlots);
-                         
-                         if (files.length > remainingSlots) {
-                           alert(`يمكنك رفع ${remainingSlots} صور فقط`);
-                         }
-                         
-                         try {
-                           setLoading(true);
-                           const options = {
-                             maxSizeMB: 1,
-                             maxWidthOrHeight: 1920,
-                             useWebWorker: true
-                           };
-                           
-                           // رفع الصور واحدة تلو الأخرى لتجنب مشاكل التزامن
-                           const newUrls: string[] = [];
-                           for (let i = 0; i < filesToUpload.length; i++) {
-                             const file = filesToUpload[i];
-                             try {
-                               const compressedFile = await imageCompression(file, options);
-                               // استخدام timestamp فريد لكل صورة
-                               const uniqueId = `${Date.now()}_${i}_${Math.random().toString(36).substring(7)}`;
-                               const storageRef = ref(storage, `products/${user?.id}/${uniqueId}_${file.name}`);
-                               await uploadBytes(storageRef, compressedFile);
-                               const url = await getDownloadURL(storageRef);
-                               newUrls.push(url);
-                               // انتظار صغير بين كل صورة
-                               await new Promise(resolve => setTimeout(resolve, 100));
-                             } catch (error) {
-                               console.error(`Error uploading image ${i + 1}:`, error);
-                             }
-                           }
-                           
-                           if (newUrls.length > 0) {
-                             setAllProductImages(prev => [...prev, ...newUrls]);
-                             setUploadError('');
-                           } else {
-                             setUploadError('فشل رفع جميع الصور');
-                           }
-                           setLoading(false);
-                         } catch (error: any) {
-                           console.error('Error uploading images:', error);
-                           console.error('Error code:', error?.code);
-                           console.error('Error message:', error?.message);
-                           
-                           let errorMessage = 'فشل رفع الصور';
-                           if (error?.code === 'storage/unauthorized') {
-                             errorMessage = '⚠️ خطأ في الصلاحيات! يرجى التحقق من إعدادات Firebase Storage';
-                           } else if (error?.message) {
-                             errorMessage = `فشل رفع الصور: ${error.message}`;
-                           }
-                           
-                           setUploadError(errorMessage);
-                           alert(errorMessage + '\n\nللمزيد من المعلومات، راجع ملف FIREBASE_STORAGE_FIX.md');
-                           setLoading(false);
-                         }
+                         addImageFilesToForm(files);
                        };
                        input.click();
                        }}
@@ -848,7 +1471,7 @@ export const TailorCollections = () => {
                            </p>
                          </div>
                          <p className="text-xs text-slate-400">
-                           JPG, PNG, WEBP (بحد أقصى 10MB لكل صورة) • حتى {10 - allProductImages.length} صور
+                           JPG, PNG, WEBP, AVIF (بحد أقصى 10MB لكل صورة) • حتى {10 - allProductImages.length} صور
                          </p>
                        </div>
                      </button>
@@ -884,6 +1507,12 @@ export const TailorCollections = () => {
                    <p className="mt-2 text-sm text-red-600 dark:text-red-400">{uploadError}</p>
                  )}
                  
+                    {pendingImageFiles.length > 0 && (
+                   <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
+                     📝 {pendingImageFiles.length} صورة جاهزة للرفع عند حفظ المنتج
+                   </p>
+                 )}
+                 
                  {editingProduct && allProductImages.length === 0 && (
                    <p className="mt-2 text-xs text-slate-500">لن يتم تغيير الصور إلا إذا قمت برفع صور جديدة</p>
                  )}
@@ -908,6 +1537,23 @@ export const TailorCollections = () => {
                                ? 'ring-2 ring-blue-500 shadow-lg' 
                                : 'ring-1 ring-slate-200 dark:ring-slate-700'
                            }`}
+                           draggable
+                           onDragStart={(e) => {
+                             e.dataTransfer.setData('text/plain', String(index));
+                             setDraggedImageIndex(index);
+                           }}
+                           onDragEnd={() => setDraggedImageIndex(null)}
+                           onDragOver={(e) => {
+                             e.preventDefault();
+                           }}
+                           onDrop={(e) => {
+                             e.preventDefault();
+                             const fromRaw = e.dataTransfer.getData('text/plain');
+                             const from = Number(fromRaw);
+                             if (!Number.isFinite(from)) return;
+                             reorderImages(from, index);
+                             setDraggedImageIndex(null);
+                           }}
                          >
                            <img 
                              src={img} 
@@ -924,9 +1570,14 @@ export const TailorCollections = () => {
                            )}
 
                            {/* Image Number */}
-                           <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
+                          <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
                              {index + 1}
                            </div>
+
+                          {/* Drag hint */}
+                          {draggedImageIndex !== null && draggedImageIndex === index && (
+                            <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" />
+                          )}
 
                            {/* Action Buttons - Show on hover */}
                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-2">
@@ -946,7 +1597,7 @@ export const TailorCollections = () => {
                                  // Create hidden file input
                                  const input = document.createElement('input');
                                  input.type = 'file';
-                                 input.accept = 'image/*';
+                                 input.accept = 'image/*,image/avif';
                                  input.onchange = async (e) => {
                                    const file = (e.target as HTMLInputElement).files?.[0];
                                    if (file) {
@@ -1010,6 +1661,16 @@ export const TailorCollections = () => {
                                  }
 
                                  if (confirm(`هل تريد حذف الصورة #${index + 1}؟`)) {
+                                   // Revoke blob URL if it's a local preview
+                                   const urlToDelete = allProductImages[index];
+                                   if (urlToDelete.startsWith('blob:')) {
+                                     URL.revokeObjectURL(urlToDelete);
+                                     // Also remove from pending files/blob mapping
+                                     const blobIndex = allProductImages.slice(0, index).filter(u => u.startsWith('blob:')).length;
+                                     setPendingImageFiles(prev => prev.filter((_, i) => i !== blobIndex));
+                                     setPendingBlobUrls(prev => prev.filter((_, i) => i !== blobIndex));
+                                   }
+                                   
                                    setAllProductImages(prev => prev.filter((_, i) => i !== index));
                                    // Adjust cover index if needed
                                    if (index === coverImageIndex && allProductImages.length > 1) {
@@ -1031,8 +1692,36 @@ export const TailorCollections = () => {
                    </div>
                  )}
                </div>
+               
+               </div>
+               </div>
 
-               <div className="flex gap-3 pt-2">
+               <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 mt-2">
+                 {!editingProduct && bulkMode ? (
+                    <>
+                      <Button 
+                        type="button" 
+                        onClick={handleSaveAndAddAnother}
+                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
+                        disabled={loading}
+                      >
+                         {loading ? 'جاري الحفظ...' : (
+                           <span className="flex items-center gap-2 justify-center">
+                             <Plus size={16} /> حفظ وإضافة التالي
+                           </span>
+                         )}
+                      </Button>
+                      <Button 
+                         type="submit" 
+                         variant="outline"
+                         className="flex-1"
+                         disabled={loading}
+                       >
+                         {loading ? 'جاري النشر...' : 'حفظ وإنهاء'}
+                       </Button>
+                    </>
+                  ) : (
+                    <>
                  {/* إذا كان المنتج مسودة، نعرض زر نشر */}
                  {editingProduct?.isDraft ? (
                    <>
@@ -1079,8 +1768,10 @@ export const TailorCollections = () => {
                      </Button>
                    </>
                  )}
+                    </>
+                  )}
                  
-                 <Button 
+                 <Button  
                    type="button" 
                    variant="outline" 
                    onClick={() => {
@@ -1107,7 +1798,7 @@ export const TailorCollections = () => {
           </div>
         ) : filteredProducts.length > 0 ? (
           <>
-            {/* List View */}
+            {/* List View - Always Flat */}
             {viewMode === 'list' && (
               <div className="space-y-4">
                 {filteredProducts.map((product) => (
@@ -1177,58 +1868,102 @@ export const TailorCollections = () => {
               </div>
             )}
 
-            {/* Grid View */}
-            {viewMode === 'grid' && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden group hover:shadow-lg transition">
-                    <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900">
-                      <StableImage src={product.image} alt={product.name} aspectClass="aspect-square" imgClassName="group-hover:scale-105 duration-300" />
-                      {product.images && product.images.length > 1 && (
-                        <div className="absolute bottom-2 left-2 bg-black/70 text-white text-xs px-2 py-1 rounded font-bold">
-                          {product.images.length}/10 صور
+            {/* Grid View (Now Grouped Sections like Netflix/Storefront) */}
+            {viewMode === 'grid' && groupedProducts && (
+               <div className="space-y-12">
+                 {Array.from(groupedProducts.entries()).map(([categoryName, products]) => (
+                   <div key={categoryName} className="relative">
+                      {/* Section Header */}
+                      <div className="flex items-center justify-between mb-4 px-1">
+                        <div className="flex items-center gap-2">
+                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{categoryName}</h3>
+                          <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                            {products.length}
+                          </span>
                         </div>
-                      )}
-                      {product.isDraft && (
-                        <div className="absolute top-2 left-2 bg-amber-500 text-white text-xs px-2 py-1 rounded-full font-bold">
-                          📄 مسودة
-                        </div>
-                      )}
-                      <div className="absolute top-2 right-2 flex gap-2">
-                        <button 
-                          onClick={() => startEditProduct(product)} 
-                          className="bg-white/90 backdrop-blur p-2 rounded-lg text-blue-600 hover:bg-blue-600 hover:text-white transition"
-                          title="تعديل"
-                        >
-                          <Edit size={14} />
-                        </button>
-                        <button 
-                          onClick={() => removeProduct(product.id)} 
-                          className="bg-white/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition"
-                          title="حذف"
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      </div>
-                    </div>
-                    <div className="p-4">
-                      <h3 className="font-bold text-slate-900 dark:text-white mb-1">{product.name}</h3>
-                      <p className="text-xs text-slate-500 mb-2">{product.category}</p>
-                      <div className="flex items-center justify-between">
-                        <span className="font-bold text-blue-600 dark:text-blue-400">{product.price.toFixed(3)} ر.ع</span>
-                        {product.likes && product.likes > 0 && (
-                          <span className="text-red-400 text-xs">♥ {product.likes}</span>
+                        {products.length > 4 && (
+                           <button className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
+                             عرض الكل <ChevronLeft size={14} />
+                           </button>
                         )}
                       </div>
-                      {product.description && (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2">
-                          {product.description}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
+
+                      {/* Horizontal Scrolling List */}
+                      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                        {products.map((product) => (
+                           <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden group hover:shadow-xl transition-all duration-300 border border-slate-100 dark:border-slate-800">
+                             {/* Image Area */}
+                             <div className="relative aspect-[4/5] overflow-hidden bg-slate-100 dark:bg-slate-900">
+                               <StableImage 
+                                 src={product.image} 
+                                 alt={product.name} 
+                                 aspectClass="h-full w-full" 
+                                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
+                               />
+                               
+                               {/* Gradient Overlay */}
+                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+                               
+                               {/* Badges */}
+                               <div className="absolute top-2 left-2 flex flex-col gap-1">
+                                 {product.isDraft && (
+                                   <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+                                     مسودة
+                                   </span>
+                                 )}
+                                  {product.images && product.images.length > 1 && (
+                                   <span className="bg-black/50 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                                     <ImageIcon size={10} /> {product.images.length}
+                                   </span>
+                                 )}
+                               </div>
+
+                               {/* Action Buttons (visible on hover) */}
+                               <div className="absolute top-2 right-2 flex flex-col gap-2 translate-x-10 group-hover:translate-x-0 transition-transform duration-300">
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); startEditProduct(product); }} 
+                                   className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-2 rounded-lg text-blue-600 hover:bg-blue-600 hover:text-white transition shadow-lg"
+                                   title="تعديل"
+                                 >
+                                   <Edit size={14} />
+                                 </button>
+                                 <button 
+                                   onClick={(e) => { e.stopPropagation(); removeProduct(product.id); }} 
+                                   className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition shadow-lg"
+                                   title="حذف"
+                                 >
+                                   <Trash2 size={14} />
+                                 </button>
+                               </div>
+
+                               {/* Price Tag & Likes */}
+                               <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
+                                  <div>
+                                    <h4 className="font-bold text-sm leading-tight mb-0.5 line-clamp-2 text-shadow-sm">{product.name}</h4>
+                                    <div className="flex items-center gap-2 text-[10px] text-slate-200">
+                                      <span className="flex items-center gap-0.5"><Clock size={10} /> {product.duration}</span>
+                                    </div>
+                                  </div>
+                               </div>
+                             </div>
+                             
+                             {/* Footer Clean */}
+                             <div className="p-3 flex items-center justify-between bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700/50">
+                               <p className="font-bold text-blue-600 dark:text-blue-400 text-sm">
+                                 {product.price.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">ر.ع</span>
+                               </p>
+                               {product.likes > 0 && (
+                                 <div className="flex items-center gap-1 text-xs text-red-500 font-medium bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">
+                                   <span className="text-[10px]">♥</span> {product.likes}
+                                 </div>
+                               )}
+                             </div>
+                           </div>
+                        ))}
+                      </div>
+                   </div>
+                 ))}
+               </div>
             )}
 
             {/* Compact View */}

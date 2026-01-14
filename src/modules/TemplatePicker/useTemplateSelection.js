@@ -17,11 +17,6 @@ export const useTemplateSelection = (initialTemplate = null) => {
   /** @param {Template | null} templateData */
   const selectTemplate = useCallback((templateData) => {
     setSelectedTemplate(templateData);
-
-    if (templateData?.id) {
-      // eslint-disable-next-line no-console
-      console.log('Template updated to:', templateData.id);
-    }
   }, []);
 
   return { selectedTemplate, selectTemplate };

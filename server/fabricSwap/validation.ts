@@ -19,11 +19,22 @@ export type FabricSwapRequest = {
 
 export type ValidationResult = { ok: true } | { ok: false; status: number; message: string };
 
-const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp']);
+const ALLOWED_MIME_TYPES = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/jpg']);
 const MAX_BYTES = 5 * 1024 * 1024;
 
 function estimateBytesFromBase64(base64: string): number {
   return Math.floor((base64.length * 3) / 4);
+}
+
+// Normalize MIME types to supported formats
+function normalizeMimeType(type: string): string {
+  const normalized = (type || '').toLowerCase().trim();
+  if (normalized === 'image/jpg') return 'image/jpeg';
+  if (normalized === 'image/jpeg') return 'image/jpeg';
+  if (normalized === 'image/png') return 'image/png';
+  if (normalized === 'image/webp') return 'image/webp';
+  // Default to PNG for unknown types or empty strings
+  return 'image/png';
 }
 
 export function validateFabricSwapRequest(body: any): ValidationResult {
@@ -39,15 +50,9 @@ export function validateFabricSwapRequest(body: any): ValidationResult {
     return { ok: false, status: 400, message: 'fabricBase64 is required' };
   }
 
-  const templateMimeType = typeof body.templateMimeType === 'string' ? body.templateMimeType : 'image/png';
-  if (!ALLOWED_MIME_TYPES.has(templateMimeType)) {
-    return { ok: false, status: 400, message: 'Unsupported templateMimeType' };
-  }
-
-  const fabricMimeType = typeof body.fabricMimeType === 'string' ? body.fabricMimeType : 'image/png';
-  if (!ALLOWED_MIME_TYPES.has(fabricMimeType)) {
-    return { ok: false, status: 400, message: 'Unsupported fabricMimeType' };
-  }
+  const templateMimeType = normalizeMimeType(body.templateMimeType);
+  
+  const fabricMimeType = normalizeMimeType(body.fabricMimeType);
 
   const templateBytes = estimateBytesFromBase64(templateBase64);
   if (templateBytes > MAX_BYTES) {

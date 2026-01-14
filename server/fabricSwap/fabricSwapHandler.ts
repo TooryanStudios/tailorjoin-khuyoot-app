@@ -16,6 +16,17 @@ function stripDataUrl(b64: string): string {
   return b64.replace(/^data:.*;base64,/, '');
 }
 
+// Normalize MIME types to supported formats
+function normalizeMimeType(type: string | undefined): string {
+  const normalized = (type || '').toLowerCase().trim();
+  if (normalized === 'image/jpg') return 'image/jpeg';
+  if (normalized === 'image/jpeg') return 'image/jpeg';
+  if (normalized === 'image/png') return 'image/png';
+  if (normalized === 'image/webp') return 'image/webp';
+  // Default to PNG for unknown types or empty strings
+  return 'image/png';
+}
+
 async function getImageDimensions(base64: string): Promise<{ width: number; height: number } | null> {
   try {
     const buffer = Buffer.from(stripDataUrl(base64), 'base64');
@@ -98,23 +109,21 @@ function checkRateLimit(key: string, limitPerMinute: number) {
 }
 
 function buildFabricSwapPrompt(req: FabricSwapRequest, dimensions: { width: number; height: number } | null) {
-  const dimensionText = dimensions ? `exactly ${dimensions.width}x${dimensions.height}px` : 'the same as the template';
+  const dimensionText = dimensions ? `approximately ${dimensions.width}x${dimensions.height}px` : 'the same as the template';
 
   const basePrompt = `You are a professional fashion designer AI. Your task is to replace the clothing in the template image with the fabric/pattern provided in the second image.
 
-CRITICAL REQUIREMENTS:
-1. OUTPUT DIMENSIONS: The output image MUST be ${dimensionText}. Do not resize, crop, or modify the dimensions under any circumstances.
-2. MAINTAIN THE EXACT FRAME: Keep the exact same composition, aspect ratio, and field of view as the template image. Do NOT crop, zoom, or pan the image.
-3. PRESERVE THE FACE: Keep the face exactly as shown in the template. Do not alter or modify any facial features, expression, or position.
-4. PRESERVE THE POSE: Maintain the exact body pose, posture, and proportions from the template. Do not change the model's position or stance.
-5. PRESERVE THE BACKGROUND: Keep the background, scenery, and environment exactly as shown in the template image.
-6. FABRIC REPLACEMENT: Only replace the clothing/garment with the new fabric pattern from the second image. The fabric should drape naturally over the body shape, following the contours and folds.
-
-Model Quality: ${req.model === 'Pro' ? 'High-Definition with maximum detail preservation' : 'Fast processing with good quality'}
+REQUIREMENTS:
+1. OUTPUT DIMENSIONS: Generate an output image that is ${dimensionText}. Keep the dimensions as close as possible to the template.
+2. MAINTAIN THE COMPOSITION: Keep the same composition, aspect ratio, and field of view as the template image.
+3. PRESERVE THE FACE: Keep the face exactly as shown in the template.
+4. PRESERVE THE POSE: Maintain the exact body pose and posture from the template.
+5. PRESERVE THE BACKGROUND: Keep the background and environment exactly as shown.
+6. FABRIC REPLACEMENT: Replace only the clothing/garment with the new fabric pattern from the second image. The fabric should drape naturally over the body.
 
 ${req.refinementPrompt ? `Additional Instructions: ${req.refinementPrompt}` : ''}
 
-IMPORTANT: The output image dimensions MUST be ${dimensionText}. This is non-negotiable. No cropping, zooming, or resizing allowed.`;
+Generate a professional, natural-looking fabric swap that maintains all the original composition and person details.`;
 
   return basePrompt;
 }
@@ -130,6 +139,14 @@ export async function handleFabricSwap(body: any, ctx: HandlerContext): Promise<
     checkRateLimit(`ip:${ctx.ip}`, 10);
 
     const req: FabricSwapRequest = body;
+    
+    // Normalize MIME types to supported formats before any API calls
+    if (req.templateMimeType) {
+      req.templateMimeType = normalizeMimeType(req.templateMimeType);
+    }
+    if (req.fabricMimeType) {
+      req.fabricMimeType = normalizeMimeType(req.fabricMimeType);
+    }
 
     const templateDims = await getImageDimensions(req.templateBase64);
     const templateAspectRatio: SupportedAspectRatio | undefined = templateDims
@@ -151,16 +168,37 @@ export async function handleFabricSwap(body: any, ctx: HandlerContext): Promise<
 
     // STEP 1: Fabric Swap
     const tSwapStart = Date.now();
-    const { imageBase64, mimeType } = await generateFabricSwap({
-    templateBase64: req.templateBase64,
-    templateMimeType: req.templateMimeType,
-    fabricBase64: req.fabricBase64,
-    fabricMimeType: req.fabricMimeType,
-    promptText: buildFabricSwapPrompt(req, templateDims),
-    model: req.model === 'Pro' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash-image', // Both use same for now
-    aspectRatio: templateAspectRatio,
-  });
-  tSwapMs = Date.now() - tSwapStart;
+    const fabricSwapPrompt = buildFabricSwapPrompt(req, templateDims);
+    console.log('[Fabric Swap] Full prompt being sent to Gemini:', fabricSwapPrompt.substring(0, 500) + '...');
+    
+    console.log('[Fabric Swap] Calling generateFabricSwap with:');
+    console.log('  - templateBase64 length:', req.templateBase64?.length || 0);
+    console.log('  - templateMimeType:', req.templateMimeType);
+    console.log('  - fabricBase64 length:', req.fabricBase64?.length || 0);
+    console.log('  - fabricMimeType:', req.fabricMimeType);
+    console.log('  - model:', req.model === 'Pro' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash-image');
+    console.log('  - aspectRatio:', templateAspectRatio);
+    
+    let imageBase64: string;
+    let mimeType: string;
+    try {
+      const result = await generateFabricSwap({
+        templateBase64: req.templateBase64,
+        templateMimeType: req.templateMimeType,
+        fabricBase64: req.fabricBase64,
+        fabricMimeType: req.fabricMimeType,
+        promptText: fabricSwapPrompt,
+        model: req.model === 'Pro' ? 'gemini-2.5-flash-image' : 'gemini-2.5-flash-image', // Both use same for now
+        aspectRatio: templateAspectRatio,
+      });
+      imageBase64 = result.imageBase64;
+      mimeType = result.mimeType;
+      console.log('[Fabric Swap] ✅ generateFabricSwap succeeded');
+    } catch (err: any) {
+      console.error('[Fabric Swap] ❌ generateFabricSwap failed:', err?.message || err);
+      throw err;
+    }
+    tSwapMs = Date.now() - tSwapStart;
 
   // STEP 2: Force exact output dimensions
   let finalImageBase64 = imageBase64;
@@ -178,24 +216,33 @@ export async function handleFabricSwap(body: any, ctx: HandlerContext): Promise<
     const outputFit: 'contain' | 'cover' = req.outputFit === 'cover' ? 'cover' : 'contain';
 
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[SHARP RESIZE] BEFORE:', await sharp(Buffer.from(finalImageBase64, 'base64')).metadata());
-    console.log('[SHARP RESIZE] TARGET:', { targetWidth, targetHeight, fit: outputFit });
+    console.log('[SHARP RESIZE] Target dimensions:', { targetWidth, targetHeight, fit: outputFit });
     
     const tForceStart = Date.now();
-    const forced = await forceImageDimensions({
-      imageBase64: finalImageBase64,
-      targetWidth,
-      targetHeight,
-      fit: outputFit,
-      background: { r: 0, g: 0, b: 0, alpha: 0 },
-    });
-    tForceDimsMs = Date.now() - tForceStart;
+    try {
+      const metaBefore = await sharp(Buffer.from(finalImageBase64, 'base64')).metadata().catch(() => null);
+      console.log('[SHARP RESIZE] BEFORE:', metaBefore);
+      
+      const forced = await forceImageDimensions({
+        imageBase64: finalImageBase64,
+        targetWidth,
+        targetHeight,
+        fit: outputFit,
+        background: { r: 0, g: 0, b: 0, alpha: 0 },
+      });
+      tForceDimsMs = Date.now() - tForceStart;
 
-    finalImageBase64 = forced.imageBase64;
-    finalMimeType = forced.mimeType;
-    
-    console.log('[SHARP RESIZE] AFTER:', await sharp(Buffer.from(finalImageBase64, 'base64')).metadata());
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+      finalImageBase64 = forced.imageBase64;
+      finalMimeType = forced.mimeType;
+      
+      const metaAfter = await sharp(Buffer.from(finalImageBase64, 'base64')).metadata().catch(() => null);
+      console.log('[SHARP RESIZE] AFTER:', metaAfter);
+      console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    } catch (err: any) {
+      console.error('[SHARP RESIZE] ❌ Failed:', err?.message || err);
+      console.error('[SHARP RESIZE] Stack:', err?.stack);
+      throw err;
+    }
   }
 
   // STAGE D: Apply watermark if requested (Final Pass - BEFORE returning to frontend)

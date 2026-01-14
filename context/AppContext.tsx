@@ -213,6 +213,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     showFooter: true,
     defaultTheme: 'dark', // Default theme is dark
     storeEnabled: false, // متجر خيوط تجريبي مبدئياً
+    themeColors: {
+      primary: '#CFFF04',
+      secondary: '#D4AF37',
+    },
     aiTryOn: {
       limits: {
         free: {
@@ -268,6 +272,19 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     }
     localStorage.setItem('theme', theme);
   }, [theme]);
+
+  useEffect(() => {
+    try {
+      const root = window.document.documentElement;
+      const primary = appSettings?.themeColors?.primary || '#CFFF04';
+      const secondary = appSettings?.themeColors?.secondary || '#D4AF37';
+      root.style.setProperty('--theme-primary', primary);
+      root.style.setProperty('--theme-secondary', secondary);
+    } catch {
+      // ignore
+    }
+  }, [appSettings?.themeColors?.primary, appSettings?.themeColors?.secondary]);
+
 
   // Auth Listener (avoid profile fetch when offline)
   useEffect(() => {
@@ -506,6 +523,19 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
       setAuthModalMode(mode);
     }
     setIsAuthModalOpen(isOpen);
+
+    // Defensive cleanup: never leave global scroll-lock behind
+    if (!isOpen) {
+      try {
+        if (typeof document !== 'undefined') {
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.position = '';
+        }
+      } catch {
+        // ignore
+      }
+    }
   };
 
   const updateAppSettings = (newSettings: Partial<AppSettings>) => {

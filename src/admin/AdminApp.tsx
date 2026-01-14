@@ -25,6 +25,7 @@ import { SiteTextsSettings } from './settings/SiteTextsSettings';
 import { SocialMediaSettings } from './settings/SocialMediaSettings';
 import { SEOSettings } from './settings/SEOSettings';
 import { AdvancedSettings } from './settings/AdvancedSettings';
+import { ProductPageSettings } from './settings/ProductPageSettings';
 import { NotificationsSender } from './notifications/NotificationsSender';
 import { AdsManagement } from './ads/AdsManagement';
 import { FinancialManagement } from './financial/FinancialManagement';
@@ -57,11 +58,11 @@ type AdminSection =
   | 'config' 
   | 'logs';
 
-type ConfigSection = 'general' | 'homepage' | 'homepage-v2' | 'texts' | 'social' | 'seo' | 'advanced';
+type ConfigSection = 'general' | 'homepage' | 'homepage-v2' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
 
 type ExtendedConfigSection = ConfigSection | 'designer';
 
-const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'homepage-v2', 'texts', 'social', 'seo', 'advanced'];
+const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'homepage-v2', 'texts', 'social', 'seo', 'advanced', 'product-page'];
 
 function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
   // Supported:
@@ -81,9 +82,16 @@ export const AdminApp = () => {
   const navigate = useNavigate();
   const location = useLocation();
 
+  const ADMIN_SIDEBAR_OPEN_KEY = 'khuyoot_admin_sidebar_open';
+
   const getDefaultSidebarOpen = () => {
     try {
-      return typeof window !== 'undefined' && window.matchMedia('(min-width: 1024px)').matches;
+      if (typeof window === 'undefined') return false;
+      const persisted = window.localStorage?.getItem(ADMIN_SIDEBAR_OPEN_KEY);
+      if (persisted === '1') return true;
+      if (persisted === '0') return false;
+      // Default to closed unless the user explicitly opened it.
+      return false;
     } catch {
       return false;
     }
@@ -91,7 +99,8 @@ export const AdminApp = () => {
 
   const getIsSmallScreen = () => {
     try {
-      return typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches;
+      // Treat <1024px as "small" so the admin sidebar behaves like an overlay.
+      return typeof window !== 'undefined' && window.matchMedia('(max-width: 1023px)').matches;
     } catch {
       return true;
     }
@@ -109,6 +118,15 @@ export const AdminApp = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
   const [isSmallScreen, setIsSmallScreen] = useState(getIsSmallScreen);
+
+  const setSidebarOpenPersisted = (next: boolean) => {
+    setSidebarOpen(next);
+    try {
+      window.localStorage?.setItem(ADMIN_SIDEBAR_OPEN_KEY, next ? '1' : '0');
+    } catch {
+      // ignore
+    }
+  };
   
   // Admin Login Form State
   const [showLoginForm, setShowLoginForm] = useState(false);
@@ -122,8 +140,8 @@ export const AdminApp = () => {
     const onResize = () => {
       const small = getIsSmallScreen();
       setIsSmallScreen(small);
-      // Keep the sidebar open on desktop to make admin settings discoverable.
-      if (!small) setSidebarOpen(true);
+      // Avoid any auto-opening. If we switch to a small layout, close the sidebar.
+      if (small) setSidebarOpenPersisted(false);
     };
 
     onResize();
@@ -249,11 +267,8 @@ export const AdminApp = () => {
 
   const handleLogout = async () => {
       await logout();
-      // Stay on admin page to show login screen
-      setShowLoginForm(false);
-      setLoginEmail('');
-      setLoginPassword('');
-      setLoginError('');
+      // Navigate to homepage after logout
+      navigate('/', { replace: true });
   };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
@@ -309,11 +324,11 @@ export const AdminApp = () => {
   }, [location.pathname]);
 
   const PlaceholderView = ({ title, icon: Icon }: any) => (
-    <div className="flex flex-col items-center justify-center h-96 text-slate-400 bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700">
-       <div className="w-20 h-20 bg-slate-100 dark:bg-slate-900 rounded-full flex items-center justify-center mb-4">
+    <div className="flex flex-col items-center justify-center h-96 text-zinc-400 bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800">
+       <div className="w-20 h-20 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
           <Icon size={40} className="opacity-50" />
        </div>
-       <h3 className="text-lg font-bold text-slate-600 dark:text-slate-300">{title}</h3>
+       <h3 className="text-lg font-bold text-slate-600 dark:text-zinc-300">{title}</h3>
        <p className="text-sm">هذه الوحدة قيد التطوير حالياً</p>
     </div>
   );
@@ -322,9 +337,12 @@ export const AdminApp = () => {
     const configSection = getConfigSectionFromPathname(location.pathname);
 
     return (
-      <div className="space-y-6 w-full max-w-none min-w-0">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white">إعدادات النظام</h2>
+      <div className="space-y-6 w-full max-w-none min-w-0 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_20px_60px_-30px_rgba(168,85,247,0.25)]">
+        <div className="flex justify-between items-start gap-3 mb-4">
+          <div>
+            <h2 className="text-xl font-black text-white drop-shadow-sm">إعدادات النظام</h2>
+            <p className="text-sm text-zinc-400">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
+          </div>
           {configSection === 'general' && (
             <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400">
               {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
@@ -334,83 +352,93 @@ export const AdminApp = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-slate-200 dark:border-slate-700 overflow-x-auto">
+        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
           <button
             onClick={() => navigate('/admin/config/general')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'general'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             الإعدادات العامة
           </button>
           <button
             onClick={() => navigate('/admin/config/homepage')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'homepage'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             الصفحة الرئيسية
           </button>
           <button
             onClick={() => navigate('/admin/config/designer')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'designer'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             المصمم
           </button>
           <button
             onClick={() => navigate('/admin/config/homepage-v2')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'homepage-v2'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             Homepage 2.1
           </button>
           <button
+            onClick={() => navigate('/admin/config/product-page')}
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+              configSection === 'product-page'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+            }`}
+          >
+            صفحة المنتج
+          </button>
+          <button
             onClick={() => navigate('/admin/config/texts')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'texts'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             نصوص الموقع
           </button>
           <button
             onClick={() => navigate('/admin/config/social')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'social'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             السوشيال ميديا
           </button>
           <button
             onClick={() => navigate('/admin/config/seo')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'seo'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             SEO
           </button>
           <button
             onClick={() => navigate('/admin/config/advanced/orders')}
-            className={`px-4 py-2 font-medium transition-colors border-b-2 whitespace-nowrap ${
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'advanced'
-                ? 'border-blue-600 text-blue-600 dark:text-blue-400'
-                : 'border-transparent text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
             }`}
           >
             إعدادات متقدمة
@@ -423,6 +451,8 @@ export const AdminApp = () => {
             <DesignerSettings />
         ) : configSection === 'homepage-v2' ? (
           <HomePageV2Settings />
+        ) : configSection === 'product-page' ? (
+          <ProductPageSettings />
         ) : configSection === 'texts' ? (
           <SiteTextsSettings />
         ) : configSection === 'social' ? (
@@ -432,24 +462,24 @@ export const AdminApp = () => {
         ) : configSection === 'advanced' ? (
           <AdvancedSettings />
         ) : (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 overflow-hidden divide-y divide-slate-100 dark:divide-slate-700">
+          <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden divide-y divide-zinc-800/50 shadow-xl shadow-purple-900/20">
             {/* خيار الوضع الفاتح/الداكن */}
-          <div className="p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+          <div className="p-5 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
             <div className="flex items-center gap-4">
-              <div className={`p-2 rounded-lg bg-slate-50 dark:bg-slate-900 ${theme === 'dark' ? 'text-indigo-500' : 'text-amber-500'}`}>
+              <div className={`p-2 rounded-lg bg-zinc-800/50 ${theme === 'dark' ? 'text-purple-400' : 'text-amber-300'} border border-zinc-700`}>
                 {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
               </div>
               <div>
-                <p className="font-medium text-slate-800 dark:text-white text-sm">مظهر لوحة التحكم</p>
-                <p className="text-xs text-slate-500">التبديل بين الوضع الفاتح والداكن للوحة التحكم</p>
+                <p className="font-semibold text-white text-sm">مظهر لوحة التحكم</p>
+                <p className="text-xs text-zinc-400">التبديل بين الوضع الفاتح والداكن للوحة التحكم</p>
               </div>
             </div>
             <button 
               onClick={toggleTheme}
-              className={`px-4 py-2 rounded-lg font-medium text-sm transition-colors ${
+              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors border border-zinc-700 shadow-sm ${
                 theme === 'dark' 
-                  ? 'bg-indigo-500 text-white hover:bg-indigo-600' 
-                  : 'bg-amber-500 text-white hover:bg-amber-600'
+                  ? 'bg-purple-600 text-white hover:bg-purple-500' 
+                  : 'bg-amber-500 text-white hover:bg-amber-400'
               }`}
             >
               {theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن'}
@@ -464,34 +494,34 @@ export const AdminApp = () => {
             { key: 'allowNewRegistrations', label: 'التسجيل الجديد', desc: 'السماح للمستخدمين الجدد بإنشاء حسابات', icon: Users, color: 'text-blue-500' },
             { key: 'maintenanceMode', label: 'وضع الصيانة', desc: 'إغلاق الموقع مؤقتاً لجميع المستخدمين', icon: Lock, color: 'text-red-500' },
           ].map((item: any) => (
-            <div key={item.key} className="p-5 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors">
+            <div key={item.key} className="p-5 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
               <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-lg bg-slate-50 dark:bg-slate-900 ${item.color}`}>
+                  <div className={`p-2 rounded-lg bg-zinc-800/50 border border-zinc-700 ${item.color}`}>
                     <item.icon size={20} />
                   </div>
                   <div>
-                    <p className="font-medium text-slate-800 dark:text-white text-sm">{item.label}</p>
-                    <p className="text-xs text-slate-500">{item.desc}</p>
+                    <p className="font-semibold text-white text-sm">{item.label}</p>
+                    <p className="text-xs text-zinc-400">{item.desc}</p>
                   </div>
               </div>
               <button 
                 onClick={() => handleToggle(item.key)}
-                className={`w-12 h-6 rounded-full p-1 transition-colors ${localSettings[item.key as keyof AppSettings] ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings[item.key as keyof AppSettings] ? 'bg-emerald-500' : 'bg-zinc-700'}`}
               >
-                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${localSettings[item.key as keyof AppSettings] ? 'translate-x-0' : '-translate-x-6'}`}></div>
+                <div className={`w-4 h-4 rounded-full bg-white shadow transform transition ${localSettings[item.key as keyof AppSettings] ? 'translate-x-6' : ''}`} />
               </button>
             </div>
           ))}
 
           {/* إعدادات فيديو المساعدة */}
-          <div className="p-5 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40">
+          <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-blue-100 text-blue-700 dark:bg-blue-900/50 dark:text-blue-300">جديد</span>
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-200 border border-purple-500/40">جديد</span>
                   إعدادات فيديو المساعدة
                 </h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">تحكّم بزر "شاهد" الذي يعرض فيديو شرح المقاسات داخل صفحات العميل.</p>
+                <p className="text-xs text-zinc-400 mt-1">تحكّم بزر "شاهد" الذي يعرض فيديو شرح المقاسات داخل صفحات العميل.</p>
               </div>
               <button
                 onClick={() => setLocalSettings(prev => ({
@@ -501,15 +531,15 @@ export const AdminApp = () => {
                     enabled: !(prev.helpVideo?.enabled)
                   }
                 }))}
-                className={`w-12 h-6 rounded-full p-1 transition-colors ${localSettings.helpVideo?.enabled ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'}`}
+                className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings.helpVideo?.enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
               >
-                <div className={`w-4 h-4 bg-white rounded-full shadow-sm transition-transform ${localSettings.helpVideo?.enabled ? 'translate-x-0' : '-translate-x-6'}`}></div>
+                <div className={`w-4 h-4 rounded-full bg-white shadow transform transition ${localSettings.helpVideo?.enabled ? 'translate-x-6' : ''}`} />
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 text-right">رابط الفيديو (YouTube)</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">رابط الفيديو (YouTube)</label>
                 <input
                   type="text"
                   defaultValue={localSettings.helpVideo?.url || ''}
@@ -527,11 +557,11 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="مثال: https://youtu.be/xxxxxxxx أو https://www.youtube.com/watch?v=xxxxxxx"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2 text-right">نص الزر</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">نص الزر</label>
                 <input
                   type="text"
                   defaultValue={localSettings.helpVideo?.buttonText || 'شاهد'}
@@ -549,57 +579,111 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="شاهد"
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm text-slate-900 dark:text-white"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
                 />
               </div>
-              <div className="flex items-center gap-2 bg-blue-100/60 dark:bg-blue-900/30 text-blue-700 dark:text-blue-200 px-3 py-2 rounded-lg text-xs md:justify-end">
+              <div className="flex items-center gap-2 bg-purple-500/15 text-purple-100 px-3 py-2 rounded-lg text-xs md:justify-end border border-purple-500/30">
                 <CheckCircle size={14} />
                 <span>نقوم تلقائياً بتحويل الروابط إلى صيغة embed المتوافقة مع YouTube.</span>
               </div>
             </div>
           </div>
 
-          {/* إعدادات مقاسات قوالب المقاسات */}
-          <div className="p-5 border-t border-slate-200 dark:border-slate-700">
+          {/* ??????? ????? ?????? */}
+          <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
             <div className="mb-4">
-              <h3 className="text-sm font-bold text-slate-800 dark:text-white mb-1">مقاسات صور قوالب المقاسات</h3>
-              <p className="text-xs text-slate-500">حدد الأبعاد الموحدة المطلوبة لصور قوالب المقاسات (بالبكسل)</p>
+              <h3 className="text-sm font-bold text-white">????? ??????</h3>
+              <p className="text-xs text-zinc-400 mt-1">???? ??????? ???????? ????????? (HEX) ???????? ??? ??????? ?????? ????????.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">????? ???????</label>
+                <input
+                  type="text"
+                  defaultValue={localSettings.themeColors?.primary || '#CFFF04'}
+                  onBlur={(e) => setLocalSettings(prev => ({
+                    ...prev,
+                    themeColors: {
+                      ...(prev.themeColors || {}),
+                      primary: e.target.value
+                    }
+                  }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="#CFFF04"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">????? ???????</label>
+                <input
+                  type="text"
+                  defaultValue={localSettings.themeColors?.secondary || '#D4AF37'}
+                  onBlur={(e) => setLocalSettings(prev => ({
+                    ...prev,
+                    themeColors: {
+                      ...(prev.themeColors || {}),
+                      secondary: e.target.value
+                    }
+                  }))}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      e.currentTarget.blur();
+                    }
+                  }}
+                  placeholder="#D4AF37"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* إعدادات مقاسات قوالب المقاسات */}
+          <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
+            <div className="mb-4">
+              <h3 className="text-sm font-bold text-white mb-1">مقاسات صور قوالب المقاسات</h3>
+              <p className="text-xs text-zinc-400">حدد الأبعاد الموحدة المطلوبة لصور قوالب المقاسات (بالبكسل)</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">العرض (Width)</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-2">العرض (Width)</label>
                 <input
                   type="number"
                   min="100"
                   max="5000"
-                  value={localSettings.measurementTemplateWidth || 800}
+                  value={localSettings.measurementTemplateWidth || 600}
                   onChange={(e) => {
-                    const newSettings = { ...localSettings, measurementTemplateWidth: parseInt(e.target.value) || 800 };
+                    const newSettings = { ...localSettings, measurementTemplateWidth: parseInt(e.target.value) || 600 };
                     setLocalSettings(newSettings);
                     saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-purple-500/40"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-2">الارتفاع (Height)</label>
+                <label className="block text-xs font-medium text-zinc-300 mb-2">الارتفاع (Height)</label>
                 <input
                   type="number"
                   min="100"
                   max="5000"
-                  value={localSettings.measurementTemplateHeight || 1200}
+                  value={localSettings.measurementTemplateHeight || 800}
                   onChange={(e) => {
-                    const newSettings = { ...localSettings, measurementTemplateHeight: parseInt(e.target.value) || 1200 };
+                    const newSettings = { ...localSettings, measurementTemplateHeight: parseInt(e.target.value) || 800 };
                     setLocalSettings(newSettings);
                     saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-purple-500/40"
                 />
               </div>
             </div>
-            <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-              <p className="text-xs text-blue-700 dark:text-blue-300">
-                📐 المقاس الحالي: <span className="font-bold">{localSettings.measurementTemplateWidth || 800}×{localSettings.measurementTemplateHeight || 1200}</span> بكسل
+            <div className="mt-3 p-3 bg-purple-500/15 rounded-lg border border-purple-500/30">
+              <p className="text-xs text-purple-200">
+                📐 المقاس الحالي: <span className="font-bold">{localSettings.measurementTemplateWidth || 600}×{localSettings.measurementTemplateHeight || 800}</span> بكسل (نسبة 3:4)
               </p>
             </div>
           </div>
@@ -650,38 +734,38 @@ export const AdminApp = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-blue-500/20 rounded-lg">
                   <Package className="text-blue-500" size={24} />
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-white">إدارة المنتجات</h4>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
                 إضافة وتعديل وحذف المنتجات، إدارة الفئات والأسعار
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-amber-500/20 rounded-lg">
                   <ShoppingCart className="text-amber-500" size={24} />
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-white">معالجة الطلبات</h4>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
                 متابعة الطلبات، تحديث الحالات، إدارة الشحن والتوصيل
               </p>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-purple-500/20 rounded-lg">
                   <Activity className="text-purple-500" size={24} />
                 </div>
                 <h4 className="font-bold text-slate-800 dark:text-white">التقارير والإحصائيات</h4>
               </div>
-              <p className="text-sm text-slate-600 dark:text-slate-400">
+              <p className="text-sm text-slate-600 dark:text-zinc-400">
                 تقارير المبيعات، تحليل الأداء، إحصائيات شاملة
               </p>
             </div>
@@ -709,10 +793,10 @@ export const AdminApp = () => {
   // Keep this gate time-bound to avoid indefinite spinners if auth is slow.
   if (isCheckingAuth) {
     return (
-      <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-[#050817] to-slate-900 flex items-center justify-center">
+      <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center">
         <div className="text-center">
-          <Activity className="animate-spin text-blue-500 mx-auto mb-4" size={48} />
-          <p className="text-slate-400">جاري التحقق من الصلاحيات...</p>
+          <Activity className="animate-spin text-purple-500 mx-auto mb-4" size={48} />
+          <p className="text-zinc-400">جاري التحقق من الصلاحيات...</p>
         </div>
       </div>
     );
@@ -720,15 +804,15 @@ export const AdminApp = () => {
 
   if (user?.role !== 'admin') {
      return (
-        <div className="h-screen w-screen bg-gradient-to-br from-slate-900 via-[#050817] to-slate-900 flex items-center justify-center text-center p-4" dir="rtl">
+        <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center text-center p-4" dir="rtl">
            <div className="max-w-md w-full">
-             <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-8 shadow-2xl">
+             <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8 shadow-2xl">
                <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
                  <Shield size={40} className="text-red-500" />
                </div>
                
                <h1 className="text-3xl font-bold text-white mb-2">منطقة محظورة</h1>
-               <p className="text-slate-400 mb-8">
+               <p className="text-zinc-400 mb-8">
                  {showLoginForm 
                    ? 'أدخل بيانات حساب المسؤول للمتابعة' 
                    : 'يجب عليك تسجيل الدخول بحساب مسؤول (Admin) للوصول إلى لوحة التحكم.'
@@ -739,14 +823,14 @@ export const AdminApp = () => {
                  <div className="space-y-3">
                    <Button 
                      onClick={() => setShowLoginForm(true)} 
-                     className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 flex items-center justify-center gap-2 transition-all"
+                     className="w-full bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 flex items-center justify-center gap-2 transition-all"
                    >
                      <Lock size={18} />
                      تسجيل دخول كمسؤول
                    </Button>
                    <button 
                      onClick={() => navigate('/')}
-                     className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 font-medium transition-colors"
+                     className="w-full py-3 px-4 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 font-medium transition-colors"
                    >
                      العودة للرئيسية
                    </button>
@@ -760,7 +844,7 @@ export const AdminApp = () => {
                    )}
                    
                    <div className="text-right">
-                     <label className="block text-sm font-medium text-slate-300 mb-2">
+                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                        البريد الإلكتروني
                      </label>
                      <input
@@ -769,12 +853,12 @@ export const AdminApp = () => {
                        onChange={(e) => setLoginEmail(e.target.value)}
                        placeholder="admin@khuyoot.com"
                        required
-                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-transparent"
                      />
                    </div>
 
                    <div className="text-right">
-                     <label className="block text-sm font-medium text-slate-300 mb-2">
+                     <label className="block text-sm font-medium text-zinc-300 mb-2">
                        كلمة المرور
                      </label>
                      <input
@@ -783,7 +867,7 @@ export const AdminApp = () => {
                        onChange={(e) => setLoginPassword(e.target.value)}
                        placeholder="••••••••"
                        required
-                       className="w-full px-4 py-3 bg-white/5 border border-white/10 rounded-xl text-white placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-transparent"
                      />
                    </div>
 
@@ -791,7 +875,7 @@ export const AdminApp = () => {
                      <Button 
                        type="submit" 
                        disabled={isLoggingIn}
-                       className="w-full bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400"
+                       className="w-full bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:bg-zinc-600"
                      >
                        {isLoggingIn ? (
                          <>
@@ -814,7 +898,7 @@ export const AdminApp = () => {
                          setLoginEmail('');
                          setLoginPassword('');
                        }}
-                       className="w-full py-3 px-4 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-slate-300 font-medium transition-colors"
+                       className="w-full py-3 px-4 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 font-medium transition-colors"
                      >
                        إلغاء
                      </button>
@@ -823,7 +907,7 @@ export const AdminApp = () => {
                )}
 
                {user && user.role !== 'admin' && (
-                 <div className="mt-6 pt-6 border-t border-white/10">
+                 <div className="mt-6 pt-6 border-t border-zinc-700">
                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-yellow-400 text-xs">
                      ⚠️ أنت مسجل دخول كـ "{user.role}" - يجب أن يكون الدور "admin" في Firestore
                    </div>
@@ -836,11 +920,11 @@ export const AdminApp = () => {
   }
 
   return (
-    <div className="flex h-screen bg-slate-50 dark:bg-[#0b1121] text-slate-900 dark:text-slate-100 font-sans overflow-hidden dir-rtl">
+    <div className="flex h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden dir-rtl">
       <Sidebar 
         activeSection={activeSection} 
         isOpen={isSidebarOpen} 
-        setIsOpen={setSidebarOpen}
+        setIsOpen={setSidebarOpenPersisted}
         onLogout={handleLogout}
         theme={theme}
         onToggleTheme={toggleTheme}
@@ -851,24 +935,24 @@ export const AdminApp = () => {
 
       {isSidebarOpen && isSmallScreen && (
         <div
-          className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-40"
-          onClick={() => setSidebarOpen(false)}
+          className="fixed inset-0 bg-zinc-900/40 backdrop-blur-sm z-40"
+          onClick={() => setSidebarOpenPersisted(false)}
           aria-hidden="true"
         />
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white dark:bg-[#0f172a] border-b border-slate-200 dark:border-slate-700 flex items-center justify-between px-6 shadow-sm z-10">
+        <header className="h-16 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between px-6 shadow-sm z-10">
            <div className="flex items-center gap-4">
              <button 
-               onClick={() => setSidebarOpen(!isSidebarOpen)} 
-               className="text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 transition-colors"
+               onClick={() => setSidebarOpenPersisted(!isSidebarOpen)} 
+               className="text-slate-500 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
                title={isSidebarOpen ? "إخفاء الشريط الجانبي" : "إظهار الشريط الجانبي"}
              >
                <Menu size={24} />
              </button>
              <div className="flex items-center gap-3">
-               <h2 className="text-lg font-bold text-slate-700 dark:text-slate-200 capitalize">
+               <h2 className="text-lg font-bold text-slate-700 dark:text-zinc-200 capitalize">
                  {activeSection === 'ai' ? 'AI Configuration' : activeSection}
                </h2>
                <DevSectionAnchor sectionId={activeSection} />
@@ -878,25 +962,25 @@ export const AdminApp = () => {
            <div className="flex items-center gap-4">
               <button 
                 onClick={() => navigate('/')}
-                className="p-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
                 title="الصفحة الرئيسية"
               >
                 <Home size={20} />
               </button>
               <div className="relative hidden md:block">
-                 <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-slate-100 dark:bg-slate-800 border-none rounded-full text-xs w-64 focus:ring-1 focus:ring-blue-500" />
+                 <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-slate-100 dark:bg-zinc-800 border-none rounded-full text-xs w-64 focus:ring-1 focus:ring-purple-500" />
                  <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
               </div>
-              <button className="relative p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full">
+              <button className="relative p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full">
                  <Bell size={20} />
                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-2 border-r border-slate-200 dark:border-slate-700 pr-4">
+              <div className="flex items-center gap-2 border-r border-slate-200 dark:border-zinc-700 pr-4">
                  <div className="text-left hidden md:block">
                     <p className="text-xs font-bold text-slate-700 dark:text-white">Admin User</p>
                     <p className="text-[10px] text-slate-400">Super Admin</p>
                  </div>
-                 <div className="w-8 h-8 rounded-full bg-blue-600 text-white flex items-center justify-center font-bold">A</div>
+                 <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">A</div>
               </div>
            </div>
         </header>

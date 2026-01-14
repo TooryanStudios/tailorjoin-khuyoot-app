@@ -28,7 +28,7 @@ export const TemplatesDetailsPanel: React.FC<TemplatesDetailsPanelProps> = ({
     <div className="flex flex-col h-full">
       {/* Template Metadata Section */}
       <div className="p-5 border-b border-slate-100 dark:border-slate-700 space-y-4">
-         <div className="flex items-center gap-2 text-indigo-600 dark:text-indigo-400 mb-2">
+         <div className="flex items-center gap-2 text-purple-400 mb-2">
             <Tag size={16} />
             <span className="text-xs font-bold uppercase tracking-wider">خصائص القالب</span>
          </div>
@@ -39,7 +39,7 @@ export const TemplatesDetailsPanel: React.FC<TemplatesDetailsPanelProps> = ({
                <input
                  value={draft.name}
                  onChange={(e) => onUpdateDraft({ name: e.target.value })}
-                 className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-2 text-sm font-semibold text-slate-700 dark:text-slate-200 focus:ring-1 focus:ring-indigo-500"
+                 className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-3 py-2 text-sm font-semibold text-zinc-200 focus:ring-1 focus:ring-purple-500/40"
                />
             </div>
             <div className="grid grid-cols-2 gap-2">
@@ -48,9 +48,9 @@ export const TemplatesDetailsPanel: React.FC<TemplatesDetailsPanelProps> = ({
                  <select
                    value={draft.productType}
                    onChange={(e) => onUpdateDraft({ productType: e.target.value as GarmentType })}
-                   className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-2 py-2 text-sm text-slate-700 dark:text-slate-200"
+                   className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-2 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-purple-500/40 [&>option]:bg-zinc-800 [&>option]:text-zinc-200"
                  >
-                   {productTypes.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+                   {productTypes.map((t) => <option key={t.value} value={t.value} className="bg-zinc-800 text-zinc-200">{t.label}</option>)}
                  </select>
                </div>
                <div>
@@ -59,7 +59,7 @@ export const TemplatesDetailsPanel: React.FC<TemplatesDetailsPanelProps> = ({
                     value={draft.description || ''}
                     onChange={(e) => onUpdateDraft({ description: e.target.value })}
                     placeholder="وصف..."
-                    className="w-full bg-slate-50 dark:bg-slate-900 border-none rounded-lg px-3 py-2 text-sm text-slate-700 dark:text-slate-200"
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:ring-1 focus:ring-purple-500/40"
                   />
                </div>
             </div>
@@ -68,14 +68,14 @@ export const TemplatesDetailsPanel: React.FC<TemplatesDetailsPanelProps> = ({
 
       {/* Points List Section */}
       <div className="flex-1 flex flex-col min-h-0 bg-slate-50/50 dark:bg-slate-900/20">
-        <div className="p-4 flex items-center gap-2 text-slate-500 border-b border-slate-100 dark:border-slate-700 bg-white dark:bg-slate-800 sticky top-0 z-10">
+        <div className="p-3 flex items-center gap-2 text-zinc-400 border-b border-zinc-800 bg-zinc-900 sticky top-0 z-10">
            <Layers size={16} />
            <span className="text-xs font-bold uppercase tracking-wider">نقاط القياس ({orderedPoints.length})</span>
         </div>
         
         <div className="overflow-y-auto p-3 space-y-2 flex-1">
            {orderedPoints.map((point) => (
-             <div key={point.id} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-3 shadow-sm flex gap-3">
+             <div key={point.id} className="bg-zinc-800 rounded-lg border border-zinc-700 p-2.5 shadow-sm flex gap-2">
                 <div className="flex flex-col items-center justify-center w-8 bg-slate-100 dark:bg-slate-700 rounded text-xs font-bold text-slate-500">
                    <Hash size={10} className="mb-0.5 opacity-50"/>
                    {point.order}

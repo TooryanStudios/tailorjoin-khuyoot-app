@@ -153,6 +153,11 @@ function normalizeProductForSave(payload: any): any {
     out.categoryId = (typeof out.category === 'string' && out.category.trim()) ? out.category : 'dishdasha';
   }
 
+  // Firestore does not allow `undefined` values.
+  for (const key of Object.keys(out)) {
+    if (out[key] === undefined) delete out[key];
+  }
+
   return out;
 }
 
@@ -646,8 +651,17 @@ export const firebaseService = {
     try {
       const products: Product[] = [];
       const seenIds = new Set<string>();
+      const approvedUserIds = new Set<string>();
 
-      // 1. Get products from new structure: users/{userId}/products subcollections
+      // 1. First, get all approved users (tailors/shops)
+      const usersRef = collection(db, 'users');
+      const approvedQuery = query(usersRef, where('approvalStatus', '==', 'approved'));
+      const approvedSnapshot = await getDocs(approvedQuery);
+      approvedSnapshot.forEach(doc => {
+        approvedUserIds.add(doc.id);
+      });
+
+      // 2. Get products from new structure: users/{userId}/products subcollections
       const productsGroup = collectionGroup(db, 'products');
       
       let q;
@@ -657,13 +671,8 @@ export const firebaseService = {
         q = query(productsGroup);
       }
 
-      const TIMEOUT_MS = 2500;
-      const snapPromise = getDocs(q);
-      const snapshot = await Promise.race([
-        snapPromise,
-        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
-      ]);
-      if (!snapshot) return [];
+      // Fetch without artificial timeout; ensure we wait for Firestore response
+      const snapshot = await getDocs(q);
       
       snapshot.forEach(doc => {
         const data = doc.data() as any;
@@ -673,12 +682,19 @@ export const firebaseService = {
           const isSubcollection = doc.ref.path.includes('users/');
           
           if (isSubcollection) {
-            products.push({ 
-              id: doc.id, 
-              ...data,
-              _isOldStructure: false 
-            } as Product);
-            seenIds.add(doc.id);
+            // Extract userId from path: users/{userId}/products/{productId}
+            const pathParts = doc.ref.path.split('/');
+            const userId = pathParts[1]; // users/[userId]/products/productId
+            
+            // Only include products from approved users
+            if (approvedUserIds.has(userId)) {
+              products.push({ 
+                id: doc.id, 
+                ...data,
+                _isOldStructure: false 
+              } as Product);
+              seenIds.add(doc.id);
+            }
           } else {
             // This is from root collection
             if (!seenIds.has(doc.id)) {
@@ -693,6 +709,37 @@ export const firebaseService = {
         }
       });
       
+      // 3. Sort by createdAt/updatedAt ascending (oldest first)
+      products.sort((a, b) => {
+        const aData = a as any;
+        const bData = b as any;
+        
+        // Extract timestamp - handle Firestore Timestamp, ISO string, or number
+        const getTime = (data: any) => {
+          const timestamp = data.createdAt || data.updatedAt;
+          if (!timestamp) return 0;
+          
+          // If it's a Firestore Timestamp object
+          if (timestamp.toDate && typeof timestamp.toDate === 'function') {
+            return timestamp.toDate().getTime();
+          }
+          // If it's an ISO string
+          if (typeof timestamp === 'string') {
+            return new Date(timestamp).getTime();
+          }
+          // If it's already a number
+          if (typeof timestamp === 'number') {
+            return timestamp;
+          }
+          return 0;
+        };
+        
+        const aTime = getTime(aData);
+        const bTime = getTime(bData);
+        return aTime - bTime; // oldest first
+      });
+      
+      try { console.log(`✅ Firebase products fetched: ${products.length} (from ${approvedUserIds.size} approved users)`); } catch {}
       return products;
     } catch (error) {
       console.error("Error fetching products from Firebase:", error);
@@ -800,18 +847,36 @@ export const firebaseService = {
     }
 
     try {
+      // First, try to find in collectionGroup (users/{userId}/products subcollections)
+      const productsGroup = collectionGroup(db, 'products');
+      const snapshot = await getDocs(productsGroup);
+      
+      let foundProduct: Product | null = null;
+      snapshot.forEach(doc => {
+        if (doc.id === productId && !foundProduct) {
+          foundProduct = { id: doc.id, ...doc.data() } as Product;
+        }
+      });
+      
+      if (foundProduct) {
+        console.log('[getProduct] Found in subcollection:', productId);
+        return foundProduct;
+      }
+      
+      // Fallback: Try root-level products collection (for legacy data)
       const productRef = doc(db, 'products', productId);
       const productSnap = await getDoc(productRef);
       
       if (productSnap.exists()) {
+        console.log('[getProduct] Found in root collection:', productId);
         return { id: productSnap.id, ...productSnap.data() } as Product;
       } else {
-        console.log('Product not found in Firebase, checking mock data');
+        console.log('[getProduct] Product not found in Firebase, checking mock data');
         const mockProduct = MOCK_PRODUCTS.find(p => p.id === productId);
         return mockProduct || null;
       }
     } catch (error) {
-      console.error("Error fetching product:", error);
+      console.error("[getProduct] Error fetching product:", error);
       const mockProduct = MOCK_PRODUCTS.find(p => p.id === productId);
       return mockProduct || null;
     }
@@ -1101,9 +1166,9 @@ export const firebaseService = {
     if (!isFirebaseInitialized) return [];
     
     try {
-      const measurementsRef = collection(db, 'measurements');
-      const q = query(measurementsRef, where('userId', '==', userId));
-      const snapshot = await getDocs(q);
+      // Query measurements as subcollection under user's document
+      const measurementsRef = collection(db, `users/${userId}/measurements`);
+      const snapshot = await getDocs(measurementsRef);
       
       const measurements: any[] = [];
       snapshot.forEach(doc => {
@@ -1121,19 +1186,23 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
+      const userId = measurement.userId;
+      if (!userId) throw new Error("userId is required for measurements");
+      
       if (measurement.id && measurement.id.startsWith('measurement_')) {
         // New measurement - create with auto ID
-        const measurementsRef = collection(db, 'measurements');
-        const docRef = await setDoc(doc(measurementsRef), measurement);
+        const measurementsRef = collection(db, `users/${userId}/measurements`);
+        const docRef = doc(measurementsRef, measurement.id);
+        await setDoc(docRef, measurement);
         return measurement.id;
       } else if (measurement.id) {
         // Update existing measurement
-        const measurementRef = doc(db, 'measurements', measurement.id);
+        const measurementRef = doc(db, `users/${userId}/measurements`, measurement.id);
         await setDoc(measurementRef, measurement, { merge: true });
         return measurement.id;
       } else {
         // Create new with Firestore auto ID
-        const measurementsRef = collection(db, 'measurements');
+        const measurementsRef = collection(db, `users/${userId}/measurements`);
         const docRef = doc(measurementsRef);
         await setDoc(docRef, { ...measurement, id: docRef.id });
         return docRef.id;
@@ -1144,11 +1213,16 @@ export const firebaseService = {
     }
   },
 
-  async deleteMeasurement(measurementId: string): Promise<void> {
+  async deleteMeasurement(measurementId: string, userId?: string): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
-      const measurementRef = doc(db, 'measurements', measurementId);
+      // If userId is not provided, we can't delete from subcollection
+      // Try to get it from the current auth user
+      const currentUserId = userId || auth?.currentUser?.uid;
+      if (!currentUserId) throw new Error("userId is required to delete measurement");
+      
+      const measurementRef = doc(db, `users/${currentUserId}/measurements`, measurementId);
       await setDoc(measurementRef, { deleted: true }, { merge: true });
     } catch (error) {
       console.error("Error deleting measurement:", error);
@@ -1526,14 +1600,8 @@ export const firebaseService = {
     try {
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('role', '==', 'tailor'), where('approvalStatus', '==', 'approved'));
-      const TIMEOUT_MS = 2500;
-      const snapPromise = getDocs(q);
-      const snapshot = await Promise.race([
-        snapPromise,
-        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
-      ]);
-
-      if (!snapshot) return [];
+      const snapshot = await getDocs(q);
+      try { console.log(`✅ Firebase tailors fetched: ${snapshot.size}`); } catch {}
 
       const tailors = snapshot.docs.map(docSnap => {
         const d: any = docSnap.data();
@@ -1687,13 +1755,8 @@ export const firebaseService = {
 
     try {
       const regionsRef = collection(db, 'popularRegions');
-      const TIMEOUT_MS = 2500;
-      const snapPromise = getDocs(regionsRef);
-      const snapshot = await Promise.race([
-        snapPromise,
-        new Promise<any>((resolve) => setTimeout(() => resolve(null), TIMEOUT_MS))
-      ]);
-      if (!snapshot) return [];
+      const snapshot = await getDocs(regionsRef);
+      try { console.log(`✅ Firebase popular regions fetched: ${snapshot.size}`); } catch {}
       
       return snapshot.docs.map(doc => ({
         id: doc.id,
@@ -1853,7 +1916,25 @@ export const firebaseService = {
       return typeof max === 'number' ? filtered.slice(0, max) : filtered;
     } catch (error) {
       console.error('❌ Error getting tailors by region:', error);
-      return [];
+      
+      // Check if this is a Firebase index error
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      if (errorMessage.includes('index') || errorMessage.includes('indexes')) {
+        console.error('🚨 CRITICAL: Firebase index missing - triggering maintenance mode');
+        // Trigger global maintenance mode
+        try {
+          window.dispatchEvent(new CustomEvent('firebase-critical-error', { 
+            detail: { 
+              error: errorMessage,
+              location: 'getTailorsByRegion' 
+            } 
+          }));
+        } catch (e) {
+          console.error('Failed to dispatch maintenance event:', e);
+        }
+      }
+      
+      throw error; // Re-throw to prevent mock data fallback
     }
   },
 

@@ -5,7 +5,7 @@ import { useLayoutStore } from '../store/useLayoutStore';
 import type { HomePageV2CardItem } from '../types';
 import styles from './homepageV2.module.css';
 
-const ACCENT = '#c6ff1a';
+const ACCENT = 'var(--theme-primary)';
 
 const FALLBACK_ITEMS: HomePageV2CardItem[] = [
   {

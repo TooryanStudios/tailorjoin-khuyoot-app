@@ -1,5 +1,5 @@
 {
-  "version": 5,
+  "version": 6,
   "blocks": [
     {
       "key": "dynamicHero",
@@ -181,17 +181,23 @@
     },
     {
       "key": "blockF",
-      "title": "EXPLORE MORE AI FEATURES",
+      "title": "Privacy & Terms",
       "component": "./components/BlockF",
       "defaultVisible": true,
       "defaultConfig": {
-        "title": "EXPLORE MORE AI FEATURES",
+        "title": "Privacy & Terms",
         "maxColumns": 4,
         "maxRows": 1,
         "cardWidth": 140,
         "cardHeight": 44,
         "cardGapPx": 8,
-        "cardRadiusPx": 9999
+        "cardRadiusPx": 9999,
+        "items": [
+          { "id": "f1", "title": "Terms", "href": "/terms", "mediaType": "image", "mediaUrl": "" },
+          { "id": "f2", "title": "Privacy", "href": "/privacy", "mediaType": "image", "mediaUrl": "" }
+        ],
+        "privacyContent": "",
+        "termsContent": ""
       }
     }
   ]

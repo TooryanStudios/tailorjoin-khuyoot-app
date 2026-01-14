@@ -1,7 +1,1 @@
-{
-  "projects": {
-    "default": "khuyoot-app01"
-  },
-  "targets": {},
-  "etags": {}
-}
+﻿{"projects":{"default":"khuyoot-app01"}}

@@ -4,18 +4,25 @@ import type { AppSettings } from '../../types';
 export const ADMIN_CONFIG_QUERY_KEY = ['admin-config'] as const;
 
 export async function fetchAdminConfig(): Promise<AppSettings> {
-  if (!firebaseService.isInitialized()) {
-    // In dev/offline or when Firebase isn't configured, fall back to defaults
-    return firebaseService.getGlobalSettings();
-  }
+  try {
+    if (!firebaseService.isInitialized()) {
+      // In dev/offline or when Firebase isn't configured, fall back to defaults
+      return await firebaseService.getGlobalSettings();
+    }
 
-  // Strict fetch: do not fall back to default settings due to a short timeout.
-  // We want to avoid rendering a "default" header/footer and then flipping it.
-  const anyService = firebaseService as any;
-  if (typeof anyService.getGlobalSettingsStrict === 'function') {
-    return anyService.getGlobalSettingsStrict({ timeoutMs: 15000 }) as Promise<AppSettings>;
-  }
+    // Prefer strict fetch (longer timeout, no internal fallback) to reduce header/footer flashes.
+    // But NEVER allow this to break the app shell: if it fails, fall back to non-strict defaults.
+    const anyService = firebaseService as any;
+    if (typeof anyService.getGlobalSettingsStrict === 'function') {
+      return (await anyService.getGlobalSettingsStrict({ timeoutMs: 15000 })) as AppSettings;
+    }
 
-  // Fallback if strict API isn't available yet
-  return firebaseService.getGlobalSettings();
+    // Fallback if strict API isn't available yet
+    return await firebaseService.getGlobalSettings();
+  } catch (error) {
+    // Critical: AppInitializer uses this query to decide whether to mount the app.
+    // If we throw here, users can get a permanent blank/splash screen.
+    console.warn('[fetchAdminConfig] Falling back to default settings due to error:', error);
+    return await firebaseService.getGlobalSettings();
+  }
 }

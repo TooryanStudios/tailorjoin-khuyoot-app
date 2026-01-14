@@ -28,8 +28,8 @@ import { useDesignerStore } from '../../store/useDesignerStore';
 import { MobileDesignerV2, useMobileDetection } from '../../modules/designer/mobile';
 import './DesignerV2_1.module.css';
 
-// No placeholders: keep canvas empty until an image is present.
-const ORIGINAL = '';
+// Placeholder for empty image state - use null to avoid empty src warnings
+const ORIGINAL = null as string | null;
 
 const DESIGNER_CACHE_VERSION = 1;
 
@@ -155,14 +155,21 @@ async function smartCompressImage(file: File): Promise<{ base64: string; mimeTyp
   const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2MB threshold
   const MAX_DIMENSION = 1536; // Max dimension for large images
   
+  // Normalize MIME type to supported formats only
+  const normalizeMimeType = (type: string): string => {
+    const normalizedType = (type || '').toLowerCase();
+    if (normalizedType === 'image/jpg' || normalizedType === 'image/jpeg') return 'image/jpeg';
+    if (normalizedType === 'image/webp') return 'image/webp';
+    if (normalizedType === 'image/png') return 'image/png';
+    // Default to PNG for unknown types
+    return 'image/png';
+  };
+  
   // If file is small enough, use original without compression
   if (file.size <= MAX_SIZE_BYTES) {
-    console.log('  ⚡ Image size OK:', (file.size / 1024).toFixed(0), 'KB - no compression needed');
     const base64 = await fileToBase64NoPrefix(file);
-    return { base64, mimeType: file.type || 'image/png' };
+    return { base64, mimeType: normalizeMimeType(file.type) };
   }
-  
-  console.log('  📦 Large image detected:', (file.size / 1024).toFixed(0), 'KB - compressing now...');
   
   return new Promise((resolve, reject) => {
     const img = new Image();
@@ -297,6 +304,18 @@ const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: st
 });
 
 export const DesignerV2_1: React.FC = () => {
+  // ========== PERFORMANCE TRACKING ==========
+  const renderCountRef = React.useRef(0);
+  const mountTimeRef = React.useRef(new Date().toISOString());
+  
+  React.useEffect(() => {
+    renderCountRef.current++;
+  });
+  
+  React.useEffect(() => {
+    // Component lifecycle tracking (debug disabled)
+  }, []);
+
   // ========== MOBILE DETECTION ==========
   const isMobile = useMobileDetection();
 
@@ -439,13 +458,61 @@ export const DesignerV2_1: React.FC = () => {
   const [refinementPrompt, setRefinementPrompt] = React.useState<string>('');
 
   // ========== IMAGE STATE ==========
-  const [sourcePreviewUrl, setSourcePreviewUrl] = React.useState<string | null>(null);
-  const [sourceImageBase64, setSourceImageBase64] = React.useState<string | null>(null);
-  const [sourceImageMimeType, setSourceImageMimeType] = React.useState<string | null>(null);
+  // FIX: Separate preview states per tab to prevent clearing when switching tabs
+  const [studioPreviewUrl, setStudioPreviewUrl] = React.useState<string | null>(null);
+  const [studioImageBase64, setStudioImageBase64] = React.useState<string | null>(null);
+  const [studioImageMimeType, setStudioImageMimeType] = React.useState<string | null>(null);
+
+  const [shopPreviewUrl, setShopPreviewUrl] = React.useState<string | null>(null);
+  const [shopImageBase64, setShopImageBase64] = React.useState<string | null>(null);
+  const [shopImageMimeType, setShopImageMimeType] = React.useState<string | null>(null);
+
+  const [closetPreviewUrl, setClosetPreviewUrl] = React.useState<string | null>(null);
+  const [closetImageBase64, setClosetImageBase64] = React.useState<string | null>(null);
+  const [closetImageMimeType, setClosetImageMimeType] = React.useState<string | null>(null);
+
+  // Track which tab was last used to determine active preview state
+  const [lastActiveTemplateTab, setLastActiveTemplateTab] = React.useState<'Studio' | 'Shop' | 'Closet'>('Studio');
+
+  // Convenience getters for current active preview based on last tab
+  const sourcePreviewUrl =
+    lastActiveTemplateTab === 'Shop' ? shopPreviewUrl :
+    lastActiveTemplateTab === 'Closet' ? closetPreviewUrl :
+    studioPreviewUrl;
+
+  const sourceImageBase64 =
+    lastActiveTemplateTab === 'Shop' ? shopImageBase64 :
+    lastActiveTemplateTab === 'Closet' ? closetImageBase64 :
+    studioImageBase64;
+
+  const sourceImageMimeType =
+    lastActiveTemplateTab === 'Shop' ? shopImageMimeType :
+    lastActiveTemplateTab === 'Closet' ? closetImageMimeType :
+    studioImageMimeType;
+
+  // Setters that update the correct state based on active tab
+  const setSourcePreviewUrl = React.useCallback((url: string | null) => {
+    if (lastActiveTemplateTab === 'Shop') setShopPreviewUrl(url);
+    else if (lastActiveTemplateTab === 'Closet') setClosetPreviewUrl(url);
+    else setStudioPreviewUrl(url);
+  }, [lastActiveTemplateTab]);
+
+  const setSourceImageBase64 = React.useCallback((b64: string | null) => {
+    if (lastActiveTemplateTab === 'Shop') setShopImageBase64(b64);
+    else if (lastActiveTemplateTab === 'Closet') setClosetImageBase64(b64);
+    else setStudioImageBase64(b64);
+  }, [lastActiveTemplateTab]);
+
+  const setSourceImageMimeType = React.useCallback((mime: string | null) => {
+    if (lastActiveTemplateTab === 'Shop') setShopImageMimeType(mime);
+    else if (lastActiveTemplateTab === 'Closet') setClosetImageMimeType(mime);
+    else setStudioImageMimeType(mime);
+  }, [lastActiveTemplateTab]);
 
   const [fabricPreviewUrl, setFabricPreviewUrl] = React.useState<string | null>(null);
   const [fabricImageBase64, setFabricImageBase64] = React.useState<string | null>(null);
   const [fabricImageMimeType, setFabricImageMimeType] = React.useState<string | null>(null);
+  const [fabricMaterial, setFabricMaterial] = React.useState<'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null>(null);
 
   // Hydrate local upload state from persisted store (Directive 3)
   React.useEffect(() => {
@@ -481,7 +548,7 @@ export const DesignerV2_1: React.FC = () => {
   const [deletingItemId, setDeletingItemId] = React.useState<string | null>(null);
 
   // Watermark & subscription settings
-  const [isWatermarkEnabled, setIsWatermarkEnabled] = React.useState<boolean>(false);
+  const [isWatermarkEnabled, setIsWatermarkEnabled] = React.useState<boolean>(true); // Default ON for free users
   const [isSubscribed, setIsSubscribed] = React.useState<boolean>(false); // Mock: false for testing free tier
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = React.useState<boolean>(false);
 
@@ -550,10 +617,19 @@ export const DesignerV2_1: React.FC = () => {
   const blobCache = React.useRef<Map<string, string>>(new Map());
 
   // Load product image if productId is in URL
+  // FIX: Removed function dependencies (setSourcePreviewUrl, setSourceForComparison, persistTemplateSelection)
+  // to prevent effect re-runs on every render. loadedProductRef ensures we only fetch once per productId.
+  const [isLoadingProduct, setIsLoadingProduct] = React.useState(false);
+  
   React.useEffect(() => {
-    if (productId && loadedProductRef.current !== productId) {
+    if (productId) {
+      if (loadedProductRef.current === productId) {
+        console.log(`[ProductCache] Product ${productId} already loaded, skipping fetch`);
+        return;
+      }
       loadedProductRef.current = productId;
       const loadProductImage = async () => {
+        setIsLoadingProduct(true);
         try {
           const product = await getProductById(productId);
           
@@ -592,10 +668,10 @@ export const DesignerV2_1: React.FC = () => {
                   blobCache.current.set(imageId, blobUrl);
                   console.log(`[ProductCache] Cached product image: ${imageId}`);
                   
-                  return { index, blobUrl, imageUrl };
+                  return { index, blobUrl, imageUrl, blob };
                 } catch (e) {
                   console.warn(`[ProductCache] Failed to cache ${imageId}:`, e);
-                  return { index, blobUrl: imageUrl, imageUrl }; // Fallback to original URL
+                  return { index, blobUrl: imageUrl, imageUrl, blob: null }; // Fallback to original URL
                 }
               });
               
@@ -615,9 +691,27 @@ export const DesignerV2_1: React.FC = () => {
               
               // Auto-load the main image using blob URL
               const mainImage = cachedImages.find(img => img.index === mainImageIndex);
-              if (mainImage) {
-                setSourcePreviewUrl(mainImage.blobUrl);
+              if (mainImage && mainImage.blob) {
+                // Switch to Shop tab and set its preview state
+                setLastActiveTemplateTab('Shop');
+                setShopPreviewUrl(mainImage.blobUrl);
                 setSourceForComparison(mainImage.blobUrl);
+                
+                // Convert blob to base64 for API calls
+                const reader = new FileReader();
+                reader.onloadend = () => {
+                  const dataUrl = reader.result as string;
+                  const parts = dataUrl.split(',');
+                  const base64 = parts[1];
+                  const mimeType = mainImage.blob!.type || 'image/jpeg';
+                  
+                  // Set the base64 data needed for generation
+                  setShopImageBase64(base64);
+                  setShopImageMimeType(mimeType);
+                  
+                  console.log(`[ProductCache] Loaded main image as base64 for generation`);
+                };
+                reader.readAsDataURL(mainImage.blob);
                 
                 // Store a lightweight reference instead of full base64
                 persistTemplateSelection({
@@ -629,11 +723,13 @@ export const DesignerV2_1: React.FC = () => {
           }
         } catch (error) {
           console.error('Failed to load product:', error);
+        } finally {
+          setIsLoadingProduct(false);
         }
       };
       loadProductImage();
     }
-  }, [productId, persistTemplateSelection, setSourcePreviewUrl, setSourceForComparison]);
+  }, [productId]);
 
   const [lastRequestDebug, setLastRequestDebug] = React.useState<any>(null);
   const [lastResponseDebug, setLastResponseDebug] = React.useState<any>(null);
@@ -661,6 +757,30 @@ export const DesignerV2_1: React.FC = () => {
   const [isProcessing, setIsProcessing] = React.useState(false);
   const [progress, setProgress] = React.useState(0);
   const [sliderPos, setSliderPos] = React.useState(100);
+  const [loadingTemplateId, setLoadingTemplateId] = React.useState<string | null>(null);
+
+  const waitForImage = React.useCallback((url: string | null) => {
+    return new Promise<void>((resolve) => {
+      if (!url) return resolve();
+      const img = new Image();
+      const done = () => resolve();
+      img.onload = done;
+      img.onerror = done;
+      img.src = url;
+      if ((img as any).decode && typeof (img as any).decode === 'function') {
+        (img as any).decode().then(done).catch(done);
+      }
+    });
+  }, []);
+
+  const startTemplateLoading = React.useCallback((templateId: string | null) => {
+    setLoadingTemplateId(templateId);
+  }, []);
+
+  const endTemplateLoading = React.useCallback(async (url: string | null) => {
+    await waitForImage(url);
+    setLoadingTemplateId(null);
+  }, [waitForImage]);
 
   const handleApplyPrivacyShieldToCurrentTemplate = React.useCallback(async () => {
     if (!sourceImageBase64) return;
@@ -720,10 +840,13 @@ export const DesignerV2_1: React.FC = () => {
 
   React.useEffect(() => {
     return () => {
-      if (sourcePreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(sourcePreviewUrl);
+      // Clean up all tab preview URLs on unmount
+      if (studioPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(studioPreviewUrl);
+      if (shopPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(shopPreviewUrl);
+      if (closetPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(closetPreviewUrl);
       if (fabricPreviewUrl?.startsWith('blob:')) URL.revokeObjectURL(fabricPreviewUrl);
     };
-  }, [sourcePreviewUrl, fabricPreviewUrl]);
+  }, [studioPreviewUrl, shopPreviewUrl, closetPreviewUrl, fabricPreviewUrl]);
 
   // Prefetch high-res images and convert to blob URLs for instant switching
   const prefetchHighResImage = React.useCallback(async (imageId: string, remoteUrl: string) => {
@@ -745,14 +868,12 @@ export const DesignerV2_1: React.FC = () => {
         const oldestUrl = blobCache.current.get(oldestKey);
         if (oldestUrl) {
           URL.revokeObjectURL(oldestUrl);
-          console.log(`[BlobCache] Evicted oldest image: ${oldestKey}`);
         }
         blobCache.current.delete(oldestKey);
       }
       
       // Add new blob to cache (insertion order maintained by Map)
       blobCache.current.set(imageId, blobUrl);
-      console.log(`[BlobCache] Cached image: ${imageId} (${blobCache.current.size}/${MAX_CACHE_SIZE})`);
     } catch (e) {
       console.warn(`[BlobCache] Failed to cache ${imageId}:`, e);
     }
@@ -934,11 +1055,34 @@ export const DesignerV2_1: React.FC = () => {
       fabricMimeType: fabricImageMimeType,
       model: selectedModel,
       refinementPrompt: (() => {
-        const base = (refinementPrompt || '').trim();
+        let parts: string[] = [];
+        
+        // Add user's refinement prompt
+        if (refinementPrompt?.trim()) {
+          parts.push(refinementPrompt.trim());
+        }
+        
+        // Add fabric material instruction (simplified)
+        const materialInstructions = {
+          silk: 'silk with natural sheen',
+          cotton: 'natural cotton texture',
+          linen: 'linen with visible weave',
+          velvet: 'luxurious velvet texture',
+          transparent: 'transparent/translucent fabric',
+          wool: 'wool with dense texture'
+        };
+        
+        if (fabricMaterial && materialInstructions[fabricMaterial]) {
+          parts.push(`Make the fabric look like ${materialInstructions[fabricMaterial]}`);
+        }
+        
+        // Add lighting descriptor
         const lighting = getLightingDescriptor(opts?.lightingPreset ?? lightingPreset);
-        if (!lighting) return base || undefined;
-        if (!base) return lighting;
-        return `${base}, ${lighting}`;
+        if (lighting) {
+          parts.push(lighting);
+        }
+        
+        return parts.length > 0 ? parts.join(', ') : undefined;
       })(),
       preserveFace: true,
       preservePose: true,
@@ -950,7 +1094,7 @@ export const DesignerV2_1: React.FC = () => {
     } as const;
 
     return payload;
-  }, [sourceImageBase64, sourceImageMimeType, fabricImageBase64, fabricImageMimeType, selectedModel, refinementPrompt, outputFit, isWatermarkEnabled, lightingPreset, persistedFabricId]);
+  }, [sourceImageBase64, sourceImageMimeType, fabricImageBase64, fabricImageMimeType, selectedModel, refinementPrompt, outputFit, isWatermarkEnabled, lightingPreset, persistedFabricId, fabricMaterial]);
 
   const revealSlider = React.useCallback(() => {
     setSliderPos(0);
@@ -1254,7 +1398,6 @@ export const DesignerV2_1: React.FC = () => {
     if (sourcePreviewUrl) URL.revokeObjectURL(sourcePreviewUrl);
 
     try {
-      console.log('[Designer V2.1] 🖼️ TEMPLATE UPLOADED - Processing...');
       setIsProcessingTemplate(true);
       
       // Apply Privacy Shield if enabled (blur faces locally)
@@ -1271,8 +1414,6 @@ export const DesignerV2_1: React.FC = () => {
       setSourceForComparison(previewUrl);  // Store for comparison section
       
       const { base64, mimeType } = await smartCompressImage(processedFile);
-      
-      console.log('[Designer V2.1] ✅ Template processed and ready for API');
       setSourceImageMimeType(mimeType);
       setSourceImageBase64(base64);
 
@@ -1306,6 +1447,16 @@ export const DesignerV2_1: React.FC = () => {
 
   const handleTemplateSelect = React.useCallback(
     async (templateData: any) => {
+      // Track which tab this selection came from
+      // This is inferred from whether it's a product image (Shop) or uploaded (Closet)
+      if (templateData?.id?.startsWith('product-')) {
+        setLastActiveTemplateTab('Shop');
+      } else if (templateData?.file instanceof File || templateData?.isClosetItem) {
+        setLastActiveTemplateTab('Closet');
+      } else {
+        setLastActiveTemplateTab('Studio');
+      }
+
       const isPremium = templateData?.meta?.premium === true;
       const isProductImage = templateData?.id?.startsWith('product-');
 
@@ -1319,17 +1470,27 @@ export const DesignerV2_1: React.FC = () => {
         selectedTemplateIdRef.current = templateData?.id;
         if (!templateData) return;
 
+        // Start loading indicator for this template
+        startTemplateLoading(templateData?.id);
+
         // Special handling for product images - use cached blob URL
         if (isProductImage && templateData?.imageUrl) {
+          // Let React render the loading overlay before blocking on image decode
+          await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
           // The imageUrl is already a blob URL from the cache
-          setSourcePreviewUrl(templateData.imageUrl);
+          // Directly set Shop tab state (since we already set lastActiveTemplateTab above)
+          setShopPreviewUrl(templateData.imageUrl);
           setSourceForComparison(templateData.imageUrl);
+          // Persist lightweight reference so Footer CTA can resolve productId
+          persistTemplateSelection({ templateId: templateData?.id ?? null, image: null });
+          await endTemplateLoading(templateData.imageUrl);
           // Blob URLs work directly without file conversion
           return;
         }
 
         if (templateData?.file instanceof File) {
           await onPickSource(templateData.file);
+          setLoadingTemplateId(null); // Clear loading after file upload
           return;
         }
 
@@ -1342,13 +1503,16 @@ export const DesignerV2_1: React.FC = () => {
           if (remoteUrl.startsWith('blob:')) {
             console.warn('[TemplatePicker] Refusing to fetch blob: URL due to CSP:', remoteUrl);
             showError('This template preview cannot be used due to browser security policy. Please select the original template again.');
+            setLoadingTemplateId(null);
             return;
           }
 
           try {
             const cached = templateFileCacheRef.current.get(remoteUrl);
             if (cached) {
+              // onPickSource already handles loading state internally
               await onPickSource(cached);
+              setLoadingTemplateId(null);
               return;
             }
 
@@ -1370,10 +1534,14 @@ export const DesignerV2_1: React.FC = () => {
             }
 
             await onPickSource(file);
+            setLoadingTemplateId(null);
           } catch (e) {
             console.warn('[TemplatePicker] Failed to fetch template src:', e);
             showError('فشل تحميل القالب المختار');
+            setLoadingTemplateId(null);
           }
+        } else {
+          setLoadingTemplateId(null);
         }
       };
 
@@ -1396,7 +1564,6 @@ export const DesignerV2_1: React.FC = () => {
 
     try {
       console.log('[Designer V2.1] 🎨 FABRIC UPLOADED - Processing...');
-      setIsProcessingFabric(true);
       
       // Apply Privacy Shield if enabled (blur faces locally)
       let processedFile = file;
@@ -1412,8 +1579,6 @@ export const DesignerV2_1: React.FC = () => {
       
       const { base64, mimeType } = await smartCompressImage(processedFile);
       
-      console.log('[Designer V2.1] ✅ Fabric processed and ready for API');
-      setFabricImageMimeType(mimeType);
       setFabricImageBase64(base64);
 
       // Persist fabric upload for navigation resilience (Directive 3)
@@ -1702,32 +1867,33 @@ export const DesignerV2_1: React.FC = () => {
           <div
             className={`flex-1 ${sidebarHasVisibleContent ? 'overflow-y-auto custom-scrollbar' : 'overflow-y-hidden'} overflow-x-hidden p-4 space-y-6 pb-10`}
           >
-            {/* Header */}
-            <div className="mb-2">
-              <div className="flex flex-col items-end gap-2 min-w-0">
-                <div className="text-right min-w-0">
-                  <div className="text-sm font-bold text-white whitespace-nowrap">مصمم الأقمشة V2.1</div>
-                  <div className="text-[11px] text-zinc-500 max-w-[220px] truncate">تبديل القماش (مدعوم بـ NanoBana)</div>
-                </div>
-                <CreditBadge onRefill={() => setIsUpgradeModalOpen(true)} />
-              </div>
-            </div>
+            {/* Sidebar is cleaner without header - title moved to top bar */}
 
             {/* Model/Template Image */}
             {features.showTemplateUpload && (
               <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">النموذج / القالب</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                  النموذج / القالب
+                  {isLoadingProduct && (
+                    <span className="ml-2 text-[10px] text-purple-400 animate-pulse">جاري التحميل...</span>
+                  )}
+                </div>
                 <div className={uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''}>
                   <TemplateSelectorView
                     onSelect={handleTemplateSelect}
+                    onTabChange={(tab) => {
+                      // Update active tab immediately when user clicks tab button
+                      setLastActiveTemplateTab(tab);
+                      console.log(`[Designer] Tab switched to: ${tab}`);
+                    }}
                     currentId={selectedTemplate?.id}
-                    studioItems={undefined}
                     shopItems={productTemplates || undefined}
                     closetItems={undefined}
                     enableUpload
                     isSubscribed={isSubscribed || canAfford('premium_template')}
                     onPremiumClick={() => setIsUpgradeModalOpen(true)}
                     defaultTab={productTemplates ? 'Shop' : undefined}
+                    loadingTemplateId={isLoadingProduct ? 'loading-product' : loadingTemplateId}
                   />
                 </div>
               </div>
@@ -1771,7 +1937,65 @@ export const DesignerV2_1: React.FC = () => {
                     </div>
                   )}
                 </label>
+
+                {/* Fabric Material Selection */}
+                <details className="mt-3 mb-4">
+                  <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                    نوع القماش
+                  </summary>
+
+                  <div className="mt-3 grid grid-cols-3 gap-2">
+                    {[
+                      { id: 'silk', label: 'حرير', icon: '✨' },
+                      { id: 'cotton', label: 'قطن', icon: '☁️' },
+                      { id: 'linen', label: 'كتان', icon: '🌾' },
+                      { id: 'velvet', label: 'مخمل', icon: '🎭' },
+                      { id: 'transparent', label: 'شفاف', icon: '💎' },
+                      { id: 'wool', label: 'صوف', icon: '🧶' }
+                    ].map(material => (
+                      <button
+                        key={material.id}
+                        type="button"
+                        onClick={() => setFabricMaterial(material.id as any)}
+                        disabled={uiState.uploadsDisabled}
+                        className={`px-2 py-2 rounded-lg text-[11px] font-medium transition-all duration-200 flex flex-col items-center gap-1 ${
+                          fabricMaterial === material.id
+                            ? 'bg-purple-500/30 border-2 border-purple-500 text-purple-200'
+                            : 'bg-zinc-800/50 border border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                        } ${uiState.uploadsDisabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+                        title={material.label}
+                      >
+                        <span className="text-lg">{material.icon}</span>
+                        <span className="text-[10px]">{material.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </details>
               </div>
+            )}
+
+            {/* Sidebar Generate button */}
+            {features.showRefinementPrompt && (
+              <button
+                type="button"
+                disabled={uiState.generationDisabled}
+                onClick={handleFabricSwap}
+                className={`generateButtonShine w-full px-4 py-3 rounded-xl font-extrabold tracking-wide text-base transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ${
+                  uiState.generationDisabled
+                    ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20'
+                    : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40 hover:border-purple-400/60'
+                }`}
+              >
+                {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+                {isProcessing ? (
+                  'جاري المعالجة...'
+                ) : (
+                  <span className="flex items-center justify-center gap-2">
+                    <span className="animate-pulse">✨</span>
+                    <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
+                  </span>
+                )}
+              </button>
             )}
 
             {/* Privacy Shield Section */}
@@ -1948,29 +2172,53 @@ export const DesignerV2_1: React.FC = () => {
                   </div>
                 </details>
               )}
-
-              {/* Apply Privacy Shield Button - Always visible when enabled */}
-              {isPrivacyMode && sourceImageBase64 && (
-                <button
-                  onClick={() => void handleApplyPrivacyShieldToCurrentTemplate()}
-                  disabled={isProcessingPrivacy}
-                  className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                    isProcessingPrivacy
-                      ? 'bg-purple-500/30 text-purple-300 cursor-wait'
-                      : 'bg-purple-600 text-white hover:bg-purple-700 active:scale-95'
-                  }`}
-                >
-                  {isProcessingPrivacy ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                      جاري التطبيق...
-                    </span>
-                  ) : (
-                    '🛡️ تطبيق حماية الخصوصية'
-                  )}
-                </button>
-              )}
             </div>
+
+          {/* Sidebar Generate button */}
+          {features.showRefinementPrompt && (
+            <button
+              type="button"
+              disabled={uiState.generationDisabled}
+              onClick={handleFabricSwap}
+              className={`generateButtonShine mt-3 w-full px-4 py-3 rounded-xl font-extrabold tracking-wide text-base transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ${
+                uiState.generationDisabled
+                  ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40 hover:border-purple-400/60'
+              }`}
+            >
+              {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
+              {isProcessing ? (
+                'جاري المعالجة...'
+              ) : (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="animate-pulse">✨</span>
+                  <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Apply Privacy Shield Button - Always visible when enabled */}
+          {isPrivacyMode && sourceImageBase64 && (
+            <button
+              onClick={() => void handleApplyPrivacyShieldToCurrentTemplate()}
+              disabled={isProcessingPrivacy}
+              className={`mt-3 w-full px-4 py-2 rounded-lg font-medium text-sm transition-all ${
+                isProcessingPrivacy
+                  ? 'bg-purple-500/30 text-purple-300 cursor-wait'
+                  : 'bg-purple-600 text-white hover:bg-purple-700 active:scale-95'
+              }`}
+            >
+              {isProcessingPrivacy ? (
+                <span className="flex items-center justify-center gap-2">
+                  <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
+                  جاري التطبيق...
+                </span>
+              ) : (
+                '🛡️ تطبيق حماية الخصوصية'
+              )}
+            </button>
+          )}
 
           {(features.showModelSelection || features.showRefinementPrompt) && (
             <details className="pt-6 border-t border-zinc-800">
@@ -2028,30 +2276,6 @@ export const DesignerV2_1: React.FC = () => {
                 </div>
               )}
             </details>
-          )}
-
-          {/* Sidebar Generate button */}
-          {features.showRefinementPrompt && (
-            <button
-              type="button"
-              disabled={uiState.generationDisabled}
-              onClick={handleFabricSwap}
-              className={`generateButtonShine mt-3 w-full px-4 py-3 rounded-xl font-extrabold tracking-wide text-base transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ${
-                uiState.generationDisabled
-                  ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40 hover:border-purple-400/60'
-              }`}
-            >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isProcessing ? (
-                'جاري المعالجة...'
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-pulse">✨</span>
-                  <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
-                </span>
-              )}
-            </button>
           )}
 
           {/* Output Quality Section */}
@@ -2249,6 +2473,7 @@ export const DesignerV2_1: React.FC = () => {
         {features.showTopBar && (
         <DesignerHeader
           onHome={navigateHome}
+          title="مصمم الأقمشة V2.1"
           rightSlot={
             <div className="flex items-center gap-3">
               <CreditBadge onRefill={() => setIsUpgradeModalOpen(true)} />
@@ -2374,11 +2599,13 @@ export const DesignerV2_1: React.FC = () => {
               <div className="space-y-2 flex flex-col">
                 <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">النموذج الأصلي</div>
                 <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
-                  <img
-                    src={sourceForComparison}
-                    alt="Source"
-                    className="absolute inset-0 w-full h-full object-contain"
-                  />
+                  {sourceForComparison ? (
+                    <img
+                      src={sourceForComparison}
+                      alt="Source"
+                      className="absolute inset-0 w-full h-full object-contain"
+                    />
+                  ) : null}
                 </div>
               </div>
 
@@ -2386,7 +2613,7 @@ export const DesignerV2_1: React.FC = () => {
               <div className="space-y-2 flex flex-col">
                 <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">نتيجة الذكاء الاصطناعي</div>
                 <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
-                  {afterImage && afterImage !== '' ? (
+                  {afterImage ? (
                     <img
                       src={afterImage}
                       alt="Result"

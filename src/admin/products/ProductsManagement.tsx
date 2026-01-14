@@ -256,10 +256,13 @@ export const ProductsManagement: React.FC = () => {
 
       {/* محتوى التبويبات */}
       {activeTab === 'categories' ? (
-        <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white mb-4">
-            التصنيفات الهرمية
-          </h2>
+        <div className="space-y-4">
+          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+                التصنيفات الهرمية
+              </h2>
+            </div>
           {categoryTree.length === 0 ? (
             <div className="text-center py-12">
               <p className="text-slate-500 dark:text-slate-400 mb-4">
@@ -286,6 +289,7 @@ export const ProductsManagement: React.FC = () => {
               ))}
             </div>
           )}
+        </div>
         </div>
       ) : (
         <div className="space-y-4">

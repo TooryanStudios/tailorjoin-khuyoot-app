@@ -110,7 +110,7 @@ export default function ActionCards() {
           type="button"
           aria-label="Scroll left"
           onClick={scrollRight}
-          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full border border-[#D4AF37]/20 bg-[#1A0B2E]/80 backdrop-blur-xl text-[#D4AF37] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-[#1A0B2E] hover:border-[#D4AF37]/50 transition-all"
+          className="absolute left-0 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full border border-[color:var(--theme-secondary)]/20 bg-[#1A0B2E]/80 backdrop-blur-xl text-[color:var(--theme-secondary)] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-[#1A0B2E] hover:border-[color:var(--theme-secondary)]/50 transition-all"
         >
           <ChevronLeft size={24} className="mx-auto" />
         </button>
@@ -120,7 +120,7 @@ export default function ActionCards() {
           type="button"
           aria-label="Scroll right"
           onClick={scrollLeft}
-          className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full border border-[#D4AF37]/20 bg-[#1A0B2E]/80 backdrop-blur-xl text-[#D4AF37] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-[#1A0B2E] hover:border-[#D4AF37]/50 transition-all"
+          className="absolute right-0 top-1/2 -translate-y-1/2 z-20 h-12 w-12 rounded-full border border-[color:var(--theme-secondary)]/20 bg-[#1A0B2E]/80 backdrop-blur-xl text-[color:var(--theme-secondary)] opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto hover:bg-[#1A0B2E] hover:border-[color:var(--theme-secondary)]/50 transition-all"
         >
           <ChevronRight size={24} className="mx-auto" />
         </button>

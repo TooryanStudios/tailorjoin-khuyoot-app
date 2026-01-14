@@ -577,7 +577,7 @@ export const DesignerV2 = () => {
   const [templateImageOverrides, setTemplateImageOverrides] = useState<Record<string, string>>({});
   const [templateFullSizeCache, setTemplateFullSizeCache] = useState<Record<string, string>>({});
   const [imageCategories, setImageCategories] = useState<any[]>([]);
-  const [womenRootId, setWomenRootId] = useState<string | null>(null);
+  const [womenRootId, setWomenRootId] = useState<string | null>(null); // Root category ID (male or female based on tailor gender)
   const [womenLevel1, setWomenLevel1] = useState<any[]>([]);
   const [showMyDesigns, setShowMyDesigns] = useState<boolean>(false);
   const [lastTryOnJobId, setLastTryOnJobId] = useState<string | null>(null);
@@ -980,11 +980,31 @@ export const DesignerV2 = () => {
       try {
         const cats = imageCategoriesQuery.data;
         setImageCategories(cats);
-        const womenRoot = cats.find((c: any) => (c.level === 0 || !c.parentId) && ((c.nameAr || c.name || '').includes('الأزياء')));
-        setWomenRootId(womenRoot?.id || null);
-        const level1 = womenRoot ? cats.filter((c: any) => c.parentId === womenRoot.id && (c.hasChildren || c.level === 1)) : [];
+        
+        // تحديد التصنيف المناسب بناءً على جنس الخياط
+        const tailorGender = user?.tailorGender || 'male'; // الافتراضي رجالي
+        const targetCategory = tailorGender === 'female' 
+          ? 'الملابس النسائية'  // للخياطات النسائية
+          : 'الملابس الرجالية'; // للخياطين الرجاليين
+        
+        const genderRoot = cats.find((c: any) => 
+          (c.level === 0 || !c.parentId) && 
+          ((c.nameAr || c.name || '').includes(targetCategory))
+        );
+        
+        setWomenRootId(genderRoot?.id || null);
+        const level1 = genderRoot ? cats.filter((c: any) => c.parentId === genderRoot.id && (c.hasChildren || c.level === 1)) : [];
         setWomenLevel1(level1);
-      } catch (e) {}
+        
+        console.log(`🎯 Designer categories filtered for ${tailorGender} tailor:`, {
+          tailorGender,
+          targetCategory,
+          rootId: genderRoot?.id,
+          level1Count: level1.length
+        });
+      } catch (e) {
+        console.error('❌ Error filtering categories by tailor gender:', e);
+      }
     }
     const savedDraft = localStorage.getItem(DESIGN_DRAFT_KEY);
 
@@ -1046,7 +1066,7 @@ export const DesignerV2 = () => {
         else if (Object.values(draft.selections).some(Boolean) || draft.fabricImage) setCurrentStep(2);
       } catch (e) {}
     }
-  }, [isOnline, upsertGeneration, isCreationFlow, selectedFabricId, generatedImage, imageCategoriesQuery.data]);
+  }, [isOnline, upsertGeneration, isCreationFlow, selectedFabricId, generatedImage, imageCategoriesQuery.data, user?.tailorGender]);
 
   useEffect(() => {
     const loadByRouteId = async () => {

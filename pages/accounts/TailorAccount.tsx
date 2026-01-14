@@ -5,32 +5,32 @@ import {
   LogOut, Store, ShoppingBag, MapPin, Plus, ChevronLeft,
   Phone, Package, BarChart3, Eye, CheckCircle, XCircle, Clock, 
   Bell, Save, Settings, Star, MessageCircle, Shirt, ArrowRight,
-  TrendingUp, Wallet, Users, Scissors
+  TrendingUp, Wallet, Users, Scissors, Edit2, Upload, Camera, X
 } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { Order, Tailor } from '../../types';
 import { getTailorById } from '../../services/mockService';
 import { getTailorOrders } from '../../services/orderService';
 import { firebaseService } from '../../services/firebase';
+import { storage } from '../../services/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import imageCompression from 'browser-image-compression';
 
 export const TailorAccount = () => {
-  const { user, logout } = useApp();
+  const { user, logout, loading: appLoading, toggleAuthModal, refreshUser } = useApp();
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<'orders' | 'materials' | 'dashboard' | 'branches' | 'settings'>('orders');
   const [tailorOrders, setTailorOrders] = useState<Order[]>([]);
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
   const [tailor, setTailor] = useState<Tailor | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  // --- Logic & Effects (Kept Intact) ---
-  useEffect(() => {
-    if (!user) return;
-    if (user.role !== 'tailor') {
-      navigate('/account', { replace: true });
-    }
-  }, [user, navigate]);
-
+   const [ordersLoading, setOrdersLoading] = useState(true);
+  const [showTailorDetails, setShowTailorDetails] = useState(false);
+  const [showEditProfileModal, setShowEditProfileModal] = useState(false);
+  const [editDisplayName, setEditDisplayName] = useState('');
+  const [editProfileImageFile, setEditProfileImageFile] = useState<File | null>(null);
+  const [editProfileImagePreview, setEditProfileImagePreview] = useState<string>('');
+  const [savingProfile, setSavingProfile] = useState(false);
   useEffect(() => {
     if (user && user.role === 'tailor') {
       loadOrders();
@@ -41,18 +41,106 @@ export const TailorAccount = () => {
   const loadOrders = async () => {
     if (!user?.id) return;
     try {
-      setLoading(true);
+         setOrdersLoading(true);
       const orders = await getTailorOrders(user.id);
       setTailorOrders(orders);
     } catch (error) {
       console.error('Error loading orders:', error);
     } finally {
-      setLoading(false);
+         setOrdersLoading(false);
+    }
+  };
+
+  const handleEditProfile = () => {
+    setEditDisplayName(user?.name || '');
+    setEditProfileImagePreview(user?.profileImage || user?.photoURL || '');
+    setEditProfileImageFile(null);
+    setShowEditProfileModal(true);
+  };
+
+  const handleProfileImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      alert('يرجى اختيار صورة فقط');
+      return;
+    }
+    
+    setEditProfileImageFile(file);
+    const previewUrl = URL.createObjectURL(file);
+    setEditProfileImagePreview(previewUrl);
+  };
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    
+    if (!editDisplayName.trim()) {
+      alert('يرجى إدخال اسم العرض');
+      return;
+    }
+    
+    setSavingProfile(true);
+    
+    try {
+      const updates: any = {};
+      
+      // Update display name if changed
+      if (editDisplayName.trim() !== user.name) {
+        updates.name = editDisplayName.trim();
+      }
+      
+      // Upload new profile image if selected
+      if (editProfileImageFile) {
+        try {
+          // Compress image
+          const options = {
+            maxSizeMB: 0.5,
+            maxWidthOrHeight: 512,
+            useWebWorker: true
+          };
+          const compressedFile = await imageCompression(editProfileImageFile, options);
+          
+          // Upload to Firebase Storage
+          const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+          const storageRef = ref(storage, `profile-images/${user.id}/${uniqueId}_${editProfileImageFile.name}`);
+          await uploadBytes(storageRef, compressedFile);
+          const downloadURL = await getDownloadURL(storageRef);
+          
+          updates.profileImage = downloadURL;
+          updates.photoURL = downloadURL; // Also update photoURL for compatibility
+        } catch (error) {
+          console.error('Error uploading profile image:', error);
+          alert('فشل رفع الصورة. يرجى المحاولة مرة أخرى.');
+          setSavingProfile(false);
+          return;
+        }
+      }
+      
+      // Update profile in Firebase
+      if (Object.keys(updates).length > 0) {
+        await firebaseService.updateUserProfile(user.id, updates);
+        await refreshUser();
+        alert('✅ تم تحديث الملف الشخصي بنجاح');
+        setShowEditProfileModal(false);
+        
+        // Clean up preview URL
+        if (editProfileImagePreview.startsWith('blob:')) {
+          URL.revokeObjectURL(editProfileImagePreview);
+        }
+      } else {
+        alert('لا توجد تغييرات لحفظها');
+      }
+    } catch (error) {
+      console.error('Error updating profile:', error);
+      alert('حدث خطأ أثناء تحديث الملف الشخصي');
+    } finally {
+      setSavingProfile(false);
     }
   };
 
   // --- Loader ---
-  if (!user || loading && !tailor) {
+   if (appLoading || (ordersLoading && !!user && !tailor)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50 dark:bg-slate-950">
         <div className="flex flex-col items-center gap-4">
@@ -67,6 +155,27 @@ export const TailorAccount = () => {
       </div>
     );
   }
+
+   // --- Not authenticated ---
+   if (!user) {
+      return (
+         <div className="min-h-screen flex items-center justify-center px-4 bg-slate-50 dark:bg-slate-950">
+            <div className="max-w-md w-full bg-white dark:bg-slate-900 rounded-[2rem] p-8 text-center border border-slate-200 dark:border-slate-800 shadow-2xl">
+               <div className="w-20 h-20 bg-slate-100 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-6">
+                  <Store className="text-indigo-600" size={32} />
+               </div>
+               <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">يرجى تسجيل الدخول</h3>
+               <p className="text-slate-500 mb-6">سجّل الدخول للوصول إلى لوحة تحكم الخياط.</p>
+               <button
+                  onClick={() => toggleAuthModal(true, 'login')}
+                  className="w-full py-3.5 rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold hover:shadow-lg transition-all"
+               >
+                  تسجيل الدخول
+               </button>
+            </div>
+         </div>
+      );
+   }
 
   // --- Redirect Message ---
   if (user.role !== 'tailor') {
@@ -100,14 +209,18 @@ export const TailorAccount = () => {
             <div className="relative group">
                <div className="w-24 h-24 md:w-28 md:h-28 rounded-2xl p-1 bg-gradient-to-br from-white/20 to-white/5 backdrop-blur-md shadow-lg">
                   <img 
-                    src={user?.profileImage || "https://picsum.photos/200/200?random=tailor"} 
+                    src={user?.profileImage || user?.photoURL || "https://picsum.photos/200/200?random=tailor"} 
                     alt="Shop Logo" 
                     className="w-full h-full rounded-xl object-cover"
                   />
                </div>
-               <div className="absolute -bottom-2 -right-2 bg-indigo-500 text-white p-2 rounded-lg shadow-lg border border-slate-900">
-                  <Store size={16} />
-               </div>
+               <button
+                 onClick={handleEditProfile}
+                 className="absolute -bottom-2 -right-2 bg-indigo-500 hover:bg-indigo-600 text-white p-2 rounded-lg shadow-lg border border-slate-900 transition-colors"
+                 title="تعديل الصورة والاسم"
+               >
+                  <Edit2 size={16} />
+               </button>
             </div>
 
             {/* Shop Info */}
@@ -143,60 +256,193 @@ export const TailorAccount = () => {
                <button onClick={() => navigate('/shop-profile-edit')} className="p-3 bg-white/10 hover:bg-white/20 rounded-xl backdrop-blur-md transition-colors border border-white/10">
                   <Settings size={20} />
                </button>
-               <button onClick={logout} className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-white rounded-xl backdrop-blur-md transition-colors border border-red-500/20">
+               <button onClick={async () => { await logout(); navigate('/', { replace: true }); }} className="p-3 bg-red-500/20 hover:bg-red-500/30 text-red-200 hover:text-white rounded-xl backdrop-blur-md transition-colors border border-red-500/20">
                   <LogOut size={20} />
                </button>
             </div>
          </div>
 
-         {/* Temporary Gender Toggle - Visible on all pages */}
-         <div className="bg-yellow-50 dark:bg-yellow-900/20 p-4 rounded-2xl border border-yellow-200 dark:border-yellow-700 mt-6">
-            <h4 className="font-bold text-sm mb-2 text-yellow-800 dark:text-yellow-300">🔧 أداة مؤقتة: تبديل التخصص</h4>
-            <p className="text-xs text-yellow-700 dark:text-yellow-400 mb-3">التخصص الحالي: <strong>{user?.tailorGender === 'male' ? '👔 خياط رجالي' : '👗 خياطة نسائية'}</strong></p>
+         {/* Tailor Profile Details - Collapsible */}
+         <div className="bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900/50 dark:to-slate-800/50 p-4 rounded-xl border border-slate-200 dark:border-slate-700 mt-6">
+            <button 
+               onClick={() => setShowTailorDetails(!showTailorDetails)}
+               className="w-full flex items-center justify-between hover:opacity-80 transition-opacity"
+            >
+               <h4 className="font-bold text-sm text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                  تفاصيل حساب الخياط
+               </h4>
+               <ChevronLeft 
+                  size={20} 
+                  className={`text-slate-500 transition-transform ${showTailorDetails ? 'rotate-90' : '-rotate-90'}`}
+               />
+            </button>
             
-            <div className="flex gap-3">
-               <button
-                 onClick={async () => {
-                   if (!user?.id) return;
-                   try {
-                     await firebaseService.updateUserProfile(user.id, { tailorGender: 'male' });
-                     alert('✅ تم التحويل إلى خياط رجالي');
-                     window.location.reload();
-                   } catch (error) {
-                     console.error(error);
-                     alert('❌ حدث خطأ');
-                   }
-                 }}
-                 className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                   user?.tailorGender === 'male'
-                     ? 'bg-blue-600 text-white shadow-lg'
-                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                 }`}
-               >
-                 👔 رجالي
-               </button>
+            {/* Grid Layout for Details */}
+            {showTailorDetails && (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-4">
+               {/* User ID */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">معرف المستخدم (id)</span>
+                  <span className="text-xs font-mono text-slate-900 dark:text-white truncate block">{user?.id || 'غير متوفر'}</span>
+               </div>
                
-               <button
-                 onClick={async () => {
-                   if (!user?.id) return;
-                   try {
-                     await firebaseService.updateUserProfile(user.id, { tailorGender: 'female' });
-                     alert('✅ تم التحويل إلى خياطة نسائية');
-                     window.location.reload();
-                   } catch (error) {
-                     console.error(error);
-                     alert('❌ حدث خطأ');
-                   }
-                 }}
-                 className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                   user?.tailorGender === 'female'
-                     ? 'bg-pink-600 text-white shadow-lg'
-                     : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
-                 }`}
-               >
-                 👗 نسائي
-               </button>
+               {/* Name */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">الاسم (name)</span>
+                  <span className="text-xs font-bold text-slate-900 dark:text-white">{user?.name || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Email */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">البريد الإلكتروني (email)</span>
+                  <span className="text-xs text-slate-900 dark:text-white truncate block">{user?.email || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Phone */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">رقم الهاتف (phone)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.phone || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Location */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">الموقع (location)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.location || tailor?.location || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Region */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">المنطقة (region)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.region || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Experience */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">سنوات الخبرة (experience)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.experience || tailor?.experience || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Specialization */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">التخصص (specialization)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.specialization || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Rating */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">التقييم (rating)</span>
+                  <span className="text-xs font-bold text-yellow-600 dark:text-yellow-400 flex items-center gap-1">
+                     <Star size={12} className="fill-yellow-500" />
+                     {user?.rating || tailor?.rating || '0.0'}
+                  </span>
+               </div>
+               
+               {/* Approval Status */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">حالة الموافقة (approvalStatus)</span>
+                  <span className={`text-xs font-bold ${
+                     user?.approvalStatus === 'approved' ? 'text-green-600' :
+                     user?.approvalStatus === 'pending' ? 'text-amber-600' :
+                     'text-red-600'
+                  }`}>
+                     {user?.approvalStatus === 'approved' ? '✅ موافق' :
+                      user?.approvalStatus === 'pending' ? '⏳ مراجعة' :
+                      user?.approvalStatus === 'rejected' ? '❌ مرفوض' : 'غير متوفر'}
+                  </span>
+               </div>
+               
+               {/* Role */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">الدور (role)</span>
+                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400">{user?.role || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Join Date */}
+               <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700">
+                  <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-0.5">تاريخ الانضمام (joinDate)</span>
+                  <span className="text-xs text-slate-900 dark:text-white">{user?.joinDate || 'غير متوفر'}</span>
+               </div>
+               
+               {/* Bio */}
+               {(user?.bio || tailor?.bio) && (
+                  <div className="bg-white dark:bg-slate-800 p-2.5 rounded-lg border border-slate-200 dark:border-slate-700 col-span-full">
+                     <span className="text-[10px] text-slate-500 dark:text-slate-400 block mb-1">نبذة عن الخياط (bio)</span>
+                     <p className="text-xs text-slate-700 dark:text-slate-300">{user?.bio || tailor?.bio}</p>
+                  </div>
+               )}
+               
+               {/* Gender Toggle */}
+               <div className="border-t border-slate-200 dark:border-slate-700 pt-3 mt-1 col-span-full">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-400 mb-2">
+                     التخصص (tailorGender): <strong className="text-xs">{user?.tailorGender === 'male' ? '👔 رجالي' : '👗 نسائي'}</strong>
+                  </p>
+               
+               <div className="flex gap-2">
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      console.log('🔵 Male button clicked, user:', user?.id);
+                      if (!user?.id) {
+                        console.error('❌ No user ID found');
+                        alert('❌ لا يوجد مستخدم مسجل');
+                        return;
+                      }
+                      try {
+                        console.log('🔄 Updating to male...');
+                        await firebaseService.updateUserProfile(user.id, { tailorGender: 'male' });
+                        console.log('✅ Update successful');
+                        alert('✅ تم التحويل إلى خياط رجالي');
+                        await refreshUser();
+                        window.location.reload();
+                      } catch (error) {
+                        console.error('❌ Error updating profile:', error);
+                        alert('❌ حدث خطأ: ' + (error as any)?.message);
+                      }
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                      user?.tailorGender === 'male'
+                        ? 'bg-blue-600 text-white shadow-md'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    👔 رجالي
+                  </button>
+                  
+                  <button
+                    onClick={async (e) => {
+                      e.preventDefault();
+                      console.log('🟣 Female button clicked, user:', user?.id);
+                      if (!user?.id) {
+                        console.error('❌ No user ID found');
+                        alert('❌ لا يوجد مستخدم مسجل');
+                        return;
+                      }
+                      try {
+                        console.log('🔄 Updating to female...');
+                        await firebaseService.updateUserProfile(user.id, { tailorGender: 'female' });
+                        console.log('✅ Update successful');
+                        alert('✅ تم التحويل إلى خياطة نسائية');
+                        await refreshUser();
+                        window.location.reload();
+                      } catch (error) {
+                        console.error('❌ Error updating profile:', error);
+                        alert('❌ حدث خطأ: ' + (error as any)?.message);
+                      }
+                    }}
+                    className={`flex-1 py-2 rounded-lg text-xs font-bold transition-all ${
+                      user?.tailorGender === 'female'
+                        ? 'bg-pink-600 text-white shadow-md'
+                        : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700'
+                    }`}
+                  >
+                    👗 نسائي
+                  </button>
+               </div>
+               {/* End gender toggle container */}
             </div>
+            {/* End profile details grid */}
+            </div>
+            )}
          </div>
 
          {/* Navigation Tabs (Floating) */}
@@ -515,6 +761,121 @@ export const TailorAccount = () => {
                  )}
               </div>
            </div>
+        </div>
+      )}
+
+      {/* Edit Profile Modal */}
+      {showEditProfileModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-2xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-800 animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <Edit2 size={20} className="text-indigo-600" />
+                تعديل الملف الشخصي
+              </h3>
+              <button
+                onClick={() => {
+                  setShowEditProfileModal(false);
+                  if (editProfileImagePreview.startsWith('blob:')) {
+                    URL.revokeObjectURL(editProfileImagePreview);
+                  }
+                }}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+              >
+                <X size={20} className="text-slate-500" />
+              </button>
+            </div>
+
+            <div className="space-y-5">
+              {/* Profile Image */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
+                  صورة الملف الشخصي
+                </label>
+                <div className="flex items-center gap-4">
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-2xl overflow-hidden border-2 border-slate-200 dark:border-slate-700">
+                      <img
+                        src={editProfileImagePreview || user?.profileImage || user?.photoURL || 'https://picsum.photos/200/200?random=tailor'}
+                        alt="Profile Preview"
+                        className="w-full h-full object-cover"
+                      />
+                    </div>
+                    <input
+                      type="file"
+                      id="profile-image-input"
+                      accept="image/*"
+                      onChange={handleProfileImageChange}
+                      className="hidden"
+                    />
+                  </div>
+                  <div className="flex-1">
+                    <button
+                      type="button"
+                      onClick={() => document.getElementById('profile-image-input')?.click()}
+                      className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl text-sm font-medium text-slate-700 dark:text-slate-300 flex items-center justify-center gap-2 transition-colors border border-slate-200 dark:border-slate-700"
+                    >
+                      <Camera size={18} />
+                      {editProfileImageFile ? 'تغيير الصورة' : 'اختيار صورة'}
+                    </button>
+                    {editProfileImageFile && (
+                      <p className="text-xs text-green-600 dark:text-green-400 mt-2 flex items-center gap-1">
+                        <CheckCircle size={12} />
+                        {editProfileImageFile.name}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Display Name */}
+              <div>
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
+                  اسم العرض
+                </label>
+                <input
+                  type="text"
+                  value={editDisplayName}
+                  onChange={(e) => setEditDisplayName(e.target.value)}
+                  className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-indigo-500 text-slate-900 dark:text-white"
+                  placeholder="أدخل اسم العرض"
+                />
+              </div>
+
+              {/* Actions */}
+              <div className="flex gap-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                <button
+                  onClick={() => {
+                    setShowEditProfileModal(false);
+                    if (editProfileImagePreview.startsWith('blob:')) {
+                      URL.revokeObjectURL(editProfileImagePreview);
+                    }
+                  }}
+                  className="flex-1 px-4 py-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl font-medium text-slate-700 dark:text-slate-300 transition-colors"
+                  disabled={savingProfile}
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={handleSaveProfile}
+                  disabled={savingProfile}
+                  className="flex-1 px-4 py-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 dark:disabled:bg-slate-700 rounded-xl font-bold text-white transition-colors flex items-center justify-center gap-2"
+                >
+                  {savingProfile ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      جاري الحفظ...
+                    </>
+                  ) : (
+                    <>
+                      <Save size={18} />
+                      حفظ التغييرات
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -97,9 +97,17 @@ export const TailorDashboard = () => {
           <div className="flex items-center gap-4 mb-6">
             <div className="relative">
               <img 
-                src={tailor.image} 
+                src={tailor.image || '/placeholders/avatar.svg'} 
                 alt={tailor.name}
                 className="w-20 h-20 rounded-xl object-cover border-2 border-slate-200 dark:border-slate-700"
+                loading="eager"
+                fetchPriority="high"
+                decoding="async"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src.includes('/placeholders/avatar.svg')) return;
+                  img.src = '/placeholders/avatar.svg';
+                }}
               />
               <button className="absolute -bottom-1 -right-1 p-1.5 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition-colors">
                 <Camera size={14} />
@@ -182,9 +190,16 @@ export const TailorDashboard = () => {
                   >
                     <div className="relative h-40 bg-slate-200 dark:bg-slate-700">
                       <img 
-                        src={order.productImage} 
+                        src={order.productImage || '/placeholders/product.svg'} 
                         alt={order.productName}
                         className="w-full h-full object-cover"
+                        loading="lazy"
+                        decoding="async"
+                        onError={(e) => {
+                          const img = e.currentTarget;
+                          if (img.src.includes('/placeholders/product.svg')) return;
+                          img.src = '/placeholders/product.svg';
+                        }}
                       />
                       <div className="absolute top-2 left-2">
                         <span className={`text-xs px-2 py-1 rounded-full font-bold ${getStatusColor(order.status)}`}>
@@ -424,9 +439,16 @@ export const TailorDashboard = () => {
 
             <div className="p-6 space-y-4">
               <img
-                src={selectedOrder.productImage}
+                src={selectedOrder.productImage || '/placeholders/product.svg'}
                 alt={selectedOrder.productName}
                 className="w-full h-48 object-cover rounded-xl"
+                loading="lazy"
+                decoding="async"
+                onError={(e) => {
+                  const img = e.currentTarget;
+                  if (img.src.includes('/placeholders/product.svg')) return;
+                  img.src = '/placeholders/product.svg';
+                }}
               />
 
               <div className="grid grid-cols-2 gap-4">

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
   X, Mail, Lock, User as UserIcon, Scissors, Store, MapPin, 
   Phone, Zap, ArrowRight, CheckCircle, Sparkles, Box, ChevronRight,
@@ -46,10 +47,37 @@ const SectionLabel = ({ title }: { title: string }) => (
 // Dev accounts removed per request
 
 export const AuthModal = () => {
-  const { isAuthModalOpen, toggleAuthModal, login, register, loading, authModalMode } = useApp();
+  const { isAuthModalOpen, toggleAuthModal, login, register, loading, authModalMode, user, appSettings } = useApp();
+  const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
   // Quick access developer accounts menu removed
   const [submitting, setSubmitting] = useState(false);
+  const [wasOpen, setWasOpen] = useState(false);
+  
+  // Navigate after successful login/registration
+  useEffect(() => {
+    // Track if modal was open
+    if (isAuthModalOpen) {
+      setWasOpen(true);
+    }
+    
+    // If modal just closed and we have a user (login success)
+    if (!isAuthModalOpen && wasOpen && user) {
+      console.log('✅ Login successful, navigating to account...', { userId: user.id, role: user.role });
+      setWasOpen(false);
+      
+      // Small delay to ensure state propagates
+      setTimeout(() => {
+        navigate('/account', { replace: true });
+      }, 150);
+    }
+  }, [isAuthModalOpen, user, wasOpen, navigate]);
+  
+  // Debug logging to track modal state
+  useEffect(() => {
+    console.log('🔍 AuthModal state:', { isAuthModalOpen, isLogin, submitting });
+  }, [isAuthModalOpen, isLogin, submitting]);
+  
   // Fail-safe: if submitting gets stuck, clear after 12s
   useEffect(() => {
     if (!submitting) return;
@@ -78,11 +106,16 @@ export const AuthModal = () => {
   const [fallbackUserData, setFallbackUserData] = useState<any>(null);
   const [fallbackEmail, setFallbackEmail] = useState<string>('');
   const [showFallback, setShowFallback] = useState(false);
+  const allowRegistrations = appSettings?.allowNewRegistrations !== false;
+
   // Sync local mode with context mode when it changes
   React.useEffect(() => {
-    // Force login mode regardless of requested mode
-    setIsLogin(true);
-  }, [authModalMode]);
+    if (authModalMode === 'register' && allowRegistrations) {
+      setIsLogin(false);
+    } else {
+      setIsLogin(true);
+    }
+  }, [authModalMode, allowRegistrations]);
 
   // Prefill email/phone from localStorage when modal opens
   useEffect(() => {
@@ -106,6 +139,55 @@ export const AuthModal = () => {
   useEffect(() => {
     loadRegions();
   }, []);
+
+  // Manage body scroll lock - critical for preventing overlay persistence
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      // Lock body scroll when modal opens using class
+      document.body.classList.add('modal-open');
+      console.log('🔒 Body scroll locked (class added)');
+      
+      return () => {
+        // Always remove lock class on cleanup
+        document.body.classList.remove('modal-open');
+        console.log('🔓 Body scroll unlocked (class removed)');
+      };
+    } else {
+      // Ensure lock is removed when modal closes
+      document.body.classList.remove('modal-open');
+    }
+  }, [isAuthModalOpen]);
+
+  // Global escape key handler
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+    
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        toggleAuthModal(false);
+      }
+    };
+    
+    window.addEventListener('keydown', handleEscape);
+    return () => window.removeEventListener('keydown', handleEscape);
+  }, [isAuthModalOpen, toggleAuthModal]);
+
+  // Force close modal on route change (navigation)
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+    
+    const handleLocationChange = () => {
+      console.log('🚀 Route changed, closing auth modal');
+      toggleAuthModal(false);
+    };
+    
+    // Listen for popstate (back/forward button)
+    window.addEventListener('popstate', handleLocationChange);
+    
+    return () => {
+      window.removeEventListener('popstate', handleLocationChange);
+    };
+  }, [isAuthModalOpen, toggleAuthModal]);
 
   const loadRegions = async () => {
     try {
@@ -253,7 +335,7 @@ export const AuthModal = () => {
       <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-y-auto flex max-h-[90vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
         
         {/* --- Right Section (Form) --- */}
-        <div className="w-full lg:w-1/2 flex flex-col relative z-10">
+        <div className="w-full md:w-1/2 flex flex-col relative z-10">
           
           <div className="p-6 pb-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 z-index-100">
              <div className="flex items-center gap-2">
@@ -276,12 +358,46 @@ export const AuthModal = () => {
               </p>
             </div>
 
-            {/* Toggle Switch disabled */}
+            {/* Toggle Switch */}
             <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-8 relative isolate">
-              <div className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 right-1`} />
-              <button className={`flex-1 py-2.5 text-sm font-bold transition-colors text-indigo-600 dark:text-white`}>تسجيل دخول</button>
-              <button className={`flex-1 py-2.5 text-sm font-bold transition-colors text-slate-400 cursor-not-allowed`} disabled>حساب جديد (مغلق مؤقتاً)</button>
+              <div
+                className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${
+                  isLogin ? 'right-1' : 'left-1'
+                }`}
+              />
+              <button
+                type="button"
+                onClick={() => setIsLogin(true)}
+                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                  isLogin ? 'text-indigo-600 dark:text-white' : 'text-slate-500 dark:text-slate-300'
+                }`}
+              >
+                تسجيل دخول
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (!allowRegistrations) return;
+                  setIsLogin(false);
+                }}
+                disabled={!allowRegistrations}
+                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
+                  !allowRegistrations
+                    ? 'text-slate-400 cursor-not-allowed'
+                    : !isLogin
+                      ? 'text-indigo-600 dark:text-white'
+                      : 'text-slate-500 dark:text-slate-300'
+                }`}
+              >
+                {allowRegistrations ? 'حساب جديد' : 'حساب جديد (مغلق)'}
+              </button>
             </div>
+
+            {!allowRegistrations && (
+              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-xs dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+                التسجيل للمستخدمين الجدد مغلق حالياً. يمكن للإدارة تفعيله من إعدادات النظام.
+              </div>
+            )}
 
             <form onSubmit={handleSubmit} className="space-y-6">
               
@@ -514,8 +630,8 @@ export const AuthModal = () => {
         </div>
 
         {/* --- Left Section (Image) --- */}
-        <div className="hidden lg:block w-1/2 relative bg-slate-100">
-           <img src="https://images.unsplash.com/photo-1556905055-8f358a7a47b2?q=80&w=2070&auto=format&fit=crop" alt="Tailoring Art" className="absolute inset-0 w-full h-full object-cover"/>
+          <div className="hidden md:block w-1/2 relative bg-slate-100">
+           <img src="/auth-panel.jpg" alt="Tailoring Art" className="absolute inset-0 w-full h-full object-cover"/>
            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
            <div className="absolute bottom-0 left-0 right-0 p-12 text-white rtl:text-right">
               <div className="mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium">

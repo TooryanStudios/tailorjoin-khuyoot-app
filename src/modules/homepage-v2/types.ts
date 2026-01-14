@@ -18,6 +18,7 @@ export type HomePageV2CardItem = {
   mediaType: HeroMediaType;
   mediaUrl: string;
   enabled?: boolean;
+  text?: string; // Text to display under the button (Block F)
 };
 
 export type HomePageV2BlockConfig = {
@@ -44,6 +45,10 @@ export type HomePageV2BlockConfig = {
   mediaType?: HeroMediaType;
   mediaUrl?: string;
   heroHeightPx?: number;
+
+  // BlockF (Privacy & Terms) specific fields
+  privacyContent?: string;
+  termsContent?: string;
 };
 
 export type HomePageV2BlockManifest = {

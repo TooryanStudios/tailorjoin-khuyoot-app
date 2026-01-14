@@ -231,18 +231,50 @@ const HeaderComponent = () => {
             {draftToastMsg || 'تم حفظ المسودة بنجاح'}
           </button>
         )}
-        <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-          {/* Logo block */}
+        <div className="max-w-7xl mx-auto flex items-center gap-4">
+          {/* Logo block - top left */}
           <div 
-            className="flex-1 shrink-0 cursor-pointer" 
+            className="flex items-center gap-3 shrink-0 cursor-pointer" 
             onClick={() => navigate('/')}
             aria-label="الانتقال إلى الصفحة الرئيسية"
           >
-            <h1 className="text-xl sm:text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-blue-600 to-emerald-500 dark:from-blue-400 dark:to-emerald-400 tracking-tighter">
-              خيوط
-            </h1>
-            <p className="text-[9px] text-slate-500 dark:text-slate-400 truncate">منصة التفصيل الذكي</p>
+            <img 
+              src="/logo.png" 
+              alt="خيوط" 
+              className="h-12 sm:h-16 w-auto object-contain"
+            />
           </div>
+
+          {/* Navigation Links - inline for admin and other roles */}
+          {!(loading && !user) ? (
+            <nav aria-label="التنقل الرئيسي" className="hidden md:flex items-center gap-2">
+              {(() => {
+                const role = user?.role ?? (user ? 'user' : 'guest');
+                const links = roleLinks[role as keyof typeof roleLinks] ?? roleLinks.guest;
+                return links.map((l) => (
+                  <button
+                    key={l.path + l.label}
+                    onClick={() => navigate(l.path)}
+                    className={`text-xs font-medium transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
+                    } ${isActive(l.path) ? 'font-semibold text-blue-600 dark:text-blue-400' : ''}`}
+                    aria-current={isActive(l.path) ? 'page' : undefined}
+                  >
+                    {l.icon ? <l.icon size={14} /> : null}
+                    {l.label}
+                    {typeof l.badge === 'function' && l.badge() > 0 ? (
+                      <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] font-semibold">
+                        {l.badge()}
+                      </span>
+                    ) : null}
+                  </button>
+                ));
+              })()}
+            </nav>
+          ) : null}
+
+          {/* Empty space */}
+          <div className="flex-1" />
 
           {/* Designer V2.1 meta + credits (Designer routes only) */}
           {isDesignerRoute && (
@@ -258,7 +290,7 @@ const HeaderComponent = () => {
           )}
 
           {/* Actions: Mobile menu + Role icons + Theme + Auth */}
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-3 shrink-0">
             {/* Mobile menu toggle */}
             <button
               aria-label={mobileOpen ? 'إغلاق القائمة' : 'فتح القائمة'}
@@ -405,44 +437,36 @@ const HeaderComponent = () => {
           </div>
         </div>
 
-        {/* Navigation Links - تظهر حسب نوع الحساب (cache-first) */}
-        <nav aria-label="التنقل الرئيسي">
-          {!(loading && !user) ? (
-            <div
-              className={`max-w-7xl mx-auto mt-3 pb-2 ${mobileOpen ? 'flex flex-col gap-2' : 'hidden'} md:flex md:flex-row justify-center md:gap-4`}
-            >
-              {(() => {
-                const role = user?.role ?? (user ? 'user' : 'guest');
-                const links = roleLinks[role as keyof typeof roleLinks] ?? roleLinks.guest;
-                return links.map((l) => (
-                  <button
-                    key={l.path + l.label}
-                    onClick={() => navigate(l.path)}
-                    className={`text-xs font-medium transition-colors flex items-center gap-1.5 px-3 py-2 md:py-0 rounded-md md:rounded-none hover:bg-slate-100 dark:hover:bg-slate-800 md:hover:bg-transparent focus:outline-none focus:ring-2 focus:ring-blue-500 ${
-                      'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
-                    } ${isActive(l.path) ? 'font-semibold underline underline-offset-4 decoration-2' : ''}`}
-                    aria-current={isActive(l.path) ? 'page' : undefined}
-                  >
-                    {l.icon ? <l.icon size={14} /> : null}
-                    {l.label}
-                    {typeof l.badge === 'function' && l.badge() > 0 ? (
-                      <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] font-semibold">
-                        {l.badge()}
-                      </span>
-                    ) : null}
-                  </button>
-                ));
-              })()}
-            </div>
-          ) : (
-            // Skeleton shimmer while loading (only when we have no cached user)
-            <div className="max-w-7xl mx-auto mt-3 pb-2 flex justify-center gap-4">
-              {[1, 2, 3, 4].map((id) => (
-                <div key={`nav-skel-${id}`} className="w-16 h-4 rounded-sm bg-slate-200 dark:bg-slate-800 animate-pulse" />
-              ))}
-            </div>
-          )}
-        </nav>
+        {/* Navigation Links - Mobile only (shown below on small screens) */}
+        {mobileOpen && !(loading && !user) ? (
+          <nav aria-label="التنقل الرئيسي" className="md:hidden mt-3 pb-2 flex flex-col gap-2">
+            {(() => {
+              const role = user?.role ?? (user ? 'user' : 'guest');
+              const links = roleLinks[role as keyof typeof roleLinks] ?? roleLinks.guest;
+              return links.map((l) => (
+                <button
+                  key={l.path + l.label}
+                  onClick={() => {
+                    navigate(l.path);
+                    setMobileOpen(false);
+                  }}
+                  className={`text-xs font-medium transition-colors flex items-center gap-1.5 px-3 py-2 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                    'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
+                  } ${isActive(l.path) ? 'font-semibold text-blue-600 dark:text-blue-400' : ''}`}
+                  aria-current={isActive(l.path) ? 'page' : undefined}
+                >
+                  {l.icon ? <l.icon size={14} /> : null}
+                  {l.label}
+                  {typeof l.badge === 'function' && l.badge() > 0 ? (
+                    <span className="inline-flex items-center justify-center min-w-4 h-4 px-1 rounded-full bg-blue-600 text-white text-[9px] font-semibold">
+                      {l.badge()}
+                    </span>
+                  ) : null}
+                </button>
+              ));
+            })()}
+          </nav>
+        ) : null}
       </header>
     </>
   );

@@ -1,6 +1,9 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 import { useApp } from '../../../context/AppContext';
 import { useLayoutStore } from './store/useLayoutStore';
+import { useAppStore } from '../../store/useAppStore';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 import manifestJson from './config/layout-manifest.json';
 import type { HomePageV2LayoutManifest, HomePageV2BlockKey } from './types';
 import { SkeletonShimmer } from './components/SkeletonShimmer';
@@ -30,10 +33,17 @@ function componentPathForKey(key: HomePageV2BlockKey): string | null {
 }
 
 export function HomepageOrchestrator() {
-  const { appSettings } = useApp();
+  const { appSettings, user } = useApp();
   const hydrateFromRemote = useLayoutStore((s) => s.hydrateFromRemote);
   const order = useLayoutStore((s) => s.order);
   const visibility = useLayoutStore((s) => s.visibility);
+  
+  // Preserve scroll position across navigation
+  useScrollRestoration();
+  
+  // Use Zustand for persistent state across navigation
+  const spaTestNote = useAppStore((s) => s.spaTestNote);
+  const setSpaTestNote = useAppStore((s) => s.setSpaTestNote);
 
   const [previewEnabled, setPreviewEnabled] = React.useState(() => (typeof window !== 'undefined' ? isPreviewEnabled() : false));
 
@@ -55,6 +65,8 @@ export function HomepageOrchestrator() {
     return () => window.removeEventListener('storage', onStorage);
   }, [hydrateFromRemote]);
 
+  const lastRemoteLayoutRef = React.useRef<string | null>(null);
+
   React.useEffect(() => {
     if (previewEnabled) {
       try {
@@ -66,9 +78,16 @@ export function HomepageOrchestrator() {
       return;
     }
 
-    // Optional: allow remote/admin settings to override local layout.
-    // If not present, store defaults (manifest + local persisted state) apply.
-    hydrateFromRemote((appSettings as any)?.homePageV2Layout ?? null);
+    // Only hydrate from remote if the data actually changed (not on every appSettings change)
+    const remoteLayout = (appSettings as any)?.homePageV2Layout ?? null;
+    const serialized = remoteLayout ? JSON.stringify(remoteLayout) : 'null';
+    if (lastRemoteLayoutRef.current === serialized) return;
+    
+    lastRemoteLayoutRef.current = serialized;
+    // Only hydrate if we have actual remote data, don't wipe local state with null
+    if (remoteLayout) {
+      hydrateFromRemote(remoteLayout);
+    }
   }, [appSettings, hydrateFromRemote, previewEnabled]);
 
   return (
@@ -76,7 +95,12 @@ export function HomepageOrchestrator() {
       {/* Header: Full width background, centered content */}
       <header className="w-full border-b border-slate-800">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center">
-          {/* Logo & Nav */}
+          {/* Logo */}
+          <img 
+            src="/logo.png" 
+            alt="خيوط" 
+            className="h-14 w-auto object-contain"
+          />
         </div>
       </header>
 
@@ -109,6 +133,54 @@ export function HomepageOrchestrator() {
               </React.Suspense>
             );
           })}
+
+          {/* Demo sections - Only visible to admin users */}
+          {user?.role === 'admin' && (
+            <>
+              <div className="my-6 rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-5">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold text-slate-900 dark:text-white">Demo: App Shell (Nested Routes)</div>
+                    <div className="mt-1 text-xs text-slate-600 dark:text-slate-400">
+                      Switch between A/B — layout stays mounted.
+                    </div>
+                  </div>
+                  <Link
+                    to="/demo-shell/a"
+                    className="h-10 px-4 inline-flex items-center rounded-xl bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-semibold"
+                  >
+                    Open Demo
+                  </Link>
+                </div>
+              </div>
+
+              {/* SPA Persistence Test - Right before Footer/Privacy */}
+              <div className="my-8 bg-gradient-to-r from-purple-50 to-fuchsia-50 dark:from-purple-900/20 dark:to-fuchsia-900/20 rounded-2xl p-6 border-2 border-dashed border-purple-300 dark:border-purple-700">
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-bold text-purple-900 dark:text-purple-100">
+                🧪 اختبار SPA - ملاحظة مؤقتة
+              </h3>
+              <Link
+                to="/settings"
+                className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold rounded-lg transition-colors"
+              >
+                اذهب إلى الإعدادات
+              </Link>
+            </div>
+            <input
+              type="text"
+              value={spaTestNote}
+              onChange={(e) => setSpaTestNote(e.target.value)}
+              placeholder="اكتب أي شيء هنا... ثم انتقل إلى الإعدادات وارجع. إذا بقي النص، فالتطبيق SPA حقيقي!"
+              className="w-full px-4 py-3 bg-white dark:bg-slate-800 border-2 border-purple-200 dark:border-purple-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-purple-500 text-slate-900 dark:text-white"
+              dir="rtl"
+            />
+            <p className="mt-2 text-xs text-purple-700 dark:text-purple-300">
+              💡 نصيحة: اكتب شيئًا، ثم اذهب إلى الإعدادات، ثم ارجع. إذا كان النص لا يزال هنا، فهذا يثبت أن الصفحة لم يتم إعادة تحميلها!
+            </p>
+              </div>
+            </>
+          )}
         </div>
       </main>
     </div>

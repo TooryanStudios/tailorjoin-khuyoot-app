@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Sparkles, ChevronRight } from 'lucide-react';
 import { useLayoutStore } from '../store/useLayoutStore';
 
-const ACCENT = '#c6ff1a';
+const ACCENT = 'var(--theme-primary)';
 
 const ITEMS = [
   {

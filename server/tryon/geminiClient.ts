@@ -212,17 +212,39 @@ export async function generateFabricSwap(input: {
           { type: 'image', data: input.templateBase64, mime_type: input.templateMimeType },
           { type: 'text', text: withAspectRatioHint(input.promptText, input.aspectRatio) + '\n\nUse the aspect ratio and dimensions of the LAST uploaded image (the template). Do NOT output a square image.' },
         ],
-        response_modalities: ['image'],
+        response_modalities: ['image', 'text'],
       });
 
+      console.log('[Gemini] Fabric Swap API Response received');
+      console.log('[Gemini] Response type:', typeof interaction);
+      console.log('[Gemini] Response keys:', Object.keys(interaction || {}).join(', '));
+      
       const outputs: any[] = (interaction as any).outputs || [];
+      console.log('[Gemini] Outputs count:', outputs.length);
+      console.log('[Gemini] Full outputs array:', JSON.stringify(outputs, null, 2));
+      
       const img: any = outputs.find((o) => o?.type === 'image' && o?.data);
-      if (!img) throw new Error('Gemini did not return an image output for fabric swap');
+      if (!img) {
+        console.error('[Gemini] Fabric Swap failed - No image output received');
+        console.error('[Gemini] Total outputs:', outputs.length);
+        console.error('[Gemini] Outputs:', JSON.stringify(outputs?.slice(0, 3), null, 2));
+        if (outputs.length > 0 && outputs[0]?.type !== 'image') {
+          const firstOutput = outputs[0];
+          console.error('[Gemini] First output type:', firstOutput?.type);
+          console.error('[Gemini] First output content:', firstOutput?.text ? firstOutput.text.substring(0, 500) : 'N/A');
+        }
+        throw new Error('Gemini did not return an image output for fabric swap');
+      }
 
       console.log(`[Gemini] Fabric Swap successful with ${model}`);
       return { imageBase64: String(img.data), mimeType: String(img.mime_type || 'image/png') };
     } catch (err: any) {
       lastErr = err;
+      console.error(`[Gemini] Fabric Swap error on attempt ${attempt + 1}:`, {
+        message: err?.message,
+        code: err?.code,
+        status: err?.status,
+      });
       if (attempt < delays.length && isRetryableGeminiError(err)) {
         console.log(`[Gemini] Fabric Swap retrying (attempt ${attempt + 1}/${delays.length})...`);
         await sleep(delays[attempt]);

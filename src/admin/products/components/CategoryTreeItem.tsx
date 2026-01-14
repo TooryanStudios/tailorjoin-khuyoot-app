@@ -15,7 +15,7 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
   level,
   onEdit,
   onDelete,
-  onAddChild
+  onAddChild,
 }) => {
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [showMenu, setShowMenu] = React.useState(false);

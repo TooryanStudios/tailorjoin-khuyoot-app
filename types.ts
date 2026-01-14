@@ -108,6 +108,32 @@ export interface Product {
   designerPreviewUrl?: string;
 }
 
+// Admin Configuration Types
+export interface ActionButtonConfig {
+  enabled: boolean;
+  title: string;
+  subtitle: string;
+  cta: string;
+  mediaType: 'image' | 'video' | 'graphic';
+  mediaUrl?: string; // For image/video
+  graphicType?: 'fabric' | 'measurements'; // For SVG graphics
+}
+
+export interface ThumbnailConfig {
+  size: number; // px
+  gap: number; // px
+  borderRadius: number; // px
+  aspectRatio: 'square' | 'video' | 'portrait';
+}
+
+export interface ProductPageConfig {
+  buttons: {
+    tryFabric: ActionButtonConfig;
+    measurements: ActionButtonConfig;
+  };
+  thumbnails: ThumbnailConfig;
+}
+
 export type Region = 'Muscat' | 'Sohar' | 'Salalah' | 'Nizwa' | 'Sur' | 'Other';
 
 // إضافة واجهة للمناطق الجغرافية
@@ -237,6 +263,10 @@ export interface AppSettings {
   // Globally managed product categories used by homepage filters and join flow
   productCategories?: Array<{ id: string; name: string }>;
   storeEnabled?: boolean; // تفعيل/تعطيل متجر خيوط
+  themeColors?: {
+    primary?: string;
+    secondary?: string;
+  };
   matchingMeasurementsVideoUrl?: string; // رابط فيديو تعليمات المقاسات المطابقة
     helpVideo?: {
       enabled?: boolean;
@@ -406,6 +436,7 @@ export interface AppSettings {
       ads?: string;
     };
   };
+  productPageConfig?: ProductPageConfig; // Product page configuration
   // Default password for tailor onboarding (admin-configurable)
   tailorDefaultPassword?: string;
 }

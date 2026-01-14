@@ -8,6 +8,7 @@ import { AuthModal } from '../../../components/AuthModal';
 import { LoadingShell } from '../../components/LoadingShell';
 import { useApp } from '../../../context/AppContext';
 import { useVisualViewportHeight } from '../../hooks/useVisualViewportHeight';
+import { useScrollRestoration } from '../../hooks/useScrollRestoration';
 import { ADMIN_CONFIG_QUERY_KEY, fetchAdminConfig } from '../../lib/adminConfig';
 
 /**
@@ -21,7 +22,11 @@ import { ADMIN_CONFIG_QUERY_KEY, fetchAdminConfig } from '../../lib/adminConfig'
 export const ClientLayout: React.FC = () => {
   const location = useLocation();
   const outlet = useOutlet();
-  const { user } = useApp();
+  const { user, appSettings } = useApp();
+
+  // Preserve window scroll positions across SPA navigation.
+  // Uses module-level Map so positions persist even if ClientLayout unmounts.
+  useScrollRestoration();
 
   const { data: config, isLoading: isConfigLoading } = useQuery({
     queryKey: ADMIN_CONFIG_QUERY_KEY,
@@ -51,6 +56,17 @@ export const ClientLayout: React.FC = () => {
   const [cachedRouteType, setCachedRouteType] = useState<'home' | 'other' | null>(null);
 
   useVisualViewportHeight();
+
+  // Ensure React Router controls scroll restoration (avoid browser restoring to a stale position).
+  useEffect(() => {
+    try {
+      if ('scrollRestoration' in window.history) {
+        window.history.scrollRestoration = 'manual';
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
 
   // Cache the current outlet based on route
   useEffect(() => {
@@ -97,14 +113,18 @@ export const ClientLayout: React.FC = () => {
   }, [location.pathname, location.search, location.hash]);
 
   // **CRITICAL: Block render until site config is loaded**
+  // AppInitializer already loads initial config into AppContext.
+  // If the query fails (e.g. after login/logout), fall back to AppContext settings
+  // instead of showing a permanent LoadingShell (blank page).
+  const effectiveConfig = config ?? appSettings;
   // Must be AFTER all hooks to comply with React rules
-  if (isConfigLoading || !config) {
+  if (isConfigLoading && !effectiveConfig) {
     return <LoadingShell />;
   }
 
   // Determine visibility (exclusive render): only mount when explicitly allowed
-  const shouldShowHeader = !hideHeader && config?.showHeader === true;
-  const shouldShowFooter = true;
+  const shouldShowHeader = !hideHeader && effectiveConfig?.showHeader !== false;
+  const shouldShowFooter = effectiveConfig?.showFooter !== false;
 
   return (
     <div
@@ -116,8 +136,8 @@ export const ClientLayout: React.FC = () => {
         className="main-content w-full mx-0 relative"
         style={isFullBleedRoute ? { overflow: 'hidden', paddingBottom: 0 } : undefined}
       >
-        {/* Header disabled */}
-        {/* {shouldShowHeader && <Header />} */}
+        {/* Header - shown when enabled in settings */}
+        {shouldShowHeader && <Header />}
 
         <div className={isFullBleedRoute ? '' : 'pt-3'}>
           {shouldCenterConstrain ? (
@@ -181,5 +201,7 @@ export const ClientLayout: React.FC = () => {
     </div>
   );
 };
+
+export default ClientLayout;
 
 

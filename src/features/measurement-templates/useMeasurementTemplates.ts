@@ -305,7 +305,10 @@ export const useMeasurementTemplates = () => {
   }, [draft]);
 
   const handleSelectTemplate = (templateId: string) => {
+    console.log('[handleSelectTemplate] Called with templateId:', templateId);
     const selected = templates.find((t) => t.id === templateId);
+    console.log('[handleSelectTemplate] Found template:', selected?.name, 'Level:', selected?.level, 'ParentId:', selected?.parentId);
+    
     setActiveId(selected ? selected.id : templateId);
     setDraft(selected ? { ...selected } : null);
 
@@ -316,7 +319,11 @@ export const useMeasurementTemplates = () => {
         rootId = selected.parentId; // الأب (Level 1)
       } else if ((selected.level ?? 0) === 1) {
         rootId = selected.id; // هو نفسه Level 1
+      } else if (selected.parentId) {
+        // Handle templates with other levels but have a parentId
+        rootId = selected.parentId;
       }
+      console.log('[handleSelectTemplate] Computed rootId:', rootId, 'Current activeRootId:', activeRootIdRef.current);
       setActiveRootId(rootId);
       setPointSize(selected.pointSize || 44);
       setPointOpacity(selected.pointOpacity || 90);
@@ -330,6 +337,7 @@ export const useMeasurementTemplates = () => {
   };
 
   const handleSelectRoot = (rootId: string) => {
+    console.log('[handleSelectRoot] Called with rootId:', rootId);
     const normalizedRootId = rootId || null;
     setActiveRootId(normalizedRootId);
 
@@ -346,6 +354,7 @@ export const useMeasurementTemplates = () => {
     const branchTemplatesForRoot = templates.filter(
       (template) => template.parentId === normalizedRootId
     );
+    console.log('[handleSelectRoot] Found', branchTemplatesForRoot.length, 'branch templates for root:', rootId);
 
     if (branchTemplatesForRoot.length === 0) {
       setActiveId(null);
@@ -361,6 +370,7 @@ export const useMeasurementTemplates = () => {
       : null;
 
     const nextTemplate = preferActive || branchTemplatesForRoot[0];
+    console.log('[handleSelectRoot] Auto-selecting template:', nextTemplate.name, 'ID:', nextTemplate.id);
     handleSelectTemplate(nextTemplate.id);
   };
 
@@ -402,6 +412,9 @@ export const useMeasurementTemplates = () => {
       return;
     }
 
+    const REQUIRED_ASPECT_RATIO = 3 / 4; // width:height = 3:4
+    const ASPECT_RATIO_TOLERANCE = 0.01; // Allow small tolerance for rounding
+
     const reader = new FileReader();
 
     reader.onload = (e) => {
@@ -415,16 +428,14 @@ export const useMeasurementTemplates = () => {
       const img = new Image();
 
       img.onload = () => {
-        const REQUIRED_WIDTH = appSettings.measurementTemplateWidth || 460;
-        const REQUIRED_HEIGHT = appSettings.measurementTemplateHeight || 690;
-
-        if (img.width !== REQUIRED_WIDTH || img.height !== REQUIRED_HEIGHT) {
+        const imageAspectRatio = img.width / img.height;
+        
+        // Validate aspect ratio (3:4)
+        if (Math.abs(imageAspectRatio - REQUIRED_ASPECT_RATIO) > ASPECT_RATIO_TOLERANCE) {
           alert(
-            `❌ مقاس الصورة غير صحيح!\n\n` +
-            `📏 المقاس المطلوب: ${REQUIRED_WIDTH} × ${REQUIRED_HEIGHT} بكسل\n` +
-            `📐 مقاس الصورة المرفوعة: ${img.width} × ${img.height} بكسل\n\n` +
-            `⚠️ يجب أن تكون أبعاد الصورة ${REQUIRED_WIDTH}×${REQUIRED_HEIGHT} بكسل بالضبط.\n\n` +
-            `الرجاء تعديل مقاس الصورة باستخدام أي برنامج تحرير صور والمحاولة مرة أخرى.`
+            `❌ يجب أن تكون نسبة أبعاد الصورة 3:4 (عرض:ارتفاع).\n` +
+            `الأبعاد الحالية: ${img.width}×${img.height} بكسل (نسبة ${imageAspectRatio.toFixed(3)}).\n` +
+            `مثال للأبعاد الصحيحة: 600×800، 750×1000، 900×1200`
           );
           callback?.(false);
           return;

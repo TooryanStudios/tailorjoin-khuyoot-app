@@ -115,7 +115,7 @@ export const TemplatesCanvas: React.FC<TemplatesCanvasProps> = ({
       onClick={() => setToolMode(mode)}
       className={`p-2.5 rounded-lg transition-all duration-200 group relative ${
         active 
-        ? 'bg-indigo-600 text-white shadow-md scale-105' 
+        ? 'bg-purple-600 text-white shadow-md scale-105' 
         : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'
       }`}
       title={label}
@@ -129,131 +129,136 @@ export const TemplatesCanvas: React.FC<TemplatesCanvasProps> = ({
   );
 
   return (
-    <div className="h-full flex flex-col relative">
-      {/* Top Toolbar */}
-      <div className="p-3 border-b border-slate-200 dark:border-slate-700 bg-white/50 dark:bg-slate-800/50 backdrop-blur-sm sticky top-0 z-30 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1">
-           <button onClick={onUndo} disabled={!canUndo} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition"><Undo2 size={18}/></button>
-           <button onClick={onRedo} disabled={!canRedo} className="p-2 rounded hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-30 transition"><Redo2 size={18}/></button>
-           <div className="w-px h-6 bg-slate-300 dark:bg-slate-600 mx-1" />
-           <label className="p-2 rounded cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition text-slate-600" title="رفع صورة">
-             <ImageIcon size={18} />
+    <div className="h-full flex relative bg-zinc-900">
+      {/* Left Vertical Toolbar */}
+      <div className="p-2 border-l border-zinc-700 bg-zinc-800/50 backdrop-blur-sm z-30 flex flex-col gap-3">
+        {/* Top Section: Undo/Redo/Upload */}
+        <div className="flex flex-col gap-1">
+           <button onClick={onUndo} disabled={!canUndo} className="p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30 transition text-zinc-400"><Undo2 size={16}/></button>
+           <button onClick={onRedo} disabled={!canRedo} className="p-1.5 rounded hover:bg-zinc-700 disabled:opacity-30 transition text-zinc-400"><Redo2 size={16}/></button>
+           <div className="h-px w-5 bg-zinc-700 my-1 mx-auto" />
+           <label className="p-1.5 rounded cursor-pointer hover:bg-zinc-700 transition text-zinc-400" title="رفع صورة">
+             <ImageIcon size={16} />
              <input type="file" accept="image/*" className="hidden" onChange={(e) => e.target.files?.[0] && onImageUpload(e.target.files[0], 'baseImageUrl', () => (e.target.value = ''))} />
            </label>
-           <label className="p-2 rounded cursor-pointer hover:bg-slate-200 dark:hover:bg-slate-700 transition text-slate-600" title="رفع ملف فيكتور">
-             <Wand2 size={18} />
+           <label className="p-1.5 rounded cursor-pointer hover:bg-zinc-700 transition text-zinc-400" title="رفع ملف فيكتور">
+             <Wand2 size={16} />
              <input type="file" accept=".svg,.ai,.pdf" className="hidden" onChange={(e) => e.target.files?.[0] && onImageUpload(e.target.files[0], 'vectorUrl', () => (e.target.value = ''))} />
            </label>
         </div>
         
-        <div className="flex items-center gap-3">
-           {/* Tools */}
-           <div className="flex items-center gap-1 border-r border-slate-300 dark:border-slate-600 pr-3">
-             <button 
-               onClick={() => setToolMode('select')}
-               className={`p-2 rounded-lg transition-all ${toolMode === 'select' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
-               title="تحديد ونقل"
-             >
-               <MousePointer2 size={18} />
-             </button>
-             <button 
-               onClick={() => setToolMode('add')}
-               className={`p-2 rounded-lg transition-all ${toolMode === 'add' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
-               title="إضافة نقطة"
-             >
-               <Plus size={18} />
-             </button>
-             <button 
-               onClick={() => setToolMode('arrow')}
-               className={`p-2 rounded-lg transition-all ${toolMode === 'arrow' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
-               title="رسم سهم"
-             >
-               <ArrowRight size={18} />
-             </button>
-             <button 
-               onClick={() => setToolMode('delete')}
-               className={`p-2 rounded-lg transition-all ${toolMode === 'delete' ? 'bg-indigo-600 text-white' : 'hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300'}`}
-               title="حذف عنصر"
-             >
-               <Eraser size={18} />
-             </button>
-             <button 
-               onClick={() => setShowLabels(!showLabels)}
-               className={`p-2 rounded-lg transition-all ${showLabels ? 'text-indigo-600 bg-indigo-50' : 'text-slate-500 hover:bg-slate-100'}`}
-               title="إظهار الأسماء"
-             >
-               {showLabels ? <Eye size={18}/> : <EyeOff size={18}/>}
-             </button>
-           </div>
-
-           {/* Sliders */}
-           <div className="flex items-center gap-3 border-r border-slate-300 dark:border-slate-600 pr-3">
-             {/* Size Slider */}
-             <div className="flex items-center gap-2">
-               <ZoomOut size={14} className="text-slate-400"/>
-               <input 
-                 type="range" min="28" max="64" value={pointSize} 
-                 onChange={(e) => setPointSize(Number(e.target.value))}
-                 className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                 title="حجم النقاط"
-               />
-               <ZoomIn size={14} className="text-slate-400"/>
-             </div>
-             
-             {/* Opacity Slider */}
-             <div className="flex items-center gap-2">
-               <div className="w-3 h-3 rounded-full bg-slate-400 opacity-30"/>
-               <input 
-                 type="range" min="30" max="100" value={pointOpacity} 
-                 onChange={(e) => setPointOpacity(Number(e.target.value))}
-                 className="w-16 h-1 bg-slate-200 rounded-lg appearance-none cursor-pointer"
-                 title="شفافية النقاط"
-               />
-               <div className="w-3 h-3 rounded-full bg-slate-400 opacity-100"/>
-             </div>
-           </div>
-
-           {/* Color Picker */}
-           <div className="relative group border-r border-slate-300 dark:border-slate-600 pr-3">
-              <div className="w-6 h-6 rounded-full border-2 border-white shadow-sm cursor-pointer" style={{ backgroundColor: pointColor }}></div>
-              <input type="color" value={pointColor} onChange={(e) => onPointColorChange(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
-           </div>
-
-           {/* Delete Template */}
-           <button 
-             onClick={onDeleteTemplate} 
-             disabled={!canDeleteTemplate}
-             className="text-rose-500 hover:bg-rose-50 p-2 rounded transition disabled:opacity-30"
-             title="حذف القالب بالكامل"
-           >
-             <Trash2 size={18} />
-           </button>
+        {/* Tools Section */}
+        <div className="flex flex-col gap-1 border-t border-zinc-700 pt-2">
+          <button 
+            onClick={() => setToolMode('select')}
+            className={`p-1.5 rounded-lg transition-all ${toolMode === 'select' ? 'bg-purple-600 text-white' : 'hover:bg-zinc-700 text-zinc-400'}`}
+            title="تحديد ونقل"
+          >
+            <MousePointer2 size={16} />
+          </button>
+          <button 
+            onClick={() => setToolMode('add')}
+            disabled={!draft?.baseImageUrl}
+            className={`p-1.5 rounded-lg transition-all ${toolMode === 'add' ? 'bg-purple-600 text-white' : 'hover:bg-zinc-700 text-zinc-400'} disabled:opacity-30 disabled:cursor-not-allowed`}
+            title={draft?.baseImageUrl ? "إضافة نقطة" : "ارفع صورة أولاً"}
+          >
+            <Plus size={16} />
+          </button>
+          <button 
+            onClick={() => setToolMode('arrow')}
+            disabled={!draft?.baseImageUrl}
+            className={`p-1.5 rounded-lg transition-all ${toolMode === 'arrow' ? 'bg-purple-600 text-white' : 'hover:bg-zinc-700 text-zinc-400'} disabled:opacity-30 disabled:cursor-not-allowed`}
+            title={draft?.baseImageUrl ? "رسم سهم" : "ارفع صورة أولاً"}
+          >
+            <ArrowRight size={16} />
+          </button>
+          <button 
+            onClick={() => setToolMode('delete')}
+            className={`p-1.5 rounded-lg transition-all ${toolMode === 'delete' ? 'bg-purple-600 text-white' : 'hover:bg-zinc-700 text-zinc-400'}`}
+            title="حذف عنصر"
+          >
+            <Eraser size={16} />
+          </button>
+          <button 
+            onClick={() => setShowLabels(!showLabels)}
+            className={`p-1.5 rounded-lg transition-all ${showLabels ? 'text-purple-400 bg-purple-500/20' : 'text-zinc-400 hover:bg-zinc-700'}`}
+            title="إظهار الأسماء"
+          >
+            {showLabels ? <Eye size={16}/> : <EyeOff size={16}/>}
+          </button>
         </div>
+
+        {/* Sliders Section */}
+        <div className="flex flex-col gap-2 border-t border-zinc-700 pt-2">
+          {/* Size Slider - Vertical */}
+          <div className="flex flex-col items-center gap-1">
+            <ZoomIn size={12} className="text-zinc-500"/>
+            <input 
+              type="range" min="28" max="64" value={pointSize} 
+              onChange={(e) => setPointSize(Number(e.target.value))}
+              className="w-1 h-12 bg-zinc-700 rounded-lg appearance-none cursor-pointer"
+              style={{ writingMode: 'vertical-lr' }}
+              title="حجم النقاط"
+            />
+            <ZoomOut size={12} className="text-zinc-500"/>
+          </div>
+          
+          {/* Opacity Slider - Vertical */}
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-400 opacity-100"/>
+            <input 
+              type="range" min="30" max="100" value={pointOpacity} 
+              onChange={(e) => setPointOpacity(Number(e.target.value))}
+              className="w-1 h-12 bg-zinc-700 rounded-lg appearance-none cursor-pointer"
+              style={{ writingMode: 'vertical-lr' }}
+              title="شفافية النقاط"
+            />
+            <div className="w-2.5 h-2.5 rounded-full bg-zinc-400 opacity-30"/>
+          </div>
+        </div>
+
+        {/* Color Picker */}
+        <div className="relative group border-t border-zinc-700 pt-2 flex justify-center">
+           <div className="w-5 h-5 rounded-full border-2 border-zinc-600 shadow-sm cursor-pointer" style={{ backgroundColor: pointColor }}></div>
+           <input type="color" value={pointColor} onChange={(e) => onPointColorChange(e.target.value)} className="absolute inset-0 opacity-0 cursor-pointer" />
+        </div>
+
+        {/* Delete Template */}
+        <button 
+          onClick={onDeleteTemplate} 
+          disabled={!canDeleteTemplate}
+          className="text-rose-400 hover:bg-rose-500/20 p-1.5 rounded transition disabled:opacity-30 mt-auto"
+          title="حذف القالب بالكامل"
+        >
+          <Trash2 size={16} />
+        </button>
       </div>
 
       {/* Main Canvas Area */}
-      <div className="flex-1 overflow-auto flex justify-center p-8 bg-slate-50 dark:bg-slate-900/50">
+      <div className="flex-1 overflow-auto flex justify-center items-center p-6 bg-zinc-950">
         <div 
           ref={canvasRef} 
           onClick={onCanvasClick}
-          className={`relative shadow-2xl bg-white transition-shadow duration-300 ${toolMode === 'add' ? 'cursor-crosshair' : 'cursor-default'}`}
+          className={`relative shadow-2xl bg-[#1a1a1a] transition-shadow duration-300 ${toolMode === 'add' ? 'cursor-crosshair' : 'cursor-default'}`}
           style={{
-            width: `${appSettings.measurementTemplateWidth || 460}px`,
-            height: `${appSettings.measurementTemplateHeight || 690}px`,
-            minWidth: `${appSettings.measurementTemplateWidth || 460}px`,
-            minHeight: `${appSettings.measurementTemplateHeight || 690}px`,
+            maxHeight: '800px',
+            maxWidth: '100%',
+            width: 'fit-content',
+            height: 'fit-content',
           }}
         >
           {draft.baseImageUrl ? (
             <img 
               src={draft.baseImageUrl} 
-              className="absolute inset-0 w-full h-full object-cover pointer-events-none select-none" 
-              alt="template" 
+              className="w-full h-full object-contain pointer-events-none select-none" 
+              style={{ maxHeight: '800px', userSelect: 'none' }}
+              alt="template"
+              draggable={false}
             />
           ) : (
-             <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-300 gap-2 border-2 border-dashed border-slate-200 m-4 rounded-xl">
-               <Upload size={32} />
-               <span className="text-sm">اضغط على أيقونة الصورة في الأعلى للبدء</span>
+             <div className="flex flex-col items-center justify-center text-zinc-400 gap-2 border-2 border-dashed border-zinc-700 p-12 rounded-lg min-w-[350px] min-h-[350px]">
+               <Upload size={28} />
+               <span className="text-xs">اضغط على أيقونة الصورة في الأعلى للبدء</span>
              </div>
           )}
 

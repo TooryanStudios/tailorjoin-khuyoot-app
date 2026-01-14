@@ -9,69 +9,8 @@ const REVIEWS: Review[] = [
   { id: 'r2', userId: 'u3', userName: 'سارة', rating: 4, comment: 'التفصيل دقيق لكن تأخر قليلاً', date: '2023-09-20' },
 ];
 
-// Mock Data
-export const MOCK_PRODUCTS: Product[] = [
-  {
-    id: '1',
-    name: 'دشداشة عمانية مطرزة',
-    category: 'dishdasha',
-    price: 25.000,
-    image: 'https://picsum.photos/400/500?random=1',
-    rating: 4.8,
-    location: 'خياط النخبة - مسقط',
-    duration: '5 أيام',
-    tailorId: 't1',
-    tailorName: 'خياط الأصالة'
-  },
-  {
-    id: '2',
-    name: 'جاكيت رسمي كحلي',
-    category: 'jacket',
-    price: 35.500,
-    image: 'https://picsum.photos/400/500?random=2',
-    rating: 4.5,
-    location: 'بوتيك الأناقة',
-    duration: 'أسبوع',
-    tailorId: 't3',
-    tailorName: 'مركز الأناقة'
-  },
-  {
-    id: '3',
-    name: 'عباية سوداء فاخرة',
-    category: 'abaya',
-    price: 45.000,
-    image: 'https://picsum.photos/400/500?random=3',
-    rating: 5.0,
-    location: 'دار الزين',
-    duration: '3 أيام',
-    tailorId: 't2',
-    tailorName: 'دار الحرير'
-  },
-  {
-    id: '4',
-    name: 'جاكيت جلد بني',
-    category: 'jacket',
-    price: 55.000,
-    image: 'https://picsum.photos/400/500?random=4',
-    rating: 4.2,
-    location: 'عالم الجلود',
-    duration: '10 أيام',
-    tailorId: 't3',
-    tailorName: 'مركز الأناقة'
-  },
-  {
-    id: '5',
-    name: 'طقم أطفال للعيد',
-    category: 'kids',
-    price: 18.000,
-    image: 'https://picsum.photos/400/500?random=5',
-    rating: 4.9,
-    location: 'متجر الصغار',
-    duration: 'يومان',
-    tailorId: 't1',
-    tailorName: 'خياط الأصالة'
-  }
-];
+// Basic mock products fallback. Add real items here if needed for local dev without Firebase.
+export const MOCK_PRODUCTS: Product[] = [];
 
 export const MOCK_TAILORS: Tailor[] = [
   {
@@ -464,79 +403,74 @@ export const mockLogin = async (email: string): Promise<User> => {
 
 export const getProducts = async (category?: string, tailorId?: string): Promise<Product[]> => {
   try {
-    // استيراد firebaseService لجلب المنتجات الحقيقية
     const { firebaseService } = await import('./firebase');
-    
-    // جلب المنتجات من Firebase
+
+    // جلب المنتجات من Firebase فقط (بدون دمج مع النموذجية)
     const firebaseProducts = await firebaseService.getProducts(category);
     console.log('🔍 منتجات Firebase:', firebaseProducts.length);
-    
-    // تسجيل أول منتج للتحقق من الصور
-    if (firebaseProducts.length > 0) {
-      console.log('🔍 أول منتج من Firebase:', {
-        id: firebaseProducts[0].id,
-        name: firebaseProducts[0].name,
-        image: firebaseProducts[0].image,
-        images: firebaseProducts[0].images,
-        tailorId: firebaseProducts[0].tailorId
-      });
-    }
-    
-    // تصفية المنتجات النموذجية
-    let mockProducts = MOCK_PRODUCTS;
-    if (category && category !== 'all') {
-      mockProducts = mockProducts.filter(p => p.category === category);
-    }
-    
-    // دمج المنتجات الحقيقية مع النموذجية
-    let allProducts = [...firebaseProducts, ...mockProducts];
-    
+
+    let filteredProducts = firebaseProducts;
+
     // تصفية حسب الخياط إذا تم تحديده
     if (tailorId) {
       console.log('🔍 تصفية المنتجات للخياط:', tailorId);
-      
-      // جلب بيانات الخياط للحصول على username
+
       const tailor = await getTailorById(tailorId);
       const tailorUsername = tailor?.username;
-      
+
       console.log('🔍 معلومات الخياط:', {
         tailorId,
         username: tailorUsername
       });
-      
-      // البحث باستخدام tailorId أو username
-      allProducts = allProducts.filter(p => {
+
+      filteredProducts = firebaseProducts.filter((p) => {
         const matchesId = p.tailorId === tailorId;
         const matchesUsername = tailorUsername && p.tailorId === tailorUsername;
         return matchesId || matchesUsername;
       });
-      
-      console.log('🔍 عدد المنتجات بعد التصفية:', allProducts.length);
-      
-      // تسجيل أول منتج بعد التصفية
-      if (allProducts.length > 0) {
+
+      console.log('🔍 عدد المنتجات بعد التصفية:', filteredProducts.length);
+
+      if (filteredProducts.length > 0) {
         console.log('🔍 أول منتج بعد التصفية:', {
-          id: allProducts[0].id,
-          name: allProducts[0].name,
-          image: allProducts[0].image,
-          images: allProducts[0].images
+          id: filteredProducts[0].id,
+          name: filteredProducts[0].name,
+          image: filteredProducts[0].image,
+          images: filteredProducts[0].images,
+          tailorId: filteredProducts[0].tailorId
         });
       }
     }
-    
-    return allProducts;
+
+    // إذا وجدنا بيانات حقيقية نعيدها مباشرة
+    if (filteredProducts.length > 0) {
+      return filteredProducts;
+    }
+
+    console.warn('⚠️ لم يتم العثور على منتجات Firebase - سيتم استخدام بيانات نموذجية');
   } catch (error) {
     console.error('Error fetching products:', error);
-    // في حالة الخطأ، نرجع المنتجات النموذجية فقط
-    let result = MOCK_PRODUCTS;
-    if (category && category !== 'all') {
-      result = result.filter(p => p.category === category);
-    }
-    if (tailorId) {
-      result = result.filter(p => p.tailorId === tailorId);
-    }
-    return result;
   }
+
+  // في حالة عدم وجود بيانات حقيقية، نرجع المنتجات النموذجية فقط
+  let result = MOCK_PRODUCTS;
+  if (category && category !== 'all') {
+    result = result.filter((p) => p.category === category);
+  }
+  if (tailorId) {
+    try {
+      const tailor = await getTailorById(tailorId);
+      const tailorUsername = tailor?.username;
+      result = result.filter((p) => {
+        const matchesId = p.tailorId === tailorId;
+        const matchesUsername = tailorUsername && p.tailorId === tailorUsername;
+        return matchesId || matchesUsername;
+      });
+    } catch {
+      result = result.filter((p) => p.tailorId === tailorId);
+    }
+  }
+  return result;
 };
 
 export const getProductById = async (id: string): Promise<Product | undefined> => {
@@ -555,17 +489,16 @@ export const getProductById = async (id: string): Promise<Product | undefined> =
 
 export const getTailors = async (): Promise<Tailor[]> => {
   try {
-    // استيراد firebaseService لجلب المستخدمين الحقيقيين
     const { firebaseService } = await import('./firebase');
     const { getPortfolioItems } = await import('./interactionService');
     
-    // جلب الخياطين الموافق عليهم فقط باستخدام الاستعلام المسموح به
+    // جلب الخياطين الموافق عليهم من Firebase فقط
     const approvedTailors = await firebaseService.getApprovedTailors();
+    console.log(`🎨 Tailors from Firebase: ${approvedTailors.length}`);
     
     // جلب portfolio لكل خياط
     const realTailors: Tailor[] = await Promise.all(
       approvedTailors.map(async (tailor) => {
-        // جلب صور Portfolio من Firebase
         let portfolioUrls: string[] = [];
         try {
           const portfolioItems = await getPortfolioItems(tailor.id);
@@ -583,15 +516,14 @@ export const getTailors = async (): Promise<Tailor[]> => {
       })
     );
     
-    // دمج الخياطين الحقيقيين مع الخياطين النموذجيين
-    const mockTailors = MOCK_TAILORS.filter(t => t.approvalStatus === 'approved');
-    const allTailors = [...realTailors, ...mockTailors];
-    
-    return allTailors;
+    // إذا لم نجد أي خياطين حقيقيين، نرجع مصفوفة فارغة (بدون خلط مع البيانات النموذجية)
+    if (realTailors.length === 0) {
+      console.warn('⚠️ No Firebase tailors found - ensure Firestore has users with role=tailor and approvalStatus=approved');
+    }
+    return realTailors;
   } catch (error) {
     console.error('Error fetching tailors:', error);
-    // في حالة الخطأ، نرجع الخياطين النموذجيين فقط
-    return MOCK_TAILORS.filter(t => t.approvalStatus === 'approved');
+    return [];
   }
 };
 
@@ -627,14 +559,14 @@ export const getAllShops = async (): Promise<Shop[]> => {
         rating: user.rating || 0,
         location: user.location || 'غير محدد',
         region: user.location || 'Muscat',
-        image: user.profileImage || 'https://picsum.photos/200/200?random=default',
+        image: user.profileImage || '/placeholders/avatar.svg',
         experience: user.experience || '0 سنوات',
         followers: 0,
         approvalStatus: user.approvalStatus as 'approved' | 'pending' | 'rejected',
         bio: user.bio || '',
         description: user.bio || '',
         reviews: [],
-        coverImage: user.coverImage || 'https://picsum.photos/800/300?random=cover',
+        coverImage: user.coverImage || '/placeholders/cover.svg',
         createdAt: user.createdAt || new Date().toISOString(),
         updatedAt: user.updatedAt || new Date().toISOString(),
       };
@@ -686,13 +618,13 @@ export const getTailorById = async (id: string): Promise<Tailor | undefined> => 
         rating: user.rating || 0,
         location: user.location || 'غير محدد',
         region: user.region || 'Muscat',
-        image: user.profileImage || 'https://picsum.photos/200/200?random=default',
+        image: user.profileImage || '/placeholders/avatar.svg',
         experience: user.experience || '0 سنوات',
         followers: 0,
         approvalStatus: user.approvalStatus as 'approved' | 'pending' | 'rejected',
         bio: user.bio || '',
         reviews: [],
-        coverImage: 'https://picsum.photos/800/300?random=cover',
+        coverImage: user.coverImage || '/placeholders/cover.svg',
         portfolio: portfolioUrls.length > 0 ? portfolioUrls : []
       };
     }
@@ -716,11 +648,20 @@ export const getTailorById = async (id: string): Promise<Tailor | undefined> => 
 };
 
 export const getStories = async (): Promise<Story[]> => {
-  return new Promise((resolve) => {
-    setTimeout(() => {
-      resolve(MOCK_STORIES);
-    }, 500);
-  });
+  try {
+    const { firebaseService } = await import('./firebase');
+    // Try to fetch real stories from Firebase
+    const stories = await firebaseService.getStories?.() ?? [];
+    console.log(`📖 Stories from Firebase: ${stories.length}`);
+    
+    if (stories.length === 0) {
+      console.warn('⚠️ No Firebase stories found');
+    }
+    return stories;
+  } catch (error) {
+    console.error('Error fetching stories:', error);
+    return [];
+  }
 };
 
 export const getMyOrders = async (userId: string): Promise<Order[]> => {
@@ -748,4 +689,46 @@ export const getFabricStores = async (): Promise<Shop[]> => {
   
   // Return only real stores
   return realStores;
+};
+
+import { ProductPageConfig } from '../types';
+
+export const MOCK_PRODUCT_PAGE_CONFIG: ProductPageConfig = {
+  buttons: {
+    tryFabric: {
+      enabled: true,
+      title: "جربي القماش",
+      subtitle: "تصور بالذكاء الاصطناعي",
+      cta: "فتح المصمم",
+      mediaType: 'graphic',
+      graphicType: 'fabric'
+    },
+    measurements: {
+      enabled: true,
+      title: "المقاسات",
+      subtitle: "أدخلي مقاساتك",
+      cta: "تكوين",
+      mediaType: 'graphic',
+      graphicType: 'measurements'
+    }
+  },
+  thumbnails: {
+    size: 80, // Increased size
+    gap: 12,
+    borderRadius: 16,
+    aspectRatio: 'video' // 16:9
+  }
+};
+
+export const getProductPageConfig = async (): Promise<ProductPageConfig> => {
+  return new Promise((resolve) => {
+    setTimeout(() => resolve(MOCK_PRODUCT_PAGE_CONFIG), 100);
+  });
+};
+
+export const saveProductPageConfig = async (config: ProductPageConfig): Promise<void> => {
+  return new Promise((resolve) => {
+    Object.assign(MOCK_PRODUCT_PAGE_CONFIG, config);
+    setTimeout(() => resolve(), 500);
+  });
 };

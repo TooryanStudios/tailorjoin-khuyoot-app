@@ -96,6 +96,36 @@ async function uploadSingleImage(file: File, path: string): Promise<string> {
   return downloadURL;
 }
 
+function inferFileExtension(file: File): string {
+  const name = (file?.name || '').trim();
+  const match = name.match(/\.([a-z0-9]+)$/i);
+  if (match?.[1]) return match[1].toLowerCase();
+
+  const type = (file?.type || '').toLowerCase();
+  if (type === 'video/mp4') return 'mp4';
+  if (type === 'video/webm') return 'webm';
+  if (type === 'video/quicktime') return 'mov';
+  if (type === 'image/png') return 'png';
+  if (type === 'image/jpeg') return 'jpg';
+  return 'bin';
+}
+
+async function uploadSingleFile(file: File, path: string): Promise<string> {
+  if (!storage) {
+    throw new Error('Firebase Storage not initialized');
+  }
+
+  const storageRef = ref(storage, path);
+  await uploadBytes(storageRef, file, {
+    contentType: file.type || undefined,
+    cacheControl: 'public, max-age=31536000',
+  });
+
+  const downloadURL = await getDownloadURL(storageRef);
+  urlCache.set(path, downloadURL);
+  return downloadURL;
+}
+
 /**
  * رفع صورة منتج - نسخة واحدة فقط للسرعة القصوى
  */
@@ -210,6 +240,30 @@ export async function uploadSettingsImage(
     medium: imageUrl, 
     full: imageUrl 
   };
+}
+
+/**
+ * رفع فيديو (أو أي ملف غير صورة) للإعدادات (بنرات، Hero، إلخ)
+ */
+export async function uploadSettingsVideo(file: File, storagePath: string): Promise<string> {
+  console.log('🚀 رفع فيديو إعدادات:', {
+    name: file.name,
+    type: file.type,
+    path: storagePath,
+    size: `${(file.size / 1024 / 1024).toFixed(2)} MB`,
+  });
+
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substring(7);
+  const ext = inferFileExtension(file);
+  const path = `settings/${storagePath}/${timestamp}_${randomId}.${ext}`;
+
+  const startTime = performance.now();
+  const url = await uploadSingleFile(file, path);
+  const endTime = performance.now();
+  const uploadTime = ((endTime - startTime) / 1000).toFixed(2);
+  console.log(`✅ رفع فيديو الإعدادات ناجح في ${uploadTime}s`);
+  return url;
 }
 
 /**

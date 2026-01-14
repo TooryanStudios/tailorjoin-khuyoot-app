@@ -314,10 +314,23 @@ export const AppProvider: React.FC<PropsWithChildren<{}>> = ({ children }) => {
   }, [user]);
 
   const toggleAuthModal = (isOpen: boolean, mode?: 'login' | 'register') => {
+    console.log('🎯 toggleAuthModal called:', { isOpen, mode });
+    
     if (typeof mode !== 'undefined') {
       setAuthModalMode(mode);
     }
     setIsAuthModalOpen(isOpen);
+    
+    // Defensive cleanup: ensure body scroll class is removed when closing
+    if (!isOpen) {
+      // Small delay to ensure React has finished unmounting the modal
+      setTimeout(() => {
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.position = '';
+        console.log('🧹 Force cleaned body styles and classes');
+      }, 100);
+    }
   };
 
   const updateAppSettings = (newSettings: Partial<AppSettings>) => {

@@ -1,7 +1,6 @@
 import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
-import type { FabricPatternSettings, PopularRegion, Product, Tailor, Shop, Story } from '../../types'
-import type { Advertisement } from '../../services/advertisementService'
+import type { FabricPatternSettings, Product } from '../../types'
 
 type FabricSource = 'khuyoot' | 'shops' | 'upload' | null
 
@@ -27,19 +26,6 @@ type DesignerSession = {
   lastUpdated: number
 }
 
-type HomeDataCache = {
-  tailors: Tailor[]
-  filteredTailors: Tailor[]
-  fabricStores: Shop[]
-  stories: Story[]
-  products: Product[]
-  popularRegions: PopularRegion[]
-  advertisements: Advertisement[]
-  regions: string[]
-  selectedRegion: string | null
-  lastFetched: number | null
-}
-
 type AppStore = {
   hasHydrated: boolean
   designerSession: DesignerSession
@@ -50,10 +36,12 @@ type AppStore = {
   setTailorProducts: (products: Product[]) => void
   tailorViewMode: 'list' | 'grid' | 'compact'
   setTailorViewMode: (mode: 'list' | 'grid' | 'compact') => void
-  // Home data cache for instant loading
-  homeCache: HomeDataCache
-  setHomeCache: (update: Partial<HomeDataCache>) => void
+  // Selected region for filtering
+  selectedRegion: string | null
   setSelectedRegion: (region: string | null) => void
+  // SPA Persistence Test
+  spaTestNote: string
+  setSpaTestNote: (note: string) => void
 }
 
 const defaultFabricSettings: FabricPatternSettings = {
@@ -76,19 +64,6 @@ const defaultDesignerSession: DesignerSession = {
   lastUpdated: Date.now(),
 }
 
-const defaultHomeCache: HomeDataCache = {
-  tailors: [],
-  filteredTailors: [],
-  fabricStores: [],
-  stories: [],
-  products: [],
-  popularRegions: [],
-  advertisements: [],
-  regions: [],
-  selectedRegion: null,
-  lastFetched: null,
-}
-
 export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
@@ -96,8 +71,10 @@ export const useAppStore = create<AppStore>()(
       designerSession: defaultDesignerSession,
       tailorProducts: [],
       tailorViewMode: 'list',
-      homeCache: defaultHomeCache,
+      selectedRegion: null,
+      spaTestNote: '', // SPA test persistence
       setHasHydrated: (value) => set({ hasHydrated: value }),
+      setSpaTestNote: (note) => set({ spaTestNote: note }),
       setDesignerSession: (update) =>
         set((state) => ({
           designerSession: {
@@ -115,21 +92,7 @@ export const useAppStore = create<AppStore>()(
         }),
       setTailorProducts: (products) => set({ tailorProducts: products }),
       setTailorViewMode: (mode) => set({ tailorViewMode: mode }),
-      setHomeCache: (update) =>
-        set((state) => ({
-          homeCache: {
-            ...state.homeCache,
-            ...update,
-            lastFetched: Date.now(),
-          },
-        })),
-      setSelectedRegion: (region) =>
-        set((state) => ({
-          homeCache: {
-            ...state.homeCache,
-            selectedRegion: region,
-          },
-        })),
+      setSelectedRegion: (region) => set({ selectedRegion: region }),
     }),
     {
       name: 'khuyoot-designer-storage',
@@ -144,10 +107,6 @@ export const useAppStore = create<AppStore>()(
             ...currentState.designerSession,
             ...(persisted.designerSession ?? {}),
           },
-          homeCache: {
-            ...currentState.homeCache,
-            ...(persisted.homeCache ?? {}),
-          },
         }
       },
       onRehydrateStorage: () => (state) => {
@@ -158,5 +117,4 @@ export const useAppStore = create<AppStore>()(
 )
 
 export const useDesignerSession = () => useAppStore((state) => state.designerSession)
-export const useHomeCache = () => useAppStore((state) => state.homeCache)
-export const useSelectedRegion = () => useAppStore((state) => state.homeCache.selectedRegion)
+export const useSelectedRegion = () => useAppStore((state) => state.selectedRegion)

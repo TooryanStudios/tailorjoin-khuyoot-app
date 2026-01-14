@@ -72,7 +72,7 @@ export function DiscoveryCard(props: {
         </div>
 
         <div className="absolute inset-0 bg-gradient-to-t from-[#1A0B2E] via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex items-end p-4">
-          <span className="text-[#D4AF37] font-bold tracking-wide uppercase text-sm">{data.title}</span>
+          <span className="text-[color:var(--theme-secondary)] font-bold tracking-wide uppercase text-sm">{data.title}</span>
         </div>
       </button>
     </div>

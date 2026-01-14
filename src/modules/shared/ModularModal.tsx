@@ -21,7 +21,7 @@ export function ModularModal(props: {
   if (!isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[1000]">
+    <div className="fixed inset-0 z-[1000]" data-overlay="khuyoot-modal" data-overlay-owner="ModularModal">
       <button
         type="button"
         aria-label="Close"

@@ -9,6 +9,7 @@ export const ClosetItems = React.memo(function ClosetItems({
   onUploadToCloset,
   onHover,
   extra = null,
+  loadingTemplateId = null,
 }) {
   return (
     <>
@@ -26,6 +27,7 @@ export const ClosetItems = React.memo(function ClosetItems({
             isActive={Boolean(currentId && template.id === currentId)}
             onSelect={onSelect}
             onHover={onHover}
+            isLoading={loadingTemplateId === template.id}
           />
         ))
       ) : (

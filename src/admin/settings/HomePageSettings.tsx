@@ -244,58 +244,58 @@ export const HomePageSettings: React.FC = () => {
   return (
     <div className="w-full max-w-none min-w-0 px-4 py-6">
       {/* Compact Header */}
-      <div className="mb-6">
-        <h2 className="text-xl font-semibold text-slate-900 dark:text-white">
+      <div className="mb-8">
+        <h2 className="text-2xl font-bold text-white">
           إعدادات الصفحة الرئيسية
         </h2>
-        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+        <p className="text-slate-400 mt-2">
           تحكم في عناصر الصفحة الرئيسية وإعداداتها
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Main Sections Panel */}
-        <div className="lg:col-span-2 space-y-6">
+        <div className="lg:col-span-2 space-y-8">
           {/* Global Layout Toggles */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">عناصر التخطيط الرئيسية</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-md">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⌃</span>
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <h3 className="text-lg font-bold text-white mb-6">عناصر التخطيط الرئيسية</h3>
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl text-slate-500">⌃</span>
                   <div>
-                    <div className="text-sm text-slate-900 dark:text-white">الهيدر (الرأس)</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">شريط التنقل والقائمة الرئيسية</div>
+                    <div className="text-base font-medium text-white">الهيدر (الرأس)</div>
+                    <div className="text-sm text-slate-400">شريط التنقل والقائمة الرئيسية</div>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowHeader(!showHeader)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    showHeader ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${
+                    showHeader ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-700'
                   }`}
                 >
-                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                    showHeader ? 'translate-x-5' : 'translate-x-0.5'
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                    showHeader ? 'translate-x-6' : 'translate-x-1'
                   }`} />
                 </button>
               </div>
               
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-md">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">⌄</span>
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
+                <div className="flex items-center gap-4">
+                  <span className="text-2xl text-slate-500">⌄</span>
                   <div>
-                    <div className="text-sm text-slate-900 dark:text-white">الفوتر (التذييل)</div>
-                    <div className="text-xs text-slate-500 dark:text-slate-400">شريط التنقل السفلي ومعلومات التواصل</div>
+                    <div className="text-base font-medium text-white">الفوتر (التذييل)</div>
+                    <div className="text-sm text-slate-400">شريط التنقل السفلي ومعلومات التواصل</div>
                   </div>
                 </div>
                 <button
                   onClick={() => setShowFooter(!showFooter)}
-                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                    showFooter ? 'bg-green-500' : 'bg-slate-300 dark:bg-slate-600'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 ${
+                    showFooter ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-700'
                   }`}
                 >
-                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
-                    showFooter ? 'translate-x-5' : 'translate-x-0.5'
+                  <span className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
+                    showFooter ? 'translate-x-6' : 'translate-x-1'
                   }`} />
                 </button>
               </div>
@@ -303,41 +303,41 @@ export const HomePageSettings: React.FC = () => {
           </div>
 
           {/* Sections List */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">أقسام الصفحة</h3>
-            <div className="space-y-2">
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <h3 className="text-lg font-bold text-white mb-6">أقسام الصفحة</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               {(Object.keys(sections) as Array<keyof HomeSectionSettings>).map((key) => (
                 <div
                   key={key}
-                  className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-md hover:bg-slate-100 dark:hover:bg-slate-900 transition-colors"
+                  className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5 hover:bg-white/10 transition-all duration-300 group"
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {sections[key] ? (
-                      <Eye className="text-green-500 dark:text-green-400 flex-shrink-0" size={16} />
+                      <Eye className="text-green-400 flex-shrink-0" size={18} />
                     ) : (
-                      <EyeOff className="text-slate-400 flex-shrink-0" size={16} />
+                      <EyeOff className="text-slate-600 flex-shrink-0" size={18} />
                     )}
                     <div className="min-w-0 flex-1">
-                      <div className="text-sm text-slate-900 dark:text-white truncate">
+                      <div className="text-sm font-medium text-white truncate">
                         {SECTION_LABELS[key]}
                       </div>
                       {sections[key] && sectionVisibility[key]?.adminOnly && (
-                        <div className="text-xs text-amber-600 dark:text-amber-400">
+                        <div className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mt-0.5">
                           للآدمن فقط
                         </div>
                       )}
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex items-center gap-3 flex-shrink-0">
                     {/* Admin Only Toggle */}
                     {sections[key] && (
                       <button
                         onClick={() => handleAdminOnlyToggle(key)}
-                        className={`p-1.5 rounded transition-colors ${
+                        className={`p-2 rounded-lg transition-all duration-300 ${
                           sectionVisibility[key]?.adminOnly
-                            ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                            : 'text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                            ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                            : 'text-slate-500 hover:bg-white/5'
                         }`}
                         title={sectionVisibility[key]?.adminOnly ? 'للآدمن فقط' : 'للجميع'}
                       >
@@ -348,14 +348,14 @@ export const HomePageSettings: React.FC = () => {
                     {/* Enable/Disable Toggle */}
                     <button
                       onClick={() => handleToggle(key)}
-                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
+                      className={`relative inline-flex h-5 w-9 items-center rounded-full transition-all duration-300 ${
                         sections[key]
-                          ? 'bg-green-500'
-                          : 'bg-slate-300 dark:bg-slate-600'
+                          ? 'bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.3)]'
+                          : 'bg-slate-700'
                       }`}
                     >
                       <span
-                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${
+                        className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform duration-300 ${
                           sections[key] ? 'translate-x-5' : 'translate-x-0.5'
                         }`}
                       />
@@ -367,13 +367,13 @@ export const HomePageSettings: React.FC = () => {
           </div>
 
           {/* Product Categories */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">تصنيفات المنتجات</h3>
-            <p className="text-xs text-slate-500 dark:text-slate-400 mb-3">
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <h3 className="text-lg font-bold text-white mb-2">تصنيفات المنتجات</h3>
+            <p className="text-sm text-slate-400 mb-4">
               صيغة: id:name مفصولة بفواصل (مثال: dishdasha:الدشاديش, jacket:الجاكيت)
             </p>
             <textarea
-              className="w-full min-h-[80px] px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              className="w-full min-h-[120px] px-4 py-3 text-sm bg-slate-900/50 border border-white/10 rounded-xl text-white focus:border-blue-500 outline-none transition-colors resize-none"
               value={categoriesText}
               onChange={(e) => setCategoriesText(e.target.value)}
             />
@@ -381,15 +381,15 @@ export const HomePageSettings: React.FC = () => {
         </div>
 
         {/* Sidebar Settings */}
-        <div className="space-y-6">
+        <div className="space-y-8">
           {/* Numbers Settings */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">إعدادات العرض</h3>
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <h3 className="text-lg font-bold text-white mb-6">إعدادات العرض</h3>
             
-            <div className="space-y-4">
+            <div className="space-y-6">
               {/* Featured Tailors Count */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                   عدد الخياطين المميزين
                 </label>
                 <input
@@ -398,13 +398,13 @@ export const HomePageSettings: React.FC = () => {
                   onChange={(e) => setFeaturedTailorsCount(Number(e.target.value))}
                   min="3"
                   max="20"
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 text-sm bg-slate-900/50 border border-white/10 rounded-xl text-white focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
 
               {/* Filtered Tailors by Region Count */}
               <div>
-                <label className="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                   عدد الخياطين حسب المناطق
                 </label>
                 <input
@@ -413,16 +413,16 @@ export const HomePageSettings: React.FC = () => {
                   onChange={(e) => setFilteredTailorsByRegionCount(Number(e.target.value))}
                   min="1"
                   max="20"
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 text-sm bg-slate-900/50 border border-white/10 rounded-xl text-white focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
             </div>
           </div>
 
           {/* Banner Images */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-4">صور البنرات</h3>
-            <div className="space-y-4">
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <h3 className="text-lg font-bold text-white mb-6">صور البنرات</h3>
+            <div className="space-y-6">
               <SettingsImageUpload
                 value={bannerImages.hero}
                 onChange={(url) => setBannerImages(prev => ({ ...prev, hero: url }))}
@@ -453,31 +453,31 @@ export const HomePageSettings: React.FC = () => {
           </div>
 
           {/* Designer V2.1 Mobile Settings */}
-          <div className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 p-5">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-slate-700 dark:text-slate-300">إعدادات المصمم (الموبايل)</h3>
+          <div className="bg-white/5 backdrop-blur-xl rounded-2xl border border-white/10 p-6">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-bold text-white">إعدادات المصمم (الموبايل)</h3>
               <button 
                 onClick={() => navigate('/admin/config/designer')}
-                className="text-xs text-blue-600 hover:underline"
+                className="text-xs font-bold text-blue-400 hover:text-blue-300 transition-colors"
               >
                 الإعدادات المتقدمة
               </button>
             </div>
             
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-100 dark:border-slate-700">
+            <div className="space-y-6">
+              <div className="flex items-center justify-between p-4 bg-white/5 rounded-xl border border-white/5">
                 <div className="flex flex-col">
-                  <span className="text-sm font-medium text-slate-800 dark:text-white">شريط البطاقات (Cards Rail)</span>
-                  <span className="text-[10px] text-slate-500">يظهر أسفل شريط التاريخ في المصمم</span>
+                  <span className="text-base font-medium text-white">شريط البطاقات (Cards Rail)</span>
+                  <span className="text-xs text-slate-400">يظهر أسفل شريط التاريخ في المصمم</span>
                 </div>
                 <button
                   onClick={() => setDesignerCardsRailEnabled(!designerCardsRailEnabled)}
-                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none ${
-                    designerCardsRailEnabled ? 'bg-blue-600' : 'bg-slate-300 dark:bg-slate-700'
+                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition-all duration-300 focus:outline-none ${
+                    designerCardsRailEnabled ? 'bg-blue-500 shadow-[0_0_15px_rgba(59,130,246,0.5)]' : 'bg-slate-700'
                   }`}
                 >
                   <span
-                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform duration-300 ${
                       designerCardsRailEnabled ? 'translate-x-6' : 'translate-x-1'
                     }`}
                   />
@@ -485,7 +485,7 @@ export const HomePageSettings: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-medium text-slate-500 dark:text-slate-400 mb-1.5">
+                <label className="block text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
                   عنوان الشريط
                 </label>
                 <input
@@ -493,7 +493,7 @@ export const HomePageSettings: React.FC = () => {
                   value={designerCardsRailTitle}
                   onChange={(e) => setDesignerCardsRailTitle(e.target.value)}
                   placeholder="Explore"
-                  className="w-full px-3 py-1.5 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-md text-slate-800 dark:text-white focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                  className="w-full px-4 py-2.5 text-sm bg-slate-900/50 border border-white/10 rounded-xl text-white focus:border-blue-500 outline-none transition-colors"
                 />
               </div>
             </div>
@@ -501,35 +501,41 @@ export const HomePageSettings: React.FC = () => {
         </div>
       </div>
 
-      {/* Fixed Footer with Save Button */}
-      <div className="sticky bottom-0 mt-6 bg-white dark:bg-slate-800 border-t border-slate-200 dark:border-slate-700 px-5 py-4 rounded-lg shadow-lg">
+      {/* Sticky Save Bar */}
+      <div className="sticky bottom-6 mt-8 bg-slate-900/80 backdrop-blur-md border border-white/10 px-6 py-4 rounded-2xl shadow-2xl z-10">
         <div className="flex items-center justify-between gap-4">
-          <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300 min-h-[24px]">
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300 min-h-[24px]">
             {saveStatus === 'saving' && (
               <>
-                <Loader2 className="animate-spin" size={16} />
-                <span>جارٍ الحفظ بهدوء...</span>
+                <Loader2 className="animate-spin text-blue-400" size={18} />
+                <span>جارٍ الحفظ...</span>
               </>
             )}
             {saveStatus === 'saved' && (
               <>
-                <CheckCircle2 className="text-green-500" size={16} />
-                <span className="text-green-600 dark:text-green-400">تم الحفظ بنجاح</span>
+                <CheckCircle2 className="text-green-400" size={18} />
+                <span className="text-green-400">تم الحفظ بنجاح</span>
               </>
             )}
             {saveStatus === 'error' && (
               <>
-                <AlertCircle className="text-red-500" size={16} />
-                <span className="text-red-600 dark:text-red-400">تعذر الحفظ، حاول مجدداً</span>
+                <AlertCircle className="text-red-400" size={18} />
+                <span className="text-red-400">تعذر الحفظ، حاول مرة أخرى</span>
               </>
             )}
           </div>
+
           <button
-            onClick={handleSave}
+            type="button"
+            onClick={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              handleSave();
+            }}
             disabled={saving}
-            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white font-medium px-5 py-2 rounded-md transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white font-bold px-8 py-3 rounded-xl transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-blue-900/20 active:scale-95"
           >
-            <Save size={16} />
+            <Save size={18} />
             {saving ? 'جاري الحفظ...' : 'حفظ التغييرات'}
           </button>
         </div>

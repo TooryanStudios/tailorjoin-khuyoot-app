@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchGenerationHistory, type GenerationRecord } from '../../../services/fabricSwapService';
 import { firebaseService } from '../../../services/firebase';
 
@@ -50,6 +50,7 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
+  const hasHydratedRef = useRef(false);
 
   const cacheKey = userId ? `khuyoot:designerV2_1:history:v1:${userId}` : null;
 
@@ -60,6 +61,7 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
     if (!cached || cached.v !== 1) return;
     if (cached.items?.length) {
       setHistory(cached.items);
+      hasHydratedRef.current = true;
     }
     setActiveId((prev) => prev ?? cached.activeId ?? null);
   }, [cacheKey]);
@@ -175,8 +177,12 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
   }, [activeId]);
 
   useEffect(() => {
+    // Skip initial network fetch if we already hydrated from cache
+    if (hasHydratedRef.current && history.length > 0) {
+      return;
+    }
     refreshHistory();
-  }, [refreshHistory]);
+  }, [refreshHistory, history.length]);
 
   return {
     history,

@@ -8,6 +8,7 @@ export const ShopItems = React.memo(function ShopItems({
   onHover,
   isSubscribed = false,
   onPremiumClick,
+  loadingTemplateId = null,
 }) {
   if (!items?.length) {
     return (
@@ -31,6 +32,7 @@ export const ShopItems = React.memo(function ShopItems({
             onHover={onHover}
             isLocked={isLocked}
             onLockedClick={() => onPremiumClick?.(template)}
+            isLoading={loadingTemplateId === template.id}
           />
         );
       })}

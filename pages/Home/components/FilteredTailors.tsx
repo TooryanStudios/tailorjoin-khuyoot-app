@@ -122,16 +122,22 @@ export const FilteredTailors: React.FC<FilteredTailorsProps> = ({ region }) => {
           </div>
         ))}
         
-        {/* "See All" Vertical Card */}
-        <div 
-            onClick={handleViewAll}
-            className="snap-center shrink-0 w-[100px] h-[260px] flex flex-col items-center justify-center bg-slate-100 dark:bg-slate-800 rounded-2xl border-2 border-dashed border-slate-300 dark:border-slate-700 cursor-pointer hover:bg-slate-200"
+        {/* "Show All" Card */}
+        <button
+          onClick={handleViewAll}
+          className="snap-center shrink-0 flex flex-col items-center justify-center bg-gradient-to-br from-white/10 to-white/5 border border-white/20 hover:border-[color:var(--theme-secondary)]/50 hover:bg-white/15 transition-all cursor-pointer rounded-2xl shadow-lg"
+          style={{
+            width: '200px',
+            height: '260px',
+          }}
         >
-            <div className="w-12 h-12 rounded-full bg-white dark:bg-slate-700 shadow-sm flex items-center justify-center mb-3 text-blue-600">
-                <ChevronLeft size={24} />
+          <div className="flex flex-col items-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-[color:var(--theme-secondary)]/20 flex items-center justify-center transition-all hover:scale-110">
+              <ChevronLeft size={28} className="text-[color:var(--theme-secondary)]" />
             </div>
-            <span className="text-xs font-bold text-slate-500 dark:text-slate-400">الكل</span>
-        </div>
+            <span className="text-sm font-bold text-white">عرض الكل</span>
+          </div>
+        </button>
       </div>
     </div>
   );

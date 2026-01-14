@@ -8,6 +8,22 @@ type AppInitializerProps = {
   children: (config: AppSettings) => React.ReactNode;
 };
 
+const FALLBACK_SETTINGS: AppSettings = {
+  storiesEnabled: true,
+  maintenanceMode: false,
+  allowNewRegistrations: true,
+  designerEnabled: true,
+  cartEnabled: true,
+  showHeader: true,
+  productCategories: [
+    { id: 'dishdasha', name: 'الدشاديش' },
+    { id: 'jacket', name: 'الجاكيت' },
+    { id: 'abaya', name: 'العبايات' },
+    { id: 'kids', name: 'الأطفال' },
+    { id: 'shoes', name: 'الأحذية' },
+  ]
+};
+
 export function AppInitializer({ children }: AppInitializerProps) {
   const { data } = useQuery({
     queryKey: ADMIN_CONFIG_QUERY_KEY,
@@ -19,24 +35,31 @@ export function AppInitializer({ children }: AppInitializerProps) {
   });
 
   const [isAppVisible, setIsAppVisible] = React.useState(false);
+  // Failsafe: If config takes too long, just use fallback
+  const [useFallback, setUseFallback] = React.useState(false);
 
   React.useEffect(() => {
-    if (!data) {
-      setIsAppVisible(false);
-      return;
+    if (data || useFallback) {
+      // Give React a paint boundary, then fade in.
+      const raf = requestAnimationFrame(() => setIsAppVisible(true));
+      return () => cancelAnimationFrame(raf);
     }
 
-    // Give React a paint boundary, then fade in.
-    const raf = requestAnimationFrame(() => setIsAppVisible(true));
-    return () => cancelAnimationFrame(raf);
-  }, [Boolean(data)]);
+    // If data doesn't load within 2 seconds, force fallback to prevent blank screen
+    const timer = setTimeout(() => {
+       console.warn('[AppInitializer] Config load timeout - forcing app render with defaults');
+       setUseFallback(true);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [Boolean(data), useFallback]);
 
   // CSS gating: prevent .app-header/.app-footer from ever painting
   // before we've confirmed the config shape.
   try {
     if (typeof document !== 'undefined') {
-      document.documentElement.setAttribute('data-shell-ready', data ? '1' : '0');
-      if (data) {
+      const isReady = data || useFallback;
+      document.documentElement.setAttribute('data-shell-ready', isReady ? '1' : '0');
+      if (isReady) {
         document.documentElement.classList.remove('hide-shell-elements');
       } else {
         document.documentElement.classList.add('hide-shell-elements');
@@ -48,13 +71,15 @@ export function AppInitializer({ children }: AppInitializerProps) {
 
   // Zero-flash strategy: do not mount the app shell
   // until we know whether header/footer should exist.
-  if (!data) {
+  const configToUse = data || (useFallback ? FALLBACK_SETTINGS : null);
+
+  if (!configToUse) {
     return <SplashScreen />;
   }
 
   return (
     <div className={isAppVisible ? 'opacity-100 transition-opacity duration-300' : 'opacity-0'}>
-      {children(data)}
+      {children(configToUse)}
     </div>
   );
 }

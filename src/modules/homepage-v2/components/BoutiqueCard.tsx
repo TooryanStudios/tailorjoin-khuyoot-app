@@ -10,7 +10,7 @@ type BoutiqueCardProps = {
   onClick?: () => void;
 };
 
-const ACCENT_GOLD = '#D4AF37';
+const ACCENT_GOLD = 'var(--theme-secondary)';
 
 export const BoutiqueCard = React.memo(
   React.forwardRef<HTMLDivElement, BoutiqueCardProps>(function BoutiqueCard(
@@ -91,7 +91,7 @@ export const BoutiqueCard = React.memo(
             <motion.span
               initial={{ opacity: 0, scale: 0.8 }}
               whileInView={{ opacity: 1, scale: 1 }}
-              className="inline-block mb-4 bg-[#D4AF37] text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest w-fit"
+              className="inline-block mb-4 bg-[color:var(--theme-secondary)] text-black text-xs font-black px-3 py-1 rounded-full uppercase tracking-widest w-fit"
             >
               {badge === 'new' ? '✨ NEW' : '🔴 LIVE'}
             </motion.span>
@@ -110,7 +110,7 @@ export const BoutiqueCard = React.memo(
             className="space-y-2"
           >
             {subtitle && <p className="text-white/70 text-sm font-medium">{subtitle}</p>}
-            <p className="text-[#D4AF37] text-sm font-semibold flex items-center gap-2">
+            <p className="text-[color:var(--theme-secondary)] text-sm font-semibold flex items-center gap-2">
               Tap to open <span className="text-lg">→</span>
             </p>
           </motion.div>

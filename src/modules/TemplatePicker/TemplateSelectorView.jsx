@@ -21,15 +21,28 @@ export const TemplateSelectorView = ({
   isSubscribed = false,
   onPremiumClick,
   closetExtra = null,
+  defaultTab,
+  onTabChange, // NEW: Callback when tab changes
+  loadingTemplateId = null, // NEW: ID of template currently loading
 }) => {
   const store = useTemplateStore();
-  const cache = useImageCache({ limit: 10 });
+  // Keep reasonable cache capacity; avoid prefetching everything up front
+  const cache = useImageCache({ limit: 100 });
 
-  const [activeTab, setActiveTab] = useState(TABS.STUDIO);
+  const [activeTab, setActiveTab] = useState(defaultTab || TABS.STUDIO);
+
+  // Auto-switch to Shop tab when shopItems become available
+  React.useEffect(() => {
+    if (shopItems && shopItems.length > 0 && defaultTab === 'Shop') {
+      setActiveTab(TABS.SHOP);
+    }
+  }, [shopItems, defaultTab]);
 
   const resolvedStudioItems = studioItems ?? store.studioTemplates;
   const resolvedShopItems = shopItems ?? store.shopTemplates;
   const resolvedClosetItems = closetItems ?? store.closetTemplates;
+
+  // No mass prefetch on tab activation — per-card lazy load handles fetch when visible
 
   const onHoverTemplate = useCallback(
     (template) => {
@@ -64,6 +77,16 @@ export const TemplateSelectorView = ({
     return enableUpload ? [...base, TABS.CLOSET] : base;
   }, [enableUpload]);
 
+  // Notify parent when tab changes
+  const handleTabChange = React.useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      if (onTabChange) onTabChange(tab);
+    },
+    [onTabChange]
+  );
+
+  // Render all panels and toggle visibility to avoid unmount/mount flicker
   return (
     <div className="overflow-hidden rounded-xl border border-zinc-800 bg-zinc-950">
       <div className="flex border-b border-zinc-800 bg-zinc-950/60">
@@ -71,7 +94,7 @@ export const TemplateSelectorView = ({
           <button
             key={tab}
             type="button"
-            onClick={() => setActiveTab(tab)}
+            onClick={() => handleTabChange(tab)}
             className={`flex-1 px-3 py-2 text-xs font-semibold transition-colors ${
               activeTab === tab
                 ? 'bg-zinc-950 text-purple-200 border-b-2 border-purple-500/70'
@@ -83,36 +106,43 @@ export const TemplateSelectorView = ({
         ))}
       </div>
 
-      <div className="p-3 grid grid-cols-2 gap-3 max-h-[400px] overflow-y-auto custom-scrollbar">
-        {activeTab === TABS.STUDIO && (
+      <div className="p-3 max-h-[400px] overflow-y-auto custom-scrollbar">
+        {/* Studio Panel */}
+        <div className={`${activeTab === TABS.STUDIO ? 'block' : 'hidden'} grid grid-cols-2 gap-3`}>
           <StudioItems
             items={resolvedStudioItems}
             onSelect={onSelectResolved}
             currentId={currentId}
             onHover={onHoverTemplate}
-            isSubscribed={isSubscribed}
-            onPremiumClick={onPremiumClick}
+            loadingTemplateId={loadingTemplateId}
           />
-        )}
-        {activeTab === TABS.SHOP && (
+        </div>
+
+        {/* Shop Panel */}
+        <div className={`${activeTab === TABS.SHOP ? 'block' : 'hidden'} grid grid-cols-2 gap-3`}>
           <ShopItems
             items={resolvedShopItems}
             onSelect={onSelectResolved}
             currentId={currentId}
-            onHover={onHoverTemplate}
             isSubscribed={isSubscribed}
             onPremiumClick={onPremiumClick}
-          />
-        )}
-        {activeTab === TABS.CLOSET && enableUpload && (
-          <ClosetItems
-            items={resolvedClosetItems}
-            onSelect={onSelectResolved}
-            currentId={currentId}
-            onUploadToCloset={store.addToCloset}
             onHover={onHoverTemplate}
-            extra={closetExtra}
+            loadingTemplateId={loadingTemplateId}
           />
+        </div>
+
+        {/* Closet Panel */}
+        {enableUpload && (
+          <div className={`${activeTab === TABS.CLOSET ? 'block' : 'hidden'} grid grid-cols-2 gap-3`}>
+            <ClosetItems
+              items={resolvedClosetItems}
+              onSelect={onSelectResolved}
+              currentId={currentId}
+              extra={closetExtra}
+              onHover={onHoverTemplate}
+              loadingTemplateId={loadingTemplateId}
+            />
+          </div>
         )}
       </div>
     </div>

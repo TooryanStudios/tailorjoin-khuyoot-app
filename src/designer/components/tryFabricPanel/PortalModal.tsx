@@ -29,6 +29,8 @@ export function PortalModal(props: {
   return createPortal(
     <div
       className={overlayClassName}
+      data-overlay="khuyoot-modal"
+      data-overlay-owner="PortalModal"
       data-debug-modal={dataDebugModal}
       onClick={onClose}
       style={overlayStyle}

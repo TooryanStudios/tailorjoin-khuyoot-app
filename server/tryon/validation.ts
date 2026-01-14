@@ -27,7 +27,7 @@ export function validateTryOnRequest(body: any): ValidationResult {
 
   if (templateHasBase64) {
     const templateMime = (req.garmentTemplateMimeType || '').toLowerCase();
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(templateMime)) {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(templateMime)) {
       return { ok: false, status: 400, message: 'Unsupported garmentTemplateMimeType' };
     }
 
@@ -49,7 +49,7 @@ export function validateTryOnRequest(body: any): ValidationResult {
 
   if (hasBase64) {
     const mime = (req.fabricMimeType || '').toLowerCase();
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(mime)) {
+    if (!['image/jpeg', 'image/png', 'image/webp', 'image/jpg'].includes(mime)) {
       return { ok: false, status: 400, message: 'Unsupported fabricMimeType' };
     }
 

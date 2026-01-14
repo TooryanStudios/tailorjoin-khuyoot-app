@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star } from 'lucide-react';
+import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { User, AgeGroup, PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
 
@@ -26,6 +26,7 @@ export const UsersManagement = () => {
   const dragRef = useRef<{ productId: string; index: number } | null>(null);
   const [uploadingProd, setUploadingProd] = useState<Record<string, boolean>>({});
   const [productCategories, setProductCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [leafCategoryIds, setLeafCategoryIds] = useState<Set<string>>(new Set());
 
   // Form state for upgrade
   const [newRole, setNewRole] = useState<'tailor' | 'shop'>('tailor');
@@ -38,6 +39,7 @@ export const UsersManagement = () => {
   // Form state for edit
   const [editForm, setEditForm] = useState({
     name: '',
+    shopName: '',
     email: '',
     phone: '',
     loginId: '',
@@ -187,6 +189,7 @@ export const UsersManagement = () => {
     setSelectedUser(user);
     setEditForm({
       name: user.name || '',
+      shopName: (user as any).shopName || user.name || '',
       email: user.email || '',
       phone: user.phone || '',
       loginId: (user as any).loginId || user.phone || user.email || '',
@@ -253,6 +256,9 @@ export const UsersManagement = () => {
         // specialization as gender type: 'male' | 'female'
         updateData.specialization = editForm.specialization || '';
         updateData.experience = editForm.experience.trim() || '';
+
+        // Shop display name (used in product browsing UI)
+        (updateData as any).shopName = (editForm.shopName || editForm.name).trim();
 
         // Use selected approval status
         updateData.approvalStatus = (editForm.approvalStatus as any) || 'pending';
@@ -323,10 +329,39 @@ export const UsersManagement = () => {
 
   const loadProductCategories = async () => {
     try {
-      const settings = await firebaseService.getGlobalSettings();
-      const cats = (settings as any).productCategories || [];
-      if (Array.isArray(cats)) setProductCategories(cats.map((c: any) => ({ id: c.id, name: c.name })));
-    } catch (e) { /* ignore */ }
+      // Use the same hierarchical source as the Admin Categories page
+      const { buildCategoryTree } = await import('../products/services');
+
+      const tree = await buildCategoryTree();
+      const flat: Array<{ id: string; name: string }> = [];
+      const leafIds = new Set<string>();
+
+      const getDisplayName = (node: any) => node?.nameAr || node?.nameEn || node?.name || node?.id || '';
+
+      const walk = (nodes: any[], path: string[]) => {
+        for (const node of nodes) {
+          const nodeName = getDisplayName(node);
+          const nextPath = [...path, nodeName].filter(Boolean);
+
+          const hasChildren = Array.isArray(node.children) && node.children.length > 0;
+          if (hasChildren) {
+            walk(node.children, nextPath);
+          } else {
+            // Leaf node: selectable category (only level 2)
+            if (node?.level === 2) {
+              flat.push({ id: node.id, name: nodeName });
+              leafIds.add(node.id);
+            }
+          }
+        }
+      };
+
+      walk(tree, []);
+      setProductCategories(flat);
+      setLeafCategoryIds(leafIds);
+    } catch (e) {
+      console.error('Error loading categories:', e);
+    }
   };
 
   const normalizedImages = (p: any): string[] => {
@@ -350,13 +385,25 @@ export const UsersManagement = () => {
       ? p.images
       : (Array.isArray(p.imageUrls) ? p.imageUrls.filter(Boolean) : []);
     const image = images[0] || p.image || '';
-    const categoryId = (p.categoryId || (typeof p.category === 'string' ? p.category : '') || 'dishdasha').trim();
+    const categoryId = (p.categoryId || (typeof p.category === 'string' ? p.category : '') || '').trim();
     return { images, image, coverImageIndex: 0, categoryId, updatedAt: new Date().toISOString() } as Partial<any>;
   };
 
   const updateProduct = async (p: any, updates: Partial<any>) => {
     if (!selectedUser) return;
+
+    // Enforce: only leaf categories are allowed to be saved as categoryId
+    if (Object.prototype.hasOwnProperty.call(updates, 'categoryId')) {
+      const nextCategoryId = String((updates as any).categoryId || '').trim();
+      if (nextCategoryId && leafCategoryIds.size > 0 && !leafCategoryIds.has(nextCategoryId)) {
+        showToast('❌ اختر تصنيفًا فرعيًا فقط (Leaf)', 'error');
+        return;
+      }
+    }
+
     await firebaseService.updateProduct(p.id, { tailorId: selectedUser.id, ...updates } as any);
+    // Update local state to reflect the change immediately
+    setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, ...updates } : x));
   };
 
   const transferImages = async (p: any) => {
@@ -428,12 +475,21 @@ export const UsersManagement = () => {
     if (!file || !selectedUser) return;
     setUploadingProd(prev => ({ ...prev, [p.id]: true }));
     try {
+      // Resize image to max 900px height
+      const options = {
+        maxWidthOrHeight: 900,
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const,
+        initialQuality: 0.9
+      };
+      const compressedFile = await imageCompression(file, options);
+      
       const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
       const storage = getStorage();
       const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const path = `users/${selectedUser.id}/products/${p.id}/${fileId}.jpg`;
       const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, file);
+      await uploadBytes(storageRef, compressedFile);
       const url = await getDownloadURL(storageRef);
       const imgs = normalizedImages(p);
       const newImages = [...imgs, url];
@@ -443,6 +499,46 @@ export const UsersManagement = () => {
       await updateProduct(p, { images: newImages, image: newImage, coverImageIndex: coverIndex });
     } catch (e) {
       // no-op
+    } finally {
+      setUploadingProd(prev => ({ ...prev, [p.id]: false }));
+    }
+  };
+
+  // Upload multiple images at once
+  const uploadMultipleProductImages = async (p: any, files: File[]) => {
+    if (!files.length || !selectedUser) return;
+    setUploadingProd(prev => ({ ...prev, [p.id]: true }));
+    try {
+      const options = {
+        maxWidthOrHeight: 900,
+        useWebWorker: true,
+        fileType: 'image/jpeg' as const,
+        initialQuality: 0.9
+      };
+
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+
+      // Upload all files in parallel
+      const uploadPromises = files.map(async (file) => {
+        const compressedFile = await imageCompression(file, options);
+        const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+        const path = `users/${selectedUser.id}/products/${p.id}/${fileId}.jpg`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, compressedFile);
+        return await getDownloadURL(storageRef);
+      });
+
+      const newUrls = await Promise.all(uploadPromises);
+      const imgs = normalizedImages(p);
+      const newImages = [...imgs, ...newUrls];
+      const coverIndex = typeof p.coverImageIndex === 'number' ? p.coverImageIndex : 0;
+      const newImage = newImages[coverIndex] || newImages[0] || '';
+      
+      setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImage, coverImageIndex: coverIndex } : x));
+      await updateProduct(p, { images: newImages, image: newImage, coverImageIndex: coverIndex });
+    } catch (e) {
+      console.error('Multi-upload error:', e);
     } finally {
       setUploadingProd(prev => ({ ...prev, [p.id]: false }));
     }
@@ -797,7 +893,7 @@ export const UsersManagement = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 space-y-3">
       {toast.open && (
         <div
           role="status"
@@ -825,96 +921,96 @@ export const UsersManagement = () => {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          <h2 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
             إدارة المستخدمين
           </h2>
-          <p className="text-slate-600 dark:text-slate-400 text-sm">
+          <p className="text-slate-600 dark:text-slate-400 text-xs">
             عرض وإدارة جميع المستخدمين وتحويل الحسابات العادية إلى حسابات تجار
           </p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={handleMigrateUsers}
             disabled={migrating || loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition-all shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-700 hover:to-purple-800 text-white rounded-lg transition-all shadow-md shadow-purple-500/20 hover:shadow-purple-500/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
             title="إضافة الحقول المفقودة لجميع المستخدمين"
           >
-            <RefreshCw size={18} className={migrating ? 'animate-spin' : ''} />
-            <span className="text-sm font-medium">ترحيل البيانات</span>
+            <RefreshCw size={14} className={migrating ? 'animate-spin' : ''} />
+            <span className="text-xs font-medium">ترحيل البيانات</span>
           </button>
           <button
             onClick={loadUsers}
             disabled={loading}
-            className="flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white rounded-lg transition-all shadow-md shadow-blue-500/20 hover:shadow-blue-500/40 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
-            <RefreshCw size={18} className={loading ? 'animate-spin' : ''} />
-            <span className="text-sm font-medium">تحديث</span>
+            <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
+            <span className="text-xs font-medium">تحديث</span>
           </button>
         </div>
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
+        <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">إجمالي</p>
-              <p className="text-2xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">{stats.total}</p>
+              <p className="text-[9px] text-blue-600 dark:text-blue-400 font-medium uppercase tracking-wide">إجمالي</p>
+              <p className="text-xl font-bold text-blue-700 dark:text-blue-300 mt-0.5">{stats.total}</p>
             </div>
-            <Users size={24} className="text-blue-500" />
+            <Users size={18} className="text-blue-500" />
           </div>
         </div>
 
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3">
+        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-green-600 dark:text-green-400 font-medium uppercase tracking-wide">عاديين</p>
-              <p className="text-2xl font-bold text-green-700 dark:text-green-300 mt-0.5">{stats.regularUsers}</p>
+              <p className="text-[9px] text-green-600 dark:text-green-400 font-medium uppercase tracking-wide">عاديين</p>
+              <p className="text-xl font-bold text-green-700 dark:text-green-300 mt-0.5">{stats.regularUsers}</p>
             </div>
-            <Users size={24} className="text-green-500" />
+            <Users size={18} className="text-green-500" />
           </div>
         </div>
 
-        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-3">
+        <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded-lg p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-purple-600 dark:text-purple-400 font-medium uppercase tracking-wide">تجار</p>
-              <p className="text-2xl font-bold text-purple-700 dark:text-purple-300 mt-0.5">{stats.merchants}</p>
+              <p className="text-[9px] text-purple-600 dark:text-purple-400 font-medium uppercase tracking-wide">تجار</p>
+              <p className="text-xl font-bold text-purple-700 dark:text-purple-300 mt-0.5">{stats.merchants}</p>
             </div>
-            <Store size={24} className="text-purple-500" />
+            <Store size={18} className="text-purple-500" />
           </div>
         </div>
 
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3">
+        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-2">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[10px] text-red-600 dark:text-red-400 font-medium uppercase tracking-wide">مدراء</p>
-              <p className="text-2xl font-bold text-red-700 dark:text-red-300 mt-0.5">{stats.admins}</p>
+              <p className="text-[9px] text-red-600 dark:text-red-400 font-medium uppercase tracking-wide">مدراء</p>
+              <p className="text-xl font-bold text-red-700 dark:text-red-300 mt-0.5">{stats.admins}</p>
             </div>
-            <CheckCircle2 size={24} className="text-red-500" />
+            <CheckCircle2 size={18} className="text-red-500" />
           </div>
         </div>
       </div>
 
       {/* Search Bar and Role Filter */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div className="relative">
-          <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <Search className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
             placeholder="البحث بالاسم، البريد الإلكتروني، أو رقم الهاتف..."
-            className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+            className="w-full pr-9 pl-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-900 dark:text-white"
           />
         </div>
 
         <div className="relative">
-          <Filter className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} />
+          <Filter className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="w-full pr-10 pl-4 py-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white appearance-none cursor-pointer"
+            className="w-full pr-9 pl-3 py-2 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm text-slate-900 dark:text-white appearance-none cursor-pointer"
           >
             <option value="all">جميع المستخدمين</option>
             <option value="user">مستخدمين عاديين</option>
@@ -931,19 +1027,19 @@ export const UsersManagement = () => {
           <table className="w-full text-sm">
             <thead className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
               <tr>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الاسم</th>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">البريد</th>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الهاتف</th>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الدور</th>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">المنطقة</th>
-                <th className="text-right px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الفئة</th>
-                <th className="text-center px-4 py-2 text-[10px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">إجراءات</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الاسم</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">البريد</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الهاتف</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الدور</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">المنطقة</th>
+                <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الفئة</th>
+                <th className="text-center px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-4 py-8 text-center text-slate-400 text-sm">
+                  <td colSpan={7} className="px-2 py-4 text-center text-slate-400 text-xs">
                     {searchTerm || roleFilter !== 'all' ? 'لا توجد نتائج' : 'لا يوجد مستخدمين'}
                   </td>
                 </tr>
@@ -956,21 +1052,21 @@ export const UsersManagement = () => {
                       (idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-900')
                     }
                   >
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center gap-2">
-                        <div className="w-7 h-7 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-xs">
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
                           {user.name.charAt(0)}
                         </div>
                         <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 dark:text-white text-xs">{user.name}</span>
-                          <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono">{user.id}</span>
+                          <span className="font-medium text-slate-900 dark:text-white text-[11px]">{user.name}</span>
+                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">{user.id}</span>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.email}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.phone || '-'}</td>
-                    <td className="px-4 py-2.5">
-                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium ${
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.email}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.phone || '-'}</td>
+                    <td className="px-2 py-1.5">
+                      <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium ${
                         user.role === 'user' 
                           ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400'
                           : user.role === 'admin'
@@ -983,46 +1079,46 @@ export const UsersManagement = () => {
                       
                       {/* Pending Status Icon */}
                       {(user.role === 'tailor' || user.role === 'shop') && user.approvalStatus === 'pending' && (
-                        <div className="mt-1 flex items-center gap-1 text-[10px] text-amber-600 font-medium animate-pulse">
-                          <Clock size={10} />
+                        <div className="mt-0.5 flex items-center gap-0.5 text-[9px] text-amber-600 font-medium animate-pulse">
+                          <Clock size={9} />
                           <span>قيد الانتظار</span>
                         </div>
                       )}
                     </td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">{user.region || user.location || '-'}</td>
-                    <td className="px-4 py-2.5 text-xs text-slate-600 dark:text-slate-400">
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.region || user.location || '-'}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
                       {user.role === 'user' ? getAgeGroupLabel(user.ageGroup) : '-'}
                     </td>
-                    <td className="px-4 py-2.5">
-                      <div className="flex items-center justify-end gap-2">
+                    <td className="px-2 py-1.5">
+                      <div className="flex items-center justify-end gap-1">
                         {/* Upgrade Button (Right in RTL) */}
                         {user.role === 'user' && (
                           <button
                             onClick={() => handleOpenUpgrade(user)}
-                            className="p-2 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                            className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-100 rounded transition-all"
                             title="ترقية لتاجر"
                           >
-                            <Store size={16} />
+                            <Store size={13} />
                           </button>
                         )}
 
                         {/* Edit Button (Middle) */}
                         <button
                           onClick={() => handleOpenEdit(user)}
-                          className="p-2 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                          className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded transition-all"
                           title="تعديل البيانات"
                         >
-                          <Edit2 size={16} />
+                          <Edit2 size={13} />
                         </button>
 
                         {/* Delete Button (Left in RTL) */}
                         {user.role !== 'admin' && (
                           <button
                             onClick={() => handleDeleteClick(user)}
-                            className="p-2 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg transition-all shadow-sm hover:shadow-md"
+                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded transition-all"
                             title="حذف المستخدم"
                           >
-                            <Trash2 size={16} />
+                            <Trash2 size={13} />
                           </button>
                         )}
                       </div>
@@ -1033,7 +1129,7 @@ export const UsersManagement = () => {
             </tbody>
             <tfoot>
               <tr className="bg-slate-100 dark:bg-slate-800">
-                <td colSpan={7} className="px-4 py-2 text-xs text-slate-700 dark:text-slate-300 text-right">
+                <td colSpan={7} className="px-2 py-1 text-[10px] text-slate-700 dark:text-slate-300 text-right">
                   عرض <span className="font-semibold text-slate-900 dark:text-white">{filteredUsers.length}</span> من
                   {' '}<span className="font-semibold text-slate-900 dark:text-white">{users.length}</span> مستخدمًا
                 </td>
@@ -1255,49 +1351,77 @@ export const UsersManagement = () => {
             onClick={() => setShowEditModal(false)}
           />
           
-          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-slate-900 dark:text-white">
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in duration-200">
+            <div className="flex items-center justify-between mb-3">
+              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
                 تعديل بيانات: {selectedUser.name}
               </h3>
               <button
                 onClick={() => setShowEditModal(false)}
-                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
               >
-                <X size={20} className="text-slate-600 dark:text-slate-400" />
+                <X size={18} className="text-slate-600 dark:text-slate-400" />
               </button>
             </div>
-            <p className="text-sm text-slate-600 dark:text-slate-400 mb-6">
+            <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
               قم بتحديث معلومات المستخدم ({getRoleLabel(selectedUser.role)})
             </p>
 
-            <div className="space-y-4">
+            <div className="space-y-3">
+              {/* Shop Name (for tailor/shop only) */}
+              {(selectedUser.role === 'tailor' || selectedUser.role === 'shop' || (selectedUser as any).shopType) && (
+                <div className="bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 rounded-lg p-3">
+                  <label className="block text-xs font-bold text-purple-900 dark:text-purple-100 mb-1.5">
+                    اسم المتجر (Shop Name)
+                  </label>
+                  <input
+                    type="text"
+                    value={editForm.shopName}
+                    onChange={(e) => setEditForm(prev => ({ ...prev, shopName: e.target.value }))}
+                    className="w-full px-3 py-2 text-sm rounded-lg border border-purple-300 dark:border-purple-600 bg-white dark:bg-slate-900 text-slate-800 dark:text-white focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                    placeholder="مثال: خياط عمّاني"
+                  />
+                  <p className="text-[10px] text-purple-700 dark:text-purple-300 mt-1">
+                    يظهر هذا الاسم في واجهة عرض المنتجات
+                  </p>
+                </div>
+              )}
+
               {/* Basic Info */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     الاسم <span className="text-red-500">*</span>
-                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: name</span>
                   </label>
                   <input
                     type="text"
                     value={editForm.name}
                     onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                     required
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
                     البريد الإلكتروني <span className="text-red-500">*</span>
-                    <span className="ml-2 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700">key: email</span>
                   </label>
                   <input
                     type="email"
                     value={editForm.email}
                     onChange={(e) => setEditForm({...editForm, email: e.target.value})}
                     required
-                    className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                    className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    رقم الهاتف
+                  </label>
+                  <input
+                    type="tel"
+                    value={editForm.phone}
+                    onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                    className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   />
                 </div>
               </div>
@@ -1703,7 +1827,10 @@ export const UsersManagement = () => {
             {(selectedUser.role === 'tailor' || selectedUser.role === 'shop' || (selectedUser as any).shopType) && (
               <div className="mt-6 border-t border-slate-200 dark:border-slate-700 pt-4">
                 <div className="flex items-center justify-between mb-3">
-                  <h4 className="font-bold text-slate-800 dark:text-white">إدارة منتجات المتجر</h4>
+                  <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <Package size={18} className="text-purple-600" />
+                    إدارة منتجات المتجر
+                  </h4>
                   <button
                     onClick={async () => {
                       const next = !showManageProducts;
@@ -1715,7 +1842,7 @@ export const UsersManagement = () => {
                         ]);
                       }
                     }}
-                    className="px-3 py-1.5 rounded-lg text-sm bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700"
+                    className="px-3 py-1.5 rounded-lg text-sm bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/30 transition-colors"
                   >
                     {showManageProducts ? 'إخفاء' : 'عرض المنتجات'}
                   </button>
@@ -1723,55 +1850,111 @@ export const UsersManagement = () => {
                 {showManageProducts && (
                   <div className="space-y-3">
                     {productsLoading ? (
-                      <div className="text-sm text-slate-500">جارٍ التحميل...</div>
+                      <div className="text-sm text-slate-500 flex items-center gap-2 justify-center py-4">
+                        <RefreshCw size={16} className="animate-spin" />
+                        جارٍ التحميل...
+                      </div>
                     ) : userProducts.length === 0 ? (
-                      <div className="text-sm text-slate-500">لا توجد منتجات</div>
+                      <div className="text-sm text-slate-500 text-center py-8 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-dashed border-slate-300 dark:border-slate-700">
+                        <ImageIcon size={32} className="mx-auto mb-2 text-slate-400" />
+                        لا توجد منتجات
+                      </div>
                     ) : (
                       userProducts.map(p => {
                         const imgs = normalizedImages(p);
                         const need = needsNormalization(p);
+                        const isEnabled = p.enabled !== false; // Default to true if not set
                         return (
-                          <div key={p.id} className="p-3 rounded-lg bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700">
-                            <div className="flex items-center justify-between">
-                              <div className="font-semibold text-slate-800 dark:text-white truncate max-w-[60%]" title={p.name}>{p.name || p.id}</div>
-                              <div className="text-[10px] text-slate-500">{p.id}</div>
+                          <div key={p.id} className={`p-3 rounded-lg bg-gradient-to-br border shadow-sm transition-all ${
+                            isEnabled 
+                              ? 'from-white to-slate-50 dark:from-slate-900 dark:to-slate-800 border-slate-200 dark:border-slate-700' 
+                              : 'from-slate-100 to-slate-200 dark:from-slate-800 dark:to-slate-900 border-slate-300 dark:border-slate-600 opacity-60'
+                          }`}>
+                            {/* Product Header */}
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <div className="font-semibold text-slate-800 dark:text-white text-sm">{p.name || 'منتج بدون اسم'}</div>
+                                  {!isEnabled && (
+                                    <span className="text-[9px] px-1.5 py-0.5 rounded bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 font-bold">
+                                      معطل
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-500">
+                                  <span className="font-mono bg-slate-100 dark:bg-slate-800 px-1.5 py-0.5 rounded">{p.id}</span>
+                                  {need && <span className="text-amber-600 font-bold bg-amber-50 dark:bg-amber-900/20 px-1.5 py-0.5 rounded">بحاجة لتحويل</span>}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => updateProduct(p, { enabled: !isEnabled })}
+                                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all ${
+                                  isEnabled
+                                    ? 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border border-green-200 dark:border-green-800 hover:bg-green-100 dark:hover:bg-green-900/30'
+                                    : 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400 border border-red-200 dark:border-red-800 hover:bg-red-100 dark:hover:bg-red-900/30'
+                                }`}
+                                title={isEnabled ? 'تعطيل المنتج' : 'تفعيل المنتج'}
+                              >
+                                {isEnabled ? (
+                                  <>
+                                    <Eye size={14} />
+                                    مفعل
+                                  </>
+                                ) : (
+                                  <>
+                                    <EyeOff size={14} />
+                                    معطل
+                                  </>
+                                )}
+                              </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3 text-sm">
-                              <label className="flex flex-col">
-                                <span className="text-slate-500">الاسم <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: name</span></span>
-                                <input defaultValue={p.name} onBlur={(e)=>{ const v=e.target.value; if(v!==p.name) updateProduct(p, { name: v }); }} className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
-                              </label>
-                              <label className="flex flex-col">
-                                <span className="text-slate-500">السعر <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: price</span></span>
-                                <input type="number" step="0.001" defaultValue={p.price} onBlur={(e)=>{ const v=parseFloat(e.target.value||'0'); if(v!==p.price) updateProduct(p, { price: v }); }} className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
-                              </label>
-                              <label className="flex flex-col">
-                                <span className="text-slate-500">التصنيف <span className="ml-1 text-[10px] px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">key: categoryId</span></span>
-                                <select
-                                  value={p.categoryId || ''}
-                                  onChange={(e)=> updateProduct(p, { categoryId: e.target.value })}
-                                  className="px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900"
-                                >
-                                  <option value="">— اختر التصنيف —</option>
-                                  {productCategories.map(cat => (
-                                    <option key={cat.id} value={cat.id}>{cat.name}</option>
-                                  ))}
-                                </select>
-                              </label>
+
+                            {/* Compact Product Info */}
+                            <div className="grid grid-cols-3 gap-2 mb-3">
+                              <div className="relative">
+                                <input 
+                                  defaultValue={p.name} 
+                                  onBlur={(e)=>{ const v=e.target.value; if(v!==p.name) updateProduct(p, { name: v }); }} 
+                                  placeholder="اسم المنتج"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                                />
+                              </div>
+                              <div className="relative">
+                                <input 
+                                  type="number" 
+                                  step="0.001" 
+                                  defaultValue={p.price} 
+                                  onBlur={(e)=>{ const v=parseFloat(e.target.value||'0'); if(v!==p.price) updateProduct(p, { price: v }); }} 
+                                  placeholder="السعر"
+                                  className="w-full px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none" 
+                                />
+                              </div>
+                              <select
+                                value={p.categoryId || ''}
+                                onChange={(e)=> updateProduct(p, { categoryId: e.target.value })}
+                                className="w-full px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              >
+                                <option value="">— التصنيف —</option>
+                                {productCategories.map(cat => (
+                                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                                ))}
+                              </select>
                             </div>
-                            <div className="flex items-center gap-3 mt-3 text-xs text-slate-600 dark:text-slate-300">
-                              <span>images: {Array.isArray(p.images)? p.images.length : 0}</span>
-                              <span>imageUrls: {Array.isArray(p.imageUrls)? p.imageUrls.length : 0}</span>
-                              <span>image: {p.image ? '✓' : '—'}</span>
-                              <span>coverIndex: {typeof p.coverImageIndex==='number' ? p.coverImageIndex : '—'}</span>
-                              {need && <span className="text-orange-600 font-bold">(بحاجة لتحويل)</span>}
-                            </div>
-                            <div className="mt-3">
-                              <div className="flex gap-2 overflow-x-auto py-1">
+
+                            {/* Image Cards Grid */}
+                            <div className="mb-3">
+                              <div className="flex items-center justify-between mb-2">
+                                <span className="text-xs font-medium text-slate-600 dark:text-slate-400 flex items-center gap-1">
+                                  <ImageIcon size={14} />
+                                  الصور ({imgs.length})
+                                </span>
+                              </div>
+                              
+                              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                                 {imgs.map((url: string, idx: number) => (
                                   <div
                                     key={`${p.id}_${idx}`}
-                                    className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900"
+                                    className="group relative aspect-square rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 hover:border-purple-400 dark:hover:border-purple-600 transition-all"
                                     draggable
                                     onDragStart={() => { dragRef.current = { productId: p.id, index: idx }; }}
                                     onDragOver={(e) => e.preventDefault()}
@@ -1782,29 +1965,222 @@ export const UsersManagement = () => {
                                       dragRef.current = null;
                                     }}
                                   >
-                                    <img src={url} alt="img" className="w-full h-full object-cover" />
-                                    <div className="absolute bottom-1 left-1 right-1 flex items-center justify-between">
-                                      <button className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 flex items-center justify-center shadow" onClick={() => reorderImages(p, idx, Math.max(0, idx - 1))} title="يسار"><ChevronLeft size={14} /></button>
-                                      <button className="w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 flex items-center justify-center shadow" onClick={() => reorderImages(p, idx, Math.min(imgs.length - 1, idx + 1))} title="يمين"><ChevronR size={14} /></button>
+                                    {/* Image */}
+                                    <img src={url} alt={`صورة ${idx + 1}`} className="w-full h-full object-cover" />
+                                    
+                                    {/* Cover Badge */}
+                                    {p.coverImageIndex === idx && (
+                                      <div className="absolute top-1 right-1">
+                                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-yellow-400 text-yellow-900 text-[9px] font-bold shadow-lg">
+                                          <Star size={10} className="fill-yellow-900" />
+                                          غلاف
+                                        </div>
+                                      </div>
+                                    )}
+
+                                    {/* Hover Overlay with Actions */}
+                                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition-all duration-200">
+                                      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center gap-1">
+                                        {/* Top Row: Open & Delete */}
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            onClick={() => window.open(url, '_blank')}
+                                            className="p-1.5 bg-white/90 hover:bg-white text-slate-700 rounded-lg shadow-lg transition-all"
+                                            title="فتح في تبويب جديد"
+                                          >
+                                            <ExternalLink size={14} />
+                                          </button>
+                                          <button
+                                            onClick={() => removeImageAt(p, idx)}
+                                            className="p-1.5 bg-red-500/90 hover:bg-red-600 text-white rounded-lg shadow-lg transition-all"
+                                            title="حذف"
+                                          >
+                                            <Trash2 size={14} />
+                                          </button>
+                                        </div>
+
+                                        {/* Middle Row: Set as Cover */}
+                                        {p.coverImageIndex !== idx && (
+                                          <button
+                                            onClick={() => setAsCover(p, idx)}
+                                            className="px-2 py-1 bg-yellow-400 hover:bg-yellow-500 text-yellow-900 rounded-lg shadow-lg transition-all text-[10px] font-bold flex items-center gap-1"
+                                            title="تعيين كغلاف"
+                                          >
+                                            <Star size={12} />
+                                            غلاف
+                                          </button>
+                                        )}
+
+                                        {/* Bottom Row: Reorder */}
+                                        <div className="flex items-center gap-1">
+                                          <button
+                                            onClick={() => reorderImages(p, idx, Math.max(0, idx - 1))}
+                                            disabled={idx === 0}
+                                            className="p-1 bg-white/90 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 rounded shadow-lg transition-all"
+                                            title="تحريك لليسار"
+                                          >
+                                            <ArrowRight size={12} />
+                                          </button>
+                                          <button
+                                            onClick={() => reorderImages(p, idx, Math.min(imgs.length - 1, idx + 1))}
+                                            disabled={idx === imgs.length - 1}
+                                            className="p-1 bg-white/90 hover:bg-white disabled:opacity-30 disabled:cursor-not-allowed text-slate-700 rounded shadow-lg transition-all"
+                                            title="تحريك لليمين"
+                                          >
+                                            <ArrowLeft size={12} />
+                                          </button>
+                                        </div>
+
+                                        {/* Replace Image */}
+                                        <label className="cursor-pointer">
+                                          <input
+                                            type="file"
+                                            accept="image/*"
+                                            className="hidden"
+                                            onChange={async (e) => {
+                                              const file = e.target.files?.[0];
+                                              if (file) {
+                                                // Upload and replace at this index
+                                                setUploadingProd(prev => ({ ...prev, [p.id]: true }));
+                                                try {
+                                                  // Resize image to max 900px height
+                                                  const options = {
+                                                    maxWidthOrHeight: 900,
+                                                    useWebWorker: true,
+                                                    fileType: 'image/jpeg' as const,
+                                                    initialQuality: 0.9
+                                                  };
+                                                  const compressedFile = await imageCompression(file, options);
+                                                  
+                                                  const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+                                                  const storage = getStorage();
+                                                  const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
+                                                  const path = `users/${selectedUser!.id}/products/${p.id}/${fileId}.jpg`;
+                                                  const storageRef = ref(storage, path);
+                                                  await uploadBytes(storageRef, compressedFile);
+                                                  const newUrl = await getDownloadURL(storageRef);
+                                                  
+                                                  // Replace the image at this index
+                                                  const newImages = [...imgs];
+                                                  newImages[idx] = newUrl;
+                                                  const coverIndex = p.coverImageIndex ?? 0;
+                                                  const newImage = newImages[coverIndex] || newImages[0] || '';
+                                                  
+                                                  setUserProducts(prev => prev.map(x => x.id === p.id ? { ...x, images: newImages, image: newImage } : x));
+                                                  await updateProduct(p, { images: newImages, image: newImage });
+                                                } catch (err) {
+                                                  console.error('Upload error:', err);
+                                                } finally {
+                                                  setUploadingProd(prev => ({ ...prev, [p.id]: false }));
+                                                }
+                                              }
+                                              if (e.currentTarget) {
+                                                e.currentTarget.value = '';
+                                              }
+                                            }}
+                                          />
+                                          <div className="px-2 py-1 bg-blue-500/90 hover:bg-blue-600 text-white rounded-lg shadow-lg transition-all text-[10px] font-bold flex items-center gap-1">
+                                            <Upload size={12} />
+                                            استبدال
+                                          </div>
+                                        </label>
+                                      </div>
                                     </div>
-                                    <button className={`absolute top-1 right-1 w-6 h-6 rounded-full flex items-center justify-center ${p.coverImageIndex===idx ? 'bg-yellow-200 text-yellow-700' : 'bg-white/90 dark:bg-slate-800/90 text-slate-700'}`} onClick={() => setAsCover(p, idx)} title="تعيين كغلاف"><Star size={14} className={p.coverImageIndex===idx ? 'fill-yellow-500 text-yellow-500' : ''} /></button>
-                                    <button className="absolute top-1 left-1 w-6 h-6 rounded-full bg-white/90 dark:bg-slate-800/90 text-slate-700 flex items-center justify-center shadow" onClick={() => removeImageAt(p, idx)} title="حذف"><X size={12} /></button>
-                                    {p.coverImageIndex===idx && (<div className="absolute top-1 left-1 text-[10px] px-1.5 py-0.5 rounded bg-black/60 text-white">غلاف</div>)}
                                   </div>
                                 ))}
-                              </div>
-                              <div className="flex items-center gap-2 mt-2">
-                                <input value={newProdUrl[p.id] || ''} onChange={(e)=> setNewProdUrl(prev => ({ ...prev, [p.id]: e.target.value }))} placeholder="رابط صورة جديد" className="flex-1 px-2 py-1 border rounded bg-slate-50 dark:bg-slate-900" />
-                                <button onClick={() => addImageUrl(p)} className="px-3 py-1.5 rounded bg-green-600 text-white text-sm">إضافة</button>
-                                <label className="relative inline-flex items-center gap-2 px-3 py-1.5 rounded border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 text-sm cursor-pointer">
-                                  <input type="file" accept="image/*" className="absolute inset-0 opacity-0 cursor-pointer" onChange={(e)=> { const f = e.target.files && e.target.files[0]; if (f) uploadProductImageFile(p, f); (e.currentTarget as HTMLInputElement).value=''; }} />
-                                  <span>{uploadingProd[p.id] ? 'جارٍ الرفع...' : 'رفع صورة'}</span>
+
+                                {/* Add New Image Card - Multi-select and Drag & Drop */}
+                                <label 
+                                  className="group relative aspect-square rounded-lg border-2 border-dashed border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 hover:border-purple-400 dark:hover:border-purple-600 hover:bg-purple-50 dark:hover:bg-purple-900/20 transition-all cursor-pointer flex flex-col items-center justify-center gap-2"
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.add('border-purple-500', 'bg-purple-100', 'dark:bg-purple-900/30');
+                                  }}
+                                  onDragLeave={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.remove('border-purple-500', 'bg-purple-100', 'dark:bg-purple-900/30');
+                                  }}
+                                  onDrop={async (e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    e.currentTarget.classList.remove('border-purple-500', 'bg-purple-100', 'dark:bg-purple-900/30');
+                                    
+                                    const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+                                    if (files.length > 0) {
+                                      await uploadMultipleProductImages(p, files);
+                                    }
+                                  }}
+                                >
+                                  <input
+                                    type="file"
+                                    accept="image/*"
+                                    multiple
+                                    className="hidden"
+                                    onChange={async (e) => {
+                                      const files = Array.from(e.target.files || []);
+                                      if (files.length > 0) {
+                                        await uploadMultipleProductImages(p, files);
+                                      }
+                                      if (e.currentTarget) {
+                                        e.currentTarget.value = '';
+                                      }
+                                    }}
+                                  />
+                                  {uploadingProd[p.id] ? (
+                                    <RefreshCw size={20} className="text-purple-500 animate-spin" />
+                                  ) : (
+                                    <>
+                                      <ImagePlus size={24} className="text-slate-400 group-hover:text-purple-500 transition-colors" />
+                                      <span className="text-[10px] text-slate-500 group-hover:text-purple-600 dark:group-hover:text-purple-400 font-medium text-center px-2">
+                                        إضافة صور<br/>
+                                        <span className="text-[9px] opacity-70">اسحب أو اختر</span>
+                                      </span>
+                                    </>
+                                  )}
                                 </label>
                               </div>
                             </div>
-                            <div className="mt-3 flex gap-2">
-                              <button onClick={()=>transferImages(p)} disabled={productSaving[p.id]} className="px-3 py-1.5 rounded bg-blue-600 text-white text-sm">{productSaving[p.id] ? '...' : (need ? 'تحويل الصور للطريقة الجديدة' : 'إعادة ضبط الصور')}</button>
+
+                            {/* Add by URL */}
+                            <div className="flex items-center gap-1.5 mb-2">
+                              <input
+                                value={newProdUrl[p.id] || ''}
+                                onChange={(e) => setNewProdUrl(prev => ({ ...prev, [p.id]: e.target.value }))}
+                                placeholder="أو أدخل رابط صورة"
+                                className="flex-1 px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                              />
+                              <button
+                                onClick={() => addImageUrl(p)}
+                                disabled={!newProdUrl[p.id]?.trim()}
+                                className="px-3 py-1.5 rounded bg-green-600 hover:bg-green-700 disabled:bg-slate-400 text-white text-xs font-medium transition-colors flex items-center gap-1"
+                              >
+                                <ImagePlus size={12} />
+                                إضافة
+                              </button>
                             </div>
+
+                            {/* Migration Button */}
+                            {need && (
+                              <button
+                                onClick={() => transferImages(p)}
+                                disabled={productSaving[p.id]}
+                                className="w-full px-3 py-1.5 rounded bg-amber-600 hover:bg-amber-700 disabled:bg-slate-400 text-white text-xs font-medium transition-colors flex items-center justify-center gap-1.5"
+                              >
+                                {productSaving[p.id] ? (
+                                  <>
+                                    <RefreshCw size={12} className="animate-spin" />
+                                    جارٍ التحويل...
+                                  </>
+                                ) : (
+                                  <>
+                                    <RefreshCw size={12} />
+                                    تحويل الصور للطريقة الجديدة
+                                  </>
+                                )}
+                              </button>
+                            )}
                           </div>
                         );
                       })

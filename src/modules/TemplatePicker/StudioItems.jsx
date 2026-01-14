@@ -8,6 +8,7 @@ export const StudioItems = React.memo(function StudioItems({
   onHover,
   isSubscribed = false,
   onPremiumClick,
+  loadingTemplateId = null,
 }) {
   if (!items?.length) {
     return (
@@ -32,6 +33,7 @@ export const StudioItems = React.memo(function StudioItems({
           onHover={onHover}
           isLocked={isLocked}
           onLockedClick={() => onPremiumClick?.(template)}
+          isLoading={loadingTemplateId === template.id}
         />
           );
         })()

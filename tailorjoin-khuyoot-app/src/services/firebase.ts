@@ -439,18 +439,36 @@ export const firebaseService = {
     }
 
     try {
+      // First, try to find in collectionGroup (users/{userId}/products subcollections)
+      const productsGroup = collectionGroup(db, 'products');
+      const snapshot = await getDocs(productsGroup);
+      
+      let foundProduct: Product | null = null;
+      snapshot.forEach(doc => {
+        if (doc.id === productId && !foundProduct) {
+          foundProduct = { id: doc.id, ...doc.data() } as Product;
+        }
+      });
+      
+      if (foundProduct) {
+        console.log('[getProduct] Found in subcollection:', productId);
+        return foundProduct;
+      }
+      
+      // Fallback: Try root-level products collection (for legacy data)
       const productRef = doc(db, 'products', productId);
       const productSnap = await getDoc(productRef);
       
       if (productSnap.exists()) {
+        console.log('[getProduct] Found in root collection:', productId);
         return { id: productSnap.id, ...productSnap.data() } as Product;
       } else {
-        console.log('Product not found in Firebase, checking mock data');
+        console.log('[getProduct] Product not found in Firebase, checking mock data');
         const mockProduct = MOCK_PRODUCTS.find(p => p.id === productId);
         return mockProduct || null;
       }
     } catch (error) {
-      console.error("Error fetching product:", error);
+      console.error("[getProduct] Error fetching product:", error);
       const mockProduct = MOCK_PRODUCTS.find(p => p.id === productId);
       return mockProduct || null;
     }
@@ -591,9 +609,9 @@ export const firebaseService = {
     if (!isFirebaseInitialized) return [];
     
     try {
-      const measurementsRef = collection(db, 'measurements');
-      const q = query(measurementsRef, where('userId', '==', userId));
-      const snapshot = await getDocs(q);
+      // Query user-scoped measurements subcollection
+      const measurementsRef = collection(db, `users/${userId}/measurements`);
+      const snapshot = await getDocs(measurementsRef);
       
       const measurements: any[] = [];
       snapshot.forEach(doc => {
@@ -611,19 +629,23 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
+      const userId = measurement.userId;
+      if (!userId) throw new Error("userId is required for measurements");
+      
       if (measurement.id && measurement.id.startsWith('measurement_')) {
-        // New measurement - create with auto ID
-        const measurementsRef = collection(db, 'measurements');
-        const docRef = await setDoc(doc(measurementsRef), measurement);
+        // Create with provided ID under user subcollection
+        const measurementsRef = collection(db, `users/${userId}/measurements`);
+        const docRef = doc(measurementsRef, measurement.id);
+        await setDoc(docRef, measurement);
         return measurement.id;
       } else if (measurement.id) {
-        // Update existing measurement
-        const measurementRef = doc(db, 'measurements', measurement.id);
+        // Update existing measurement under user subcollection
+        const measurementRef = doc(db, `users/${userId}/measurements`, measurement.id);
         await setDoc(measurementRef, measurement, { merge: true });
         return measurement.id;
       } else {
-        // Create new with Firestore auto ID
-        const measurementsRef = collection(db, 'measurements');
+        // Create new with Firestore auto ID under user subcollection
+        const measurementsRef = collection(db, `users/${userId}/measurements`);
         const docRef = doc(measurementsRef);
         await setDoc(docRef, { ...measurement, id: docRef.id });
         return docRef.id;
@@ -634,11 +656,13 @@ export const firebaseService = {
     }
   },
 
-  async deleteMeasurement(measurementId: string): Promise<void> {
+  async deleteMeasurement(measurementId: string, userId?: string): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
-      const measurementRef = doc(db, 'measurements', measurementId);
+      const uid = userId || auth?.currentUser?.uid;
+      if (!uid) throw new Error("userId is required to delete measurement");
+      const measurementRef = doc(db, `users/${uid}/measurements`, measurementId);
       await setDoc(measurementRef, { deleted: true }, { merge: true });
     } catch (error) {
       console.error("Error deleting measurement:", error);
@@ -1301,6 +1325,63 @@ export const firebaseService = {
       return docRef.id;
     } catch (error) {
       console.error('Error creating order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get order by ID
+   */
+  async getOrder(orderId: string): Promise<any> {
+    if (!isFirebaseInitialized || !db) {
+      throw new Error('Firebase not initialized');
+    }
+
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const orderSnap = await getDoc(orderRef);
+
+      if (!orderSnap.exists()) {
+        console.log('[Firebase] Order not found:', orderId);
+        return null;
+      }
+
+      return {
+        id: orderSnap.id,
+        ...orderSnap.data()
+      };
+    } catch (error) {
+      console.error('Error getting order:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update order
+   */
+  async updateOrder(orderId: string, updates: any): Promise<void> {
+    if (!isFirebaseInitialized || !db) {
+      throw new Error('Firebase not initialized');
+    }
+
+    try {
+      // Remove undefined values
+      const cleanedUpdates = Object.entries(updates).reduce((acc, [key, value]) => {
+        if (value !== undefined) {
+          acc[key] = value;
+        }
+        return acc;
+      }, {} as any);
+
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        ...cleanedUpdates,
+        updatedAt: new Date().toISOString()
+      });
+
+      console.log('[Firebase] Order updated:', orderId);
+    } catch (error) {
+      console.error('Error updating order:', error);
       throw error;
     }
   },

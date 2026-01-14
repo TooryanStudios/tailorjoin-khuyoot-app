@@ -3,7 +3,7 @@ import { Play } from 'lucide-react';
 import { useLayoutStore } from '../store/useLayoutStore';
 import { SkeletonShimmer } from './SkeletonShimmer';
 
-const ACCENT = '#D4AF37';
+const ACCENT = 'var(--theme-secondary)';
 
 const FEATURED = [
   { id: 'f1', title: 'Featured Cut #1', subtitle: 'Midjourney · Stable Diffusion · Filmic LUTs' },

@@ -179,7 +179,7 @@ export const UserAccount = () => {
 
         {/* Logout */}
         <button
-          onClick={logout}
+          onClick={async () => { await logout(); navigate('/', { replace: true }); }}
           className="w-full py-3 bg-red-500/10 hover:bg-red-500/20 text-red-600 rounded-xl transition-colors flex items-center justify-center gap-2 font-medium"
         >
           <LogOut size={18} />

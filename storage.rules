@@ -42,6 +42,17 @@ service firebase.storage {
     // ===========================================
     // صور المنتجات
     // ===========================================
+    
+    // دعم المسار المبسط (مباشرة تحت مجلد الخياط)
+    // products/{tailorId}/{imageName}
+    match /products/{tailorId}/{image} {
+      allow read: if true;
+      allow write: if request.auth != null && 
+                     request.auth.uid == tailorId &&
+                     isValidImage();
+      allow delete: if (request.auth != null && request.auth.uid == tailorId) || isAdmin();
+    }
+
     // المسار: products/{tailorId}/{productId}/{size}.webp
     // مثال: products/user123/product456/thumbnail.webp
     
@@ -180,6 +191,22 @@ service firebase.storage {
                       isValidImage();
       allow delete: if request.auth != null && request.auth.uid == userId;
       allow read: if true;  // Anyone can read user templates (they're referenced in Firestore)
+    }
+
+    // ===========================================
+    // Settings (admin-managed homepage media, logos, etc.)
+    // ===========================================
+    // Path: settings/{path=**}
+    // Examples:
+    // - settings/homepage-v2/dynamicHero/hero.webp
+    // - settings/logo.png
+    match /settings/{path=**} {
+      allow write: if isAdmin() && 
+                      (request.resource.contentType.matches('image/.*') || 
+                       request.resource.contentType.matches('video/.*')) &&
+                      request.resource.size < 50 * 1024 * 1024; // 50MB max for videos
+      allow delete: if isAdmin();
+      allow read: if true;
     }
   }
 }

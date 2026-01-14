@@ -1,3 +1,4 @@
+// Designer V2.1 Themed Measurements Page - Updated Jan 7, 2026
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
@@ -5,7 +6,8 @@ import { MeasurementProfile, GarmentType, MeasurementTemplate } from '../types';
 import { firebaseService } from '../services/firebase';
 import { 
   Plus, Ruler, Edit2, Trash2, ChevronLeft, Save, X, 
-  Shirt, User, Crown, AlertCircle, Loader2 
+  Shirt, User, Crown, AlertCircle, Loader2, Home, Settings, 
+  FileText, Bookmark, Info
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import DebugPanel from '../components/DebugPanel';
@@ -365,8 +367,8 @@ export const Measurements = () => {
       // Delete from Firebase
       try {
         const { firebaseService } = await import('../services/firebase');
-        if (firebaseService.isInitialized()) {
-          await firebaseService.deleteMeasurement(id);
+        if (firebaseService.isInitialized() && user) {
+          await firebaseService.deleteMeasurement(id, user.id);
         }
       } catch (error) {
         console.error("Error deleting from Firebase:", error);
@@ -437,13 +439,18 @@ export const Measurements = () => {
   // التحقق من تسجيل الدخول
   if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center p-4">
+      <div className="min-h-screen bg-zinc-950 flex items-center justify-center p-4">
         <div className="text-center">
-          <AlertCircle size={48} className="mx-auto mb-4 text-slate-400" />
-          <p className="text-slate-600 dark:text-slate-400">يجب تسجيل الدخول لعرض المقاسات</p>
-          <Button onClick={() => navigate('/account')} className="mt-4">
+          <div className="w-20 h-20 mx-auto mb-6 rounded-full bg-zinc-900 border-2 border-zinc-800 flex items-center justify-center">
+            <AlertCircle size={40} className="text-zinc-600" />
+          </div>
+          <p className="text-zinc-400 mb-6">يجب تسجيل الدخول لعرض المقاسات</p>
+          <button 
+            onClick={() => navigate('/account')} 
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all active:scale-95"
+          >
             تسجيل الدخول
-          </Button>
+          </button>
         </div>
       </div>
     );
@@ -451,447 +458,514 @@ export const Measurements = () => {
 
   // -------------------- RENDER --------------------
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-[#050817] pb-24 pt-6 px-4">
-      {/* DEBUG PANEL (hidden unless debug enabled) */}
-      <DebugPanel title="Debug Info - Measurements.tsx">
-        <div className="grid gap-2 text-sm font-mono">
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">User:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">
-              {user ? `${user.name} (${user.id})` : 'No user'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Route State:</span>
-            <span className="text-yellow-900 dark:text-yellow-100 text-xs overflow-auto max-h-20">
-              {state ? JSON.stringify(state, null, 2) : 'No state'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Product ID:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">
-              {state?.productId || 'None'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Customization ID:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">
-              {state?.customizationId || 'None'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Model Name:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">
-              {state?.customizationData?.modelName || 'None'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Measurements Count:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{measurements.length}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Templates Count:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">
-              {templates.length} {isTemplatesLoading && '(loading...)'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Template IDs:</span>
-            <span className="text-yellow-900 dark:text-yellow-100 text-xs overflow-auto max-h-20">
-              {templates.map(t => t.id).join(', ') || 'None'}
-            </span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Rule:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">Template.id === Product.categoryId</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Match Category:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{product?.categoryId || 'None'}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Matched Template ID:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{matchedTemplate?.id || 'None'}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Comparison:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">T.id = {matchedTemplate?.id || '—'} | P.categoryId = {product?.categoryId || '—'}{matchedTemplate ? ' ✅' : ' ❌'}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Form Type:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{formData.type}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Is Adding:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{isAddingNew ? 'Yes' : 'No'}</span>
-          </div>
-          <div className="flex gap-2">
-            <span className="text-yellow-700 dark:text-yellow-300 font-bold">Editing ID:</span>
-            <span className="text-yellow-900 dark:text-yellow-100">{editingId || 'None'}</span>
-          </div>
-        </div>
-      </DebugPanel>
-
-      {/* Product Info Card */}
-      {state?.customizationData && (
-        <div className="mb-6 max-w-4xl mx-auto">
-          <div className="bg-gradient-to-r from-blue-500 to-cyan-600 rounded-2xl p-4 shadow-lg">
-            <div className="flex items-center gap-4">
-              <div className="w-16 h-16 rounded-xl bg-white/20 backdrop-blur flex items-center justify-center flex-shrink-0">
-                <span className="text-3xl">👔</span>
-              </div>
-              <div className="flex-1">
-                <p className="text-xs text-white/80 mb-1">المنتج المراد قياسه</p>
-                <h2 className="text-lg font-bold text-white mb-1">
-                  {state.customizationData.modelName || 'تصميم مخصص'}
-                </h2>
-                <div className="flex gap-2 flex-wrap">
-                  {state.customizationData.modelId && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      {state.customizationData.modelId}
-                    </span>
-                  )}
-                  {state.customizationId && (
-                    <span className="px-2 py-0.5 bg-white/20 backdrop-blur rounded-full text-xs text-white font-medium">
-                      ID: {state.customizationId.slice(0, 8)}...
-                    </span>
-                  )}
-                </div>
-              </div>
-              {state.customizationData.fabricUrl && (
-                <div className="w-20 h-20 rounded-xl overflow-hidden border-2 border-white/30 flex-shrink-0">
-                  <img 
-                    src={state.customizationData.fabricUrl} 
-                    alt="القماش المختار" 
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
+    <div className="h-screen flex flex-col bg-zinc-950 overflow-hidden">
+      {/* ========== TOP HEADER BAR ========== */}
+      <header className="flex-shrink-0 h-14 px-4 flex items-center justify-between border-b border-zinc-800 bg-zinc-950">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/')}
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
+            title="الرئيسية"
+          >
+            <Home size={20} className="text-zinc-400" />
+          </button>
+          <div className="h-6 w-px bg-zinc-800" />
+          <div className="flex items-center gap-2">
+            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center">
+              <Ruler size={16} className="text-white" />
             </div>
+            <span className="text-sm font-bold text-white">المقاسات</span>
           </div>
         </div>
-      )}
-
-      <div className="max-w-4xl mx-auto">
-        {/* ==================== SECTION 1: PAGE HEADER ==================== */}
-        {/* العنوان الرئيسي + زر الرجوع */}
-        <div className="flex items-center gap-4 mb-6">
+        <div className="flex items-center gap-2">
           <button
             onClick={() => navigate('/account')}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 rounded-lg border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 transition-colors"
           >
-            <ChevronLeft size={24} className="text-slate-700 dark:text-slate-300" />
+            <div className="w-6 h-6 rounded-full bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-xs font-bold">
+              {user?.name?.[0]?.toUpperCase() || 'U'}
+            </div>
+            <span className="text-xs text-zinc-300">{user?.name || 'المستخدم'}</span>
           </button>
-          <div className="flex-1">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-              <Ruler size={28} className="text-blue-600" />
-              جدول المقاسات
-            </h1>
-            <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-              احفظ مقاساتك لسهولة الطلب مستقبلاً
-            </p>
-          </div>
         </div>
+      </header>
 
-        {/* ==================== SECTION 2: ADMIN TEMPLATES DISPLAY ==================== */}
-        {/* عرض القوالب المخزنة من لوحة التحكم (تظهر فقط عند عدم التعديل/الإضافة) */}
-        {!isAddingNew && !editingId && templates.length > 0 && (
-          <div className="mb-6 bg-white dark:bg-slate-800 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Ruler size={24} className="text-blue-600" />
-                  قوالب القياسات المتاحة
-                </h2>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
-                  قوالب مرجعية لمساعدتك في أخذ القياسات الصحيحة
-                </p>
-              </div>
-              {isTemplatesLoading && <Loader2 size={20} className="animate-spin text-blue-500" />}
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              {templates.map((template) => (
-                <div key={template.id} className="border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-900/40">
-                  <div className="p-3 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
-                    <p className="font-semibold text-slate-800 dark:text-white">{template.name}</p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      {template.description || 'قالب قياس مرجعي'}
-                    </p>
-                  </div>
-                  <TemplatePreview template={template} />
-                </div>
-              ))}
-            </div>
+      {/* ========== MAIN LAYOUT: SIDEBAR + CONTENT ========== */}
+      <div className="flex-1 flex min-h-0 overflow-hidden">
+        {/* ========== LEFT SIDEBAR ========== */}
+        <aside className="w-[320px] flex-shrink-0 bg-zinc-950 border-l border-zinc-800 flex flex-col overflow-hidden">
+          {/* Sidebar Header */}
+          <div className="p-4 border-b border-zinc-800">
+            <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">المقاسات المحفوظة</h2>
+            <button
+              onClick={handleAddNew}
+              disabled={isAddingNew || !!editingId}
+              className={`w-full px-4 py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-2 border ${
+                isAddingNew || editingId
+                  ? 'bg-purple-600/30 text-purple-300 cursor-not-allowed border-purple-500/20'
+                  : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40'
+              }`}
+            >
+              <Plus size={18} />
+              إضافة مقاس جديد
+            </button>
           </div>
-        )}
 
-        {/* ==================== SECTION 3: ADD NEW MEASUREMENT BUTTON ==================== */}
-        {/* زر إضافة مقاس جديد (يظهر فقط عند عدم التعديل/الإضافة) */}
-        {!isAddingNew && !editingId && (
-          <Button
-            onClick={handleAddNew}
-            className="w-full mb-6 flex items-center justify-center gap-2"
-          >
-            <Plus size={20} />
-            إضافة مقاس جديد
-          </Button>
-        )}
-
-        {/* ==================== SECTION 4: ADD/EDIT FORM ==================== */}
-        {/* نموذج إضافة أو تعديل مقاس (يظهر عند الضغط على إضافة أو تعديل) */}
-        {(isAddingNew || editingId) && (
-          <div className="bg-white dark:bg-slate-800 rounded-2xl p-6 mb-6 border border-slate-200 dark:border-slate-700 shadow-lg">
-            <h2 className="text-lg font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-              {editingId ? 'تعديل المقاس' : 'مقاس جديد'}
-            </h2>
-
-            {/* ---------- SUB-SECTION 4.1: MEASUREMENT NAME ---------- */}
-            {/* حقل اسم المقاس */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                اسم المقاس <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                placeholder="مثال: مقاسي الشخصي، مقاس أحمد، مقاس العيد"
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white"
-              />
-            </div>
-
-            {/* ---------- SUB-SECTION 4.2: GARMENT TYPE SELECTOR ---------- */}
-            {/* اختيار نوع اللباس */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                نوع اللباس <span className="text-red-500">*</span>
-              </label>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {(Object.keys(measurementTemplates) as GarmentType[]).map((type) => (
-                  <button
-                    key={type}
-                    onClick={() => setFormData({ ...formData, type, metrics: {} })}
-                    className={`p-3 rounded-xl border-2 transition-all ${
-                      formData.type === type
-                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blue-400'
-                        : 'border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 text-slate-700 dark:text-slate-300'
-                    }`}
-                  >
-                    <div className="flex flex-col items-center gap-1">
-                      {getGarmentIcon(type)}
-                      <span className="text-xs font-medium">{measurementTemplates[type].label}</span>
-                    </div>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* ---------- SUB-SECTION 4.3: TEMPLATE REFERENCE GUIDE ---------- */}
-            {/* قالب مرجعي من لوحة التحكم (يظهر داخل النموذج كمرجع) */}
-            <div className="mb-5">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2 text-slate-800 dark:text-white">
-                  <Ruler size={18} className="text-blue-600" />
-                  <span className="font-semibold">القالب المضاف من لوحة التحكم</span>
+          {/* Measurements List */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 space-y-2">
+            {measurements.length === 0 && !isAddingNew && !editingId ? (
+              <div className="text-center py-8">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-zinc-900 border-2 border-dashed border-zinc-700 flex items-center justify-center">
+                  <Ruler size={24} className="text-zinc-600" />
                 </div>
-                {isTemplatesLoading && <Loader2 size={16} className="animate-spin text-blue-500" />}
+                <p className="text-sm text-zinc-500">لا توجد مقاسات محفوظة</p>
+                <p className="text-xs text-zinc-600 mt-1">أضف مقاسك الأول للبدء</p>
               </div>
-
-              {visibleTemplates.length > 0 && selectedTemplateId ? (
-                <div className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl overflow-hidden shadow-sm">
-                  <div className="p-3 flex items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-slate-800 dark:text-white">
-                        {visibleTemplates.find((t) => t.id === selectedTemplateId)?.name}
-                      </p>
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
-                        {visibleTemplates.find((t) => t.id === selectedTemplateId)?.description || 'قالب قياس مرجعي لهذا النوع'}
+            ) : (
+              measurements.map((measurement) => (
+                <div
+                  key={measurement.id}
+                  className={`group p-3 rounded-xl border transition-all cursor-pointer ${
+                    editingId === measurement.id
+                      ? 'bg-purple-500/10 border-purple-500/40'
+                      : 'bg-zinc-900/50 border-zinc-800 hover:border-zinc-700 hover:bg-zinc-900'
+                  }`}
+                  onClick={() => !editingId && handleEdit(measurement)}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                      {getGarmentIcon(measurement.type)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <h4 className="text-sm font-bold text-white truncate">{measurement.name}</h4>
+                      <p className="text-xs text-zinc-500">{measurementTemplates[measurement.type].label}</p>
+                      <p className="text-[10px] text-zinc-600 mt-1">
+                        {new Date(measurement.updatedAt).toLocaleDateString('ar-OM')}
                       </p>
                     </div>
-                    <select
-                      value={selectedTemplateId}
-                      onChange={(e) => setSelectedTemplateId(e.target.value)}
-                      className="px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleEdit(measurement); }}
+                        className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 rounded-lg transition-colors"
+                      >
+                        <Edit2 size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDelete(measurement.id); }}
+                        className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 rounded-lg transition-colors"
+                      >
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Sidebar Footer: Templates Section */}
+          {templates.length > 0 && (
+            <div className="border-t border-zinc-800 p-3">
+              <details className="group">
+                <summary className="flex items-center justify-between cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider py-2">
+                  <span className="flex items-center gap-2">
+                    <FileText size={14} />
+                    القوالب المرجعية ({templates.length})
+                  </span>
+                  {isTemplatesLoading && <Loader2 size={12} className="animate-spin" />}
+                </summary>
+                <div className="mt-2 space-y-1">
+                  {templates.slice(0, 3).map((template) => (
+                    <div
+                      key={template.id}
+                      className="p-2 rounded-lg bg-zinc-900/50 border border-zinc-800 text-xs"
                     >
-                      {visibleTemplates.map((t) => (
-                        <option key={t.id} value={t.id}>
-                          {t.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <TemplatePreview template={visibleTemplates.find((t) => t.id === selectedTemplateId)!} />
-                </div>
-              ) : (
-                !isTemplatesLoading && (
-                  <div className="border border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-4 text-sm text-slate-500 dark:text-slate-400">
-                    لا يوجد قالب مرئي لهذا النوع حتى الآن. سيظهر هنا أي قالب يضيفه الأدمن.
-                  </div>
-                )
-              )}
-            </div>
-
-            {/* ---------- SUB-SECTION 4.4: MEASUREMENT FIELDS INPUT ---------- */}
-            {/* حقول إدخال المقاسات */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-3">
-                المقاسات (بالسنتيمتر)
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {measurementTemplates[formData.type].fields.map((field) => (
-                  <div key={field.key} className="flex items-center gap-2">
-                    <label className="text-sm text-slate-600 dark:text-slate-400 min-w-[100px]">
-                      {field.label}
-                    </label>
-                    <div className="flex-1 flex items-center gap-2">
-                      <input
-                        type="number"
-                        step="0.5"
-                        value={formData.metrics[field.key] || ''}
-                        onChange={(e) => handleMetricChange(field.key, e.target.value)}
-                        placeholder="0"
-                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white"
-                      />
-                      <span className="text-xs text-slate-500 dark:text-slate-400 min-w-[30px]">
-                        {field.unit}
-                      </span>
+                      <span className="text-zinc-300">{template.name}</span>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* ---------- SUB-SECTION 4.5: NOTES FIELD ---------- */}
-            {/* ملاحظات إضافية */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">
-                ملاحظات إضافية (اختياري)
-              </label>
-              <textarea
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="أي ملاحظات خاصة بهذا المقاس..."
-                rows={3}
-                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 dark:text-white resize-none"
-              />
-            </div>
-
-            {/* ---------- SUB-SECTION 4.6: SAVE/CANCEL BUTTONS ---------- */}
-            {/* أزرار الحفظ والإلغاء */}
-            <div className="flex gap-3">
-              <Button onClick={handleSave} className="flex-1 flex items-center justify-center gap-2">
-                <Save size={18} />
-                حفظ المقاس
-              </Button>
-              <button
-                onClick={handleCancel}
-                className="px-6 py-3 bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-medium hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors flex items-center justify-center gap-2"
-              >
-                <X size={18} />
-                إلغاء
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* ==================== SECTION 5: SAVED MEASUREMENTS LIST ==================== */}
-        {/* قائمة المقاسات المحفوظة */}
-        <div className="space-y-4">
-          {/* ---------- EMPTY STATE ---------- */}
-          {/* رسالة عند عدم وجود مقاسات */}
-          {measurements.length === 0 && !isAddingNew && !editingId && (
-            <div className="bg-white dark:bg-slate-800 rounded-2xl p-12 text-center border border-slate-200 dark:border-slate-700">
-              <Ruler size={48} className="mx-auto mb-4 text-slate-300 dark:text-slate-600" />
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white mb-2">
-                لا توجد مقاسات محفوظة
-              </h3>
-              <p className="text-slate-500 dark:text-slate-400 mb-6">
-                ابدأ بإضافة مقاسك الأول لتسهيل عملية الطلب
-              </p>
-              <Button onClick={handleAddNew} className="flex items-center gap-2 mx-auto">
-                <Plus size={20} />
-                إضافة مقاس جديد
-              </Button>
+                  ))}
+                  {templates.length > 3 && (
+                    <p className="text-[10px] text-zinc-500 text-center py-1">
+                      +{templates.length - 3} قوالب أخرى
+                    </p>
+                  )}
+                </div>
+              </details>
             </div>
           )}
+        </aside>
 
-          {/* ---------- MEASUREMENT CARDS ---------- */}
-          {/* بطاقات المقاسات المحفوظة */}
-          {measurements.map((measurement) => (
-            <div
-              key={measurement.id}
-              className="bg-white dark:bg-slate-800 rounded-2xl p-5 border border-slate-200 dark:border-slate-700 hover:shadow-lg transition-shadow"
-            >
-              {/* ----- CARD HEADER: Name, Type, Edit/Delete Buttons ----- */}
-              <div className="flex items-start justify-between mb-4">
-                <div className="flex items-start gap-3">
-                  <div className="w-12 h-12 rounded-xl bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 flex items-center justify-center">
-                    {getGarmentIcon(measurement.type)}
+        {/* ========== MAIN CONTENT AREA ========== */}
+        <main className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden bg-zinc-950">
+          {/* Content Scrollable Area */}
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+            <div className="p-6 max-w-4xl mx-auto">
+              
+              {/* DEBUG PANEL */}
+              <DebugPanel title="Debug Info - Measurements.tsx">
+                <div className="grid gap-2 text-sm font-mono">
+                  <div className="flex gap-2">
+                    <span className="text-purple-400 font-bold">User:</span>
+                    <span className="text-zinc-300">
+                      {user ? `${user.name} (${user.id})` : 'No user'}
+                    </span>
                   </div>
-                  <div>
-                    <h3 className="font-bold text-slate-900 dark:text-white text-lg">
-                      {measurement.name}
-                    </h3>
-                    <p className="text-sm text-slate-500 dark:text-slate-400">
-                      {measurementTemplates[measurement.type].label}
-                    </p>
+                  <div className="flex gap-2">
+                    <span className="text-purple-400 font-bold">Measurements:</span>
+                    <span className="text-zinc-300">{measurements.length}</span>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="text-purple-400 font-bold">Templates:</span>
+                    <span className="text-zinc-300">
+                      {templates.length} {isTemplatesLoading && '(loading...)'}
+                    </span>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button
-                    onClick={() => handleEdit(measurement)}
-                    className="p-2 hover:bg-blue-50 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg transition-colors"
-                  >
-                    <Edit2 size={18} />
-                  </button>
-                  <button
-                    onClick={() => handleDelete(measurement.id)}
-                    className="p-2 hover:bg-red-50 dark:hover:bg-red-900/30 text-red-600 dark:text-red-400 rounded-lg transition-colors"
-                  >
-                    <Trash2 size={18} />
-                  </button>
-                </div>
-              </div>
+              </DebugPanel>
 
-              {/* ----- METRICS GRID: Display all measurements ----- */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                {Object.entries(measurement.metrics).map(([key, value]) => {
-                  const field = measurementTemplates[measurement.type].fields.find(f => f.key === key);
-                  if (!field) return null;
-                  return (
-                    <div key={key} className="bg-slate-50 dark:bg-slate-900/50 rounded-lg p-3">
-                      <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">
-                        {field.label}
-                      </p>
-                      <p className="text-lg font-bold text-slate-900 dark:text-white">
-                        {value} <span className="text-sm font-normal text-slate-500">{field.unit}</span>
-                      </p>
+              {/* Product Info Card */}
+              {state?.customizationData && (
+                <div className="mb-6">
+                  <div className="bg-gradient-to-r from-purple-600/20 to-pink-600/20 rounded-2xl p-4 border border-purple-500/30">
+                    <div className="flex items-center gap-4">
+                      <div className="w-14 h-14 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center flex-shrink-0">
+                        <span className="text-2xl">👔</span>
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-xs text-purple-400 uppercase tracking-wider mb-1">المنتج المراد قياسه</p>
+                        <h2 className="text-lg font-bold text-white">
+                          {state.customizationData.modelName || 'تصميم مخصص'}
+                        </h2>
+                      </div>
+                      {state.customizationData.fabricUrl && (
+                        <div className="w-16 h-16 rounded-xl overflow-hidden border-2 border-purple-500/30 flex-shrink-0">
+                          <img 
+                            src={state.customizationData.fabricUrl} 
+                            alt="القماش المختار" 
+                            className="w-full h-full object-cover"
+                          />
+                        </div>
+                      )}
                     </div>
-                  );
-                })}
-              </div>
-
-              {/* ----- NOTES SECTION ----- */}
-              {measurement.notes && (
-                <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700">
-                  <p className="text-sm text-slate-600 dark:text-slate-400">
-                    <span className="font-medium">ملاحظات:</span> {measurement.notes}
-                  </p>
+                  </div>
                 </div>
               )}
 
-              {/* ----- LAST UPDATE DATE ----- */}
-              <div className="mt-3 pt-3 border-t border-slate-200 dark:border-slate-700 flex justify-between items-center">
-                <p className="text-xs text-slate-400">
-                  آخر تحديث: {new Date(measurement.updatedAt).toLocaleDateString('ar-OM')}
-                </p>
-              </div>
+              {/* ========== EMPTY STATE (No Form Open) ========== */}
+              {!isAddingNew && !editingId && measurements.length === 0 && (
+                <div className="flex flex-col items-center justify-center py-16">
+                  <div className="w-24 h-24 rounded-full bg-zinc-900 border-2 border-dashed border-zinc-700 flex items-center justify-center mb-6">
+                    <Ruler size={40} className="text-zinc-600" />
+                  </div>
+                  <h3 className="text-xl font-bold text-white mb-2">ابدأ بإضافة مقاساتك</h3>
+                  <p className="text-zinc-500 text-center max-w-md mb-6">
+                    احفظ مقاساتك لتسهيل عملية الطلب. يمكنك إضافة مقاسات لأنواع مختلفة من الملابس.
+                  </p>
+                  <button
+                    onClick={handleAddNew}
+                    className="px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center gap-2"
+                  >
+                    <Plus size={20} />
+                    إضافة مقاس جديد
+                  </button>
+                </div>
+              )}
+
+              {/* ========== ADD/EDIT FORM ========== */}
+              {(isAddingNew || editingId) && (
+                <div className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                  {/* Form Header */}
+                  <div className="p-4 border-b border-zinc-800 flex items-center justify-between">
+                    <h2 className="text-lg font-bold text-white flex items-center gap-2">
+                      {editingId ? (
+                        <>
+                          <Edit2 size={20} className="text-purple-400" />
+                          تعديل المقاس
+                        </>
+                      ) : (
+                        <>
+                          <Plus size={20} className="text-purple-400" />
+                          مقاس جديد
+                        </>
+                      )}
+                    </h2>
+                    <button
+                      onClick={handleCancel}
+                      className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors"
+                    >
+                      <X size={20} />
+                    </button>
+                  </div>
+
+                  <div className="p-6 space-y-6">
+                    {/* Measurement Name */}
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2 block">
+                        اسم المقاس <span className="text-red-400">*</span>
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        placeholder="مثال: مقاسي الشخصي، مقاس أحمد"
+                        className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-purple-500/40"
+                      />
+                    </div>
+
+                    {/* Garment Type Selector */}
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 block">
+                        نوع اللباس <span className="text-red-400">*</span>
+                      </label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
+                        {(Object.keys(measurementTemplates) as GarmentType[]).map((type) => (
+                          <button
+                            key={type}
+                            onClick={() => setFormData({ ...formData, type, metrics: {} })}
+                            className={`p-3 rounded-xl border transition-all ${
+                              formData.type === type
+                                ? 'bg-purple-500/20 border-purple-500 text-purple-300'
+                                : 'bg-zinc-950 border-zinc-800 text-zinc-400 hover:border-purple-500/50 hover:text-zinc-300'
+                            }`}
+                          >
+                            <div className="flex flex-col items-center gap-2">
+                              {getGarmentIcon(type)}
+                              <span className="text-xs font-medium">{measurementTemplates[type].label}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Template Reference */}
+                    {visibleTemplates.length > 0 && selectedTemplateId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-3">
+                          <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                            <Info size={14} />
+                            قالب مرجعي
+                          </label>
+                          {visibleTemplates.length > 1 && (
+                            <select
+                              value={selectedTemplateId}
+                              onChange={(e) => setSelectedTemplateId(e.target.value)}
+                              className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                            >
+                              {visibleTemplates.map((t) => (
+                                <option key={t.id} value={t.id}>
+                                  {t.name}
+                                </option>
+                              ))}
+                            </select>
+                          )}
+                        </div>
+                        <div className="rounded-xl border border-zinc-800 overflow-hidden">
+                          <TemplatePreview template={visibleTemplates.find((t) => t.id === selectedTemplateId)!} />
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Measurement Fields */}
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3 block">
+                        المقاسات (بالسنتيمتر)
+                      </label>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {measurementTemplates[formData.type].fields.map((field) => (
+                          <div key={field.key} className="flex items-center gap-3 p-3 bg-zinc-950 rounded-xl border border-zinc-800">
+                            <label className="text-sm text-zinc-400 min-w-[80px]">
+                              {field.label}
+                            </label>
+                            <div className="flex-1 flex items-center gap-2">
+                              <input
+                                type="number"
+                                step="0.5"
+                                value={formData.metrics[field.key] || ''}
+                                onChange={(e) => handleMetricChange(field.key, e.target.value)}
+                                placeholder="0"
+                                className="w-full px-3 py-2 bg-zinc-900 border border-zinc-700 rounded-lg text-white text-center focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+                              />
+                              <span className="text-xs text-zinc-500 min-w-[30px]">
+                                {field.unit}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                      <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2 block">
+                        ملاحظات إضافية (اختياري)
+                      </label>
+                      <textarea
+                        value={formData.notes}
+                        onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                        placeholder="أي ملاحظات خاصة بهذا المقاس..."
+                        rows={3}
+                        className="w-full px-4 py-3 bg-zinc-950 border border-zinc-800 rounded-xl text-white placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40 resize-none"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Form Footer: Action Buttons */}
+                  <div className="p-4 border-t border-zinc-800 flex gap-3">
+                    <button
+                      onClick={handleSave}
+                      className="flex-1 px-6 py-3 bg-purple-600 hover:bg-purple-500 text-white rounded-xl font-bold transition-all active:scale-95 flex items-center justify-center gap-2"
+                    >
+                      <Save size={18} />
+                      حفظ المقاس
+                    </button>
+                    <button
+                      onClick={handleCancel}
+                      className="px-6 py-3 bg-zinc-800 hover:bg-zinc-700 text-zinc-300 rounded-xl font-medium transition-colors flex items-center justify-center gap-2"
+                    >
+                      <X size={18} />
+                      إلغاء
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* ========== SAVED MEASUREMENTS GRID (When no form is open) ========== */}
+              {!isAddingNew && !editingId && measurements.length > 0 && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">
+                      المقاسات المحفوظة ({measurements.length})
+                    </h2>
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {measurements.map((measurement) => (
+                      <div
+                        key={measurement.id}
+                        className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden hover:border-zinc-700 transition-colors"
+                      >
+                        {/* Card Header */}
+                        <div className="p-4 border-b border-zinc-800 flex items-start justify-between">
+                          <div className="flex items-start gap-3">
+                            <div className="w-12 h-12 rounded-xl bg-purple-500/20 border border-purple-500/30 flex items-center justify-center text-purple-400">
+                              {getGarmentIcon(measurement.type)}
+                            </div>
+                            <div>
+                              <h3 className="font-bold text-white text-lg">{measurement.name}</h3>
+                              <p className="text-sm text-zinc-500">{measurementTemplates[measurement.type].label}</p>
+                            </div>
+                          </div>
+                          <div className="flex gap-1">
+                            <button
+                              onClick={() => handleEdit(measurement)}
+                              className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 rounded-lg transition-colors"
+                            >
+                              <Edit2 size={18} />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(measurement.id)}
+                              className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 rounded-lg transition-colors"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Metrics Grid */}
+                        <div className="p-4">
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                            {Object.entries(measurement.metrics).map(([key, value]) => {
+                              const field = measurementTemplates[measurement.type].fields.find(f => f.key === key);
+                              if (!field) return null;
+                              return (
+                                <div key={key} className="bg-zinc-950 rounded-lg p-3 border border-zinc-800">
+                                  <p className="text-[10px] text-zinc-500 uppercase tracking-wider mb-1">
+                                    {field.label}
+                                  </p>
+                                  <p className="text-lg font-bold text-white">
+                                    {value} <span className="text-xs font-normal text-zinc-500">{field.unit}</span>
+                                  </p>
+                                </div>
+                              );
+                            })}
+                          </div>
+
+                          {/* Notes */}
+                          {measurement.notes && (
+                            <div className="mt-3 p-3 bg-zinc-950 rounded-lg border border-zinc-800">
+                              <p className="text-xs text-zinc-400">
+                                <span className="text-zinc-500">ملاحظات:</span> {measurement.notes}
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Last Update */}
+                          <div className="mt-3 pt-3 border-t border-zinc-800 flex justify-between items-center">
+                            <p className="text-[10px] text-zinc-500">
+                              آخر تحديث: {new Date(measurement.updatedAt).toLocaleDateString('ar-OM')}
+                            </p>
+                            <button
+                              onClick={() => handleEdit(measurement)}
+                              className="text-xs text-purple-400 hover:text-purple-300 font-medium transition-colors"
+                            >
+                              تعديل
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ========== ADMIN TEMPLATES DISPLAY ========== */}
+              {!isAddingNew && !editingId && templates.length > 0 && (
+                <div className="mt-8">
+                  <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xs font-semibold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+                      <Bookmark size={14} />
+                      قوالب القياسات المتاحة
+                    </h2>
+                    {isTemplatesLoading && <Loader2 size={14} className="animate-spin text-purple-400" />}
+                  </div>
+
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    {templates.map((template) => (
+                      <div key={template.id} className="bg-zinc-900 rounded-2xl border border-zinc-800 overflow-hidden">
+                        <div className="p-4 border-b border-zinc-800">
+                          <p className="font-semibold text-white">{template.name}</p>
+                          <p className="text-xs text-zinc-500 mt-1">
+                            {template.description || 'قالب قياس مرجعي'}
+                          </p>
+                        </div>
+                        <TemplatePreview template={template} />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
             </div>
-          ))}
-        </div>
+          </div>
+        </main>
       </div>
+
+      {/* Custom Scrollbar Styles */}
+      <style>{`
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: #3f3f46 transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 5px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: #3f3f46;
+          border-radius: 10px;
+        }
+      `}</style>
     </div>
   );
 };
@@ -903,11 +977,11 @@ const TemplatePreview: React.FC<{ template: MeasurementTemplate }> = ({ template
   const showFallbackBg = !template.baseImageUrl;
 
   return (
-    <div className="relative h-[360px] rounded-b-2xl overflow-hidden bg-slate-50 dark:bg-slate-900/40">
+    <div className="relative h-[320px] overflow-hidden bg-zinc-950">
       {template.baseImageUrl ? (
         <img src={template.baseImageUrl} alt={template.name} className="absolute inset-0 w-full h-full object-contain" />
       ) : (
-        <div className="absolute inset-0 flex items-center justify-center text-sm text-slate-500">
+        <div className="absolute inset-0 flex items-center justify-center text-sm text-zinc-600">
           لا توجد صورة للقالب
         </div>
       )}
@@ -924,7 +998,7 @@ const TemplatePreview: React.FC<{ template: MeasurementTemplate }> = ({ template
                 y1={point.y * 100}
                 x2={next.x * 100}
                 y2={next.y * 100}
-                stroke="#2563eb"
+                stroke="#a855f7"
                 strokeWidth={1.5}
                 markerEnd="url(#arrowhead-guide-display)"
                 opacity={showFallbackBg ? 0.25 : 0.9}
@@ -933,7 +1007,7 @@ const TemplatePreview: React.FC<{ template: MeasurementTemplate }> = ({ template
           })}
           <defs>
             <marker id="arrowhead-guide-display" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
-              <path d="M0,0 L0,6 L6,3 z" fill="#2563eb" />
+              <path d="M0,0 L0,6 L6,3 z" fill="#a855f7" />
             </marker>
           </defs>
         </svg>
@@ -949,11 +1023,11 @@ const TemplatePreview: React.FC<{ template: MeasurementTemplate }> = ({ template
             style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%`, transform: 'translate(-50%, -50%)' }}
           >
             <div className={`flex items-center gap-2 ${align}`}>
-              <div className="relative w-9 h-9 rounded-full border-2 border-blue-500 bg-white/90 text-blue-700 flex items-center justify-center text-xs font-bold shadow-sm">
+              <div className="relative w-8 h-8 rounded-full border-2 border-purple-500 bg-zinc-900/90 text-purple-300 flex items-center justify-center text-xs font-bold shadow-lg">
                 {point.order || idx + 1}
               </div>
-              <div className="h-px w-10 bg-blue-400/60" />
-              <div className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-100 bg-white/90 dark:bg-slate-900/70 shadow">
+              <div className="h-px w-8 bg-purple-500/60" />
+              <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border text-xs font-bold border-purple-500/30 text-purple-200 bg-zinc-900/90 shadow-lg">
                 <span>{point.label || 'نقطة'}</span>
               </div>
             </div>

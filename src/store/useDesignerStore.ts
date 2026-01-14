@@ -30,6 +30,50 @@ export interface DesignerState {
 }
 
 const STORAGE_KEY = 'khuyoot:designer:v2_1';
+const MAX_PERSIST_IMAGE_BYTES = 200_000; // guard localStorage quota (≈200 KB per image)
+
+function isQuotaError(error: unknown) {
+  if (!error || typeof error !== 'object') return false;
+  const name = (error as { name?: string }).name;
+  return name === 'QuotaExceededError' || name === 'NS_ERROR_DOM_QUOTA_REACHED';
+}
+
+function isPersistableImage(image: PersistedImage | null) {
+  if (!image) return null;
+  // base64 strings are ~4/3 of the original size; bail out if too large
+  return image.base64.length <= MAX_PERSIST_IMAGE_BYTES ? image : null;
+}
+
+const safeStorage = {
+  getItem: (name: string) => {
+    try {
+      return window.localStorage.getItem(name);
+    } catch {
+      return null;
+    }
+  },
+  setItem: (name: string, value: string) => {
+    try {
+      window.localStorage.setItem(name, value);
+    } catch (err) {
+      if (isQuotaError(err)) {
+        console.warn('[DesignerStore] Skipping persist: quota exceeded');
+        try {
+          window.localStorage.removeItem(name);
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+  },
+  removeItem: (name: string) => {
+    try {
+      window.localStorage.removeItem(name);
+    } catch {
+      /* ignore */
+    }
+  },
+};
 
 function safeReadStorage(): Partial<DesignerState> | null {
   try {
@@ -80,13 +124,14 @@ export const useDesignerStore = create<DesignerState>()(
     }),
     {
       name: STORAGE_KEY,
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => safeStorage),
       partialize: (state) => ({
         selectedModel: state.selectedModel,
         selectedTemplateId: state.selectedTemplateId,
-        selectedTemplateImage: state.selectedTemplateImage,
+        // Persist images only if they are small enough to avoid quota errors
+        selectedTemplateImage: isPersistableImage(state.selectedTemplateImage),
         selectedFabricId: state.selectedFabricId,
-        selectedFabricImage: state.selectedFabricImage,
+        selectedFabricImage: isPersistableImage(state.selectedFabricImage),
         activeResult: state.activeResult,
       }),
       version: 1,

@@ -18,6 +18,7 @@ export default defineConfig(({ mode }) => {
     const env = loadEnv(mode, '.', '');
     const isProduction = mode === 'production';
     const tryOnApiPort = env.TRYON_API_PORT || '8788';
+    const videoLabPort = env.VIDEO_LAB_PORT || '8790';
   const devPort = Number(env.VITE_DEV_PORT || env.PORT || 3000);
     const hmrHost = env.VITE_HMR_HOST?.trim();
     
@@ -35,6 +36,12 @@ export default defineConfig(({ mode }) => {
           '/api': {
             target: `http://localhost:${tryOnApiPort}`,
             changeOrigin: true,
+          },
+          // Dev-only tool: local Python MoviePy server
+          '/video-lab-api': {
+            target: `http://127.0.0.1:${videoLabPort}`,
+            changeOrigin: true,
+            rewrite: (p) => p.replace(/^\/video-lab-api/, ''),
           }
         }
       },
@@ -66,11 +73,10 @@ export default defineConfig(({ mode }) => {
                   }
                   return request.destination === 'document';
                 },
-                handler: 'NetworkFirst',
+                // CRITICAL: NetworkOnly ensures HTML is ALWAYS fresh (no stale homepage)
+                handler: 'NetworkOnly',
                 options: { 
-                  cacheName: 'pages', 
-                  expiration: { maxEntries: 50, maxAgeSeconds: 60 * 60 * 24 },
-                  networkTimeoutSeconds: 3
+                  cacheName: 'pages-bypass', // Cache name for debugging only
                 }
               },
               {

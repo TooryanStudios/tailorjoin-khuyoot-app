@@ -1,0 +1,10 @@
+{
+  "recommendations": [
+    "GitHub.Copilot",
+    "GitHub.Copilot-Chat",
+    "esbenp.prettier-vscode",
+    "dbaeumer.vscode-eslint",
+    "bradlc.vscode-tailwindcss",
+    "Firebase.firebase"
+  ]
+}

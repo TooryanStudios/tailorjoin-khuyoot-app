@@ -2,7 +2,7 @@ import React from 'react';
 import { Sparkles, Play, ChevronRight } from 'lucide-react';
 import { SkeletonShimmer } from './SkeletonShimmer';
 
-const ACCENT = '#c6ff1a';
+const ACCENT = 'var(--theme-primary)';
 
 type RailItem = {
   id: string;

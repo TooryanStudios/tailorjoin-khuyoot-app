@@ -12,7 +12,7 @@ import { getUserOrders } from '../services/orderService';
 import { firebaseService } from '../services/firebase';
 
 export const Account = () => {
-  const { user, logout, toggleAuthModal } = useApp();
+  const { user, logout, toggleAuthModal, loading } = useApp();
   const navigate = useNavigate();
    const location = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
@@ -26,6 +26,16 @@ export const Account = () => {
       { id: '2', name: 'نورة', relation: 'ابنة' }
   ]);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Debug: Track user state changes
+  useEffect(() => {
+    console.log('📊 Account page - user state:', { 
+      hasUser: !!user, 
+      userId: user?.id, 
+      role: user?.role, 
+      loading 
+    });
+  }, [user, loading]);
 
   // --- Logic & Effects (Kept Intact) ---
   useEffect(() => {
@@ -110,6 +120,18 @@ export const Account = () => {
         }
      } catch {}
   }, [user, location.search, toggleAuthModal]);
+
+  // --- Loading State ---
+  if (loading) {
+    return (
+      <div className="min-h-[85vh] flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"></div>
+          <p className="text-slate-600 dark:text-slate-400">جاري التحميل...</p>
+        </div>
+      </div>
+    );
+  }
 
   // --- Guest View (Modern Card) ---
   if (!user) {
@@ -385,7 +407,7 @@ export const Account = () => {
 
       {/* Footer Actions */}
       <div className="pt-4 flex flex-col gap-3 max-w-sm mx-auto">
-         <button onClick={logout} className="w-full bg-red-50 dark:bg-red-900/10 text-red-600 p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
+         <button onClick={async () => { await logout(); navigate('/', { replace: true }); }} className="w-full bg-red-50 dark:bg-red-900/10 text-red-600 p-4 rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-red-100 transition-colors">
             <LogOut size={20} /> تسجيل الخروج
          </button>
          

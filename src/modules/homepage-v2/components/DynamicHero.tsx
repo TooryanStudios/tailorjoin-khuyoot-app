@@ -96,7 +96,7 @@ export default function DynamicHero() {
             <div className="mt-5 flex flex-wrap gap-3">
               <button
                 type="button"
-                className="h-11 px-5 rounded-xl bg-[#D4AF37] text-black font-semibold hover:brightness-110 active:scale-[0.99] transition min-w-[44px]"
+                className="h-11 px-5 rounded-xl bg-[color:var(--theme-secondary)] text-black font-semibold hover:brightness-110 active:scale-[0.99] transition min-w-[44px]"
                 onClick={() => navigate(primaryCtaHref)}
               >
                 {primaryCtaText}

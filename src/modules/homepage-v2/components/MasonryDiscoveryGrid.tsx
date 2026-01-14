@@ -267,36 +267,37 @@ const MasonryTile = React.memo(function MasonryTile({
 
         {/* Hover Overlay: big title + CTA (matches reference behavior) */}
         <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-          <div className="absolute inset-0 bg-black/35" />
+          <div className="absolute inset-0 bg-black/40" />
 
           {/* Like + Collection icons */}
           <div className="absolute top-3 right-3 z-10">
             <TileActions productId={product.id} initialLikes={(product as any)?.likes ?? 0} />
           </div>
 
-          <div className="absolute inset-0 flex items-center justify-center px-4">
-            <div className="text-center">
-              <div className="text-white text-2xl md:text-3xl font-black tracking-widest uppercase drop-shadow">
-                {product.name}
+          {/* Content flexbox layout to prevent overlap */}
+          <div className="absolute inset-0 flex flex-col items-center justify-between py-6 px-4">
+            <div className="flex-1" />
+            
+            {/* Product info centered */}
+            <div className="text-center space-y-2 max-w-full">
+              <div className="text-white text-xl md:text-2xl font-black tracking-wide uppercase drop-shadow-lg leading-tight">
+                {shopName || product.name}
               </div>
-              {(shopName || priceNumber !== null) && (
-                <div className="mt-3 flex flex-col items-center gap-1">
-                  {shopName && <div className="text-white/85 text-sm font-semibold">{shopName}</div>}
-                  {priceNumber !== null && (
-                    <div className="inline-flex items-center justify-center">
-                      <span className="px-3 py-1 rounded-full bg-black/55 border border-white/10 backdrop-blur-sm text-[#D4AF37] text-base font-extrabold">
-                        {priceNumber.toFixed(3)} ر.ع
-                      </span>
-                    </div>
-                  )}
+              {priceNumber !== null && (
+                <div className="inline-flex items-center justify-center mt-1">
+                  <span className="px-3 py-1 rounded-full bg-black/60 border border-white/20 backdrop-blur-sm text-[color:var(--theme-secondary)] text-sm md:text-base font-extrabold">
+                    {priceNumber.toFixed(3)} ر.ع
+                  </span>
                 </div>
               )}
             </div>
-          </div>
 
-          <div className="absolute left-0 right-0 bottom-4 flex justify-center">
-            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#D4AF37] text-black font-extrabold shadow-lg">
-              <Sparkles size={16} />
+            {/* Spacer to push CTA to bottom */}
+            <div className="flex-1" />
+
+            {/* CTA button at bottom */}
+            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[color:var(--theme-secondary)] text-black font-extrabold shadow-lg text-sm">
+              <Sparkles size={14} />
               عرض المنتج
             </div>
           </div>
@@ -379,6 +380,32 @@ export default function MasonryDiscoveryGrid() {
               <MasonryTile product={product} index={index} onClick={() => navigate(`/product/${product.id}`)} />
             </div>
           ))}
+          
+          {/* Show All Card - appears when there are more products */}
+          {filteredProducts.length > 0 && (
+            <div className="break-inside-avoid" style={{ marginBottom: cardGapPx }}>
+              <div
+                role="button"
+                tabIndex={0}
+                onClick={() => navigate('/products')}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    navigate('/products');
+                  }
+                }}
+                className="group w-full rounded-2xl overflow-hidden bg-gradient-to-br from-purple-600/20 to-pink-600/20 border-2 border-dashed border-white/30 hover:border-white/50 transition-all cursor-pointer aspect-square flex flex-col items-center justify-center gap-3 p-6"
+              >
+                <div className="text-5xl">🔍</div>
+                <div className="text-white text-lg font-bold text-center">عرض الكل</div>
+                {filteredProducts.length > maxItems && (
+                  <div className="text-white/70 text-sm text-center">
+                    {filteredProducts.length - maxItems}+ منتج آخر
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
     </section>

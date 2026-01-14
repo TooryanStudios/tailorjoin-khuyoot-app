@@ -120,6 +120,7 @@ export const createCategory = async (formData: {
   nameAr: string;
   nameEn: string;
   categoryType: string;
+  gender?: string | null;
   slug?: string;
   parentId?: string | null;
   image: string;
@@ -148,6 +149,9 @@ export const createCategory = async (formData: {
       nameEn: formData.nameEn,
       slug,
       parentId: formData.parentId || null,
+      level,
+      categoryType: formData.categoryType,
+      gender: formData.gender || null,
       level,
       categoryType: formData.categoryType,
       image: formData.image,

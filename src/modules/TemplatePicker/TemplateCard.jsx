@@ -8,19 +8,48 @@ export const TemplateCard = React.memo(function TemplateCard({
   onHover,
   isLocked = false,
   onLockedClick,
+  isLoading = false,
 }) {
-  const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 30 });
+  // Lazy-load thumbnails only when visible using IntersectionObserver
+  const [isVisible, setIsVisible] = React.useState(false);
+  // Use plain ref in .jsx to avoid TS generic syntax
+  const cardRef = React.useRef(null);
+
+  React.useEffect(() => {
+    const el = cardRef.current;
+    if (!el) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.isIntersecting) {
+            setIsVisible(true);
+            // Once visible, we can unobserve to avoid repeated callbacks
+            observer.unobserve(entry.target);
+          }
+        }
+      },
+      { root: null, rootMargin: '200px', threshold: 0.05 }
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  // Increase thumbnail cache to reduce evictions when switching tabs
+  const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 100, enabled: isVisible || Boolean(isActive) });
 
   const previewSrc = template?.thumbnailUrl || template?.imageUrl || null;
   const subtitle = template?.meta?.label || template?.meta?.source || '';
 
+  // Prefetch only when visible (or active)
   React.useEffect(() => {
     if (!previewSrc) return;
+    if (!isVisible && !isActive) return;
     prefetchThumbnails([previewSrc]);
-  }, [previewSrc, prefetchThumbnails]);
+  }, [previewSrc, prefetchThumbnails, isVisible, isActive]);
 
   return (
     <button
+      ref={cardRef}
       type="button"
       onClick={() => {
         if (isLocked) {
@@ -39,7 +68,7 @@ export const TemplateCard = React.memo(function TemplateCard({
       <div className="relative w-full aspect-[3/4] bg-zinc-900">
         {previewSrc ? (
           <img
-            src={getThumbnailSrc(previewSrc)}
+            src={isVisible || isActive ? getThumbnailSrc(previewSrc) : previewSrc}
             alt={template?.name || 'Template'}
             className={`absolute inset-0 h-full w-full object-cover ${
               isLocked ? 'grayscale brightness-75 contrast-125' : ''
@@ -50,6 +79,15 @@ export const TemplateCard = React.memo(function TemplateCard({
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-500">
             No preview
+          </div>
+        )}
+
+        {isLoading && (
+          <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm flex items-center justify-center z-10">
+            <div className="flex flex-col items-center gap-2">
+              <div className="w-8 h-8 border-3 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
+              <span className="text-[10px] text-purple-300 font-medium">Loading...</span>
+            </div>
           </div>
         )}
 

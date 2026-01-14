@@ -122,13 +122,13 @@ const DEFAULT_HELP_VIDEO_URL = 'https://www.youtube.com/watch?v=6eZtn5Du8O4';
 // ==================== MAIN COMPONENT ====================
 export const ClientMeasurements = () => {
   const { user, appSettings } = useApp();
-  
+
   // Debug: Log appSettings to verify it's loaded
   useEffect(() => {
     console.log('[ClientMeasurements] appSettings loaded:', appSettings);
     console.log('[ClientMeasurements] helpVideo config:', appSettings?.helpVideo);
   }, [appSettings]);
-  
+
   // Normalize help video URL to an embeddable format (e.g., YouTube)
   const getEmbedUrl = (rawUrl?: string) => {
     if (!rawUrl) return '';
@@ -160,6 +160,7 @@ export const ClientMeasurements = () => {
       return '';
     }
   };
+
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as LocationState;
@@ -228,71 +229,7 @@ export const ClientMeasurements = () => {
   );
   const helpVideoEmbedUrl = useMemo(() => getEmbedUrl(helpVideoRawUrl), [helpVideoRawUrl]);
   const canUpdateExisting = allowPromptUpdate && Boolean(pendingUpdateTargetId);
-
-  useEffect(() => {
-    setIsHelpVideoVisible(false);
-  }, [helpVideoEmbedUrl]);
-
-  useEffect(() => {
-    const incomingProfile = state?.measurementData as MeasurementPayload | undefined;
-    if (!incomingProfile) {
-      return;
-    }
-
-    const signature = JSON.stringify({
-      id: incomingProfile.id || 'temp',
-      metrics: incomingProfile.metrics,
-      measurements: incomingProfile.measurements
-    });
-
-    if (appliedMeasurementRef.current === signature) {
-      return;
-    }
-
-    const sourceMetrics = incomingProfile.metrics || incomingProfile.measurements || {};
-    const normalized: Record<string, string> = {};
-
-    Object.entries(sourceMetrics).forEach(([key, value]) => {
-      if (value === null || value === undefined) {
-        return;
-      }
-      if (typeof value === 'number') {
-        if (!Number.isNaN(value)) {
-          normalized[key] = value.toString();
-        }
-      } else if (typeof value === 'string' && value.trim() !== '') {
-        normalized[key] = value;
-      }
-    });
-
-    setMeasurements(prev => ({ ...prev, ...normalized }));
-
-    if (incomingProfile.id) {
-      setSelectedProfileId(incomingProfile.id);
-      setPendingUpdateTargetId(incomingProfile.id);
-    }
-
-    setHasManualChanges(false);
-    appliedMeasurementRef.current = signature;
-  }, [state?.measurementData]);
-
-  // Load draft on mount for direct navigation/back without state
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(draftKey);
-      if (!raw) return;
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        if (parsed.measurements && typeof parsed.measurements === 'object') {
-          setMeasurements(parsed.measurements);
-        }
-        if (parsed.selectedProfileId) {
-          setSelectedProfileId(parsed.selectedProfileId);
-          setPendingUpdateTargetId(parsed.selectedProfileId);
-        }
-      }
-    } catch {}
-  }, [draftKey]);
+  const effectiveVideoUrl = (matchingVideoEmbedUrl || helpVideoEmbedUrl) || '';
 
   // Persist drafts whenever measurements or selection changes
   useEffect(() => {
@@ -962,7 +899,7 @@ export const ClientMeasurements = () => {
   // Removed login requirement - users can view measurements without login
   
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pb-32">
+    <div className="h-screen flex flex-col bg-zinc-950 overflow-hidden">
       {/* DEBUG PANEL (hidden unless debug enabled) */}
       <DebugPanel title="Debug Info - ClientMeasurements.tsx" enabled={false}>
           <div className="grid gap-2 text-sm font-mono">
@@ -1131,20 +1068,19 @@ export const ClientMeasurements = () => {
         </div>
       )}
 
-      {/* Header */}
-      <div className="sticky top-0 z-40 bg-white/80 dark:bg-slate-800/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-700">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center gap-4">
+      <div className="sticky top-0 z-40 bg-zinc-950 border-b border-zinc-800">
+        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center gap-4">
           <button
             onClick={() => navigate(-1)}
-            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+            className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
           >
-            <ChevronLeft size={24} className="text-slate-700 dark:text-slate-300" />
+            <ChevronLeft size={24} className="text-zinc-300" />
           </button>
           <div className="flex-1">
-            <h1 className="text-xl font-bold text-slate-900 dark:text-white">
+            <h1 className="text-xl font-bold text-white">
               إدخال المقاسات
             </h1>
-            <p className="text-sm text-slate-600 dark:text-slate-400">
+            <p className="text-sm text-zinc-400">
               {state?.customizationData?.modelName || 'أدخل مقاساتك للحصول على أفضل نتيجة'}
             </p>
           </div>
@@ -1497,7 +1433,141 @@ export const ClientMeasurements = () => {
             )}
           </div>
         </div>
-      </div>
+
+        {/* Side Rail: Product, Saved, Video, Instructions */}
+        <aside className="lg:col-span-1 order-1 lg:order-2 space-y-4 hidden lg:block">
+          {(state?.customizationData || productData) && (
+            <div className="bg-gradient-to-r from-purple-600 to-blue-600 rounded-2xl p-4 shadow-md border border-white/10">
+              <div className="flex flex-row-reverse items-center gap-3">
+                {(productData?.imageUrl || state?.customizationData?.fabricUrl) && (
+                  <div className="w-16 h-16 rounded-lg overflow-hidden border border-white/30 flex-shrink-0">
+                    <img 
+                      src={productData?.imageUrl || state?.customizationData?.fabricUrl || ''} 
+                      alt="المنتج" 
+                      className="w-full h-full object-cover"
+                    />
+                  </div>
+                )}
+                <div className="flex-1 text-right">
+                  <p className="text-[11px] text-white/80 mb-0.5">المنتج المراد قياسه</p>
+                  <h2 className="text-base font-bold text-white leading-tight">
+                    {productData?.name || state?.customizationData?.modelName || 'تصميم مخصص'}
+                  </h2>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-4 shadow-sm border border-slate-200/60 dark:border-slate-700/60">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-lg bg-blue-100 dark:bg-blue-900/40 flex items-center justify-center flex-shrink-0">
+                <PlayCircle size={20} className="text-blue-600 dark:text-blue-300" />
+              </div>
+              <div className="flex-1 text-right">
+                <p className="text-sm font-bold text-slate-900 dark:text-white mb-0.5">💡 شاهد دليل القياس</p>
+                <p className="text-xs text-slate-600 dark:text-slate-300">للحصول على مقاسات دقيقة</p>
+              </div>
+            </div>
+            {effectiveVideoUrl ? (
+              <div className="mt-4 rounded-xl overflow-hidden border border-slate-200/60 dark:border-slate-700/60 bg-black/5 dark:bg-black/40 aspect-video">
+                <iframe
+                  src={effectiveVideoUrl.includes('?') ? `${effectiveVideoUrl}&rel=0` : `${effectiveVideoUrl}?rel=0`}
+                  title="measurements-video"
+                  frameBorder="0"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                  className="w-full h-full"
+                />
+              </div>
+            ) : (
+              <p className="mt-4 text-xs text-slate-600 dark:text-slate-300">
+                لم يتم توفير رابط فيديو مساعدة حتى الآن.
+              </p>
+            )}
+            {helpVideoRawUrl && (
+              <a
+                href={helpVideoRawUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-flex items-center gap-1 text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-300 dark:hover:text-blue-200"
+              >
+                فتح الفيديو في نافذة جديدة
+              </a>
+            )}
+          </div>
+
+          <div className="bg-white dark:bg-slate-800 rounded-2xl p-5 shadow-sm border border-slate-200/50 dark:border-slate-700/50">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Save size={18} className="text-emerald-600" />
+                <h3 className="font-bold text-slate-900 dark:text-white">مقاساتي المحفوظة</h3>
+                <span className="px-2 py-0.5 bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-full">
+                  {savedMeasurements.length}
+                </span>
+              </div>
+              <button 
+                onClick={() => setShowMeasurementsModal(true)}
+                className="text-sm text-blue-600 hover:text-blue-700 font-medium"
+              >
+                عرض الكل
+              </button>
+            </div>
+            <div className="bg-slate-50 dark:bg-slate-900/40 border border-slate-200/70 dark:border-slate-700/70 rounded-xl p-4 text-right">
+              {savedMeasurements.length > 0 ? (
+                <>
+                  <p className="text-sm text-slate-600 dark:text-slate-300 mb-3">
+                    اختر قالب المقاسات المناسب من القائمة ثم راجع التفاصيل قبل تطبيقه.
+                  </p>
+                  <button
+                    onClick={() => setShowMeasurementsModal(true)}
+                    className="w-full flex items-center justify-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold py-2.5 rounded-xl transition-colors"
+                  >
+                    <Save size={16} />
+                    استعراض القوالب المحفوظة
+                  </button>
+                </>
+              ) : (
+                <p className="text-sm text-slate-500 dark:text-slate-300">
+                  لا توجد قوالب محفوظة بعد. قم بإدخال المقاسات ثم احفظ كقالب جديد.
+                </p>
+              )}
+              {selectedProfile && (
+                <div
+                  className={`mt-3 text-xs ${hasManualChanges ? 'text-amber-600 dark:text-amber-300' : 'text-emerald-600 dark:text-emerald-300'}`}
+                >
+                  القالب الحالي: <span className="font-semibold">{selectedProfile.name}</span>
+                  {hasManualChanges ? ' – يوجد تعديلات غير محفوظة.' : ' – جاهز للاستخدام.'}
+                </div>
+              )}
+            </div>
+          </div>
+
+          <div className="bg-gradient-to-br from-blue-50 to-cyan-50 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-2xl p-4 border-2 border-blue-200/50 dark:border-blue-700/50">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-blue-500 flex items-center justify-center flex-shrink-0">
+                <Ruler size={20} className="text-white" />
+              </div>
+              <div className="flex-1">
+                <h3 className="font-bold text-slate-900 dark:text-white mb-2">كيفية إدخال المقاسات:</h3>
+                <ul className="text-sm text-slate-700 dark:text-slate-300 space-y-1">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 flex-shrink-0">•</span>
+                    <span>انقر على الأرقام الموجودة على الرسم لإدخال القياس</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 flex-shrink-0">•</span>
+                    <span>استخدم شريط القياس بالسنتيمتر للحصول على مقاسات دقيقة</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-500 flex-shrink-0">•</span>
+                    <span>يمكنك التعديل على أي قياس من القائمة على اليمين</span>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+        </aside>
+        </div>
 
       {/* Input Modal for Mobile */}
       {showInputModal && (

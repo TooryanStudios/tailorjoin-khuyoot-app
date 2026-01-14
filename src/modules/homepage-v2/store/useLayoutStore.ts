@@ -103,29 +103,15 @@ const storageWithQuotaHandling = {
       localStorage.setItem(name, value);
     } catch (error) {
       if (error instanceof DOMException && error.name === 'QuotaExceededError') {
-        console.warn('[useLayoutStore] localStorage quota exceeded, clearing old data...');
+        console.warn('[useLayoutStore] localStorage quota exceeded, trying to save compressed...');
         try {
-          // Clear the specific key and try again
+          // Just try to remove and re-add the specific key, don't wipe everything
           localStorage.removeItem(name);
           localStorage.setItem(name, value);
-          console.log('[useLayoutStore] Successfully saved after clearing old data');
+          console.log('[useLayoutStore] Successfully saved after clearing the specific key');
         } catch (retryError) {
-          console.error('[useLayoutStore] Failed to save even after clearing:', retryError);
-          // If still failing, clear all homepage-v2 related keys
-          try {
-            const keysToRemove: string[] = [];
-            for (let i = 0; i < localStorage.length; i++) {
-              const key = localStorage.key(i);
-              if (key && key.includes('khuyoot:homepage-v2')) {
-                keysToRemove.push(key);
-              }
-            }
-            keysToRemove.forEach(key => localStorage.removeItem(key));
-            localStorage.setItem(name, value);
-            console.log('[useLayoutStore] Saved after clearing all homepage-v2 data');
-          } catch (finalError) {
-            console.error('[useLayoutStore] Critical: Cannot save to localStorage', finalError);
-          }
+          console.error('[useLayoutStore] Failed to save:', retryError);
+          // Don't aggressively clear all data - just fail gracefully
         }
       } else {
         console.error('[useLayoutStore] localStorage error:', error);

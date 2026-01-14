@@ -227,11 +227,6 @@ export const useTemplateStore = () => {
 
   const selectTemplate = useCallback((template) => {
     setSelectedTemplate(template || null);
-
-    if (template?.id) {
-      // eslint-disable-next-line no-console
-      console.log('[TemplatePicker] Selected:', template.id);
-    }
   }, []);
 
   const addToCloset = useCallback(async (file, name) => {

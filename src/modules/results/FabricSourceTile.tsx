@@ -55,17 +55,17 @@ export const FabricSourceTile = React.memo(function FabricSourceTile(props: {
   if (!shopUrl && !thumbnailUrl) return null;
 
   const content = (
-    <div className="flex flex-col items-center gap-1">
+    <div className="flex flex-col items-center gap-2">
       {thumbnailUrl ? (
         <img
           src={thumbnailUrl}
           alt="Fabric"
-          className="w-12 h-12 rounded object-cover"
+          className="w-20 h-20 rounded-lg object-cover"
           loading="lazy"
           decoding="async"
         />
       ) : null}
-      <span className="text-[10px] leading-none text-white whitespace-nowrap">Shop this Fabric</span>
+      <span className="text-xs leading-none text-white whitespace-nowrap font-medium">Shop this Fabric</span>
     </div>
   );
 
@@ -74,7 +74,7 @@ export const FabricSourceTile = React.memo(function FabricSourceTile(props: {
   if (!shopUrl) {
     return (
       <div
-        className="absolute bottom-4 left-4 z-[70] rounded-lg border border-zinc-800 bg-black/50 backdrop-blur-sm p-1"
+        className="absolute bottom-4 left-4 z-[70] rounded-xl border border-zinc-800 bg-black/50 backdrop-blur-sm p-2"
         title="Selected Fabric"
       >
         {content}
@@ -89,7 +89,7 @@ export const FabricSourceTile = React.memo(function FabricSourceTile(props: {
       href={shopUrl}
       target={isExternal ? '_blank' : undefined}
       rel={isExternal ? 'noopener noreferrer' : undefined}
-      className="absolute bottom-4 left-4 z-[70] rounded-lg border border-zinc-800 bg-black/50 backdrop-blur-sm p-1 hover:bg-black/60 transition-colors"
+      className="absolute bottom-4 left-4 z-[70] rounded-xl border border-zinc-800 bg-black/50 backdrop-blur-sm p-2 hover:bg-black/60 transition-colors"
       title={meta?.product_id ? `Product: ${meta.product_id}` : 'Shop this Fabric'}
     >
       {content}
