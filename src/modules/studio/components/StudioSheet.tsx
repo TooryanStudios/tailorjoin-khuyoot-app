@@ -12,7 +12,7 @@ interface StudioSheetProps {
 
 export const StudioSheet: React.FC<StudioSheetProps> = ({ 
   children, 
-  initialSnap = 'standard' 
+  initialSnap = 'collapsed' 
 }) => {
   const controls = useAnimation();
   const dragControls = useDragControls();
@@ -34,10 +34,16 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
       // The sheet height is defined in CSS as calc(92vh - var(--footer-height))
       const sheetHeight = (vh * 0.92) - FOOTER_OFFSET_PX;
       
+      // Use fixed pixel values for predictable positioning:
+      // - expanded: fully open
+      // - standard: middle position for browsing
+      // - collapsed: show only handle (48px visible)
+      const COLLAPSED_VISIBLE_PX = 48; // Height of handle area to keep visible
+      
       setVariants({
         expanded: { y: 0 },
         standard: { y: Math.min(sheetHeight * 0.65, 520) },
-        collapsed: { y: sheetHeight - 48 } // Leave 48px for the handle area
+        collapsed: { y: sheetHeight - COLLAPSED_VISIBLE_PX }
       });
     };
 
@@ -56,8 +62,16 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
       if (contentRef.current) contentRef.current.scrollTop = 0;
     };
 
+    const onCollapse = () => {
+      controls.start('collapsed');
+    };
+
     window.addEventListener('khuyoot:studio-sheet-expand', onExpand as EventListener);
-    return () => window.removeEventListener('khuyoot:studio-sheet-expand', onExpand as EventListener);
+    window.addEventListener('khuyoot:studio-sheet-collapse', onCollapse as EventListener);
+    return () => {
+      window.removeEventListener('khuyoot:studio-sheet-expand', onExpand as EventListener);
+      window.removeEventListener('khuyoot:studio-sheet-collapse', onCollapse as EventListener);
+    };
   }, [controls]);
 
   const onDragEnd = (event: any, info: PanInfo) => {

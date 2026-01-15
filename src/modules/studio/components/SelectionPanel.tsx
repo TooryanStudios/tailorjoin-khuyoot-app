@@ -104,6 +104,38 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
   };
   const [parentTab, setParentTab] = React.useState<ParentTab>('templates');
 
+  const collapseSheet = React.useCallback(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-collapse'));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const handleSelectTemplate = React.useCallback(
+    (template: any) => {
+      onSelectTemplate(template);
+      setTimeout(collapseSheet, 120);
+    },
+    [onSelectTemplate, collapseSheet]
+  );
+
+  const handleUploadFabric = React.useCallback(
+    (file: File) => {
+      onUploadFabric(file);
+      setTimeout(collapseSheet, 120);
+    },
+    [onUploadFabric, collapseSheet]
+  );
+
+  const handleSelectFabricFromUrl = React.useCallback(
+    (url: string) => {
+      onSelectFabricFromUrl?.(url);
+      setTimeout(collapseSheet, 120);
+    },
+    [onSelectFabricFromUrl, collapseSheet]
+  );
+
   React.useEffect(() => {
     const onOpenTab = (e: Event) => {
       const ce = e as CustomEvent;
@@ -136,7 +168,7 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
         parentTab === 'templates' ? (
           <>
             <TemplateSelectorView
-              onSelect={onSelectTemplate}
+              onSelect={handleSelectTemplate}
               currentId={currentTemplateId}
               studioItems={undefined}
               shopItems={undefined}
@@ -168,8 +200,8 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
         parentTab === 'fabric' ? (
           <FabricPicker
             fabricPreviewUrl={fabricPreviewUrl}
-            onUpload={onUploadFabric}
-            onSelectFromUrl={onSelectFabricFromUrl}
+            onUpload={handleUploadFabric}
+            onSelectFromUrl={handleSelectFabricFromUrl}
             thumbs={fabricThumbs}
             disabled={Boolean(inputsDisabled)}
           />

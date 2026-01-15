@@ -61,7 +61,6 @@ import { NewProductPage } from './src/modules/admin/features/product-creator-v2'
 import { AppInitializer } from './src/components/AppInitializer';
 import { DesignerV2_1 } from './src/pages/DesignerV2_1/DesignerV2_1';
 import { TouchPointerOverlay } from './src/components/TouchPointerOverlay';
-import { AdminDevTools } from './src/components/AdminDevTools';
 import { isAdmin } from './types/user-schema';
 import { ErrorBoundary as GlobalErrorBoundary } from './components/ErrorBoundary';
 const Drafts = React.lazy(() => import('./pages/Drafts'));
@@ -188,8 +187,6 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
     <>
       {/* Admin-only touch pointer overlay for screen recording */}
       {user && isAdmin(user) && <TouchPointerOverlay isEnabled={touchPointerEnabled} />}
-      {/* Admin-only dev tools panel */}
-      <AdminDevTools />
             <BrowserRouter>
               <DevDefaultRoute />
               <TailorJoinRedirect />

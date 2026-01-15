@@ -32,6 +32,7 @@ import { FinancialManagement } from './financial/FinancialManagement';
 import { RegionsManagement } from './regions/RegionsManagement';
 import { TryOnTemplates } from './tryon/TryOnTemplates';
 import { CreditsManagement } from './credits/CreditsManagement';
+import { AdminDevTools } from '../components/AdminDevTools';
 
 type AdminSection = 
   | 'dashboard' 
@@ -921,6 +922,9 @@ export const AdminApp = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden dir-rtl">
+      {(location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/') && (
+        <AdminDevTools />
+      )}
       <Sidebar 
         activeSection={activeSection} 
         isOpen={isSidebarOpen} 

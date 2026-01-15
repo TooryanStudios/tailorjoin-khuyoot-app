@@ -339,6 +339,7 @@ export const DesignerV2_1: React.FC = () => {
   const persistTemplateSelection = useDesignerStore((s) => s.setTemplateSelection);
   const persistFabricSelection = useDesignerStore((s) => s.setFabricSelection);
   const persistActiveResult = useDesignerStore((s) => s.setActiveResult);
+  const clearSelection = useDesignerStore((s) => s.clearSelection);
 
   React.useEffect(() => {
     hydrateDesignerStore();
@@ -1593,6 +1594,37 @@ export const DesignerV2_1: React.FC = () => {
     }
   }, [fabricPreviewUrl, persistFabricSelection, showError, processWithPrivacyShield]);
 
+  const handleClearSelections = React.useCallback(() => {
+    // Clear all preview images
+    setSourcePreviewUrl(null);
+    setSourceForComparison(null);
+    setAfterImage(null);
+    setFabricPreviewUrl(null);
+    
+    // Clear base64 data
+    setSourceImageBase64(null);
+    setFabricImageBase64(null);
+    
+    // Clear per-tab preview states
+    setStudioPreviewUrl(null);
+    setStudioImageBase64(null);
+    setShopPreviewUrl(null);
+    setShopImageBase64(null);
+    setClosetPreviewUrl(null);
+    setClosetImageBase64(null);
+    
+    // Clear selected template
+    selectTemplate(null);
+    
+    // Clear active history ID to show intro cards
+    setActiveId(null);
+    
+    // Clear persisted selections in store
+    clearSelection();
+    
+    console.log('[Designer V2.1] 🗑️ Cleared all selections');
+  }, [clearSelection, selectTemplate, setSourcePreviewUrl, setSourceImageBase64, setFabricImageBase64]);
+
   const handleSelectHistory = React.useCallback(async (item: any) => {
     // Get URLs
     const jobId: string | null = item?.jobId ?? null;
@@ -1841,6 +1873,7 @@ export const DesignerV2_1: React.FC = () => {
         canGenerate={canGenerateNow}
         onGenerate={() => void handleFabricSwap()}
         onRefillCredits={() => setIsUpgradeModalOpen(true)}
+        onClearSelections={handleClearSelections}
         history={history}
         historyLoading={isLoading}
         activeHistoryId={activeId}

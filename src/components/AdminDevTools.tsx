@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { isAdmin } from '../../types/user-schema';
-import { Settings, X, Eye, EyeOff } from 'lucide-react';
+import { Settings, X, Eye, EyeOff, Home } from 'lucide-react';
 
 /**
  * Admin-only floating dev tools panel
@@ -105,6 +105,21 @@ export const AdminDevTools: React.FC = () => {
                 ✓ Touch pointer active. Your taps and clicks will show a purple indicator during screen recording.
               </div>
             )}
+
+            <div className="pt-3 border-t border-slate-200 dark:border-slate-700">
+              <a
+                href="/home-v2"
+                target="_blank"
+                rel="noreferrer"
+                className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg bg-slate-900 hover:bg-slate-800 text-white dark:bg-white dark:hover:bg-slate-100 dark:text-slate-900 text-sm font-semibold transition-colors"
+              >
+                <Home className="w-4 h-4" />
+                Visit Homepage V2
+              </a>
+              <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                Opens <span className="font-mono">/home-v2</span> (direct V2 page)
+              </div>
+            </div>
           </div>
         </div>
       )}

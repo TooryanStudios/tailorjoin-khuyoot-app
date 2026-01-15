@@ -25,6 +25,7 @@ export interface DesignerState {
   setFabricId: (fabricId: string | null) => void;
   setFabricSelection: (args: { fabricId: string | null; image: PersistedImage | null }) => void;
   setActiveResult: (url: string | null) => void;
+  clearSelection: () => void;
 
   hydrateFromStorage: () => void;
 }
@@ -110,6 +111,13 @@ export const useDesignerStore = create<DesignerState>()(
       setFabricSelection: ({ fabricId, image }) => set({ selectedFabricId: fabricId, selectedFabricImage: image }),
 
       setActiveResult: (url) => set({ activeResult: url }),
+
+      clearSelection: () => set({
+        selectedTemplateId: null,
+        selectedTemplateImage: null,
+        selectedFabricId: null,
+        selectedFabricImage: null,
+      }),
 
       hydrateFromStorage: () => {
         // Explicit hydrate hook requested by directive.

@@ -300,6 +300,7 @@ const DiscoveryTile = React.memo(function DiscoveryTile({
 
 interface V2DiscoveryGridProps {
   title?: string;
+  configKey?: string;
   products: Product[];
   loading?: boolean;
   onSelect: (product: Product) => void;
@@ -307,13 +308,15 @@ interface V2DiscoveryGridProps {
 
 export const V2DiscoveryGrid: React.FC<V2DiscoveryGridProps> = React.memo(function V2DiscoveryGrid({
   title,
+  configKey,
   products,
   loading = false,
   onSelect,
 }) {
   const { appSettings } = useApp();
   const navigate = useNavigate();
-  const v2Config = (appSettings as any)?.homePageV2Layout?.blockConfig?.masonryDiscovery;
+  const layout = (appSettings as any)?.homePageV2Layout;
+  const v2Config = (layout?.blockConfig?.[configKey || 'masonryDiscovery']) ?? layout?.blockConfig?.masonryDiscovery;
   const maxItemsFromConfig = v2Config?.maxColumns && v2Config?.maxRows ? v2Config.maxColumns * v2Config.maxRows : MAX_ITEMS;
 
   const displayTitle = title ?? v2Config?.title ?? 'اكتشف أزياء مختارة';
@@ -352,11 +355,11 @@ export const V2DiscoveryGrid: React.FC<V2DiscoveryGridProps> = React.memo(functi
                 }}
               />
             ))
-          : items.map((product) => (
+          : items.map((product, idx) => (
               <DiscoveryTile
                 key={product.id}
                 product={product}
-                index={0}
+                index={idx}
                 onClick={() => onSelect(product)}
                 radiusPx={radiusPx}
                 width={cardWidthPx}

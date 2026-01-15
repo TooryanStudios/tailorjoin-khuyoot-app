@@ -11,6 +11,9 @@ export type PreviewCanvasProps = {
   fabricPreviewUrl?: string;
   fabricProductId?: string;
   fabricDebug?: any;
+  showIntroCards?: boolean;
+  onOpenTemplates?: () => void;
+  onOpenFabric?: () => void;
   onRefillCredits?: () => void;
   lightingPreset: string;
   onSelectLightingPreset: (preset: any) => void;
@@ -25,12 +28,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   fabricPreviewUrl,
   fabricProductId,
   fabricDebug,
+  showIntroCards,
+  onOpenTemplates,
+  onOpenFabric,
 }) => {
   return (
     <div className="h-full relative overflow-hidden bg-[#09090b]">
-      {/* Background parity with desktop (Zinc-950/900) */}
-      <div className="absolute inset-0 bg-gradient-to-b from-zinc-900/20 to-transparent" />
-      
       <div className="relative h-full w-full px-10">
         <ComparisonSlider
           before={beforeImage}
@@ -41,6 +44,9 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           fabricPreviewUrl={fabricPreviewUrl}
           fabricProductId={fabricProductId}
           fabricDebug={fabricDebug}
+          showIntroCards={showIntroCards}
+          onOpenTemplates={onOpenTemplates}
+          onOpenFabric={onOpenFabric}
         />
       </div>
     </div>

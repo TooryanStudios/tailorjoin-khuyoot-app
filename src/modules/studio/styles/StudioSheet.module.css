@@ -22,20 +22,21 @@
 
 .dragHandleArea {
   width: 100%;
-  padding: 10px 0 16px;
+  padding: 12px 0 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   cursor: grab;
-  background: linear-gradient(to bottom, rgba(24, 24, 27, 0.98), transparent);
+  background: rgba(17, 17, 20, 0.98);
   border-top-left-radius: 24px;
   border-top-right-radius: 24px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .dragHandleArea::after {
-  content: 'اسحب للأعلى للمزيد';
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.3);
+  content: 'اسحب للأعلى لعرض الاختيارات';
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.7);
   margin-top: 6px;
   font-weight: 600;
   letter-spacing: 0.02em;
@@ -46,10 +47,11 @@
 }
 
 .dragHandle {
-  width: 36px;
-  height: 4px;
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 2px;
+  width: 56px;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.55);
+  border-radius: 999px;
+  box-shadow: 0 0 10px rgba(255, 255, 255, 0.15);
 }
 
 .scrollableContent {

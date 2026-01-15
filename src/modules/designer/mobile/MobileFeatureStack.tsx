@@ -60,6 +60,7 @@ export type MobileDesignerV2Props = {
   canGenerate: boolean;
   onGenerate: () => void;
   onRefillCredits?: () => void;
+  onClearSelections?: () => void;
 
   // History
   history?: any[];
@@ -101,6 +102,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
     canGenerate,
     onGenerate,
     onRefillCredits,
+    onClearSelections,
     history,
     historyLoading,
     activeHistoryId,
@@ -125,6 +127,26 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
     templateStore.closetTemplates,
   ]);
 
+  const showIntroCards = !currentTemplateId && !fabricPreviewUrl;
+
+  const openTemplates = React.useCallback(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-expand'));
+      window.dispatchEvent(new CustomEvent('khuyoot:studio-open-tab', { detail: 'templates' }));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const openFabric = React.useCallback(() => {
+    try {
+      window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-expand'));
+      window.dispatchEvent(new CustomEvent('khuyoot:studio-open-tab', { detail: 'fabric' }));
+    } catch {
+      // ignore
+    }
+  }, []);
+
   return (
     <StudioLayout
       credits={
@@ -142,6 +164,9 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
           fabricPreviewUrl={fabricPreviewUrl}
           fabricProductId={fabricProductId}
           fabricDebug={fabricDebug}
+          showIntroCards={showIntroCards}
+          onOpenTemplates={openTemplates}
+          onOpenFabric={openFabric}
         />
       }
       generateAction={{
@@ -150,6 +175,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
         cost: generationCost,
         onGenerate,
       }}
+      onClear={onClearSelections}
       lighting={
         <div className="flex w-full gap-2 px-3 py-2 justify-center">
           {([

@@ -48,6 +48,14 @@
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
+  .container {
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: var(--footer-height);
+    height: calc(100% - var(--footer-height));
+  }
+
   .previewWrapper {
     height: 52vh;
   }
