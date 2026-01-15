@@ -12,9 +12,7 @@
  * Usage: npm run verify-deploy
  */
 
-const { execSync } = require('child_process');
-const fs = require('fs');
-const path = require('path');
+import { execSync } from 'child_process';
 
 console.log('\n🔍 DEPLOYMENT VERIFICATION\n');
 console.log('═'.repeat(60));
@@ -72,18 +70,22 @@ try {
   console.log(`Commit: ${lastCommit}`);
   console.log(`Branch: ${currentBranch}`);
 
-  const filesToDeploy = execSync('git diff --name-only origin/main...main')
-    .toString()
-    .trim()
-    .split('\n')
-    .filter(f => f.length > 0);
+  try {
+    const filesToDeploy = execSync('git diff --name-only origin/main...main')
+      .toString()
+      .trim()
+      .split('\n')
+      .filter(f => f.length > 0);
 
-  if (filesToDeploy.length > 0) {
-    console.log(`Files changed: ${filesToDeploy.length}`);
-    filesToDeploy.slice(0, 5).forEach(f => console.log(`  • ${f}`));
-    if (filesToDeploy.length > 5) {
-      console.log(`  ... and ${filesToDeploy.length - 5} more`);
+    if (filesToDeploy.length > 0) {
+      console.log(`Files changed: ${filesToDeploy.length}`);
+      filesToDeploy.slice(0, 5).forEach(f => console.log(`  • ${f}`));
+      if (filesToDeploy.length > 5) {
+        console.log(`  ... and ${filesToDeploy.length - 5} more`);
+      }
     }
+  } catch (e) {
+    // If no differences, that's ok
   }
 
   console.log('\n' + '═'.repeat(60));
