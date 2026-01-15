@@ -18,7 +18,9 @@
     "migrate:tryon-template-urls": "tsx scripts/migrateTryOnTemplateUrls.ts",
     "set-admin": "tsx scripts/setAdminRoleByEmail.ts",
     "typecheck": "tsc --noEmit",
-    "generate:og": "node scripts/convertOgImage.mjs"
+    "generate:og": "node scripts/convertOgImage.mjs",
+    "verify-deploy": "node scripts/verify-deployment-target.js",
+    "deploy": "npm run verify-deploy && git push origin main"
   },
   "dependencies": {
     "@fal-ai/client": "^1.8.1",
@@ -33,6 +35,7 @@
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
     "react-helmet-async": "^2.0.5",
+    "react-image-crop": "^11.0.10",
     "react-router-dom": "^7.10.1",
     "sharp": "^0.34.5",
     "zustand": "^5.0.9"
