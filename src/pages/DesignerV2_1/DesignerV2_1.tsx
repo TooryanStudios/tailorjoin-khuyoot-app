@@ -1,5 +1,5 @@
 import React from 'react';
-import { ChevronDown, Download, Loader2, Maximize2, Upload, ZoomIn, Info, Share2, Check, Copy, ExternalLink } from 'lucide-react';
+import { ChevronDown, Download, Loader2, Maximize2, Upload, ZoomIn, Info, Share2, Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ImageSlider from '../../components/DesignerV2_1/ImageSlider';
 import { LightingPresets, getLightingDescriptor, type LightingPreset } from './components/LightingPresets';
@@ -26,12 +26,14 @@ import { FabricSourceTile } from '../../modules/results/FabricSourceTile';
 import { useLightingGenerator } from '../../modules/generator/hooks/useLightingGenerator';
 import { useDesignerStore } from '../../store/useDesignerStore';
 import { MobileDesignerV2, useMobileDetection } from '../../modules/designer/mobile';
+import { ImagePrepModal } from '../../components/image/ImagePrepModal';
+import { traceEnd, traceSetActive, traceStep } from '../../utils/trace';
 import './DesignerV2_1.module.css';
 
 // Placeholder for empty image state - use null to avoid empty src warnings
 const ORIGINAL = null as string | null;
 
-const DESIGNER_CACHE_VERSION = 1;
+const DESIGNER_CACHE_VERSION = 2;
 
 type DesignerCacheState = {
   v: number;
@@ -371,6 +373,10 @@ export const DesignerV2_1: React.FC = () => {
     isProcessingPrivacy 
   } = usePrivacyShield();
 
+  // Mobile rule: use only ImagePrepModal for privacy filtering.
+  // Desktop/global privacy controls must not affect mobile uploads.
+  const effectivePrivacyModeForProcessing = !isMobile && Boolean(isPrivacyMode);
+
   // Auto-apply privacy mask when settings change
   React.useEffect(() => {
     const applyMask = async () => {
@@ -515,6 +521,20 @@ export const DesignerV2_1: React.FC = () => {
   const [fabricImageMimeType, setFabricImageMimeType] = React.useState<string | null>(null);
   const [fabricMaterial, setFabricMaterial] = React.useState<'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null>(null);
 
+  // Image Preparation (crop + optional face hide) before fabric upload
+  const [fabricPrepOpen, setFabricPrepOpen] = React.useState(false);
+  const [fabricPrepFile, setFabricPrepFile] = React.useState<File | null>(null);
+
+  const openFabricPrep = React.useCallback((file: File) => {
+    setFabricPrepFile(file);
+    setFabricPrepOpen(true);
+  }, []);
+
+  const closeFabricPrep = React.useCallback(() => {
+    setFabricPrepOpen(false);
+    setFabricPrepFile(null);
+  }, []);
+
   // Hydrate local upload state from persisted store (Directive 3)
   React.useEffect(() => {
     if (persistedTemplateImage && (!sourceImageBase64 || !sourceImageMimeType)) {
@@ -536,6 +556,8 @@ export const DesignerV2_1: React.FC = () => {
   // Image processing state
   const [isProcessingTemplate, setIsProcessingTemplate] = React.useState<boolean>(false);
   const [isProcessingFabric, setIsProcessingFabric] = React.useState<boolean>(false);
+  const templateProcessTokenRef = React.useRef(0);
+  const fabricProcessTokenRef = React.useRef(0);
 
   // ========== OUTPUT SETTINGS ==========
   const [upscaleEngine, setUpscaleEngine] = React.useState<'standard' | 'creative'>('standard');
@@ -599,7 +621,7 @@ export const DesignerV2_1: React.FC = () => {
     addPendingGeneration,
     finalizePendingGeneration,
     removePendingGeneration,
-  } = useGenerationHistory(features.showHistoryFilmstrip ? user?.uid : undefined);
+  } = useGenerationHistory(user?.uid);
 
   const [afterImage, setAfterImage] = React.useState(ORIGINAL);
   const [sourceForComparison, setSourceForComparison] = React.useState(ORIGINAL);
@@ -736,6 +758,26 @@ export const DesignerV2_1: React.FC = () => {
   const [lastResponseDebug, setLastResponseDebug] = React.useState<any>(null);
 
   const [lightingPreset, setLightingPreset] = React.useState<LightingPreset>('studio');
+
+  React.useEffect(() => {
+    if (!sourceForComparison) {
+      traceStep('Designer state: sourceForComparison = EMPTY');
+      return;
+    }
+    const s = String(sourceForComparison);
+    const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+    traceStep('Designer state: sourceForComparison SET', { kind, len: s.length });
+  }, [sourceForComparison]);
+
+  React.useEffect(() => {
+    if (!afterImage) {
+      traceStep('Designer state: afterImage = EMPTY');
+      return;
+    }
+    const s = String(afterImage);
+    const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+    traceStep('Designer state: afterImage SET', { kind, len: s.length });
+  }, [afterImage]);
 
   React.useEffect(() => {
     const open = () => {
@@ -966,7 +1008,17 @@ export const DesignerV2_1: React.FC = () => {
       return; // Skip cache if loading from URL
     }
     const cached = safeLocalStorageGet<DesignerCacheState>(cacheKey);
-    if (!cached || cached.v !== DESIGNER_CACHE_VERSION) {
+    if (!cached) {
+      didHydrateRef.current = true;
+      return;
+    }
+    if (cached.v !== DESIGNER_CACHE_VERSION) {
+      // Purge older cache snapshots (may include persisted user image data).
+      try {
+        window.localStorage.removeItem(cacheKey);
+      } catch {
+        // ignore
+      }
       didHydrateRef.current = true;
       return;
     }
@@ -976,22 +1028,16 @@ export const DesignerV2_1: React.FC = () => {
     setOutputFit(cached.outputFit ?? 'contain');
     setSliderPos(typeof cached.sliderPos === 'number' ? cached.sliderPos : 100);
 
-    setSourceImageBase64(cached.sourceImageBase64);
-    setSourceImageMimeType(cached.sourceImageMimeType);
-    setFabricImageBase64(cached.fabricImageBase64);
-    setFabricImageMimeType(cached.fabricImageMimeType);
+    // Privacy rule: never restore persisted user image data. Images are only kept in-memory
+    // for the session and only sent to the API on Generate.
 
-    // Only restore if we have valid data URLs, skip blob URLs
-    if (cached.sourceImageBase64 && cached.sourceImageMimeType) {
-      setSourcePreviewUrl(toDataUrl(cached.sourceImageBase64, cached.sourceImageMimeType));
-    }
-    if (cached.fabricImageBase64 && cached.fabricImageMimeType) {
-      setFabricPreviewUrl(toDataUrl(cached.fabricImageBase64, cached.fabricImageMimeType));
-    }
-
-    // Skip blob URLs when restoring from cache
-    const validSourceComp = cached.sourceForComparison?.startsWith('blob:') ? ORIGINAL : cached.sourceForComparison;
-    const validAfterImg = cached.afterImage?.startsWith('blob:') ? ORIGINAL : cached.afterImage;
+    // Skip blob/data URLs when restoring from cache (avoid persisting embedded image data)
+    const validSourceComp = cached.sourceForComparison?.startsWith('blob:') || cached.sourceForComparison?.startsWith('data:')
+      ? ORIGINAL
+      : cached.sourceForComparison;
+    const validAfterImg = cached.afterImage?.startsWith('blob:') || cached.afterImage?.startsWith('data:')
+      ? ORIGINAL
+      : cached.afterImage;
     setSourceForComparison(validSourceComp || ORIGINAL);
     setAfterImage(validAfterImg || ORIGINAL);
     setActiveId(cached.activeId ?? null);
@@ -1006,9 +1052,9 @@ export const DesignerV2_1: React.FC = () => {
     if (persistTimerRef.current) window.clearTimeout(persistTimerRef.current);
 
     persistTimerRef.current = window.setTimeout(() => {
-      // Only persist non-blob URLs for sourceForComparison and afterImage
-      const validSourceComp = sourceForComparison?.startsWith('blob:') ? '' : sourceForComparison;
-      const validAfterImg = afterImage?.startsWith('blob:') ? '' : afterImage;
+      // Only persist non-blob/non-data URLs for sourceForComparison and afterImage
+      const validSourceComp = sourceForComparison?.startsWith('blob:') || sourceForComparison?.startsWith('data:') ? '' : sourceForComparison;
+      const validAfterImg = afterImage?.startsWith('blob:') || afterImage?.startsWith('data:') ? '' : afterImage;
       
       const snapshot: DesignerCacheState = {
         v: DESIGNER_CACHE_VERSION,
@@ -1016,10 +1062,11 @@ export const DesignerV2_1: React.FC = () => {
         refinementPrompt,
         outputFit,
         sliderPos,
-        sourceImageBase64,
-        sourceImageMimeType,
-        fabricImageBase64,
-        fabricImageMimeType,
+        // Privacy rule: do not persist image data (base64/mime) to localStorage.
+        sourceImageBase64: null,
+        sourceImageMimeType: null,
+        fabricImageBase64: null,
+        fabricImageMimeType: null,
         sourceForComparison: validSourceComp,
         afterImage: validAfterImg,
         activeId,
@@ -1394,47 +1441,117 @@ export const DesignerV2_1: React.FC = () => {
     }
   }, [beforeUpscaleImage, executeCreditAction, isUpscaling, upscaleEngine, isWatermarkEnabled, showError]);
 
-  const onPickSource = React.useCallback(async (file: File) => {
+  const onPickSource = React.useCallback(async (file: File, options?: { skipPrivacy?: boolean; deferCompression?: boolean }) => {
     if (!file) return;
-    if (sourcePreviewUrl) URL.revokeObjectURL(sourcePreviewUrl);
+    traceStep('Designer onPickSource START', {
+      name: file.name,
+      size: file.size,
+      type: file.type,
+      skipPrivacy: Boolean(options?.skipPrivacy),
+      deferCompression: Boolean(options?.deferCompression),
+    });
+    const token = ++templateProcessTokenRef.current;
+    if (sourcePreviewUrl && String(sourcePreviewUrl).startsWith('blob:')) {
+      const prev = sourcePreviewUrl;
+      const revokeDelayMs = import.meta.env.DEV ? 2500 : 0;
+      traceStep('Designer sourcePreviewUrl revoke scheduled', { ms: revokeDelayMs });
+      setTimeout(() => {
+        try {
+          URL.revokeObjectURL(prev);
+        } catch {
+          // ignore
+        }
+      }, revokeDelayMs);
+    }
 
-    try {
-      setIsProcessingTemplate(true);
-      
-      // Apply Privacy Shield if enabled (blur faces locally)
-      let processedFile = file;
+    setIsProcessingTemplate(true);
+
+    // Apply Privacy Shield if enabled (blur faces locally)
+    let processedFile = file;
+    if (effectivePrivacyModeForProcessing && !options?.skipPrivacy) {
       try {
+        traceStep('Template privacyMask START');
+        console.time('[Template] privacyMask');
         processedFile = await processWithPrivacyShield(file);
+        console.timeEnd('[Template] privacyMask');
+        traceStep('Template privacyMask DONE', { size: processedFile.size, type: processedFile.type });
       } catch (privacyError) {
         console.warn('[Designer V2.1] Privacy Shield failed, using original image:', privacyError);
+        traceStep('Template privacyMask FAILED (using original)', { message: String((privacyError as any)?.message || privacyError) });
         // Continue with original file
       }
-      
-      const previewUrl = URL.createObjectURL(processedFile);
-      setSourcePreviewUrl(previewUrl);
-      setSourceForComparison(previewUrl);  // Store for comparison section
-      
-      const { base64, mimeType } = await smartCompressImage(processedFile);
-      setSourceImageMimeType(mimeType);
-      setSourceImageBase64(base64);
-
-      // Persist template upload for navigation resilience (Directive 3)
-      persistTemplateSelection({
-        templateId: selectedTemplateIdRef.current ?? null,
-        image: { base64, mimeType },
+    } else {
+      traceStep('Template privacyMask SKIP', {
+        isPrivacyMode: Boolean(effectivePrivacyModeForProcessing),
+        skipPrivacy: Boolean(options?.skipPrivacy),
       });
-
-      // Reset previous result: new template becomes BEFORE image.
-      setAfterImage(ORIGINAL);
-      setBeforeUpscaleImage(null);
-      setSliderPos(0);
-      setActiveId(null);
-    } catch (e: any) {
-      showError(e?.message || 'فشل تحميل الصورة');
-    } finally {
-      setIsProcessingTemplate(false);
     }
-  }, [sourcePreviewUrl, showError, processWithPrivacyShield]);
+
+    // Show preview ASAP.
+    const previewUrl = URL.createObjectURL(processedFile);
+    setSourcePreviewUrl(previewUrl);
+    setSourceForComparison(previewUrl); // Store for comparison section
+    traceStep('Designer preview set (template)', { kind: previewUrl?.startsWith('blob:') ? 'blob' : 'other' });
+
+    // Give React/DOM a chance to paint the comparison with the new preview.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    traceStep('Designer comparison paint boundary (template)');
+
+    // Reset previous result: new template becomes BEFORE image.
+    setAfterImage(ORIGINAL);
+    setBeforeUpscaleImage(null);
+    setSliderPos(0);
+    setActiveId(null);
+
+    // Allow the UI to paint the preview before heavy work.
+    traceStep('Designer yield frame BEFORE compress');
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+    traceStep('Designer yield frame AFTER');
+
+    const finalize = async () => {
+      try {
+        traceStep('Template compress START');
+        console.time('[Template] compress');
+        const { base64, mimeType } = await smartCompressImage(processedFile);
+        console.timeEnd('[Template] compress');
+        traceStep('Template compress DONE', { base64Len: base64?.length ?? 0, mimeType });
+
+        if (token !== templateProcessTokenRef.current) return;
+
+        setSourceImageMimeType(mimeType);
+        setSourceImageBase64(base64);
+
+        // Persist template upload for navigation resilience (Directive 3)
+        persistTemplateSelection({
+          templateId: selectedTemplateIdRef.current ?? null,
+          image: { base64, mimeType },
+        });
+        traceStep('Template persist DONE', { templateId: selectedTemplateIdRef.current ?? null });
+      } catch (e: any) {
+        if (token !== templateProcessTokenRef.current) return;
+        traceStep('Template finalize ERROR', { message: String(e?.message || e) });
+        showError(e?.message || 'فشل تحميل الصورة');
+      } finally {
+        if (token === templateProcessTokenRef.current) {
+          setIsProcessingTemplate(false);
+          traceStep('Designer onPickSource DONE');
+
+          // If this flow came from an UploadSection trace, end it here.
+          // (No-op if there is no active trace.)
+          traceEnd(undefined, { where: 'Designer.onPickSource', result: 'template-ready' });
+        }
+      }
+    };
+
+    if (options?.deferCompression) {
+      const ric = (window as any).requestIdleCallback as ((cb: () => void) => void) | undefined;
+      if (typeof ric === 'function') ric(() => void finalize());
+      else setTimeout(() => void finalize(), 0);
+      return;
+    }
+
+    await finalize();
+  }, [isPrivacyMode, persistTemplateSelection, processWithPrivacyShield, showError, sourcePreviewUrl]);
 
   const { selectedTemplate, selectTemplate } = useTemplateSelection(null);
 
@@ -1448,6 +1565,16 @@ export const DesignerV2_1: React.FC = () => {
 
   const handleTemplateSelect = React.useCallback(
     async (templateData: any) => {
+      const incomingTraceId = (templateData as any)?.__traceId;
+      if (typeof incomingTraceId === 'string' && incomingTraceId) {
+        traceSetActive(incomingTraceId);
+        traceStep('Designer trace takeover', { traceId: incomingTraceId });
+      }
+      traceStep('Designer handleTemplateSelect', {
+        id: templateData?.id,
+        hasFile: templateData?.file instanceof File,
+        isClosetItem: Boolean(templateData?.isClosetItem),
+      });
       // Track which tab this selection came from
       // This is inferred from whether it's a product image (Shop) or uploaded (Closet)
       if (templateData?.id?.startsWith('product-')) {
@@ -1476,22 +1603,35 @@ export const DesignerV2_1: React.FC = () => {
 
         // Special handling for product images - use cached blob URL
         if (isProductImage && templateData?.imageUrl) {
+          traceStep('Template select: product image (blobUrl)', { hasImageUrl: Boolean(templateData?.imageUrl) });
           // Let React render the loading overlay before blocking on image decode
           await new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
           // The imageUrl is already a blob URL from the cache
           // Directly set Shop tab state (since we already set lastActiveTemplateTab above)
           setShopPreviewUrl(templateData.imageUrl);
           setSourceForComparison(templateData.imageUrl);
+          traceStep('Designer setSourceForComparison (product)', { kind: String(templateData.imageUrl).startsWith('blob:') ? 'blob' : 'other' });
           // Persist lightweight reference so Footer CTA can resolve productId
           persistTemplateSelection({ templateId: templateData?.id ?? null, image: null });
           await endTemplateLoading(templateData.imageUrl);
+          traceStep('Template select: product done');
           // Blob URLs work directly without file conversion
           return;
         }
 
         if (templateData?.file instanceof File) {
-          await onPickSource(templateData.file);
+          traceStep('Template select: file -> onPickSource', {
+            privacyApplied: Boolean((templateData as any)?.privacyApplied),
+            deferCompression: Boolean(isMobile),
+          });
+          await onPickSource(templateData.file, {
+            // If the file came from ImagePrepModal, its privacy toggle is authoritative.
+            // Never apply the global/Desktop privacy filter on top of that.
+            skipPrivacy: Boolean((templateData as any)?.__fromImagePrepModal) || Boolean((templateData as any)?.privacyApplied),
+            deferCompression: Boolean(isMobile),
+          });
           setLoadingTemplateId(null); // Clear loading after file upload
+          traceStep('Template select: file done');
           return;
         }
 
@@ -1501,6 +1641,7 @@ export const DesignerV2_1: React.FC = () => {
           null;
 
         if (remoteUrl) {
+          traceStep('Template select: remoteUrl', { kind: remoteUrl.startsWith('http') ? 'http' : 'other' });
           if (remoteUrl.startsWith('blob:')) {
             console.warn('[TemplatePicker] Refusing to fetch blob: URL due to CSP:', remoteUrl);
             showError('This template preview cannot be used due to browser security policy. Please select the original template again.');
@@ -1511,11 +1652,14 @@ export const DesignerV2_1: React.FC = () => {
           try {
             const cached = templateFileCacheRef.current.get(remoteUrl);
             if (cached) {
+              traceStep('Template select: cache HIT');
               // onPickSource already handles loading state internally
-              await onPickSource(cached);
+              await onPickSource(cached, { deferCompression: Boolean(isMobile) });
               setLoadingTemplateId(null);
               return;
             }
+
+            traceStep('Template select: cache MISS, fetching');
 
             const res = await fetch(remoteUrl);
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1534,10 +1678,11 @@ export const DesignerV2_1: React.FC = () => {
               if (oldestKey) templateFileCacheRef.current.delete(oldestKey);
             }
 
-            await onPickSource(file);
+            await onPickSource(file, { deferCompression: Boolean(isMobile) });
             setLoadingTemplateId(null);
           } catch (e) {
             console.warn('[TemplatePicker] Failed to fetch template src:', e);
+            traceStep('Template select: remote fetch ERROR', { message: String((e as any)?.message || e) });
             showError('فشل تحميل القالب المختار');
             setLoadingTemplateId(null);
           }
@@ -1559,40 +1704,78 @@ export const DesignerV2_1: React.FC = () => {
     [executeCreditAction, isSubscribed, onPickSource, persistTemplateId, selectTemplate, showError]
   );
 
-  const onPickFabric = React.useCallback(async (file: File) => {
+  const onPickFabric = React.useCallback(
+    async (file: File, options?: { skipPrivacy?: boolean; deferCompression?: boolean }) => {
     if (!file) return;
+    const token = ++fabricProcessTokenRef.current;
     if (fabricPreviewUrl) URL.revokeObjectURL(fabricPreviewUrl);
 
-    try {
-      console.log('[Designer V2.1] 🎨 FABRIC UPLOADED - Processing...');
-      
-      // Apply Privacy Shield if enabled (blur faces locally)
-      let processedFile = file;
+    setIsProcessingFabric(true);
+    console.log('[Designer V2.1] 🎨 FABRIC UPLOADED - Processing...');
+
+    // Apply Privacy Shield if enabled (blur faces locally)
+    let processedFile = file;
+    if (isPrivacyMode && !options?.skipPrivacy) {
       try {
+        console.time('[Fabric] privacyMask');
         processedFile = await processWithPrivacyShield(file);
+        console.timeEnd('[Fabric] privacyMask');
       } catch (privacyError) {
         console.warn('[Designer V2.1] Privacy Shield failed, using original image:', privacyError);
         // Continue with original file
       }
-      
-      const previewUrl = URL.createObjectURL(processedFile);
-      setFabricPreviewUrl(previewUrl);
-      
-      const { base64, mimeType } = await smartCompressImage(processedFile);
-      
-      setFabricImageBase64(base64);
-
-      // Persist fabric upload for navigation resilience (Directive 3)
-      persistFabricSelection({
-        fabricId: null,
-        image: { base64, mimeType },
-      });
-    } catch (e: any) {
-      showError(e?.message || 'فشل تحميل صورة القماش');
-    } finally {
-      setIsProcessingFabric(false);
     }
-  }, [fabricPreviewUrl, persistFabricSelection, showError, processWithPrivacyShield]);
+
+    // Show preview ASAP.
+    const previewUrl = URL.createObjectURL(processedFile);
+    setFabricPreviewUrl(previewUrl);
+
+    // Allow the UI to paint the preview before heavy work.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
+    const finalize = async () => {
+      try {
+        console.time('[Fabric] compress');
+        const { base64, mimeType } = await smartCompressImage(processedFile);
+        console.timeEnd('[Fabric] compress');
+
+        // If a newer fabric job started, drop this result.
+        if (token !== fabricProcessTokenRef.current) return;
+
+        setFabricImageBase64(base64);
+
+        // Persist fabric upload for navigation resilience (Directive 3)
+        persistFabricSelection({
+          fabricId: null,
+          image: { base64, mimeType },
+        });
+      } catch (e: any) {
+        if (token !== fabricProcessTokenRef.current) return;
+        showError(e?.message || 'فشل تحميل صورة القماش');
+      } finally {
+        if (token === fabricProcessTokenRef.current) {
+          setIsProcessingFabric(false);
+        }
+      }
+    };
+
+    if (options?.deferCompression) {
+      const ric = (window as any).requestIdleCallback as ((cb: () => void) => void) | undefined;
+      if (typeof ric === 'function') ric(() => void finalize());
+      else setTimeout(() => void finalize(), 0);
+      return;
+    }
+
+    await finalize();
+    },
+    [
+      fabricPreviewUrl,
+      isPrivacyMode,
+      persistFabricSelection,
+      processWithPrivacyShield,
+      showError,
+    ]
+  );
 
   const handleClearSelections = React.useCallback(() => {
     // Clear all preview images
@@ -1828,64 +2011,103 @@ export const DesignerV2_1: React.FC = () => {
   if (isMobile) {
     const canGenerateNow = !uiState.generationDisabled && (!creditsEnabled || canAfford('generation'));
     return (
-      <MobileDesignerV2
-        beforeImage={sourceForComparison || ORIGINAL}
-        afterImage={afterImage || ORIGINAL}
-        sliderPos={sliderPos}
-        onSliderChange={setSliderPos}
-        isProcessing={isProcessing}
-        onSelectTemplate={handleTemplateSelect}
-        currentTemplateId={selectedTemplate?.id}
-        isSubscribedToPremiumTemplates={isSubscribed || canAfford('premium_template')}
-        onPremiumTemplateClick={() => setIsUpgradeModalOpen(true)}
-        privacy={{
-          isPrivacyMode,
-          setPrivacyMode,
-          maskingStyle,
-          setMaskingStyle,
-          blurStrength,
-          setBlurStrength,
-          selectedEmoji,
-          setSelectedEmoji,
-          isProcessingPrivacy,
-          canApplyToCurrentTemplate: Boolean(afterImage && sourceImageBase64),
-          onApplyToCurrentTemplate: handleApplyPrivacyShieldToCurrentTemplate,
-        }}
-        fabricPreviewUrl={
-          history.find((h: any) => (h?.jobId ?? h?.clientId) === activeId)?.fabricUrl ||
-          fabricPreviewUrl ||
-          undefined
-        }
-        fabricProductId={
-          history.find((h: any) => (h?.jobId ?? h?.clientId) === activeId)?.fabricId || undefined
-        }
-        fabricDebug={lastResponseDebug}
-        onUploadFabric={(file) => void onPickFabric(file)}
-        lightingPreset={lightingGenerator.value}
-        onSelectLightingPreset={lightingGenerator.onSelectPreset}
-        selectedModel={selectedModel}
-        onChangeSelectedModel={setSelectedModel}
-        upscaleEngine={upscaleEngine}
-        onChangeUpscaleEngine={setUpscaleEngine}
-        outputFit={outputFit}
-        onChangeOutputFit={setOutputFit}
-        generationCost={generationCost}
-        canGenerate={canGenerateNow}
-        onGenerate={() => void handleFabricSwap()}
-        onRefillCredits={() => setIsUpgradeModalOpen(true)}
-        onClearSelections={handleClearSelections}
-        history={history}
-        historyLoading={isLoading}
-        activeHistoryId={activeId}
-        onSelectHistoryItem={handleHistorySelect}
-        inputsDisabled={uiState.inputsDisabled}
-      />
+      <>
+        <ImagePrepModal
+          isOpen={fabricPrepOpen}
+          file={fabricPrepFile}
+          onReplaceFile={(nextFile) => {
+            setFabricPrepFile(nextFile);
+          }}
+          onCancel={closeFabricPrep}
+          onApply={async (processedFile, meta) => {
+            await onPickFabric(processedFile, {
+              skipPrivacy: Boolean(meta?.privacyApplied),
+              deferCompression: true,
+            });
+            closeFabricPrep();
+            try {
+              traceStep('Studio sheet collapse DISPATCH');
+              window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-collapse'));
+              traceStep('Studio sheet collapse DISPATCHED');
+            } catch {
+              // ignore
+            }
+          }}
+        />
+
+        <MobileDesignerV2
+          beforeImage={sourceForComparison || ORIGINAL}
+          afterImage={afterImage || ORIGINAL}
+          sliderPos={sliderPos}
+          onSliderChange={setSliderPos}
+          isProcessing={isProcessing}
+          onSelectTemplate={handleTemplateSelect}
+          currentTemplateId={selectedTemplate?.id}
+          isSubscribedToPremiumTemplates={isSubscribed || canAfford('premium_template')}
+          onPremiumTemplateClick={() => setIsUpgradeModalOpen(true)}
+          privacy={{
+            isPrivacyMode: false,
+            setPrivacyMode: () => undefined,
+            maskingStyle,
+            setMaskingStyle,
+            blurStrength,
+            setBlurStrength,
+            selectedEmoji,
+            setSelectedEmoji,
+            isProcessingPrivacy: false,
+            canApplyToCurrentTemplate: false,
+            onApplyToCurrentTemplate: () => undefined,
+            disabled: true,
+          }}
+          fabricPreviewUrl={
+            history.find((h: any) => (h?.jobId ?? h?.clientId) === activeId)?.fabricUrl ||
+            fabricPreviewUrl ||
+            undefined
+          }
+          fabricProductId={
+            history.find((h: any) => (h?.jobId ?? h?.clientId) === activeId)?.fabricId || undefined
+          }
+          fabricDebug={lastResponseDebug}
+          onUploadFabric={openFabricPrep}
+          lightingPreset={lightingGenerator.value}
+          onSelectLightingPreset={lightingGenerator.onSelectPreset}
+          selectedModel={selectedModel}
+          onChangeSelectedModel={setSelectedModel}
+          upscaleEngine={upscaleEngine}
+          onChangeUpscaleEngine={setUpscaleEngine}
+          outputFit={outputFit}
+          onChangeOutputFit={setOutputFit}
+          generationCost={generationCost}
+          canGenerate={canGenerateNow}
+          onGenerate={() => void handleFabricSwap()}
+          onRefillCredits={() => setIsUpgradeModalOpen(true)}
+          onClearSelections={handleClearSelections}
+          history={history}
+          historyLoading={isLoading}
+          activeHistoryId={activeId}
+          onSelectHistoryItem={handleHistorySelect}
+          inputsDisabled={uiState.inputsDisabled}
+        />
+      </>
     );
   }
 
   // ========== DESKTOP LAYOUT ==========
   return (
     <>
+      <ImagePrepModal
+        isOpen={fabricPrepOpen}
+        file={fabricPrepFile}
+        onReplaceFile={(nextFile) => {
+          setFabricPrepFile(nextFile);
+        }}
+        onCancel={closeFabricPrep}
+        onApply={async (processedFile, meta) => {
+          await onPickFabric(processedFile, { skipPrivacy: Boolean(meta?.privacyApplied) });
+          closeFabricPrep();
+        }}
+      />
+
       {/* Feature Toggle Bar (Admin Only) */}
       <FeatureToggleBar
         features={features}
@@ -1948,7 +2170,7 @@ export const DesignerV2_1: React.FC = () => {
                     disabled={uiState.uploadsDisabled}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
-                      if (file) void onPickFabric(file);
+                      if (file) openFabricPrep(file);
                       e.currentTarget.value = '';
                     }}
                   />
@@ -2510,6 +2732,20 @@ export const DesignerV2_1: React.FC = () => {
           rightSlot={
             <div className="flex items-center gap-3">
               <CreditBadge onRefill={() => setIsUpgradeModalOpen(true)} />
+              <button
+                type="button"
+                onClick={handleClearSelections}
+                disabled={uiState.inputsDisabled || (!sourceForComparison && !afterImage && !fabricPreviewUrl && !selectedTemplate?.id)}
+                className={`p-2 rounded-lg border transition-colors ${
+                  uiState.inputsDisabled || (!sourceForComparison && !afterImage && !fabricPreviewUrl && !selectedTemplate?.id)
+                    ? 'bg-zinc-900/40 border-zinc-800 text-zinc-600 cursor-not-allowed'
+                    : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700'
+                }`}
+                title="مسح المقارنة"
+                aria-label="مسح المقارنة"
+              >
+                <Trash2 className="w-4 h-4" />
+              </button>
               <button
                 onClick={navigateProfile}
                 className="flex items-center gap-2 px-3 py-1.5 bg-zinc-900 rounded-lg border border-zinc-800 hover:bg-zinc-800 hover:border-zinc-700 transition-colors"

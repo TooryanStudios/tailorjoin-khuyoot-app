@@ -1,6 +1,5 @@
 import * as React from 'react';
 import { ComparisonSlider } from '../../designer/mobile/components/ComparisonSlider';
-import { FloatingCreditChip } from '../../designer/mobile/components/FloatingCreditChip';
 
 export type PreviewCanvasProps = {
   beforeImage: string;
@@ -13,6 +12,7 @@ export type PreviewCanvasProps = {
   fabricDebug?: any;
   showIntroCards?: boolean;
   onOpenTemplates?: () => void;
+  onUploadTemplate?: () => void;
   onOpenFabric?: () => void;
   onRefillCredits?: () => void;
   lightingPreset: string;
@@ -30,11 +30,12 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   fabricDebug,
   showIntroCards,
   onOpenTemplates,
+  onUploadTemplate,
   onOpenFabric,
 }) => {
   return (
     <div className="h-full relative overflow-hidden bg-[#09090b]">
-      <div className="relative h-full w-full px-10">
+      <div className="relative h-full w-full px-0 sm:px-10">
         <ComparisonSlider
           before={beforeImage}
           after={afterImage}
@@ -46,6 +47,7 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           fabricDebug={fabricDebug}
           showIntroCards={showIntroCards}
           onOpenTemplates={onOpenTemplates}
+          onUploadTemplate={onUploadTemplate}
           onOpenFabric={onOpenFabric}
         />
       </div>

@@ -3,9 +3,18 @@ import { FabricPicker, type FabricThumb } from '../../designer/mobile/components
 import { AdvancedSettings } from '../../designer/mobile/components/AdvancedSettings';
 import { GenerateButton } from '../../designer/mobile/components/GenerateButton.tsx';
 import { STUDIO_FEATURES } from '../config/featureFlags';
+import { traceStep } from '../../../utils/trace';
 import { TemplateSelectorView } from '../../TemplatePicker/TemplateSelectorView.jsx';
 
 type ParentTab = 'templates' | 'fabric';
+type TemplatePickerTab = 'Studio' | 'Shop' | 'Closet';
+
+type OpenTabDetail =
+  | ParentTab
+  | {
+      parent?: ParentTab;
+      templateTab?: TemplatePickerTab;
+    };
 
 type ParentTabButtonProps = {
   active?: boolean;
@@ -103,10 +112,13 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
     disabled: false,
   };
   const [parentTab, setParentTab] = React.useState<ParentTab>('templates');
+  const [templatePickerTab, setTemplatePickerTab] = React.useState<TemplatePickerTab>('Studio');
 
   const collapseSheet = React.useCallback(() => {
     try {
+      traceStep('Studio sheet collapse DISPATCH (SelectionPanel)');
       window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-collapse'));
+      traceStep('Studio sheet collapse DISPATCHED (SelectionPanel)');
     } catch {
       // ignore
     }
@@ -114,6 +126,7 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
 
   const handleSelectTemplate = React.useCallback(
     (template: any) => {
+      traceStep('SelectionPanel template selected', { id: template?.id });
       onSelectTemplate(template);
       setTimeout(collapseSheet, 120);
     },
@@ -122,6 +135,7 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
 
   const handleUploadFabric = React.useCallback(
     (file: File) => {
+      traceStep('SelectionPanel fabric uploaded', { name: file?.name, size: file?.size, type: file?.type });
       onUploadFabric(file);
       setTimeout(collapseSheet, 120);
     },
@@ -139,9 +153,16 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
   React.useEffect(() => {
     const onOpenTab = (e: Event) => {
       const ce = e as CustomEvent;
-      const next = ce?.detail as ParentTab | undefined;
-      if (next === 'templates' || next === 'fabric') {
-        setParentTab(next);
+      const detail = ce?.detail as OpenTabDetail | undefined;
+
+      const nextParent = typeof detail === 'string' ? detail : detail?.parent;
+      if (nextParent === 'templates' || nextParent === 'fabric') {
+        setParentTab(nextParent);
+      }
+
+      const nextTemplateTab = typeof detail === 'string' ? undefined : detail?.templateTab;
+      if (nextTemplateTab === 'Studio' || nextTemplateTab === 'Shop' || nextTemplateTab === 'Closet') {
+        setTemplatePickerTab(nextTemplateTab);
       }
     };
 
@@ -176,6 +197,8 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
               enableUpload={Boolean(STUDIO_FEATURES.SHOW_CLOSET)}
               isSubscribed={Boolean(isSubscribedToPremiumTemplates)}
               onPremiumClick={onPremiumTemplateClick}
+              forcedTab={templatePickerTab}
+              onTabChange={setTemplatePickerTab}
               closetExtra={(
                 <label className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200">
                   <input

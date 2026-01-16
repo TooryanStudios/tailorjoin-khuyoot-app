@@ -202,7 +202,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                 disabled={!generateAction.canGenerate || generateAction.isProcessing}
                 onClick={generateAction.onGenerate}
                 className={
-                  'flex-1 py-3 rounded-xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
+                  'flex-1 h-14 rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
                   (!generateAction.canGenerate || generateAction.isProcessing
                     ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20 opacity-50'
                     : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-[0.98] border-purple-500/40 hover:border-purple-400/60')

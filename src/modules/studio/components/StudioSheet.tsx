@@ -4,6 +4,7 @@ import styles from '../styles/StudioSheet.module.css';
 import { getEnabledBlocks } from '../config/layoutConfig';
 import { GenerationHistory } from '../../history/components/GenerationHistory';
 import { GallerySection } from './GallerySection';
+import { traceStep } from '../../../utils/trace';
 
 interface StudioSheetProps {
   children: React.ReactNode;
@@ -58,11 +59,13 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
 
   useEffect(() => {
     const onExpand = () => {
+      traceStep('StudioSheet EXPAND received');
       controls.start('expanded');
       if (contentRef.current) contentRef.current.scrollTop = 0;
     };
 
     const onCollapse = () => {
+      traceStep('StudioSheet COLLAPSE received');
       controls.start('collapsed');
     };
 

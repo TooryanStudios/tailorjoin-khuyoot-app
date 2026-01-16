@@ -152,8 +152,6 @@ export const createCategory = async (formData: {
       level,
       categoryType: formData.categoryType,
       gender: formData.gender || null,
-      level,
-      categoryType: formData.categoryType,
       image: formData.image,
       icon: formData.icon,
       descriptionAr: formData.descriptionAr,

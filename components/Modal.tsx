@@ -10,9 +10,11 @@ interface ModalProps {
   maxWidth?: string;
   modeless?: boolean;
   showFooter?: boolean;
+  footer?: React.ReactNode;
   cancelText?: string;
   confirmText?: string;
   debugId?: string;
+  headerActions?: React.ReactNode;
 }
 
 export const Modal: React.FC<ModalProps> = ({ 
@@ -24,9 +26,11 @@ export const Modal: React.FC<ModalProps> = ({
   maxWidth = 'max-w-lg',
   modeless = false,
   showFooter = false,
+  footer,
   cancelText = 'إلغاء الأمر',
   confirmText = 'اعتماد',
-  debugId
+  debugId,
+  headerActions
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
@@ -83,26 +87,35 @@ export const Modal: React.FC<ModalProps> = ({
           </div>
         )}
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-slate-100 dark:border-slate-800">
+        <div className="flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-800">
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">
             {title}
           </h3>
-          <button
-            onClick={onClose}
-            className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
-          >
-            <X size={20} />
-          </button>
+          <div className="flex items-center gap-2">
+            {headerActions}
+            <button
+              onClick={onClose}
+              className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"
+            >
+              <X size={20} />
+            </button>
+          </div>
         </div>
-        anchorId_Modal_Header
         
         {/* Content */}
-        <div className="p-4 overflow-y-auto custom-scrollbar flex-1">
+        <div className="p-3 overflow-y-auto custom-scrollbar flex-1 flex flex-col">
           {children}
         </div>
+
+        {/* Custom Footer Slot */}
+        {footer && (
+          <div className="p-3 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 rounded-b-2xl shrink-0">
+            {footer}
+          </div>
+        )}
         
         {/* Fixed Footer */}
-        {showFooter && (
+        {!footer && showFooter && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
             <div className="flex gap-3">
               <button

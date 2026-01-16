@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { traceStep } from '../../utils/trace';
 
 type ImageSliderProps = {
   before: string;
@@ -149,6 +150,24 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
           alt="Before"
           decoding="async"
           draggable={false}
+          onLoad={() => {
+            try {
+              const s = String(before || '');
+              const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+              traceStep('ImageSlider BEFORE load', { kind });
+            } catch {
+              // ignore
+            }
+          }}
+          onError={() => {
+            try {
+              const s = String(before || '');
+              const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+              traceStep('ImageSlider BEFORE error', { kind });
+            } catch {
+              // ignore
+            }
+          }}
         />
       ) : null}
 
@@ -172,6 +191,24 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
               alt="After"
               decoding="async"
               draggable={false}
+              onLoad={() => {
+                try {
+                  const s = String(after || '');
+                  const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+                  traceStep('ImageSlider AFTER load', { kind });
+                } catch {
+                  // ignore
+                }
+              }}
+              onError={() => {
+                try {
+                  const s = String(after || '');
+                  const kind = s.startsWith('blob:') ? 'blob' : s.startsWith('data:') ? 'data' : s.startsWith('http') ? 'http' : 'other';
+                  traceStep('ImageSlider AFTER error', { kind });
+                } catch {
+                  // ignore
+                }
+              }}
             />
           </div>
         </div>

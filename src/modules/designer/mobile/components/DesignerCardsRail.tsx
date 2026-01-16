@@ -46,14 +46,8 @@ export const DesignerCardsRail = React.memo(function DesignerCardsRail() {
   // Show nothing if disabled
   if (!railEnabled) return null;
 
-  // Show placeholder if enabled but no cards
-  if (cards.length === 0) {
-    return (
-      <div className="w-full px-4 py-3 text-center text-xs text-zinc-500 dark:text-zinc-400 border border-dashed border-zinc-700 rounded-lg">
-        {title} section enabled. Add cards from Admin → Config → المصمم
-      </div>
-    );
-  }
+  // If no cards, render nothing
+  if (cards.length === 0) return null;
 
   return (
     <div className="relative w-full">

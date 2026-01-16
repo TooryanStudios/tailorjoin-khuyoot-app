@@ -136,13 +136,18 @@ export const useDesignerStore = create<DesignerState>()(
       partialize: (state) => ({
         selectedModel: state.selectedModel,
         selectedTemplateId: state.selectedTemplateId,
-        // Persist images only if they are small enough to avoid quota errors
-        selectedTemplateImage: isPersistableImage(state.selectedTemplateImage),
         selectedFabricId: state.selectedFabricId,
-        selectedFabricImage: isPersistableImage(state.selectedFabricImage),
         activeResult: state.activeResult,
       }),
-      version: 1,
+      version: 2,
+      migrate: (persistedState, version) => {
+        // Privacy: scrub any previously persisted base64 images.
+        if (!persistedState || typeof persistedState !== 'object') return persistedState as any;
+        const s = persistedState as any;
+        if ('selectedTemplateImage' in s) delete s.selectedTemplateImage;
+        if ('selectedFabricImage' in s) delete s.selectedFabricImage;
+        return s;
+      },
     }
   )
 );

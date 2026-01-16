@@ -15,6 +15,10 @@ async function resolveVision() {
   }
 }
 
+// Share the detector across ALL hook instances to avoid repeated WASM/model init.
+let detectorSingleton = null;
+let initPromiseSingleton = null;
+
 /**
  * Modular Privacy Shield (DesignerV2_1-compatible API).
  * - Masks faces locally before upload/processing.
@@ -28,14 +32,11 @@ export const usePrivacyShield = () => {
   const [blurStrength, setBlurStrength] = useState(30);
   const [selectedEmoji, setSelectedEmoji] = useState('😊');
 
-  const detectorRef = useRef(null);
-  const initPromiseRef = useRef(null);
-
   const ensureDetector = useCallback(async () => {
-    if (detectorRef.current) return detectorRef.current;
-    if (initPromiseRef.current) return initPromiseRef.current;
+    if (detectorSingleton) return detectorSingleton;
+    if (initPromiseSingleton) return initPromiseSingleton;
 
-    initPromiseRef.current = (async () => {
+    initPromiseSingleton = (async () => {
       const vision = await resolveVision();
       const detector = await FaceDetector.createFromOptions(vision, {
         baseOptions: {
@@ -46,11 +47,11 @@ export const usePrivacyShield = () => {
         runningMode: 'IMAGE',
       });
 
-      detectorRef.current = detector;
+      detectorSingleton = detector;
       return detector;
     })();
 
-    return initPromiseRef.current;
+    return initPromiseSingleton;
   }, []);
 
   useEffect(() => {
@@ -59,7 +60,11 @@ export const usePrivacyShield = () => {
   }, [ensureDetector, isEnabled]);
 
   const processImage = useCallback(
-    async (file) => {
+    /**
+     * @param {File} file
+     * @param {{ focusRect?: { x: number; y: number; width: number; height: number } }} [opts]
+     */
+    async (file, opts) => {
       if (!isEnabled) return file;
 
       setIsProcessing(true);
@@ -77,8 +82,44 @@ export const usePrivacyShield = () => {
         ctx.imageSmoothingEnabled = true;
         ctx.drawImage(img, 0, 0);
 
-        const result = detector.detect(img);
-        const detections = result?.detections || [];
+        // Optional focused detection (e.g., within the crop box) improves detection
+        // when the face is small in the full frame.
+        /** @type {{ x:number; y:number; width:number; height:number } | null} */
+        const focus = opts?.focusRect && Number.isFinite(opts.focusRect.x)
+          ? {
+              x: Math.max(0, Math.floor(opts.focusRect.x)),
+              y: Math.max(0, Math.floor(opts.focusRect.y)),
+              width: Math.max(1, Math.floor(opts.focusRect.width)),
+              height: Math.max(1, Math.floor(opts.focusRect.height)),
+            }
+          : null;
+
+        let detections = [];
+        let offsetX = 0;
+        let offsetY = 0;
+
+        if (focus) {
+          const fx = Math.min(canvas.width - 1, focus.x);
+          const fy = Math.min(canvas.height - 1, focus.y);
+          const fw = Math.min(canvas.width - fx, focus.width);
+          const fh = Math.min(canvas.height - fy, focus.height);
+
+          const focusCanvas = document.createElement('canvas');
+          focusCanvas.width = fw;
+          focusCanvas.height = fh;
+          const fctx = focusCanvas.getContext('2d');
+          if (fctx) {
+            fctx.drawImage(img, fx, fy, fw, fh, 0, 0, fw, fh);
+            const focusResult = detector.detect(focusCanvas);
+            detections = focusResult?.detections || [];
+            offsetX = fx;
+            offsetY = fy;
+          }
+        } else {
+          const result = detector.detect(img);
+          detections = result?.detections || [];
+        }
+
         if (!detections.length) return file;
 
         detections.forEach((detection) => {
@@ -86,12 +127,14 @@ export const usePrivacyShield = () => {
           if (!bb) return;
 
           const { originX, originY, width, height } = bb;
+          const ox = originX + offsetX;
+          const oy = originY + offsetY;
 
           switch (maskingStyle) {
             case 'feathered-blur': {
               const padding = 0.2;
-              const paddedX = originX - (width * padding) / 2;
-              const paddedY = originY - (height * padding) / 2;
+              const paddedX = ox - (width * padding) / 2;
+              const paddedY = oy - (height * padding) / 2;
               const paddedWidth = width * (1 + padding);
               const paddedHeight = height * (1 + padding);
               const centerX = paddedX + paddedWidth / 2;
@@ -116,8 +159,8 @@ export const usePrivacyShield = () => {
             }
             case 'pixelate': {
               const pixelSize = 15;
-              const sx = Math.max(0, Math.floor(originX));
-              const sy = Math.max(0, Math.floor(originY));
+              const sx = Math.max(0, Math.floor(ox));
+              const sy = Math.max(0, Math.floor(oy));
               const sw = Math.min(canvas.width - sx, Math.ceil(width));
               const sh = Math.min(canvas.height - sy, Math.ceil(height));
               if (sw <= 0 || sh <= 0) return;
@@ -144,7 +187,7 @@ export const usePrivacyShield = () => {
               ctx.font = `${height * 0.7}px Arial`;
               ctx.textAlign = 'center';
               ctx.textBaseline = 'middle';
-              ctx.fillText(selectedEmoji, originX + width / 2, originY + height / 2);
+              ctx.fillText(selectedEmoji, ox + width / 2, oy + height / 2);
               ctx.restore();
               break;
             }

@@ -61,6 +61,14 @@ function fileToDataUrl(file) {
   });
 }
 
+function fileSignature(file) {
+  if (!file) return null;
+  const name = String(file.name || '');
+  const size = Number.isFinite(file.size) ? file.size : 0;
+  const lm = Number.isFinite(file.lastModified) ? file.lastModified : 0;
+  return `${name}:${size}:${lm}`;
+}
+
 function defaultStudioTemplates() {
   return [
     {
@@ -230,6 +238,26 @@ export const useTemplateStore = () => {
   }, []);
 
   const addToCloset = useCallback(async (file, name) => {
+    const sig = fileSignature(file);
+
+    // De-dupe: if the same file was already added, move it to the front.
+    const existing = (remoteClosetTemplates || closetTemplates || []).find((t) => t?.meta?.uploadSig && t.meta.uploadSig === sig);
+    if (existing) {
+      // Best-effort reorder in local state caches for UX.
+      setRemoteClosetTemplates((prev) => {
+        if (!Array.isArray(prev)) return prev;
+        const without = prev.filter((t) => t?.id !== existing.id);
+        return [existing, ...without].slice(0, CLOSET_LIMIT);
+      });
+      setClosetTemplates((prev) => {
+        const without = (prev || []).filter((t) => t?.id !== existing.id);
+        const next = [existing, ...without].slice(0, CLOSET_LIMIT);
+        safeWriteCloset(next.map(({ file: _file, ...rest }) => rest));
+        return next;
+      });
+      return existing;
+    }
+
     // Prefer Firebase persistence if available + logged in.
     try {
       if (firebaseService?.isInitialized?.()) {
@@ -248,7 +276,7 @@ export const useTemplateStore = () => {
             name: name || file.name || 'Upload',
             imageUrl,
             thumbnailUrl: imageUrl,
-            meta: { source: 'closet' },
+            meta: { source: 'closet', uploadSig: sig },
           };
 
           setRemoteClosetTemplates((prev) => {
@@ -270,7 +298,7 @@ export const useTemplateStore = () => {
       name: name || file.name || 'Upload',
       imageUrl: dataUrl,
       thumbnailUrl: dataUrl,
-      meta: { source: 'closet' },
+      meta: { source: 'closet', uploadSig: sig },
       file,
     };
 

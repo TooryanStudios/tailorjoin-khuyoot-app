@@ -7,6 +7,15 @@ import { SelectionPanel } from '../../studio/components/SelectionPanel';
 import { GenerationHistory } from '../../history/components/GenerationHistory';
 import { DesignerCardsRail } from './components/DesignerCardsRail';
 import { useTemplateStore } from '../../TemplatePicker/useTemplateStore';
+import { ImagePrepModal } from '../../../components/image/ImagePrepModal';
+
+const safeId = () => {
+  try {
+    return `upload-${crypto.randomUUID()}`;
+  } catch {
+    return `upload-${Date.now()}-${Math.floor(Math.random() * 1e9)}`;
+  }
+};
 
 export type LightingPreset = 'studio' | 'golden_hour' | 'cinematic' | 'day' | 'night';
 
@@ -111,6 +120,11 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
   } = props;
   const templateStore = useTemplateStore();
 
+  const uploadInputRef = React.useRef<HTMLInputElement | null>(null);
+  const [prepOpen, setPrepOpen] = React.useState(false);
+  const [prepFile, setPrepFile] = React.useState<File | null>(null);
+  const lastUploadPreviewUrlRef = React.useRef<string | null>(null);
+
   const templateThumbUrl = React.useMemo(() => {
     if (!currentTemplateId) return undefined;
     const allTemplates = [
@@ -127,6 +141,8 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
     templateStore.closetTemplates,
   ]);
 
+  const canClearSelections = Boolean(templateThumbUrl) || Boolean(fabricPreviewUrl);
+
   const showIntroCards = !currentTemplateId && !fabricPreviewUrl;
 
   const openTemplates = React.useCallback(() => {
@@ -136,6 +152,25 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
     } catch {
       // ignore
     }
+  }, []);
+
+  const openUploadTemplate = React.useCallback(() => {
+    // Mobile: open file picker immediately (no drawer / closet tab).
+    uploadInputRef.current?.click();
+  }, []);
+
+  React.useEffect(() => {
+    return () => {
+      const url = lastUploadPreviewUrlRef.current;
+      if (url && url.startsWith('blob:')) {
+        try {
+          URL.revokeObjectURL(url);
+        } catch {
+          // ignore
+        }
+      }
+      lastUploadPreviewUrlRef.current = null;
+    };
   }, []);
 
   const openFabric = React.useCallback(() => {
@@ -148,9 +183,73 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
   }, []);
 
   return (
-    <StudioLayout
+    <>
+      <ImagePrepModal
+        isOpen={prepOpen}
+        file={prepFile}
+        onReplaceFile={(nextFile) => {
+          setPrepFile(nextFile);
+        }}
+        onCancel={() => {
+          setPrepOpen(false);
+          setPrepFile(null);
+          if (uploadInputRef.current) uploadInputRef.current.value = '';
+        }}
+        onApply={async (processedFile, meta) => {
+          const previewUrl = URL.createObjectURL(processedFile);
+
+          // Clean up previous preview blob URL (if any)
+          const prev = lastUploadPreviewUrlRef.current;
+          if (prev && prev.startsWith('blob:') && prev !== previewUrl) {
+            try {
+              URL.revokeObjectURL(prev);
+            } catch {
+              // ignore
+            }
+          }
+          lastUploadPreviewUrlRef.current = previewUrl;
+
+          const draftTemplate = {
+            id: safeId(),
+            name: processedFile.name,
+            imageUrl: previewUrl,
+            thumbnailUrl: previewUrl,
+            meta: { source: 'closet', label: 'upload' },
+            file: processedFile,
+            previewUrl,
+            privacyApplied: Boolean(meta?.privacyApplied),
+            __fromImagePrepModal: true,
+          };
+
+          onSelectTemplate(draftTemplate);
+
+          setPrepOpen(false);
+          setPrepFile(null);
+          if (uploadInputRef.current) uploadInputRef.current.value = '';
+        }}
+      />
+
+      <input
+        ref={uploadInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (!file) return;
+          setPrepFile(file);
+          setPrepOpen(true);
+        }}
+      />
+
+      <StudioLayout
       credits={
-        <FloatingCreditChip onRefill={onRefillCredits} />
+        <FloatingCreditChip
+          onRefill={onRefillCredits}
+          onClear={onClearSelections}
+          canClear={canClearSelections}
+          disabled={inputsDisabled}
+        />
       }
       templateThumbUrl={templateThumbUrl}
       fabricThumbUrl={fabricPreviewUrl}
@@ -166,6 +265,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
           fabricDebug={fabricDebug}
           showIntroCards={showIntroCards}
           onOpenTemplates={openTemplates}
+          onUploadTemplate={openUploadTemplate}
           onOpenFabric={openFabric}
         />
       }
@@ -175,7 +275,6 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
         cost: generationCost,
         onGenerate,
       }}
-      onClear={onClearSelections}
       lighting={
         <div className="flex w-full gap-2 px-3 py-2 justify-center">
           {([
@@ -190,7 +289,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
                 type="button"
                 onClick={() => onSelectLightingPreset(o.id)}
                 className={
-                  'h-9 px-3 rounded-full border text-xs font-semibold transition-colors ' +
+                  'h-9 px-3 rounded-lg border text-xs font-semibold transition-colors ' +
                   (active
                     ? 'bg-zinc-900 border-purple-500/60 text-white'
                     : 'bg-zinc-950/40 border-zinc-800 text-zinc-300 hover:border-purple-500/40')
@@ -237,6 +336,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
           inputsDisabled={inputsDisabled}
         />
       }
-    />
+      />
+    </>
   );
 });

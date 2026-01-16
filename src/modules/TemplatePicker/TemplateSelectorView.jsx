@@ -4,11 +4,18 @@ import { useTemplateStore } from './useTemplateStore';
 import { ClosetItems } from './ClosetItems.jsx';
 import { ShopItems } from './ShopItems.jsx';
 import { StudioItems } from './StudioItems.jsx';
+import { traceSetActive, traceStep } from '../../utils/trace';
 
 const TABS = {
   STUDIO: 'Studio',
   SHOP: 'Shop',
   CLOSET: 'Closet',
+};
+
+const TAB_LABELS_AR = {
+  [TABS.STUDIO]: 'الاستوديو',
+  [TABS.SHOP]: 'المتجر',
+  [TABS.CLOSET]: 'الخزانة',
 };
 
 export const TemplateSelectorView = ({
@@ -22,6 +29,7 @@ export const TemplateSelectorView = ({
   onPremiumClick,
   closetExtra = null,
   defaultTab,
+  forcedTab,
   onTabChange, // NEW: Callback when tab changes
   loadingTemplateId = null, // NEW: ID of template currently loading
 }) => {
@@ -30,6 +38,14 @@ export const TemplateSelectorView = ({
   const cache = useImageCache({ limit: 100 });
 
   const [activeTab, setActiveTab] = useState(defaultTab || TABS.STUDIO);
+
+  // Allow parent to force a tab (used by mobile "Upload image" shortcut)
+  React.useEffect(() => {
+    if (!forcedTab) return;
+    if (forcedTab !== activeTab) {
+      setActiveTab(forcedTab);
+    }
+  }, [forcedTab, activeTab]);
 
   // Auto-switch to Shop tab when shopItems become available
   React.useEffect(() => {
@@ -56,11 +72,15 @@ export const TemplateSelectorView = ({
     async (template) => {
       if (!template) return;
 
-      // If this came from an upload, persist to Closet (localStorage) first.
+      // If this came from an upload, select immediately (so comparison updates fast)
+      // and DO NOT persist to Closet/Firebase. (We only send to the API on Generate.)
       if (template?.file instanceof File) {
-        const persisted = await store.addToCloset(template.file, template.name);
-        store.selectTemplate(persisted);
-        onSelect(persisted);
+        const traceId = template?.__traceId;
+        if (typeof traceId === 'string' && traceId) traceSetActive(traceId);
+        traceStep('TemplateSelectorView: select draft (immediate)', { id: template?.id });
+
+        store.selectTemplate(template);
+        onSelect(template);
         return;
       }
 
@@ -101,7 +121,7 @@ export const TemplateSelectorView = ({
                 : 'text-zinc-400 hover:text-zinc-200'
             }`}
           >
-            {tab}
+            {TAB_LABELS_AR[tab] ?? tab}
           </button>
         ))}
       </div>
