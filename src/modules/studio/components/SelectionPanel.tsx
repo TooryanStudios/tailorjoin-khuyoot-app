@@ -112,7 +112,8 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
     disabled: false,
   };
   const [parentTab, setParentTab] = React.useState<ParentTab>('templates');
-  const [templatePickerTab, setTemplatePickerTab] = React.useState<TemplatePickerTab>('Studio');
+  // Default the template picker to Closet as requested
+  const [templatePickerTab, setTemplatePickerTab] = React.useState<TemplatePickerTab>('Closet');
 
   const collapseSheet = React.useCallback(() => {
     try {

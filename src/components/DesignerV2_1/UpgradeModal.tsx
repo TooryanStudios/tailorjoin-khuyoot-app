@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, Crown, Sparkles, Loader2, Check } from 'lucide-react';
 
 export interface UpgradeModalProps {
@@ -12,8 +13,6 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   onClose,
   onUpgradeClick,
 }) => {
-  if (!isOpen) return null;
-
   const [phase, setPhase] = React.useState<'idle' | 'progress' | 'done'>('idle');
   const [error, setError] = React.useState<string>('');
   const [activeTab, setActiveTab] = React.useState<'onetime' | 'monthly'>('onetime');
@@ -24,9 +23,15 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     setError('');
     setActiveTab('onetime');
 
+    // Prevent global overlay cleanup from removing this modal
+    if (isOpen) {
+      try { document.body.classList.add('modal-open'); } catch {}
+    }
+
     return () => {
       timeoutsRef.current.forEach((t) => window.clearTimeout(t));
       timeoutsRef.current = [];
+      try { document.body.classList.remove('modal-open'); } catch {}
     };
   }, [isOpen]);
 
@@ -45,8 +50,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center">
+  // Only render UI when open, but always call hooks above.
+  if (!isOpen) return null;
+
+  return createPortal(
+    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md"
@@ -213,7 +221,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           </p>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 

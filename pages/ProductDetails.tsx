@@ -1,11 +1,12 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowRight, ShoppingBag, ChevronLeft, ChevronRight, Heart, Share2, Star, MapPin, Clock, MessageCircle, UserPlus, Home, Info, List, MessageSquare } from 'lucide-react';
 import { Product, Tailor, Review, ProductPageConfig } from '../types';
 import { getProductById, getTailorById, MOCK_PRODUCTS } from '../services/mockService';
 import { useApp } from '../context/AppContext';
 import { ProductPageLayout } from '../src/modules/product/components/ProductPageLayout';
+import { useQuery } from '@tanstack/react-query';
 
 type StarActionChoiceCardProps = {
   title: string;
@@ -114,13 +115,10 @@ export const ProductDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user, addToCart, appSettings } = useApp();
-  const [product, setProduct] = useState<Product | null>(null);
-  const [tailor, setTailor] = useState<Tailor | null>(null);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [showStartTailoringActions, setShowStartTailoringActions] = useState(false);
   const [activeTab, setActiveTab] = useState<'details' | 'specs' | 'reviews'>('details');
-  const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   
   // Get page config from app settings or use defaults
   const pageConfig: ProductPageConfig = appSettings?.productPageConfig || {
@@ -166,6 +164,27 @@ export const ProductDetails = () => {
     };
   }, []);
 
+  const productQuery = useQuery({
+    queryKey: ['product', id],
+    queryFn: () => (id ? getProductById(id) : Promise.resolve(null)),
+    enabled: !!id,
+  });
+
+  const product = productQuery.data ?? null;
+
+  const tailorQuery = useQuery({
+    queryKey: ['tailor', product?.tailorId],
+    queryFn: () => (product?.tailorId ? getTailorById(product.tailorId) : Promise.resolve(null)),
+    enabled: !!product?.tailorId,
+  });
+
+  const tailor = (tailorQuery.data ?? null) as Tailor | null;
+
+  const relatedProducts = useMemo(
+    () => (id ? MOCK_PRODUCTS.filter((p) => p.id !== id).slice(0, 4) : []),
+    [id]
+  );
+
   const productImages = React.useMemo(() => {
     if (!product) return [];
     const images = product.images && product.images.length > 0 ? product.images : [product.image];
@@ -180,20 +199,11 @@ export const ProductDetails = () => {
     setCurrentImageIndex((prev) => Math.min(prev, productImages.length - 1));
   }, [productImages.length]);
 
-  useEffect(() => {
-    if (id) {
-      getProductById(id).then((prod) => {
-        setProduct(prod);
-        if (prod?.tailorId) {
-          getTailorById(prod.tailorId).then(setTailor);
-        }
-        // Mock related products
-        setRelatedProducts(MOCK_PRODUCTS.filter(p => p.id !== id).slice(0, 4));
-      });
-    }
-  }, [id]);
+  // Product + tailor data are now cached by React Query
 
-  if (!product) return <div className="flex items-center justify-center h-screen text-slate-500">جاري التحميل...</div>;
+  if (productQuery.isLoading || (!product && !!id)) {
+    return <div className="flex items-center justify-center h-screen text-slate-500">جاري التحميل...</div>;
+  }
 
   const previewA = productImages[0];
   const previewB = productImages[1] || productImages[0];

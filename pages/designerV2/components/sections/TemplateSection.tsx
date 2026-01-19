@@ -2,7 +2,7 @@ import React from 'react';
 import { ChevronDown, Shirt } from 'lucide-react';
 import { Button } from '../../../../components/Button';
 import { AdminAnchor } from '../AdminAnchor';
-import { StableImage } from '../../../../src/components/StableImage';
+import { StableImage } from '../../../../components/StableImage';
 
 interface TemplateSectionProps {
   anchorId?: string;

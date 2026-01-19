@@ -18,7 +18,7 @@ const CATEGORIES = [
   { id: 'shoes', name: 'الأحذية' },
 ];
 
-export const Home = () => {
+const Home = () => {
   const [products, setProducts] = useState<Product[]>([]);
   const [tailors, setTailors] = useState<Tailor[]>([]);
   const [stories, setStories] = useState<Story[]>([]);

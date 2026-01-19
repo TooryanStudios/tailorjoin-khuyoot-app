@@ -20,6 +20,9 @@ const safeId = () => {
 export type LightingPreset = 'studio' | 'golden_hour' | 'cinematic' | 'day' | 'night';
 
 export type MobileDesignerV2Props = {
+  /** Disable the bottom drawer (StudioSheet) while keeping the rest of the UI enabled. */
+  disableDrawer?: boolean;
+
   beforeImage: string;
   afterImage: string;
   sliderPos: number;
@@ -83,6 +86,7 @@ export type MobileDesignerV2Props = {
 
 export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: MobileDesignerV2Props) {
   const {
+    disableDrawer,
     beforeImage,
     afterImage,
     sliderPos,
@@ -185,6 +189,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
   return (
     <>
       <ImagePrepModal
+        mode="template"
         isOpen={prepOpen}
         file={prepFile}
         onReplaceFile={(nextFile) => {
@@ -243,6 +248,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
       />
 
       <StudioLayout
+      sheetEnabled={!disableDrawer}
       credits={
         <FloatingCreditChip
           onRefill={onRefillCredits}

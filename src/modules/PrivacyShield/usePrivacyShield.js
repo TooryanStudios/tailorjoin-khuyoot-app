@@ -27,6 +27,8 @@ let initPromiseSingleton = null;
 export const usePrivacyShield = () => {
   const [isEnabled, setIsEnabled] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetectorReady, setIsDetectorReady] = useState(false);
+  const [detectorError, setDetectorError] = useState(null);
   /** @type {[MaskingStyle, Function]} */
   const [maskingStyle, setMaskingStyle] = useState('feathered-blur');
   const [blurStrength, setBlurStrength] = useState(30);
@@ -38,16 +40,31 @@ export const usePrivacyShield = () => {
 
     initPromiseSingleton = (async () => {
       const vision = await resolveVision();
-      const detector = await FaceDetector.createFromOptions(vision, {
-        baseOptions: {
-          modelAssetPath:
-            'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
-          delegate: 'GPU',
-        },
-        runningMode: 'IMAGE',
-      });
+      let detector;
+
+      try {
+        detector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+            delegate: 'GPU',
+          },
+          runningMode: 'IMAGE',
+        });
+      } catch {
+        detector = await FaceDetector.createFromOptions(vision, {
+          baseOptions: {
+            modelAssetPath:
+              'https://storage.googleapis.com/mediapipe-models/face_detector/blaze_face_short_range/float16/1/blaze_face_short_range.tflite',
+            delegate: 'CPU',
+          },
+          runningMode: 'IMAGE',
+        });
+      }
 
       detectorSingleton = detector;
+      setDetectorError(null);
+      setIsDetectorReady(true);
       return detector;
     })();
 
@@ -56,7 +73,10 @@ export const usePrivacyShield = () => {
 
   useEffect(() => {
     if (!isEnabled) return;
-    void ensureDetector();
+    ensureDetector().catch((err) => {
+      setDetectorError(err?.message || 'Face detector initialization failed');
+      setIsDetectorReady(false);
+    });
   }, [ensureDetector, isEnabled]);
 
   const processImage = useCallback(
@@ -228,5 +248,7 @@ export const usePrivacyShield = () => {
     setSelectedEmoji,
     processImage,
     isProcessingPrivacy: isProcessing,
+    isDetectorReady,
+    detectorError,
   };
 };

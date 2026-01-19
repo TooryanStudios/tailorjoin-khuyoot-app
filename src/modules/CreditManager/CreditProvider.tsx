@@ -149,6 +149,25 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
     refresh();
   }, [refresh]);
 
+  // Listen for credit updates from upgrade modal or other sources
+  React.useEffect(() => {
+    const handleCreditsUpdated = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const newBalance = customEvent.detail?.balance;
+      if (typeof newBalance === 'number' && authUid) {
+        console.log('🔔 Credits updated event received, new balance:', newBalance);
+        setProfile((prev) => ({
+          ...prev,
+          user_id: authUid,
+          credit_balance: newBalance,
+        }));
+      }
+    };
+
+    window.addEventListener('khuyoot:credits-updated', handleCreditsUpdated);
+    return () => window.removeEventListener('khuyoot:credits-updated', handleCreditsUpdated);
+  }, [authUid]);
+
   const currentBalance = profile?.credit_balance ?? 0;
 
   const getCost = React.useCallback(

@@ -1,7 +1,7 @@
 import React from 'react';
 import { ChevronLeft, ChevronRight, ZoomIn } from 'lucide-react';
 import { AdminAnchor } from './AdminAnchor';
-import { StableImage } from '../../../src/components/StableImage';
+import { StableImage } from '../../../components/StableImage';
 
 export interface GenerationItem {
   jobId: string;

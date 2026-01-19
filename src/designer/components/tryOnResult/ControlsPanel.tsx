@@ -1,5 +1,6 @@
 import React from 'react';
 import type { TryOnResultFeatures } from './TryOnResultFeatures';
+import { StableImage } from '../../../../components/StableImage';
 
 interface ControlsPanelProps {
   originalImageUrl?: string;
@@ -69,12 +70,10 @@ export const ControlsPanel = React.memo<ControlsPanelProps>(function ControlsPan
                 <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-slate-400 dark:group-hover:ring-slate-500 transition-all">
                   {originalImageUrl ? (
                     <>
-                      <img
+                      <StableImage
                         src={originalImageUrl}
                         alt="القالب"
                         className="absolute inset-0 h-full w-full object-cover"
-                        loading="lazy"
-                        decoding="async"
                       />
                       <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                       {/* Hover overlay */}
@@ -104,12 +103,10 @@ export const ControlsPanel = React.memo<ControlsPanelProps>(function ControlsPan
                   <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-emerald-400 dark:group-hover:ring-emerald-500 transition-all">
                     {fabricThumbnailUrl ? (
                       <>
-                        <img
+                        <StableImage
                           src={fabricThumbnailUrl}
                           alt="القماش"
                           className="absolute inset-0 h-full w-full object-cover"
-                          loading="lazy"
-                          decoding="async"
                         />
                         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         {/* Hover overlay */}

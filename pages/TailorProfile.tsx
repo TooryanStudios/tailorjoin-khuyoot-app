@@ -8,7 +8,7 @@ import { ProductCard } from '../components/ProductCard';
 import { Button } from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { getSpecializationLabel } from '../utils/specializationHelper';
-import { StableImage } from '../src/components/StableImage';
+import { StableImage } from '../components/StableImage';
 
 type ViewMode = 'grid' | 'compact' | 'list';
 

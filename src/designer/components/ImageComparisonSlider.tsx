@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from 'react';
+import { useThumbnail } from '../../hooks/useThumbnailCache';
 
 interface ImageComparisonSliderProps {
   beforeImage: string;
@@ -44,6 +45,10 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
   const pendingClientXRef = useRef<number>(0);
   const touchIntentRef = useRef<{ startX: number; startY: number; locked: boolean } | null>(null);
   const currentPositionRef = useRef<number>(animateReveal ? 0 : 50);
+
+  // 🚀 High Performance: Convert images to persistent Blobs
+  const stableBefore = useThumbnail(beforeImage, { maxEntries: 200 });
+  const stableAfter = useThumbnail(afterImage, { maxEntries: 200 });
 
   const updateSliderFromClientX = (clientX: number, directUpdate = false) => {
     if (!containerRef.current) return;
@@ -264,7 +269,7 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
       {/* After Image (background) */}
       <div className="absolute inset-0 z-10" style={{ pointerEvents: 'none' }}>
         <img
-          src={afterImage}
+          src={stableAfter || afterImage}
           alt={afterLabel}
           className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'} transition-all duration-500 ${
             isLoading ? 'blur-sm scale-105 opacity-70' : ''
@@ -300,7 +305,7 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
           style={beforeImageStyle}
         >
           <img
-            src={beforeImage}
+            src={stableBefore || beforeImage}
             alt={beforeLabel}
             className={`w-full h-full ${fit === 'contain' ? 'object-contain' : 'object-cover'}`}
             loading="eager"

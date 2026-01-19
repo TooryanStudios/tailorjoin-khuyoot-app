@@ -5,6 +5,22 @@ import 'react-image-crop/dist/ReactCrop.css';
 import App from './App';
 import { queryClient } from './src/lib/queryClient';
 
+// PWA Service Worker registration (production only)
+// - Forces immediate activation on deploy (paired with workbox.skipWaiting/clientsClaim)
+// - Forces a reload when an updated SW is ready so users don't stay on stale bundles
+if (import.meta.env.PROD) {
+  try {
+    // IMPORTANT: Do NOT import `virtual:pwa-register` from here.
+    // Vite will try to resolve it during dev transforms and throw 500s.
+    // Instead, dynamically import a local production-only module.
+    import('./src/pwa/registerProd').then(({ registerProdServiceWorker }) => {
+      registerProdServiceWorker();
+    });
+  } catch {
+    // ignore
+  }
+}
+
 // Hash-route compatibility (Option A): convert legacy `#/...` URLs to real paths
 // before React Router (BrowserRouter) mounts.
 // Example: http://localhost:3000/#/admin/config -> http://localhost:3000/admin/config
@@ -29,45 +45,38 @@ try {
 
 // Unregister Service Worker and clear cache in development (FORCE)
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-  console.log('🔧 Development mode: Cleaning up service workers...');
-  
-  // Force unregister all service workers
-  navigator.serviceWorker.getRegistrations().then(registrations => {
-    if (registrations.length > 0) {
-      console.log(`🔧 Found ${registrations.length} service worker(s), unregistering...`);
-      registrations.forEach(registration => {
-        registration.unregister().then(success => {
-          if (success) {
-            console.log('✅ Service Worker unregistered successfully');
-          }
-        });
-      });
-    } else {
-      console.log('✅ No service workers to unregister');
-    }
-  });
-  
-  // Force clear all caches
-  if ('caches' in window) {
-    caches.keys().then(names => {
-      if (names.length > 0) {
-        console.log(`🧹 Found ${names.length} cache(s), clearing...`);
-        names.forEach(name => {
-          caches.delete(name).then(() => {
-            console.log(`✅ Cache deleted: ${name}`);
-          });
-        });
-      } else {
-        console.log('✅ No caches to clear');
-      }
-    });
+  // Logic removed: Don't force clear caches on every refresh in dev.
+  // This allows us to test "Zero-Lag" performance patterns.
+}
+
+// Disable zooming and panning globally (mobile browsers)
+try {
+  if (typeof window !== 'undefined') {
+    const prevent = (e: Event) => {
+      e.preventDefault();
+    };
+
+    // iOS Safari pinch/double-tap zoom
+    window.addEventListener('gesturestart', prevent, { passive: false });
+    window.addEventListener('gesturechange', prevent, { passive: false });
+    window.addEventListener('gestureend', prevent, { passive: false });
+
+    // Disable double-tap to zoom
+    let lastTouchEnd = 0;
+    document.addEventListener(
+      'touchend',
+      (e) => {
+        const now = Date.now();
+        if (now - lastTouchEnd <= 300) {
+          e.preventDefault();
+        }
+        lastTouchEnd = now;
+      },
+      { passive: false }
+    );
   }
-  
-  // Kill active service worker immediately
-  if (navigator.serviceWorker.controller) {
-    console.log('⚠️ Active service worker detected, posting SKIP_WAITING message');
-    navigator.serviceWorker.controller.postMessage({ type: 'SKIP_WAITING' });
-  }
+} catch {
+  // ignore
 }
 
 const rootElement = document.getElementById('root');

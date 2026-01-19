@@ -161,9 +161,11 @@ export type TryFabricPanelProps = {
   features?: Partial<TryOnResultFeatures>;
 };
 
-export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPanelProps>(
-  function TryFabricPanel(props, ref) {
-    const { user, appSettings } = useApp();
+// ✅ WRAPPED IN React.memo: Prevents unnecessary re-renders when props haven't changed
+export const TryFabricPanel = React.memo(
+  React.forwardRef<TryFabricPanelHandle, TryFabricPanelProps>(
+    function TryFabricPanel(props, ref) {
+      const { user, appSettings } = useApp();
 
   const isSubscribed = React.useMemo(() => {
     if (!user) return false;
@@ -1002,4 +1004,7 @@ export const TryFabricPanel = React.forwardRef<TryFabricPanelHandle, TryFabricPa
       />
     </div>
   );
-});
+  }
+)
+);
+TryFabricPanel.displayName = 'TryFabricPanel';

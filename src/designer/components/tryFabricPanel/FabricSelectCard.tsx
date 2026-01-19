@@ -1,4 +1,5 @@
 import React from 'react';
+import { StableImage } from '../../../../components/StableImage';
 
 export function FabricSelectCard(props: {
   imageUrl?: string | null;
@@ -15,13 +16,11 @@ export function FabricSelectCard(props: {
         onClick={onClick}
       >
         {imageUrl ? (
-          <img
-            key={imgKey ?? imageUrl}
+          <StableImage
             src={imageUrl}
             alt="Fabric preview"
-            className="w-full h-full object-contain"
-            loading="eager"
-            decoding="async"
+            imgClassName="object-contain"
+            className="w-full h-full"
           />
         ) : (
           <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">

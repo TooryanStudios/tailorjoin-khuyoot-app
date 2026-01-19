@@ -138,11 +138,42 @@ function defaultShopTemplates() {
 }
 
 export const useTemplateStore = () => {
+  const [authUid, setAuthUid] = useState(() => {
+    try {
+      return firebaseService?.auth?.currentUser?.uid ?? null;
+    } catch {
+      return null;
+    }
+  });
   const [selectedTemplate, setSelectedTemplate] = useState(null);
-  const [closetTemplates, setClosetTemplates] = useState(() => safeReadCloset());
+  const [closetTemplates, setClosetTemplates] = useState(() => (authUid ? safeReadCloset() : []));
   const [remoteStudioTemplates, setRemoteStudioTemplates] = useState(null);
   const [remoteShopTemplates, setRemoteShopTemplates] = useState(null);
   const [remoteClosetTemplates, setRemoteClosetTemplates] = useState(null);
+
+  // Track auth changes so the Closet can be user-owned only.
+  // Security rule: logged-out users must never see any Closet images.
+  useEffect(() => {
+    try {
+      if (!firebaseService?.isInitialized?.()) return;
+      const auth = firebaseService?.auth;
+      if (!auth?.onAuthStateChanged) return;
+
+      const unsubscribe = auth.onAuthStateChanged((user) => {
+        setAuthUid(user?.uid ?? null);
+      });
+
+      return () => {
+        try {
+          unsubscribe?.();
+        } catch {
+          // ignore
+        }
+      };
+    } catch {
+      return;
+    }
+  }, []);
 
   const studioTemplates = useMemo(() => {
     if (Array.isArray(remoteStudioTemplates) && remoteStudioTemplates.length > 0) return remoteStudioTemplates;
@@ -155,9 +186,11 @@ export const useTemplateStore = () => {
   }, [remoteShopTemplates]);
 
   const effectiveClosetTemplates = useMemo(() => {
+    // Do not show device-local closet items to guests.
+    if (!authUid) return [];
     if (Array.isArray(remoteClosetTemplates)) return remoteClosetTemplates;
     return closetTemplates;
-  }, [closetTemplates, remoteClosetTemplates]);
+  }, [authUid, closetTemplates, remoteClosetTemplates]);
 
   useEffect(() => {
     let cancelled = false;
@@ -203,13 +236,17 @@ export const useTemplateStore = () => {
   useEffect(() => {
     let cancelled = false;
 
+    // On logout, immediately clear any in-memory remote closet items.
+    if (!authUid) {
+      setRemoteClosetTemplates(null);
+      return;
+    }
+
     (async () => {
       try {
         if (!firebaseService?.isInitialized?.()) return;
-        const userId = firebaseService?.auth?.currentUser?.uid;
-        if (!userId) return;
 
-        const list = await firebaseService.getUserTemplates(userId);
+        const list = await firebaseService.getUserTemplates(authUid);
         if (cancelled) return;
 
         const mapped = (list || [])
@@ -224,20 +261,24 @@ export const useTemplateStore = () => {
 
         setRemoteClosetTemplates(mapped);
       } catch {
-        // Ignore and fall back to local storage
+        // Ignore: keep closet empty for guests; allow local fallback for authed users only.
+        setRemoteClosetTemplates(null);
       }
     })();
 
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authUid]);
 
   const selectTemplate = useCallback((template) => {
     setSelectedTemplate(template || null);
   }, []);
 
   const addToCloset = useCallback(async (file, name) => {
+    if (!authUid) {
+      throw new Error('Must be logged in to use Closet');
+    }
     const sig = fileSignature(file);
 
     // De-dupe: if the same file was already added, move it to the front.
@@ -261,7 +302,7 @@ export const useTemplateStore = () => {
     // Prefer Firebase persistence if available + logged in.
     try {
       if (firebaseService?.isInitialized?.()) {
-        const userId = firebaseService?.auth?.currentUser?.uid;
+        const userId = authUid;
         if (userId) {
           const imageUrl = await firebaseService.uploadUserTemplate({ userId, file });
           const id = await firebaseService.saveUserTemplate({
@@ -311,6 +352,36 @@ export const useTemplateStore = () => {
     return template;
   }, []);
 
+  const deleteFromCloset = useCallback(async (templateId) => {
+    if (!templateId) return;
+    if (!authUid) {
+      throw new Error('Must be logged in to use Closet');
+    }
+
+    // Best-effort remote delete if user is logged in.
+    try {
+      if (firebaseService?.isInitialized?.()) {
+        const userId = authUid;
+        if (userId) {
+          await firebaseService.deleteUserTemplate(templateId);
+        }
+      }
+    } catch {
+      // continue with local cleanup
+    }
+
+    setRemoteClosetTemplates((prev) => {
+      if (!Array.isArray(prev)) return prev;
+      return prev.filter((t) => t?.id !== templateId);
+    });
+
+    setClosetTemplates((prev) => {
+      const next = (prev || []).filter((t) => t?.id !== templateId);
+      safeWriteCloset(next.map(({ file: _file, ...rest }) => rest));
+      return next;
+    });
+  }, [authUid]);
+
   return {
     selectedTemplate,
     selectTemplate,
@@ -318,5 +389,6 @@ export const useTemplateStore = () => {
     shopTemplates,
     closetTemplates: effectiveClosetTemplates,
     addToCloset,
+    deleteFromCloset,
   };
 };

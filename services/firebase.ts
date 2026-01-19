@@ -18,12 +18,40 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Diagnostic switch: allow forcing the app into a no-Firebase mode for debugging.
+// Usage: add `?disableFirebase=1` to the URL, or set localStorage `khuyoot:diag:disableFirebase=1`.
+const DIAG_DISABLE_FIREBASE_KEY = 'khuyoot:diag:disableFirebase';
+
+function isFirebaseDisabledByDiagnostics(): boolean {
+  try {
+    // Never allow disabling Firebase in production via query/localStorage.
+    if (import.meta.env.PROD) return false;
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location?.search ?? '');
+    if (params.get('disableFirebase') === '1') return true;
+    if (params.get('firebase') === '0') return true;
+    return localStorage.getItem(DIAG_DISABLE_FIREBASE_KEY) === '1';
+  } catch {
+    return false;
+  }
+}
+
+const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
+
 // Initialize Firebase
 let app;
 let auth: any;
 let db: any;
 let storage: any;
 let isFirebaseInitialized = false;
+
+// Simple timeout wrapper to prevent hanging Firestore calls
+const withTimeoutReject = <T>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(`${label} timed out after ${timeoutMs}ms`)), timeoutMs)),
+  ]);
+};
 
 function inferImageExtensionFromContentType(contentType: string | undefined | null): string {
   const ct = String(contentType || '').toLowerCase();
@@ -97,13 +125,18 @@ const persistLocalMeasurementTemplates = (templates: MeasurementTemplate[]) => {
 };
 
 try {
-  app = firebaseApp.initializeApp(firebaseConfig);
-  auth = getAuth(app);
-  db = getFirestore(app);
-  // Reduce Firestore log noise (especially offline warnings) to errors only
-  try { setLogLevel('error'); } catch {}
-  storage = getStorage(app);
-  isFirebaseInitialized = true;
+  if (FIREBASE_DIAGNOSTIC_DISABLED) {
+    console.warn('[Firebase] Disabled by diagnostics (skip initializeApp)');
+    isFirebaseInitialized = false;
+  } else {
+    app = firebaseApp.initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
+    // Reduce Firestore log noise (especially offline warnings) to errors only
+    try { setLogLevel('error'); } catch {}
+    storage = getStorage(app);
+    isFirebaseInitialized = true;
+  }
 } catch (error) {
   console.error("❌ Firebase Initialization Error:", error);
   console.error("🔧 Check your .env file and Firebase config");
@@ -656,7 +689,11 @@ export const firebaseService = {
       // 1. First, get all approved users (tailors/shops)
       const usersRef = collection(db, 'users');
       const approvedQuery = query(usersRef, where('approvalStatus', '==', 'approved'));
-      const approvedSnapshot = await getDocs(approvedQuery);
+      const approvedSnapshot = await withTimeoutReject(
+        getDocs(approvedQuery),
+        10000,
+        'getProducts: approved users query'
+      );
       approvedSnapshot.forEach(doc => {
         approvedUserIds.add(doc.id);
       });
@@ -672,7 +709,11 @@ export const firebaseService = {
       }
 
       // Fetch without artificial timeout; ensure we wait for Firestore response
-      const snapshot = await getDocs(q);
+      const snapshot = await withTimeoutReject(
+        getDocs(q),
+        10000,
+        'getProducts: products query'
+      );
       
       snapshot.forEach(doc => {
         const data = doc.data() as any;
@@ -743,7 +784,7 @@ export const firebaseService = {
       return products;
     } catch (error) {
       console.error("Error fetching products from Firebase:", error);
-      return [];
+      throw error;
     }
   },
 
@@ -1600,7 +1641,11 @@ export const firebaseService = {
     try {
       const usersRef = collection(db, 'users');
       const q = query(usersRef, where('role', '==', 'tailor'), where('approvalStatus', '==', 'approved'));
-      const snapshot = await getDocs(q);
+      const snapshot = await withTimeoutReject(
+        getDocs(q),
+        10000,
+        'getApprovedTailors query'
+      );
       try { console.log(`✅ Firebase tailors fetched: ${snapshot.size}`); } catch {}
 
       const tailors = snapshot.docs.map(docSnap => {
@@ -1628,7 +1673,7 @@ export const firebaseService = {
       return tailors.sort((a, b) => (b.rating || 0) - (a.rating || 0));
     } catch (error) {
       console.error('Error fetching approved tailors:', error);
-      return [];
+      throw error;
     }
   },
 

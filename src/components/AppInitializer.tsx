@@ -45,29 +45,15 @@ export function AppInitializer({ children }: AppInitializerProps) {
       return () => cancelAnimationFrame(raf);
     }
 
-    // If data doesn't load within 2 seconds, force fallback to prevent blank screen
+    // If data doesn't load within 5 seconds, force fallback to prevent blank screen
     const timer = setTimeout(() => {
-       console.warn('[AppInitializer] Config load timeout - forcing app render with defaults');
+       console.warn('[AppInitializer] Config load timeout after 5s - forcing app render with defaults');
+       console.warn('[AppInitializer] This usually means Firebase connection is slow or blocked');
+       console.warn('[AppInitializer] Try clearing cache: localStorage.clear(); location.reload();');
        setUseFallback(true);
-    }, 2000);
+    }, 5000);
     return () => clearTimeout(timer);
   }, [Boolean(data), useFallback]);
-
-  // CSS gating: prevent .app-header/.app-footer from ever painting
-  // before we've confirmed the config shape.
-  try {
-    if (typeof document !== 'undefined') {
-      const isReady = data || useFallback;
-      document.documentElement.setAttribute('data-shell-ready', isReady ? '1' : '0');
-      if (isReady) {
-        document.documentElement.classList.remove('hide-shell-elements');
-      } else {
-        document.documentElement.classList.add('hide-shell-elements');
-      }
-    }
-  } catch {
-    // ignore
-  }
 
   // Zero-flash strategy: do not mount the app shell
   // until we know whether header/footer should exist.

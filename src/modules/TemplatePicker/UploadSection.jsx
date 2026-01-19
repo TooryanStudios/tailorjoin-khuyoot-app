@@ -40,6 +40,7 @@ export const UploadSection = React.memo(function UploadSection({ onSelect, curre
   return (
     <div className="col-span-2 grid grid-cols-2 gap-3">
       <ImagePrepModal
+        mode="template"
         isOpen={prepOpen}
         file={prepFile}
         onReplaceFile={(nextFile) => {

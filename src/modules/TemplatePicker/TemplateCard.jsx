@@ -37,7 +37,10 @@ export const TemplateCard = React.memo(function TemplateCard({
   // Increase thumbnail cache to reduce evictions when switching tabs
   const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 100, enabled: isVisible || Boolean(isActive) });
 
-  const previewSrc = template?.thumbnailUrl || template?.imageUrl || null;
+  const previewSrc =
+    template?.meta?.source === 'closet'
+      ? (template?.imageUrl || template?.thumbnailUrl || null)
+      : (template?.thumbnailUrl || template?.imageUrl || null);
   const subtitle = template?.meta?.label || template?.meta?.source || '';
 
   // Prefetch only when visible (or active)

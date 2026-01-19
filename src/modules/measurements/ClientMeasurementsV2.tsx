@@ -15,7 +15,8 @@ interface MeasurementTemplate {
   [key: string]: any;
 }
 
-export const ClientMeasurementsV2: React.FC = () => {
+// ✅ WRAPPED IN React.memo: Component has 811 lines and heavy computations
+const ClientMeasurementsV2Component: React.FC = () => {
   const { appSettings } = useApp();
   const location = useLocation();
   const navigate = useNavigate();
@@ -806,5 +807,8 @@ export const ClientMeasurementsV2: React.FC = () => {
     </div>
   );
 };
+
+export const ClientMeasurementsV2 = React.memo(ClientMeasurementsV2Component);
+ClientMeasurementsV2.displayName = 'ClientMeasurementsV2';
 
 export default ClientMeasurementsV2;

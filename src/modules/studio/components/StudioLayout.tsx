@@ -12,6 +12,8 @@ export type StudioLayoutProps = {
   panelClassName?: string;
   /** Optional extra top padding for the scrollable panel to account for fixed headers. */
   panelTopPaddingClassName?: string;
+  /** Disable the bottom drawer/sheet and render the panel inline instead. */
+  sheetEnabled?: boolean;
   templateThumbUrl?: string;
   fabricThumbUrl?: string;
   /** Generate button action */
@@ -39,6 +41,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   className,
   panelClassName,
   panelTopPaddingClassName,
+  sheetEnabled = true,
   templateThumbUrl,
   fabricThumbUrl,
   generateAction,
@@ -237,17 +240,28 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
             {history}
           </div>
         )}
+
+        {/* Inline Panel (when sheet is disabled) */}
+        {!sheetEnabled && panel && (
+          <div className={[panelClassName, 'px-2 pb-6'].filter(Boolean).join(' ')}>
+            <div className={panelTopPaddingClassName}>
+              {panel}
+            </div>
+          </div>
+        )}
         
         {/* Bottom padding to prevent content from being hidden under sheet */}
-        <div style={{ height: '30px' }} />
+        <div style={{ height: '0px' }} />
       </div>
 
       {/* Foreground Layer: Draggable Selection Sheet */}
-      <StudioSheet initialSnap="collapsed">
-        <div className={panelTopPaddingClassName}>
-          {panel}
-        </div>
-      </StudioSheet>
+      {sheetEnabled && (
+        <StudioSheet initialSnap="collapsed">
+          <div className={panelTopPaddingClassName}>
+            {panel}
+          </div>
+        </StudioSheet>
+      )}
     </div>
   );
 };

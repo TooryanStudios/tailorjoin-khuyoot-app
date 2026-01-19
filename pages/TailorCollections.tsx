@@ -15,7 +15,7 @@ import { getActiveOrdersForProduct } from '../services/orderService';
 import { getDefaultImagesForCategory, type DefaultImageOption } from '../utils/defaultImages';
 import { useAppStore } from '../src/store/useAppStore';
 import { preloadImages } from '../src/utils/imagePreloader';
-import { StableImage } from '../src/components/StableImage';
+import { StableImage } from '../components/StableImage';
 
 type UploadItemStatus = 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
 type SaveJobStatus = 'uploading' | 'saving' | 'done' | 'error';

@@ -4,7 +4,7 @@ import { ArrowRight, MapPin, Star, CheckCircle2, Search, Filter, Grid, List } fr
 import { Tailor, Region } from '../types';
 import { getTailors } from '../services/mockService';
 import { getSpecializationLabel } from '../utils/specializationHelper';
-import { StableImage } from '../src/components/StableImage';
+import { StableImage } from '../components/StableImage';
 
 const REGIONS: { id: Region | 'All', name: string }[] = [
   { id: 'All', name: 'الكل' },

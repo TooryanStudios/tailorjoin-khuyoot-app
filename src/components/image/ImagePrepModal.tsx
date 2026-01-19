@@ -13,10 +13,8 @@ import { exportCroppedImage } from '../../utils/image/exportCroppedImage';
 import { usePrivacyShield } from '../../modules/PrivacyShield';
 import { traceStep } from '../../utils/trace';
 
-const DEFAULT_ASPECT = 9 / 16;
-
-function getCenteredAspectCrop(mediaWidth: number, mediaHeight: number): Crop {
-  const base = makeAspectCrop({ unit: '%', width: 90 }, DEFAULT_ASPECT, mediaWidth, mediaHeight);
+function getCenteredAspectCrop(mediaWidth: number, mediaHeight: number, aspect: number): Crop {
+  const base = makeAspectCrop({ unit: '%', width: 90 }, aspect, mediaWidth, mediaHeight);
   return centerCrop(base, mediaWidth, mediaHeight);
 }
 
@@ -29,12 +27,26 @@ export type ImagePrepModalProps = {
     processed: File,
     meta?: {
       privacyApplied?: boolean;
+      fabricMaterial?: 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null;
     }
   ) => void | Promise<void>;
+  mode?: 'template' | 'fabric'; // template = show privacy controls, fabric = hide privacy controls
+  fabricMaterial?: 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null;
+  onFabricMaterialChange?: (next: 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null) => void;
 };
 
 export function ImagePrepModal(props: ImagePrepModalProps) {
-  const { isOpen, file, onCancel, onApply, onReplaceFile } = props;
+  const {
+    isOpen,
+    file,
+    onCancel,
+    onApply,
+    onReplaceFile,
+    mode = 'template',
+    fabricMaterial: fabricMaterialValue,
+    onFabricMaterialChange,
+  } = props;
+  const isTemplateMode = mode === 'template';
 
   const rebrowseInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -78,6 +90,16 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
   const [showAdvancedSettings, setShowAdvancedSettings] = React.useState(false);
   const [isDraggingCrop, setIsDraggingCrop] = React.useState(false);
   const [maskRequestNonce, setMaskRequestNonce] = React.useState(0);
+  const [imageLoadNonce, setImageLoadNonce] = React.useState(0);
+  const [fabricMaterial, setFabricMaterial] = React.useState<
+    'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null
+  >(fabricMaterialValue ?? null);
+
+  React.useEffect(() => {
+    if (isTemplateMode) return;
+    if (fabricMaterialValue === undefined) return;
+    setFabricMaterial(fabricMaterialValue ?? null);
+  }, [fabricMaterialValue, isTemplateMode]);
 
   const requestMaskRefresh = React.useCallback(() => {
     // Cancel any in-flight masking job so we don't swap the image mid-interaction.
@@ -117,6 +139,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
     setSelectedEmoji,
     processImage: processWithPrivacyShield,
     isProcessingPrivacy,
+    detectorError,
   } = usePrivacyShield();
 
   const applyMaskToDisplayedImage = React.useCallback(async () => {
@@ -135,6 +158,10 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
     });
 
     try {
+      if (detectorError) {
+        setError('فشل تفعيل كاشف الوجه. تحقق من الاتصال أو أعد المحاولة.');
+        return;
+      }
       const focusRectRaw = getCropPx();
       const focusRect = (() => {
         if (!focusRectRaw || !imgEl) return null;
@@ -161,6 +188,10 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       let maskedFile = await processWithPrivacyShield(file, focusRect ? { focusRect } : undefined);
       if (maskedFile === file) {
         maskedFile = await processWithPrivacyShield(file);
+      }
+      if (maskedFile === file) {
+        setError('لم يتم العثور على وجه في الصورة الحالية. حاول تكبير منطقة القص أو اختيار صورة أوضح.');
+        return;
       }
 
       if (unmountedRef.current || !isOpenRef.current || jobId !== maskJobIdRef.current) return;
@@ -189,7 +220,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
         setProgressText(null);
       }
     }
-  }, [blurStrength, file, getCropPx, maskingStyle, processWithPrivacyShield, selectedEmoji]);
+  }, [blurStrength, detectorError, file, getCropPx, maskingStyle, processWithPrivacyShield, selectedEmoji]);
 
   // Load file into object URL
   React.useEffect(() => {
@@ -259,46 +290,84 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
     if (!isOpen) return;
     setIsApplying(false);
     setCompletedCrop(null);
-    setPrivacyMode(true); // Privacy ON by default
+    // Privacy ON by default for templates, OFF for fabrics
+    setPrivacyMode(isTemplateMode);
     setShowAdvancedSettings(false);
-    requestMaskRefresh();
-  }, [isOpen, requestMaskRefresh, setPrivacyMode]);
+    if (!isTemplateMode) {
+      setFabricMaterial(fabricMaterialValue ?? null);
+    }
+    if (isTemplateMode) {
+      requestMaskRefresh();
+    }
+  }, [fabricMaterialValue, isOpen, isTemplateMode, requestMaskRefresh, setPrivacyMode]);
 
   // If privacy is enabled, apply mask once to the displayed image.
   // This is intentionally NOT "live" while dragging; it only runs on toggle or initial open.
+  // Skip entirely for fabric mode.
   React.useEffect(() => {
+    if (!isTemplateMode) return; // Skip for fabric mode
     if (!isOpen) return;
     if (!file) return;
     if (!isPrivacyMode) return;
     if (maskedImgUrlRef.current) return;
     if (!imgRef.current) return;
-    if (!crop) return;
     if (isDraggingCrop) return;
 
     void applyMaskToDisplayedImage();
-  }, [applyMaskToDisplayedImage, crop, file, isDraggingCrop, isOpen, isPrivacyMode, maskRequestNonce]);
+  }, [applyMaskToDisplayedImage, crop, file, imageLoadNonce, isDraggingCrop, isOpen, isPrivacyMode, isTemplateMode, maskRequestNonce]);
+
+  // Refresh mask when privacy settings change
+  React.useEffect(() => {
+    if (!isTemplateMode) return; // Skip for fabric mode
+    if (!isOpen) return;
+    if (!file) return;
+    if (!isPrivacyMode) return;
+    requestMaskRefresh();
+  }, [blurStrength, file, isOpen, isPrivacyMode, isTemplateMode, maskingStyle, requestMaskRefresh, selectedEmoji]);
 
   const onImageLoad = React.useCallback((e: React.SyntheticEvent<HTMLImageElement>) => {
     const img = e.currentTarget;
     imgRef.current = img;
+    setImageLoadNonce((n) => n + 1);
 
     traceStep('ImagePrepModal IMAGE_LOADED', {
       w: img.naturalWidth,
       h: img.naturalHeight,
     });
 
-    // Initialize crop only when a NEW file is loaded.
+    // Initialize crop when a NEW file is loaded, or if crop is missing.
     const sig = file ? `${file.name}:${file.size}:${file.lastModified}` : '';
-    if (sig && lastFileSigRef.current !== sig) {
+    if (sig && (lastFileSigRef.current !== sig || !crop)) {
       lastFileSigRef.current = sig;
-      const initialCrop = getCenteredAspectCrop(img.width, img.height);
+      const baseWidth = img.naturalWidth || img.width;
+      const baseHeight = img.naturalHeight || img.height;
+      const defaultAspect = isTemplateMode ? 9 / 16 : 1;
+      const initialCrop = getCenteredAspectCrop(baseWidth, baseHeight, defaultAspect);
       setCrop(initialCrop);
-      setCompletedCrop(convertToPixelCrop(initialCrop, img.width, img.height));
+      setCompletedCrop(convertToPixelCrop(initialCrop, baseWidth, baseHeight));
+      if (isPrivacyMode) {
+        requestMaskRefresh();
+      }
       return;
     }
 
     // Otherwise (e.g., toggling masked/original src), keep existing crop.
-  }, [file]);
+  }, [crop, file, isPrivacyMode, isTemplateMode, requestMaskRefresh]);
+
+  React.useEffect(() => {
+    if (!isOpen) return;
+    if (!file) return;
+    if (crop) return;
+    const img = imgRef.current;
+    if (!img) return;
+    const baseWidth = img.naturalWidth || img.width;
+    const baseHeight = img.naturalHeight || img.height;
+    if (!baseWidth || !baseHeight) return;
+    const defaultAspect = isTemplateMode ? 9 / 16 : 1;
+    const initialCrop = getCenteredAspectCrop(baseWidth, baseHeight, defaultAspect);
+    setCrop(initialCrop);
+    setCompletedCrop(convertToPixelCrop(initialCrop, baseWidth, baseHeight));
+  }, [crop, file, imgSrc, isOpen, isTemplateMode]);
 
   const handleApply = async () => {
     setError(null);
@@ -352,13 +421,14 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
 
       // If privacy is enabled, apply real local face masking before continuing.
       const privacyApplied = Boolean(isPrivacyMode);
+      const selectedFabricMaterial = isTemplateMode ? null : fabricMaterial;
 
       // No second privacy pass here: privacy (if enabled) is applied to the displayed image
       // before cropping. So cropping already includes the mask.
 
       setProgressText('جاري تحديث المعاينة...');
       traceStep('Parent onApply START', { privacyApplied });
-      await onApply(processedFile, { privacyApplied });
+      await onApply(processedFile, { privacyApplied, fabricMaterial: selectedFabricMaterial });
       traceStep('Parent onApply DONE');
     } catch (e: any) {
       setError(e?.message || 'Failed to process image');
@@ -410,53 +480,55 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
         </div>
       }
       headerActions={
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => {
-              const next = !isPrivacyMode;
-              setPrivacyMode(next);
-              if (next) {
-                // Force a fresh mask preview.
-                const originalUrl = originalImgUrlRef.current;
-                if (originalUrl) setImgSrc(originalUrl);
-                requestMaskRefresh();
-              } else {
-                maskJobIdRef.current += 1;
-                setIsMaskingForDisplay(false);
-                setProgressText(null);
-                const originalUrl = originalImgUrlRef.current;
-                if (originalUrl) setImgSrc(originalUrl);
-                setShowAdvancedSettings(false);
-              }
-            }}
-            disabled={isApplying || isMaskingForDisplay}
-            className={`p-2 rounded-lg transition-all border ${
-              isPrivacyMode
-                ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
-            } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
-            title={isPrivacyMode ? 'تعطيل إخفاء الوجه' : 'تفعيل إخفاء الوجه'}
-            aria-pressed={isPrivacyMode}
-          >
-            <span className={`text-lg ${isPrivacyMode ? '' : 'opacity-90'}`}>🎭</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-            disabled={!isPrivacyMode || isApplying || isMaskingForDisplay}
-            className={`p-2 rounded-lg transition-all ${
-              !isPrivacyMode || isApplying || isMaskingForDisplay
-                ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                : showAdvancedSettings
-                  ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                  : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-            }`}
-            title={isPrivacyMode ? 'إعدادات متقدمة' : 'فعّل إخفاء الوجه لإظهار الإعدادات'}
-          >
-            <Settings size={18} />
-          </button>
-        </div>
+        isTemplateMode ? (
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => {
+                const next = !isPrivacyMode;
+                setPrivacyMode(next);
+                if (next) {
+                  // Force a fresh mask preview.
+                  const originalUrl = originalImgUrlRef.current;
+                  if (originalUrl) setImgSrc(originalUrl);
+                  requestMaskRefresh();
+                } else {
+                  maskJobIdRef.current += 1;
+                  setIsMaskingForDisplay(false);
+                  setProgressText(null);
+                  const originalUrl = originalImgUrlRef.current;
+                  if (originalUrl) setImgSrc(originalUrl);
+                  setShowAdvancedSettings(false);
+                }
+              }}
+              disabled={isApplying || isMaskingForDisplay}
+              className={`p-2 rounded-lg transition-all border ${
+                isPrivacyMode
+                  ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
+              } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
+              title={isPrivacyMode ? 'تعطيل إخفاء الوجه' : 'تفعيل إخفاء الوجه'}
+              aria-pressed={isPrivacyMode}
+            >
+              <span className={`text-lg ${isPrivacyMode ? '' : 'opacity-90'}`}>🎭</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+              disabled={!isPrivacyMode || isApplying || isMaskingForDisplay}
+              className={`p-2 rounded-lg transition-all ${
+                !isPrivacyMode || isApplying || isMaskingForDisplay
+                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                  : showAdvancedSettings
+                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                    : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+              title={isPrivacyMode ? 'إعدادات متقدمة' : 'فعّل إخفاء الوجه لإظهار الإعدادات'}
+            >
+              <Settings size={18} />
+            </button>
+          </div>
+        ) : null
       }
     >
       <input
@@ -530,6 +602,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 }}
                 onDragEnd={() => {
                   setIsDraggingCrop(false);
+                  if (isPrivacyMode) {
+                    requestMaskRefresh();
+                  }
                 }}
                 keepSelection
                 // NOTE: `disabled` hides resize handles in react-image-crop.
@@ -545,6 +620,47 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
               </ReactCrop>
             </div>
           </div>
+
+          {!isTemplateMode && (
+            <div className="mb-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5">
+              <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+                نوع القماش
+              </div>
+              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                {[
+                  { id: null, label: 'بدون', icon: '➖' },
+                  { id: 'transparent', label: 'شفاف', icon: '🫧' },
+                  { id: 'silk', label: 'حرير', icon: '🧵' },
+                  { id: 'cotton', label: 'قطن', icon: '☁️' },
+                  { id: 'linen', label: 'كتان', icon: '🌾' },
+                  { id: 'velvet', label: 'مخمل', icon: '✨' },
+                  { id: 'wool', label: 'صوف', icon: '🧶' },
+                ].map((material) => {
+                  const isActive = fabricMaterial === material.id;
+                  return (
+                    <button
+                      key={material.label}
+                      type="button"
+                      onClick={() => {
+                        const nextValue = material.id as typeof fabricMaterial;
+                        setFabricMaterial(nextValue);
+                        onFabricMaterialChange?.(nextValue ?? null);
+                      }}
+                      className={`flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all ${
+                        isActive
+                          ? 'border-purple-500 bg-purple-500/15 text-purple-600 dark:text-purple-300'
+                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                      }`}
+                      title={material.label}
+                    >
+                      <span className="text-sm">{material.icon}</span>
+                      <span className="truncate">{material.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Advanced Privacy Settings - Collapsible & Compact */}
           {isPrivacyMode && showAdvancedSettings && (

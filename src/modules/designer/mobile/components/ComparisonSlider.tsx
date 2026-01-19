@@ -19,7 +19,11 @@ export type ComparisonSliderProps = {
 };
 
 const CanvasPlaceholder = React.memo(function CanvasPlaceholder() {
-  return null;
+  return (
+    <div className="absolute inset-0 flex items-center justify-center">
+      <div className="w-full max-w-[320px] px-4 text-center" />
+    </div>
+  );
 });
 
 export const ComparisonSlider = React.memo(function ComparisonSlider(props: ComparisonSliderProps) {
@@ -48,19 +52,19 @@ export const ComparisonSlider = React.memo(function ComparisonSlider(props: Comp
   const introFabricDisabled = Boolean(showIntroCards);
 
   return (
-    <div className="h-full w-full pt-0 pb-0 sm:pt-2 sm:pb-2">
+    <div className="h-full w-full px-6 py-3">
       <div
         className={
-          'relative h-full w-full rounded-xl overflow-hidden border ' +
+          'relative h-full w-full rounded-xl overflow-hidden border border-2 ' +
           (isEmptyPlaceholder
-            ? 'border-dashed border-zinc-700/80 bg-zinc-900'
-            : 'border-solid border-zinc-800/70 bg-zinc-950')
+            ? 'border-dashed border-zinc-600/40 bg-zinc-900/60'
+            : 'border-solid border-zinc-800/60 bg-zinc-950')
         }
       >
         {!hasAny && <CanvasPlaceholder />}
 
         {showIntroCards && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-3 flex items-center justify-center">
             <div className="w-full max-w-[320px] px-4">
               <p className="mb-3 text-center text-xs font-medium text-white/70">👇 ابدأ باختيار القالب ثم الخامة</p>
 
@@ -68,7 +72,7 @@ export const ComparisonSlider = React.memo(function ComparisonSlider(props: Comp
                 <button
                   type="button"
                   onClick={onUploadTemplate}
-                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-zinc-600/80 bg-zinc-950/60 px-4 py-6 text-zinc-100 transition-colors hover:bg-zinc-900/40 hover:border-zinc-500/90 active:scale-95"
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-zinc-600/50 bg-zinc-950/40 px-4 py-6 text-zinc-100 transition-colors hover:bg-zinc-900/40 hover:border-zinc-500/70 active:scale-95"
                 >
                   <div className="h-14 w-14 rounded-2xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-zinc-200">
@@ -83,7 +87,7 @@ export const ComparisonSlider = React.memo(function ComparisonSlider(props: Comp
                 <button
                   type="button"
                   onClick={onOpenTemplates}
-                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-950/60 px-4 py-6 text-zinc-100 transition-colors hover:bg-zinc-900/40 active:scale-95"
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border-2 border-zinc-800/60 bg-zinc-950/40 px-4 py-6 text-zinc-100 transition-colors hover:bg-zinc-900/40 active:scale-95"
                 >
                   <div className="h-14 w-14 rounded-2xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">
                     <svg width="28" height="28" viewBox="0 0 24 24" fill="none" className="text-zinc-200">
@@ -102,8 +106,8 @@ export const ComparisonSlider = React.memo(function ComparisonSlider(props: Comp
                   className={
                     'group col-span-2 flex flex-col items-center justify-center gap-3 rounded-2xl border px-4 py-6 transition-colors ' +
                     (introFabricDisabled
-                      ? 'border-zinc-900 bg-zinc-950/40 text-zinc-500 cursor-not-allowed'
-                      : 'border-zinc-800 bg-zinc-950/60 text-zinc-100 hover:bg-zinc-900/40 active:scale-95')
+                      ? 'border-2 border-zinc-900/60 bg-zinc-950/40 text-zinc-500 cursor-not-allowed'
+                      : 'border-2 border-zinc-800/60 bg-zinc-950/40 text-zinc-100 hover:bg-zinc-900/40 active:scale-95')
                   }
                 >
                   <div className="h-14 w-14 rounded-2xl border border-zinc-800 bg-zinc-900/40 flex items-center justify-center">

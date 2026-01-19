@@ -1,12 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home } from 'lucide-react';
+import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
 import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { DevSectionAnchor } from './components/DevSectionAnchor';
+import { UpgradeModal } from '../components/DesignerV2_1/UpgradeModal';
+import { createPortal } from 'react-dom';
+import { useModalStore } from '../store/useModalStore';
 import { DashboardOverview } from './dashboard/DashboardOverview';
 import { OrdersTable } from './orders/OrdersTable';
 import { FabricLibrary } from './fabrics/FabricLibrary';
@@ -19,7 +22,6 @@ import { MeasurementTemplates } from './measurements/MeasurementTemplates';
 import { ProductsManagement } from './products/ProductsManagement';
 import { OrphanedProducts } from './products/OrphanedProducts';
 import { HomePageSettings } from './settings/HomePageSettings';
-import { HomePageV2Settings } from './settings/HomePageV2Settings';
 import { DesignerSettings } from './settings/DesignerSettings';
 import { SiteTextsSettings } from './settings/SiteTextsSettings';
 import { SocialMediaSettings } from './settings/SocialMediaSettings';
@@ -59,11 +61,11 @@ type AdminSection =
   | 'config' 
   | 'logs';
 
-type ConfigSection = 'general' | 'homepage' | 'homepage-v2' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
+type ConfigSection = 'general' | 'homepage' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
 
 type ExtendedConfigSection = ConfigSection | 'designer';
 
-const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'homepage-v2', 'texts', 'social', 'seo', 'advanced', 'product-page'];
+const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page'];
 
 function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
   // Supported:
@@ -119,6 +121,8 @@ export const AdminApp = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
   const [isSmallScreen, setIsSmallScreen] = useState(getIsSmallScreen);
+  const { isUpgradeModalOpen, setIsUpgradeModalOpen } = useModalStore();
+  const [isFullScreenMode, setIsFullScreenMode] = useState<boolean>(false);
 
   const setSidebarOpenPersisted = (next: boolean) => {
     setSidebarOpen(next);
@@ -385,16 +389,6 @@ export const AdminApp = () => {
             المصمم
           </button>
           <button
-            onClick={() => navigate('/admin/config/homepage-v2')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
-              configSection === 'homepage-v2'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
-            }`}
-          >
-            Homepage 2.1
-          </button>
-          <button
             onClick={() => navigate('/admin/config/product-page')}
             className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
               configSection === 'product-page'
@@ -450,8 +444,6 @@ export const AdminApp = () => {
           <HomePageSettings />
           ) : configSection === 'designer' ? (
             <DesignerSettings />
-        ) : configSection === 'homepage-v2' ? (
-          <HomePageV2Settings />
         ) : configSection === 'product-page' ? (
           <ProductPageSettings />
         ) : configSection === 'texts' ? (
@@ -971,6 +963,27 @@ export const AdminApp = () => {
               >
                 <Home size={20} />
               </button>
+              <button
+                onClick={() => {
+                  console.log('🔘 AdminApp - Show Upgrade Modal clicked');
+                  setIsUpgradeModalOpen(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg font-semibold text-sm"
+                title="عرض نافذة الترقية"
+              >
+                🪙 عرض نافذة الترقية
+              </button>
+              <button
+                onClick={() => {
+                  console.log('🖥️ AdminApp - Opening full-screen dashboard mode');
+                  setIsFullScreenMode(true);
+                }}
+                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg font-semibold text-sm flex items-center gap-2"
+                title="فتح لوحة التحكم في نافذة منفصلة"
+              >
+                <Maximize2 size={16} />
+                فتح منفصل
+              </button>
               <div className="relative hidden md:block">
                  <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-slate-100 dark:bg-zinc-800 border-none rounded-full text-xs w-64 focus:ring-1 focus:ring-purple-500" />
                  <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
@@ -996,6 +1009,70 @@ export const AdminApp = () => {
         >
           {renderContent()}
         </main>
+
+        {/* Full-Screen Dashboard Modal */}
+        {isFullScreenMode && createPortal(
+          <div className="fixed inset-0 z-[9999] bg-zinc-950 overflow-hidden flex flex-col">
+            {/* Header */}
+            <div className="h-16 bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-zinc-700 px-6 flex items-center justify-between shadow-xl">
+              <div className="flex items-center gap-3">
+                <Shield className="text-purple-400" size={28} />
+                <div>
+                  <h1 className="text-lg font-bold text-white">لوحة التحكم - وضع منفصل</h1>
+                  <p className="text-xs text-zinc-400">Admin Dashboard - Full Screen Mode</p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  console.log('❌ AdminApp - Closing full-screen dashboard mode');
+                  setIsFullScreenMode(false);
+                }}
+                className="p-2 hover:bg-zinc-700 rounded-lg text-zinc-300 hover:text-white transition-colors"
+                title="إغلاق النافذة المنفصلة"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            {/* Content Area */}
+            <div className="flex-1 overflow-y-auto p-6">
+              <div className="max-w-full">
+                <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden shadow-xl shadow-purple-900/20 p-8">
+                  <div className="text-center mb-8">
+                    <h2 className="text-3xl font-bold text-white mb-2">لوحة التحكم الرئيسية</h2>
+                    <p className="text-zinc-400">هذه نسخة منفصلة من لوحة التحكم بدون حاويات الوالد</p>
+                  </div>
+
+                  {/* Dashboard Content Grid */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                    {[
+                      { icon: <Users size={32} />, title: 'المستخدمون', count: users.length, color: 'from-blue-600 to-blue-700', icon_color: 'text-blue-300' },
+                      { icon: <ShoppingCart size={32} />, title: 'الطلبات', count: orders.length, color: 'from-orange-600 to-orange-700', icon_color: 'text-orange-300' },
+                      { icon: <Scissors size={32} />, title: 'الخياطون', count: tailors.length, color: 'from-purple-600 to-purple-700', icon_color: 'text-purple-300' },
+                      { icon: <Package size={32} />, title: 'المنتجات', count: '1,234', color: 'from-emerald-600 to-emerald-700', icon_color: 'text-emerald-300' },
+                      { icon: <Building2 size={32} />, title: 'المحلات', count: '45', color: 'from-pink-600 to-pink-700', icon_color: 'text-pink-300' },
+                      { icon: <FileText size={32} />, title: 'السجلات', count: 'N/A', color: 'from-indigo-600 to-indigo-700', icon_color: 'text-indigo-300' },
+                    ].map((item, idx) => (
+                      <div key={idx} className={`bg-gradient-to-br ${item.color} rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow`}>
+                        <div className={`${item.icon_color} mb-4 opacity-80`}>{item.icon}</div>
+                        <h3 className="text-white font-bold mb-1">{item.title}</h3>
+                        <p className="text-white/90 text-2xl font-extrabold">{item.count}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Info Message */}
+                  <div className="bg-purple-500/15 border border-purple-500/30 rounded-xl p-6 text-center">
+                    <p className="text-purple-200 text-sm">
+                      ✨ هذه لوحة تحكم منفصلة وكاملة بدون أي حاويات أو أشرطة جانبية - تعمل كنافذة مستقلة تماماً
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
+        )}
       </div>
     </div>
   );

@@ -1,14 +1,14 @@
 import { QueryClient } from '@tanstack/react-query'
 
-// ✅ Optimized for Stale-While-Revalidate (SWR) pattern with FRESH data priority
+// ✅ PERFORMANCE OPTIMIZATION: Zero-Lag SPA patterns
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 1000 * 60 * 1, // ✅ Data fresh for 1 minute only (SAFETY: prevent stale data)
-      gcTime: 1000 * 60 * 10, // retain cache for 10 minutes
+      staleTime: 1000 * 60 * 60 * 24, // ✅ Keep data fresh for 24 hours (use manual invalidation if needed)
+      gcTime: 1000 * 60 * 60 * 48, // retain cache for 48 hours
       retry: 1,
-      refetchOnWindowFocus: true, // ✅ CRITICAL: Always fetch fresh data when user returns to tab
-      refetchOnMount: 'always', // ✅ CRITICAL: Always fetch fresh data on component mount
+      refetchOnWindowFocus: false, // Don't refetch on tab switch (annoying in SPA)
+      refetchOnMount: false, // Don't refetch on mount if data is present
     },
   },
 })

@@ -160,12 +160,28 @@
             window.location.href = '/';
         }
         
-        // Auto-run on load if URL has ?auto parameter
-        if (window.location.search.includes('auto')) {
-            window.addEventListener('load', () => {
-                setTimeout(cleanAll, 500);
-            });
-        }
+        // Auto-run on load if URL has ?auto=1 and then return to the original URL.
+        (function () {
+            try {
+                const params = new URLSearchParams(window.location.search);
+                const shouldAuto = params.get('auto') === '1' || params.has('auto');
+                const returnTo = params.get('return') || '/';
+                if (!shouldAuto) return;
+
+                window.addEventListener('load', async () => {
+                    try {
+                        await cleanAll();
+                    } catch (e) {
+                        // ignore
+                    }
+                    setTimeout(() => {
+                        window.location.href = returnTo;
+                    }, 600);
+                });
+            } catch {
+                // no-op
+            }
+        })();
     </script>
 </body>
 </html>

@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useOutletContext } from 'react-router-dom';
 import type { DemoShellOutletContext } from './DemoShellLayout';
+import { useThumbnail } from '../../hooks/useThumbnailCache';
 
 type DemoImageCardProps = {
   src: string;
@@ -8,6 +9,8 @@ type DemoImageCardProps = {
 };
 
 function DemoImageCard({ src, loaded }: DemoImageCardProps) {
+  const displaySrc = useThumbnail(src, { maxEntries: 100 });
+  
   return (
     <div className="rounded-2xl border border-slate-200 dark:border-slate-800 overflow-hidden bg-white dark:bg-slate-900">
       <div className="px-3 py-2 flex items-center justify-between gap-3">
@@ -19,13 +22,13 @@ function DemoImageCard({ src, loaded }: DemoImageCardProps) {
               : 'text-xs font-semibold text-slate-500 dark:text-slate-400'
           }
         >
-          {loaded ? 'Loaded' : 'Loading'}
+          {displaySrc?.startsWith('blob:') ? 'Unified Blob' : 'Loading'}
         </div>
       </div>
 
       <div className="relative w-full aspect-[16/9] bg-slate-100 dark:bg-slate-950">
         <img
-          src={src}
+          src={displaySrc || src}
           alt=""
           className="absolute inset-0 w-full h-full object-contain"
           loading="lazy"
@@ -37,15 +40,13 @@ function DemoImageCard({ src, loaded }: DemoImageCardProps) {
 }
 
 export function DemoShellPageB() {
-  const renderCountRef = React.useRef(0);
-  
-  React.useEffect(() => {
-    renderCountRef.current++;
-    console.log(`[PageB] Render #${renderCountRef.current}`);
-  });
-  
   const { pageCounters, setPageCounter, imageUrls, imageLoadedMap } = useOutletContext<DemoShellOutletContext>();
   const pageCounter = pageCounters.b;
+
+  React.useEffect(() => {
+    return () => {};
+  }, []);
+
 
   return (
     <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl p-5">
@@ -82,7 +83,7 @@ export function DemoShellPageB() {
 
       <div className="mt-8 flex justify-end">
         <Link
-          to="/demo-shell/a"
+          to="a"
           className="inline-flex items-center justify-center h-10 px-4 rounded-lg bg-purple-600 text-white font-semibold shadow-lg shadow-purple-500/30 hover:bg-purple-700 transition"
         >
           Return to Page A (check slider)

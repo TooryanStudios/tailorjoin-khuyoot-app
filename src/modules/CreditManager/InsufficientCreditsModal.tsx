@@ -1,5 +1,7 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { X, AlertTriangle } from 'lucide-react';
+import { useModalStore } from '../../store/useModalStore';
 
 export const InsufficientCreditsModal: React.FC<{
   isOpen: boolean;
@@ -8,10 +10,20 @@ export const InsufficientCreditsModal: React.FC<{
   balance: number;
   actionLabel?: string;
 }> = ({ isOpen, onClose, required, balance, actionLabel }) => {
+  const { setIsUpgradeModalOpen } = useModalStore();
+  React.useEffect(() => {
+    if (isOpen) {
+      try { document.body.classList.add('modal-open'); } catch {}
+    }
+    return () => {
+      try { document.body.classList.remove('modal-open'); } catch {}
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-[110] flex items-center justify-center">
+  return createPortal(
+    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
       <div className="relative w-full max-w-md mx-4 border border-zinc-800 rounded-2xl bg-zinc-950 overflow-hidden">
@@ -48,6 +60,17 @@ export const InsufficientCreditsModal: React.FC<{
           <div className="mt-4 space-y-3">
             <button
               type="button"
+              onClick={() => {
+                // Open the upgrade/refill modal directly
+                try { setIsUpgradeModalOpen(true); } catch {}
+                onClose();
+              }}
+              className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-colors"
+            >
+              Refill Credits
+            </button>
+            <button
+              type="button"
               onClick={onClose}
               className="w-full px-4 py-3 bg-zinc-800 text-zinc-200 font-semibold rounded-lg hover:bg-zinc-700 transition-colors"
             >
@@ -56,6 +79,7 @@ export const InsufficientCreditsModal: React.FC<{
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

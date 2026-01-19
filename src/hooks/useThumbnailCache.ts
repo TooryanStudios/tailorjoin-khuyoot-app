@@ -21,7 +21,13 @@ const inFlight = new Map<string, Promise<string>>();
 
 function bump() {
   version += 1;
-  for (const l of listeners) l();
+  listeners.forEach((l) => {
+    try {
+      l();
+    } catch (e) {
+      console.error('[Thumbnail Cache] Listener crash:', e);
+    }
+  });
 }
 
 function readMeta(): CacheMetaV1 | null {
@@ -140,9 +146,6 @@ export function useThumbnailCache(params?: { maxEntries?: number; enabled?: bool
     }
   }, [enabled]);
 
-  // Re-render when cache changes
-  React.useSyncExternalStore(subscribe, getSnapshot, getServerSnapshot);
-
   const getThumbnailSrc = React.useCallback(
     (remoteUrl: string | null | undefined) => {
       if (!enabled) return remoteUrl ?? null;
@@ -151,7 +154,6 @@ export function useThumbnailCache(params?: { maxEntries?: number; enabled?: bool
 
       const entry = entries.get(remoteUrl);
       if (entry?.blobUrl) {
-        touch(remoteUrl);
         return entry.blobUrl;
       }
 
@@ -175,3 +177,40 @@ export function useThumbnailCache(params?: { maxEntries?: number; enabled?: bool
 
   return { getThumbnailSrc, prefetchThumbnails };
 }
+
+/**
+ * 🚀 SELECTIVE CACHE HOOK:
+ * Only re-renders when the SPECIFIC url's blob availability changes.
+ * This prevents the massive global re-render loop while keeping UI reactive.
+ */
+export function useThumbnail(url: string | null | undefined, params?: { maxEntries?: number; enabled?: boolean }) {
+  const { getThumbnailSrc } = useThumbnailCache(params);
+  const [currentSrc, setCurrentSrc] = React.useState(() => (url ? getThumbnailSrc(url) : null));
+
+  React.useLayoutEffect(() => {
+    if (!url) {
+      setCurrentSrc(null);
+      return;
+    }
+
+    // Update if url changed
+    const initial = getThumbnailSrc(url);
+    setCurrentSrc(initial);
+
+    // If it's already a blob, no need to subscribe
+    if (initial !== url) return;
+
+    // Subscribe to cache updates
+    const unsubscribe = subscribe(() => {
+      const next = getThumbnailSrc(url);
+      if (next !== url) {
+        setCurrentSrc(next);
+      }
+    });
+
+    return unsubscribe;
+  }, [url, getThumbnailSrc]);
+
+  return currentSrc;
+}
+

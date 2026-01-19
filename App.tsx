@@ -3,11 +3,9 @@ import React from 'react';
 import './src/styles/global.css';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
+import { createPortal } from 'react-dom';
 import { AppProvider, useApp } from './context/AppContext';
 import { MainLayout } from './src/components/MainLayout';
-import { Home } from './pages/Home';
-import { HomeClassic } from './pages/Home/HomeClassic';
-import { HomeV2 } from './pages/Home/HomeV2';
 import { ProductList } from './pages/ProductList';
 import { Account } from './pages/Account';
 import { DesignerV2 as Designer } from './pages/DesignerV2';
@@ -60,11 +58,16 @@ import { LoadingShell } from './src/components/LoadingShell';
 import { NewProductPage } from './src/modules/admin/features/product-creator-v2';
 import { AppInitializer } from './src/components/AppInitializer';
 import { DesignerV2_1 } from './src/pages/DesignerV2_1/DesignerV2_1';
+import { useModalStore } from './src/store/useModalStore';
+import UpgradeModal from './src/components/DesignerV2_1/UpgradeModal';
 import { TouchPointerOverlay } from './src/components/TouchPointerOverlay';
+import { firebaseService } from './services/firebase';
 import { isAdmin } from './types/user-schema';
 import { ErrorBoundary as GlobalErrorBoundary } from './components/ErrorBoundary';
 const Drafts = React.lazy(() => import('./pages/Drafts'));
 const DevVideoLabPage = React.lazy(() => import('./src/pages/DevVideoLab/DevVideoLabPage'));
+import { NavDebugA, NavDebugB, NavDebugC, NavDebugIndex, NavDebugLayout } from './src/pages/NavDebugPage';
+import { ClientNavDebugPage } from './src/pages/ClientNavDebugPage';
 // Ensure dev.khuyoot.app defaults to designer (not tailor join)
 const DevDefaultRoute: React.FC = () => {
   // Disabled: No longer redirecting dev.khuyoot.app to /designer
@@ -182,6 +185,102 @@ const App: React.FC = () => {
 const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEnabled }) => {
   const { user } = useApp();
   const isDev = import.meta.env.DEV;
+
+  React.useEffect(() => {
+    const onClick = (event: MouseEvent) => {
+      if (event.button !== 0) return;
+      if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+
+      const target = event.target as Element | null;
+      if (!target) return;
+
+      const anchor = target.closest('a[href]') as HTMLAnchorElement | null;
+      if (!anchor) return;
+      if (anchor.hasAttribute('data-no-nav')) return;
+      if (anchor.target && anchor.target !== '_self') return;
+      if (anchor.hasAttribute('download')) return;
+
+      const href = anchor.getAttribute('href');
+      if (!href) return;
+      if (href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+
+      let url: URL;
+      try {
+        url = new URL(href, window.location.origin);
+      } catch {
+        return;
+      }
+      if (url.origin !== window.location.origin) return;
+
+      // CRITICAL: Prevent browser default and use React Router via history
+      event.preventDefault();
+      event.stopPropagation();
+      
+      // Use browser history API which React Router subscribes to
+      const pathname = url.pathname + url.search + url.hash;
+      if (pathname !== window.location.pathname + window.location.search + window.location.hash) {
+        window.history.pushState(null, '', pathname);
+        // Dispatch popstate event so React Router detects the change
+        window.dispatchEvent(new PopStateEvent('popstate'));
+      }
+    };
+
+    document.addEventListener('click', onClick, true);
+    return () => document.removeEventListener('click', onClick, true);
+  }, []);
+
+  React.useEffect(() => {
+    // Aggressively remove any blocking overlays that might intercept clicks
+    const removeBlockingOverlays = () => {
+      // Don't remove if modal is intentionally open
+      if (document.body.classList.contains('modal-open')) return;
+      
+      // Query ALL potentially blocking elements
+      const selectors = [
+        // Keep our protected modal overlays intact
+        '[data-overlay-owner]',
+        '.overlay',
+        '.backdrop',
+        '[role="dialog"]',
+        '[data-modal]',
+        '.modal-backdrop',
+        '.fixed.inset-0',
+      ];
+
+      let removed = false;
+      for (const selector of selectors) {
+        const overlays = document.querySelectorAll(selector);
+        overlays.forEach((overlay) => {
+          const style = window.getComputedStyle(overlay);
+          const isPositioned = style.position === 'fixed' || style.position === 'absolute' || style.position === 'sticky';
+          const rect = overlay.getBoundingClientRect();
+          const likelyCovers = 
+            rect.left <= 1 && 
+            rect.top <= 1 && 
+            rect.right >= window.innerWidth - 1 && 
+            rect.bottom >= window.innerHeight - 1;
+          
+          if (isPositioned && likelyCovers) {
+            // Only remove if it's not the main app container or html/body
+            // Skip protected modal overlays
+            const isProtectedModal = (overlay as HTMLElement).getAttribute('data-overlay') === 'khuyoot-modal';
+            if (isProtectedModal) return;
+
+            if (!overlay.classList.contains('app-container') && 
+                overlay.tagName !== 'HTML' && 
+                overlay.tagName !== 'BODY') {
+              overlay.remove();
+              removed = true;
+            }
+          }
+        });
+      }
+      return removed;
+    };
+
+    const interval = window.setInterval(removeBlockingOverlays, 500);
+    return () => window.clearInterval(interval);
+  }, []);
   
   return (
     <>
@@ -194,14 +293,22 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
               <GlobalErrorBoundary>
               <Routes>
                {isDev && (
-                 <Route
-                   path="/__dev/video-lab"
-                   element={
-                     <React.Suspense fallback={<LoadingShell />}>
-                       <DevVideoLabPage />
-                     </React.Suspense>
-                   }
-                 />
+                 <>
+                   <Route
+                     path="/__dev/video-lab"
+                     element={
+                       <React.Suspense fallback={<LoadingShell />}>
+                         <DevVideoLabPage />
+                       </React.Suspense>
+                     }
+                   />
+                   <Route path="/__dev/nav-debug" element={<NavDebugLayout />}>
+                     <Route index element={<NavDebugIndex />} />
+                     <Route path="a" element={<NavDebugA />} />
+                     <Route path="b" element={<NavDebugB />} />
+                     <Route path="c" element={<NavDebugC />} />
+                   </Route>
+                 </>
                )}
                {/* Standalone Admin Route (Separated from Client Layout) */}
                <Route path="/admin/*" element={<AdminApp />} />
@@ -214,11 +321,16 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                {/* Jank sandbox without ClientLayout (no header/footer) */}
                <Route path="/jank-sandbox" element={<JankSandbox />} />
 
+               {/* Designer 2.1 routes outside ClientLayout for fullscreen rendering */}
+               <Route path="/designer-v2-1" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
+               <Route path="/designer-v2-1/:productId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
+               <Route path="/designer-v2-1/design/:taskId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
+
                {/* Public App Routes */}
                <Route element={<ClientLayout />}>
-                 <Route path="/" element={<Home />} />
-                 <Route path="/home-classic" element={<HomeClassic />} />
-                 <Route path="/home-v2" element={<HomeV2 />} />
+                 {isDev && <Route path="/__dev/client-nav-debug" element={<ClientNavDebugPage />} />}
+                 {/* Canonical homepage */}
+                 <Route path="/" element={<Navigate to="/demo-shell/a" replace />} />
                  <Route path="/jackets" element={<ProductList />} />
                  <Route path="/tailor-account" element={<TailorAccount />} />
                  <Route path="/boutique-account" element={<BoutiqueAccount />} />
@@ -235,9 +347,6 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                  <Route path="/measurements-old" element={<Measurements />} />
                  <Route path="/designer" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
                  <Route path="/designer/:id" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
-                 <Route path="/designer-v2-1" element={<ErrorBoundary><DesignerV2_1 /></ErrorBoundary>} />
-                 <Route path="/designer-v2-1/:productId" element={<ErrorBoundary><DesignerV2_1 /></ErrorBoundary>} />
-                 <Route path="/designer-v2-1/design/:taskId" element={<ErrorBoundary><DesignerV2_1 /></ErrorBoundary>} />
                  <Route path="/designs" element={<DesignsList />} />
                  <Route path="/tailors" element={<TailorList />} />
                  <Route path="/tailor/:id" element={<TailorProfile />} />
@@ -287,7 +396,107 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
              </GlobalErrorBoundary>
              </CreditProvider>
             </BrowserRouter>
+            
+            {/* Global Root-Level Modal Portal */}
+            {createPortal(
+              <RootModalPortal />,
+              document.body
+            )}
     </>
+  );
+};
+
+// Separate component for root-level modals to prevent re-renders
+const RootModalPortal: React.FC = () => {
+  const { isUpgradeModalOpen, setIsUpgradeModalOpen } = useModalStore();
+
+  const handleUpgrade = async () => {
+    console.log('🚀 App - User clicked upgrade from root portal');
+    
+    const currentUser = firebaseService.auth?.currentUser;
+    if (!currentUser) {
+      console.error('❌ No user logged in');
+      throw new Error('يجب تسجيل الدخول أولاً');
+    }
+
+    console.log('🔵 User ID:', currentUser.uid);
+    
+    try {
+      console.log('🔵 Adding 200 credits (optimistic update)...');
+      
+      // Optimistic update: Read current balance and add 200 immediately
+      let currentBalance = 0;
+      try {
+        const stored = window.localStorage.getItem(`khuyoot:credits:lastBalance:${currentUser.uid}`);
+        currentBalance = stored ? parseInt(stored, 10) : 0;
+      } catch (e) {
+        console.warn('⚠️ Failed to read from localStorage:', e);
+      }
+      
+      const newBalance = currentBalance + 200;
+      
+      // Update localStorage immediately for instant UI feedback
+      try {
+        window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(newBalance));
+      } catch (e) {
+        console.warn('⚠️ Failed to save to localStorage:', e);
+      }
+      
+      console.log('✅ Credits updated in UI instantly! New balance:', newBalance);
+      
+      // Trigger event to update all credit displays immediately
+      window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
+        detail: { balance: newBalance } 
+      }));
+      
+      // Save to Firebase in the background (don't await - fire and forget)
+      firebaseService.adminAdjustCredits({
+        userId: currentUser.uid,
+        amount: 200,
+        reason: 'Upgrade bonus',
+      }).then(result => {
+        console.log('✅ Credits synced to Firebase! Server balance:', result.new_balance);
+        
+        // If server balance differs from optimistic update, sync it
+        if (result?.new_balance != null && result.new_balance !== newBalance) {
+          try {
+            window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(result.new_balance));
+            window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
+              detail: { balance: result.new_balance } 
+            }));
+            console.log('🔄 Balance corrected to server value:', result.new_balance);
+          } catch (e) {
+            console.warn('⚠️ Failed to sync server balance:', e);
+          }
+        }
+      }).catch(error => {
+        console.error('❌ Failed to save credits to Firebase:', error);
+        // Revert optimistic update on error
+        try {
+          window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(currentBalance));
+          window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
+            detail: { balance: currentBalance } 
+          }));
+          console.log('🔄 Reverted to previous balance due to error:', currentBalance);
+        } catch (e) {
+          console.warn('⚠️ Failed to revert balance:', e);
+        }
+      });
+    } catch (error: any) {
+      console.error('❌ Failed to add credits:', error);
+      throw new Error(error?.message || 'فشل في إضافة الرصيد');
+    }
+  };
+
+  return (
+    <UpgradeModal
+      isOpen={isUpgradeModalOpen}
+      onClose={() => {
+        console.log('🔴 RootModalPortal - UpgradeModal CLOSE clicked');
+        setIsUpgradeModalOpen(false);
+      }}
+      onUpgradeClick={handleUpgrade}
+    />
   );
 };
 

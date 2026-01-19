@@ -17,17 +17,20 @@ export const BoutiqueAccount = () => {
   const [shopOrders, setShopOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Redirect users who are not boutique AFTER user loads to avoid white screens
+  // Redirect users who are not a tailor with shopType 'boutique'
   useEffect(() => {
     if (!user) return;
+    const shopType = (user as any)?.shopType;
     if (user.role === 'tailor') {
-      navigate('/tailor-account', { replace: true });
+      if (shopType !== 'boutique') {
+        navigate('/tailor-account', { replace: true });
+        return;
+      }
+      // Tailor with boutique shopType stays on BoutiqueAccount
       return;
     }
-    if (user.role !== 'boutique') {
-      navigate('/account', { replace: true });
-      return;
-    }
+    // Non-tailor users go to generic account
+    navigate('/account', { replace: true });
   }, [user, navigate]);
 
   useEffect(() => {
@@ -61,7 +64,7 @@ export const BoutiqueAccount = () => {
     );
   }
 
-  if (user.role !== 'boutique') {
+  if (!(user.role === 'tailor' && (user as any)?.shopType === 'boutique')) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl p-6 text-center border border-slate-200 dark:border-slate-700">

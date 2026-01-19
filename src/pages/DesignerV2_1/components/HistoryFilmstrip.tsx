@@ -71,7 +71,7 @@ export const HistoryFilmstrip: React.FC<HistoryFilmstripProps> = ({
     <div className="h-36 border-t border-zinc-800 bg-zinc-950 px-4">
       <div className="custom-scrollbar h-full flex items-stretch gap-3 overflow-x-auto py-3">
         {isLoading && history.length === 0 && [1, 2, 3].map((i) => (
-          <div key={i} className="h-full w-32 shrink-0 rounded-lg bg-zinc-900 animate-pulse" />
+          <div key={`history-skeleton-${i}`} className="h-full w-32 shrink-0 rounded-lg bg-zinc-900 animate-pulse" />
         ))}
 
         {!isLoading && history.length === 0 && (

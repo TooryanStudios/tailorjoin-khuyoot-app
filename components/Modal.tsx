@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { X, Check } from 'lucide-react';
 
 interface ModalProps {
@@ -34,6 +35,9 @@ export const Modal: React.FC<ModalProps> = ({
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
+  const scrollLockAppliedRef = useRef(false);
+  const prevBodyOverflowRef = useRef<string>('');
+  const prevHtmlOverflowRef = useRef<string>('');
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -42,40 +46,59 @@ export const Modal: React.FC<ModalProps> = ({
 
     if (isOpen) {
       document.addEventListener('keydown', handleEscape);
+
       if (!modeless) {
-        // Save scroll position before hiding overflow
-        scrollPositionRef.current = window.scrollY;
-        document.body.style.position = 'fixed';
-        document.body.style.top = `-${scrollPositionRef.current}px`;
-        document.body.style.width = '100%';
-        document.body.style.overflow = 'hidden';
+        try {
+          // Prefer overflow locking over position:fixed. It's significantly less likely
+          // to cause mobile Safari layout "crush" / viewport glitches.
+          scrollPositionRef.current = window.scrollY;
+
+          prevBodyOverflowRef.current = document.body.style.overflow;
+          prevHtmlOverflowRef.current = document.documentElement.style.overflow;
+
+          document.body.style.overflow = 'hidden';
+          document.documentElement.style.overflow = 'hidden';
+          scrollLockAppliedRef.current = true;
+        } catch {
+          // If anything goes wrong, do not break rendering.
+          scrollLockAppliedRef.current = false;
+        }
       }
     }
 
     return () => {
       document.removeEventListener('keydown', handleEscape);
-      if (!modeless) {
-        // Restore scroll position
-        document.body.style.position = '';
-        document.body.style.top = '';
-        document.body.style.width = '';
-        document.body.style.overflow = '';
-        window.scrollTo(0, scrollPositionRef.current);
+
+      if (!modeless && scrollLockAppliedRef.current) {
+        try {
+          document.body.style.overflow = prevBodyOverflowRef.current;
+          document.documentElement.style.overflow = prevHtmlOverflowRef.current;
+        } catch {
+          // ignore
+        } finally {
+          scrollLockAppliedRef.current = false;
+        }
       }
     };
   }, [isOpen, onClose, modeless]);
 
   if (!isOpen) return null;
+  if (typeof document === 'undefined') return null;
 
   const showDebug = !!debugId && !!import.meta?.env?.DEV;
 
   const backdropClass = modeless 
-    ? "fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 pointer-events-none"
-    : "fixed inset-0 z-[100] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
+    ? "fixed inset-0 z-[1000] flex items-center justify-center p-4 pb-20 pointer-events-none"
+    : "fixed inset-0 z-[1000] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
 
-  return (
-    <div className={backdropClass} data-overlay="khuyoot-modal" data-debug-modal={debugId || undefined}>
-      <div 
+  const modalUi = (
+    <div
+      className={backdropClass}
+      data-overlay="khuyoot-modal"
+      data-debug-modal={debugId || undefined}
+      onClick={modeless ? undefined : onClose}
+    >
+      <div
         ref={modalRef}
         className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700 relative`}
         onClick={(e) => e.stopPropagation()}
@@ -86,11 +109,10 @@ export const Modal: React.FC<ModalProps> = ({
             MODAL: {debugId}
           </div>
         )}
+
         {/* Header */}
         <div className="flex items-center justify-between p-3 border-b border-slate-100 dark:border-slate-800">
-          <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-            {title}
-          </h3>
+          <h3 className="text-lg font-bold text-slate-900 dark:text-white">{title}</h3>
           <div className="flex items-center gap-2">
             {headerActions}
             <button
@@ -101,11 +123,9 @@ export const Modal: React.FC<ModalProps> = ({
             </button>
           </div>
         </div>
-        
+
         {/* Content */}
-        <div className="p-3 overflow-y-auto custom-scrollbar flex-1 flex flex-col">
-          {children}
-        </div>
+        <div className="p-3 overflow-y-auto custom-scrollbar flex-1 flex flex-col">{children}</div>
 
         {/* Custom Footer Slot */}
         {footer && (
@@ -113,7 +133,7 @@ export const Modal: React.FC<ModalProps> = ({
             {footer}
           </div>
         )}
-        
+
         {/* Fixed Footer */}
         {!footer && showFooter && (
           <div className="p-4 border-t border-slate-100 dark:border-slate-800 bg-slate-50 dark:bg-slate-800/50 rounded-b-2xl">
@@ -137,4 +157,6 @@ export const Modal: React.FC<ModalProps> = ({
       </div>
     </div>
   );
+
+  return createPortal(modalUi, document.body);
 };

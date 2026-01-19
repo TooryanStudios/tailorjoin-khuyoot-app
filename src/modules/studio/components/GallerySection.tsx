@@ -18,7 +18,7 @@ export const GallerySection: React.FC = () => {
       <div className="grid grid-cols-3 gap-2">
         {[1, 2, 3].map((i) => (
           <div 
-            key={i}
+            key={`gallery-placeholder-${i}`}
             className="aspect-[3/4] rounded-lg bg-slate-100 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700/50 flex items-center justify-center"
           >
             <ImageIcon size={20} className="text-slate-300 dark:text-slate-600" />

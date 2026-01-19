@@ -14,7 +14,7 @@
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  padding-bottom: calc(var(--footer-height) + 20px);
+  padding-bottom: calc(var(--footer-height, 0px) + 0px);
   z-index: 1;
 }
 
@@ -52,8 +52,8 @@
     top: 0;
     left: 0;
     right: 0;
-    bottom: var(--footer-height);
-    height: calc(100% - var(--footer-height));
+    bottom: var(--footer-height, 0px);
+    height: calc(100% - var(--footer-height, 0px));
   }
 
   .previewWrapper {

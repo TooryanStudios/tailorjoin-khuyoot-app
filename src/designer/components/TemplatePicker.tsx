@@ -1,5 +1,6 @@
 import React from 'react';
 import { useThumbnailCache } from '../../hooks/useThumbnailCache';
+import { StableImage } from '../../../components/StableImage';
 
 export type TemplatePickerItem = {
   id: string;
@@ -41,7 +42,7 @@ export function TemplatePicker(props: {
   const containerRef = React.useRef<HTMLDivElement | null>(null);
   const [cols, setCols] = React.useState(4);
 
-  const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 30 });
+  const { prefetchThumbnails } = useThumbnailCache({ maxEntries: 30 });
 
   React.useEffect(() => {
     prefetchThumbnails(items.map((t) => t.thumbnailUrl ?? t.imageUrl));
@@ -105,8 +106,6 @@ export function TemplatePicker(props: {
               width: maxItemWidthPx,
               flexBasis: maxItemWidthPx,
               maxHeight: `${FIXED_HEIGHT_PX}px`,
-              // Reduce paint/reflow cost for offscreen cards while scrolling.
-              // Works best in Chromium; harmless in browsers that ignore it.
               contentVisibility: 'auto',
               containIntrinsicSize: `${maxItemWidthPx}px ${FIXED_HEIGHT_PX}px`,
               contain: 'layout paint style',
@@ -133,6 +132,7 @@ export function TemplatePicker(props: {
                 const canFallbackToImageUrl = !preferThumbnailOnly;
                 const fallbackSrc = canFallbackToImageUrl ? (t.imageUrl || null) : null;
                 const src = displaySrc || fallbackSrc;
+
                 if (!src) {
                   return (
                     <div className="absolute inset-0 flex items-center justify-center text-xs text-slate-400">
@@ -140,92 +140,69 @@ export function TemplatePicker(props: {
                     </div>
                   );
                 }
+
                 return (
-                <>
-                  <img
-                    src={getThumbnailSrc(src as string)}
-                    alt={t.name}
-                    className={`h-full w-full object-cover object-top ${t.isLocked ? 'opacity-40 grayscale' : ''}`}
-                    loading="lazy"
-                    decoding="async"
-                    onError={(e) => {
-                      // If optimized WebP fails, try original imageUrl as fallback
-                      const img = e.currentTarget;
-                      const originalUrl = t.imageUrl;
-                      
-                      // Only try fallback once (avoid infinite loop)
-                      if (displaySrc && fallbackSrc && img.src !== fallbackSrc) {
-                        console.log(`[Template Picker] WebP failed for ${t.name}, trying original URL`);
-                        img.src = getThumbnailSrc(fallbackSrc);
-                        return;
+                  <>
+                    <StableImage
+                      src={src}
+                      alt={t.name}
+                      aspectClass="aspect-auto h-full w-full"
+                      imgClassName={`object-top ${t.isLocked ? 'opacity-40 grayscale' : ''}`}
+                    />
+
+                    {/* Bottom gradient shade (always visible) */}
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
+
+                    {/* Hover/focus overlay (title + button) */}
+                    <div
+                      className={
+                        'absolute inset-x-0 bottom-0 p-2 transition-opacity ' +
+                        'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 '
                       }
-                      
-                      // No fallback available or already tried - show error
-                      img.style.display = 'none';
-                      const fallbackDiv = img.nextElementSibling as HTMLElement | null;
-                      if (fallbackDiv) fallbackDiv.style.display = 'flex';
-                    }}
-                  />
-                  <div className="absolute inset-0 hidden items-center justify-center text-xs text-slate-400">
-                    لا توجد صورة
-                  </div>
+                    >
+                      <div className="relative flex flex-col gap-1">
+                        <div className="text-[11px] font-normal text-white text-center drop-shadow-md truncate">
+                          {t.name}
+                        </div>
 
-                  {/* Bottom gradient shade (always visible) */}
-                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/80 to-transparent" />
-
-                  {/* Hover/focus overlay (title + button) */}
-                  <div
-                    className={
-                      'absolute inset-x-0 bottom-0 p-2 transition-opacity ' +
-                      'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 '
-                    }
-                  >
-                    <div className="relative flex flex-col gap-1">
-                      <div className="text-[11px] font-normal text-white text-center drop-shadow-md truncate">
-                        {t.name}
-                      </div>
-
-                      <div
-                        role={onConfirm ? 'button' : undefined}
-                        tabIndex={onConfirm ? 0 : -1}
-                        onClick={(e) => {
-                          if (!onConfirm) return;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (t.disabled) return;
-                          onConfirm(t);
-                        }}
-                        onKeyDown={(e) => {
-                          if (!onConfirm) return;
-                          if (e.key !== 'Enter' && e.key !== ' ') return;
-                          e.preventDefault();
-                          e.stopPropagation();
-                          if (t.disabled) return;
-                          onConfirm(t);
-                        }}
-                        className={
-                          'w-full h-6 rounded-md text-[10px] font-normal flex items-center justify-center bg-black/60 text-gray-300 ' +
-                          'transition-colors ' +
-                          (onConfirm && !t.disabled ? 'cursor-pointer hover:bg-black/70' : 'cursor-default')
-                        }
-                        aria-label={onConfirm ? `استخدم القالب ${t.name}` : undefined}
-                      >
-                        استخدم القالب
+                        {onConfirm && (
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            onClick={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (t.disabled) return;
+                              onConfirm(t);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key !== 'Enter' && e.key !== ' ') return;
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (t.disabled) return;
+                              onConfirm(t);
+                            }}
+                            className={
+                              'w-full h-6 rounded-md text-[10px] font-normal flex items-center justify-center bg-black/60 text-gray-300 ' +
+                              'transition-colors ' +
+                              (!t.disabled ? 'cursor-pointer hover:bg-black/70' : 'cursor-default')
+                            }
+                            aria-label={`استخدم القالب ${t.name}`}
+                          >
+                            استخدم القالب
+                          </div>
+                        )}
                       </div>
                     </div>
-                  </div>
-                </>
+                  </>
                 );
-              })() || (
-                <div className="h-full w-full flex items-center justify-center text-xs text-slate-400">
-                  لا توجد صورة
-                </div>
-              )}
-              {t.metaLabel ? (
+              })()}
+              
+              {t.metaLabel && (
                 <div className={`absolute top-1 right-1 px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm ${metaToneClass}`}>
                   {t.metaLabel}
                 </div>
-              ) : null}
+              )}
               {t.isPremium && (
                 <div className="absolute top-1 left-1 bg-amber-500 text-white px-1.5 py-0.5 rounded text-[10px] font-bold shadow-sm">
                   ⭐ Premium

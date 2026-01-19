@@ -1,9 +1,11 @@
 import React from 'react';
-import { useLayoutStore } from '../src/modules/homepage-v2/store/useLayoutStore';
+import { useApp } from '../context/AppContext';
 
 export const Privacy: React.FC = () => {
-  const cfg = useLayoutStore((s) => s.blockConfig.blockF);
-  const content = cfg?.privacyContent || 'Privacy policy will appear here when configured in Admin > Homepage 2.1 > Block F.';
+  const { appSettings } = useApp();
+  const content =
+    (appSettings as any)?.pageTexts?.privacyPolicy ||
+    'Privacy policy will appear here when configured in Admin > Advanced > Pages.';
 
   return (
     <div className="max-w-3xl mx-auto px-4 py-8">

@@ -23,7 +23,7 @@ export const LightingPresets = React.memo(function LightingPresets(props: Lighti
   const { value, onChange } = props;
 
   return (
-    <div className="flex items-center justify-center gap-2 px-3 py-2">
+    <div className="flex items-center justify-center gap-1 h-12 px-2 rounded-xl border border-zinc-800 bg-zinc-900/60">
       {options.map((o) => {
         const active = o.id === value;
         return (
@@ -32,7 +32,7 @@ export const LightingPresets = React.memo(function LightingPresets(props: Lighti
             type="button"
             onClick={() => onChange(o.id)}
             className={
-              'h-9 px-3 rounded-full border text-xs font-semibold transition-colors ' +
+              'h-8 px-3 rounded-full border text-xs font-semibold transition-colors ' +
               (active
                 ? 'bg-zinc-900 border-purple-500/60 text-white'
                 : 'bg-zinc-950/40 border-zinc-800 text-zinc-300 hover:border-purple-500/40')

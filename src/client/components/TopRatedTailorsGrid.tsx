@@ -57,7 +57,7 @@ export const TopRatedTailorsGrid = ({
       {loading ? (
         <div className="grid grid-cols-4 gap-3 sm:grid-cols-5">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
+            <div key={`tailor-skeleton-${i}`} className="w-24 h-24 sm:w-28 sm:h-28 rounded-xl bg-slate-100 dark:bg-slate-800 animate-pulse" />
           ))}
         </div>
       ) : (

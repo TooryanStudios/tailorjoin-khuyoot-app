@@ -2,7 +2,6 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { useImageCache } from '../CacheManager';
 import { useTemplateStore } from './useTemplateStore';
 import { ClosetItems } from './ClosetItems.jsx';
-import { ShopItems } from './ShopItems.jsx';
 import { StudioItems } from './StudioItems.jsx';
 import { traceSetActive, traceStep } from '../../utils/trace';
 
@@ -92,8 +91,19 @@ export const TemplateSelectorView = ({
     [cache, onSelect, store]
   );
 
+  const handleDeleteTemplate = useCallback(
+    async (template) => {
+      if (!template?.id) return;
+      await store.deleteFromCloset?.(template.id);
+      if (store?.selectedTemplate?.id === template.id) {
+        store.selectTemplate(null);
+      }
+    },
+    [store]
+  );
+
   const tabs = useMemo(() => {
-    const base = [TABS.STUDIO, TABS.SHOP];
+    const base = [TABS.STUDIO];
     return enableUpload ? [...base, TABS.CLOSET] : base;
   }, [enableUpload]);
 
@@ -138,19 +148,6 @@ export const TemplateSelectorView = ({
           />
         </div>
 
-        {/* Shop Panel */}
-        <div className={`${activeTab === TABS.SHOP ? 'block' : 'hidden'} grid grid-cols-2 gap-3`}>
-          <ShopItems
-            items={resolvedShopItems}
-            onSelect={onSelectResolved}
-            currentId={currentId}
-            isSubscribed={isSubscribed}
-            onPremiumClick={onPremiumClick}
-            onHover={onHoverTemplate}
-            loadingTemplateId={loadingTemplateId}
-          />
-        </div>
-
         {/* Closet Panel */}
         {enableUpload && (
           <div className={`${activeTab === TABS.CLOSET ? 'block' : 'hidden'} grid grid-cols-2 gap-3`}>
@@ -158,6 +155,7 @@ export const TemplateSelectorView = ({
               items={resolvedClosetItems}
               onSelect={onSelectResolved}
               currentId={currentId}
+              onDeleteTemplate={handleDeleteTemplate}
               extra={closetExtra}
               onHover={onHoverTemplate}
               loadingTemplateId={loadingTemplateId}

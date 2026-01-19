@@ -1,40 +1,68 @@
 import React from 'react';
-import { Link, Outlet, useLocation } from 'react-router-dom';
+import { Outlet, useLocation } from 'react-router-dom';
 import { DesignerV2_1 } from '../DesignerV2_1/DesignerV2_1';
-import { PerformanceDebugPanel } from './PerformanceDebugger';
+import { useHomeProducts, useHomeTailors, usePopularRegions } from '../../hooks/useHomeData';
+import { useThumbnailCache, useThumbnail } from '../../hooks/useThumbnailCache';
 
 export type DemoShellOutletContext = {
   pageCounters: { a: number; b: number };
   setPageCounter: (page: 'a' | 'b', value: number | ((prev: number) => number)) => void;
   imageUrls: { a: string[]; b: string[] };
   imageLoadedMap: Record<string, boolean>;
+  dbProducts: any[];
+  isDbLoading: boolean;
+  dbTailors: any[];
+  isTailorsLoading: boolean;
+  dbRegions: any[];
+  isRegionsLoading: boolean;
 };
 
 const COUNTERS_STORAGE_KEY = 'demo-shell-page-counters';
 
+/**
+ * 🚀 PREWARM COMPONENT:
+ * Separated to prevent Layout from re-running ref callbacks on every render.
+ */
+const PrewarmImage = React.memo((props: { url: string; onLoaded: (url: string) => void }) => {
+  const { url, onLoaded } = props;
+  const src = useThumbnail(url, { maxEntries: 100 });
+  const imgRef = React.useRef<HTMLImageElement>(null);
+
+  React.useEffect(() => {
+    if (imgRef.current?.complete) {
+      onLoaded(url);
+    }
+  }, [url, onLoaded]);
+
+  return (
+    <img
+      ref={imgRef}
+      src={src || url}
+      alt=""
+      decoding="async"
+      loading="eager"
+      onLoad={() => onLoaded(url)}
+      className="w-1 h-1 opacity-0 absolute pointer-events-none"
+    />
+  );
+});
+
+const DesignerKeepAlive = React.memo(DesignerV2_1);
+
 export function DemoShellLayout() {
+  const { prefetchThumbnails } = useThumbnailCache({ maxEntries: 100 });
   const location = useLocation();
   const currentPath = location.pathname.split('/').pop() || 'a';
-  const mountedAtRef = React.useRef(new Date().toISOString());
-  const renderCountRef = React.useRef(0);
   
-  // Track designer visits
-  const [hasVisitedDesigner, setHasVisitedDesigner] = React.useState(false);
-  const designerMountTimeRef = React.useRef<string | null>(null);
+  // Track designer visits - keep it mounted once visited
+  const [designerMounted, setDesignerMounted] = React.useState(false);
   
   React.useEffect(() => {
-    renderCountRef.current++;
-    console.log(`[DemoShellLayout] Render #${renderCountRef.current}, path: ${currentPath}`);
-  });
-  
-  React.useEffect(() => {
-    if (currentPath === 'designer' && !hasVisitedDesigner) {
-      setHasVisitedDesigner(true);
-      designerMountTimeRef.current = new Date().toISOString();
-      console.log('[DemoShellLayout] Designer mounted at:', designerMountTimeRef.current);
+    if (currentPath === 'designer' && !designerMounted) {
+      setDesignerMounted(true);
     }
-  }, [currentPath, hasVisitedDesigner]);
-  const [layoutCounter, setLayoutCounter] = React.useState(0);
+  }, [currentPath, designerMounted]);
+
   const [pageCounters, setPageCounters] = React.useState<{ a: number; b: number }>(() => {
     if (typeof window === 'undefined') {
       return { a: 0, b: 0 };
@@ -50,6 +78,41 @@ export function DemoShellLayout() {
     return { a: 0, b: 0 };
   });
   const [imageLoadedMap, setImageLoadedMap] = React.useState<Record<string, boolean>>({});
+
+  // 💾 PERSISTENCE LAYER: Try to get products from LocalStorage before fetching from DB
+  const DB_PRODUCTS_CACHE_KEY = 'demo-db-products-cache';
+  const DB_TAILORS_CACHE_KEY = 'demo-db-tailors-cache';
+  
+  const [cachedData] = React.useState(() => {
+    if (typeof window === 'undefined') return { products: [], tailors: [] };
+    try {
+      const p = window.localStorage.getItem(DB_PRODUCTS_CACHE_KEY);
+      const t = window.localStorage.getItem(DB_TAILORS_CACHE_KEY);
+      return { 
+        products: p ? JSON.parse(p) : [], 
+        tailors: t ? JSON.parse(t) : [] 
+      };
+    } catch { return { products: [], tailors: [] }; }
+  });
+
+  const { data: dbProducts = cachedData.products, isLoading: isDbLoading } = useHomeProducts('all');
+  const { data: dbTailors = cachedData.tailors, isLoading: isTailorsLoading } = useHomeTailors();
+  const { data: dbRegions = [], isLoading: isRegionsLoading } = usePopularRegions(10);
+  
+  React.useEffect(() => {
+    if (dbProducts?.length > 0) window.localStorage.setItem(DB_PRODUCTS_CACHE_KEY, JSON.stringify(dbProducts));
+  }, [dbProducts]);
+
+  React.useEffect(() => {
+    if (dbTailors?.length > 0) window.localStorage.setItem(DB_TAILORS_CACHE_KEY, JSON.stringify(dbTailors));
+  }, [dbTailors]);
+
+  const dbImageUrls = React.useMemo(() => {
+    const prodImages = (dbProducts || []).map((p: any) => p.image);
+    const tailorImages = (dbTailors || []).map((t: any) => t.image || t.profileImage);
+    // Expand to 70 images to ensure full coverage
+    return [...prodImages, ...tailorImages].filter(Boolean).slice(0, 70);
+  }, [dbProducts, dbTailors]);
 
   React.useEffect(() => {
     try {
@@ -69,14 +132,17 @@ export function DemoShellLayout() {
 
   const allImageUrls = React.useMemo(() => {
     const uniq = new Set<string>();
-    [...imageUrls.a, ...imageUrls.b].forEach((u) => uniq.add(u));
+    [...imageUrls.a, ...imageUrls.b, ...dbImageUrls].forEach((u) => uniq.add(u));
     return Array.from(uniq);
-  }, [imageUrls]);
+  }, [imageUrls, dbImageUrls]);
 
-  const imagesLoadedCount = React.useMemo(
-    () => allImageUrls.reduce((acc, url) => acc + (imageLoadedMap[url] ? 1 : 0), 0),
-    [allImageUrls, imageLoadedMap]
-  );
+  // 🚀 UNIFIED PRE-WARMING: Trigger blob creation for all images
+  React.useEffect(() => {
+    if (allImageUrls.length > 0) {
+      prefetchThumbnails(allImageUrls);
+    }
+  }, [allImageUrls, prefetchThumbnails]);
+
 
   const setPageCounter: DemoShellOutletContext['setPageCounter'] = (page, value) => {
     setPageCounters((prev) => {
@@ -93,95 +159,43 @@ export function DemoShellLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Keep these mounted so images stay cached while switching nested routes */}
+    <div className="min-h-screen bg-zinc-950 text-zinc-200">
+      {/* 🚀 UNIFIED BLOB LAYER: These images stay mounted so blobs remain valid & cached */}
       <div className="sr-only" aria-hidden="true">
         {allImageUrls.map((url) => (
-          <img
-            key={url}
-            src={url}
-            alt=""
-            decoding="async"
-            loading="eager"
-            onLoad={() => markImageLoaded(url)}
-          />
+          <PrewarmImage key={url} url={url} onLoaded={markImageLoaded} />
         ))}
       </div>
 
-      <header className="border-b border-slate-200 dark:border-slate-800 bg-white/80 dark:bg-slate-950/80 backdrop-blur">
-        <div className="max-w-4xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-lg font-bold text-slate-900 dark:text-white">Demo Shell</div>
-            <nav className="flex items-center gap-2 text-sm">
-              <Link className="px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900" to="/demo-shell/a">
-                Page A
-              </Link>
-              <Link className="px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900" to="/demo-shell/b">
-                Page B
-              </Link>
-              <Link className="px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900" to="/demo-shell/top-tailors">
-                أشهر الخياطين
-              </Link>
-              <Link className="px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900" to="/demo-shell/designer">
-                Designer 2.1
-              </Link>
-              <Link className="px-3 py-2 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-900" to="/">
-                Home
-              </Link>
-            </nav>
-          </div>
-
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <div className="text-sm text-slate-700 dark:text-slate-300">
-              <span className="font-semibold">Layout mounted at:</span> {mountedAtRef.current}
-            </div>
-
-            <div className="text-sm text-slate-700 dark:text-slate-300">
-              <span className="font-semibold">Images cached:</span> {imagesLoadedCount}/{allImageUrls.length}
-            </div>
-
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <div className="text-slate-700 dark:text-slate-300">
-                <span className="font-semibold">Layout counter:</span> {layoutCounter}
-              </div>
-              <button
-                type="button"
-                onClick={() => setLayoutCounter((c) => c + 1)}
-                className="h-9 px-3 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold"
-              >
-                +1
-              </button>
-            </div>
-            
-            {hasVisitedDesigner && (
-              <div className="text-xs text-slate-500 dark:text-slate-400 sm:col-span-2">
-                <span className="font-semibold">Designer cached:</span> {designerMountTimeRef.current} | 
-                <span className={currentPath === 'designer' ? 'text-green-600 dark:text-green-400' : 'text-slate-500'}>
-                  {' '}{currentPath === 'designer' ? 'Visible' : 'Hidden (kept mounted)'}
-                </span>
-              </div>
-            )}
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto px-4 py-6">
+      {/* NOTE: No max-width here (was max-w-4xl) to avoid fixed-width grids on the homepage. */}
+      <main className="w-full px-4 py-6">
         {/* Regular routes for simple pages */}
         {currentPath !== 'designer' && (
           <Outlet
-            context={{ pageCounters, setPageCounter, imageUrls, imageLoadedMap } satisfies DemoShellOutletContext}
+            context={
+              {
+                pageCounters,
+                setPageCounter,
+                imageUrls,
+                imageLoadedMap,
+                dbProducts,
+                isDbLoading,
+                dbTailors,
+                isTailorsLoading,
+                dbRegions,
+                isRegionsLoading,
+              } as DemoShellOutletContext
+            }
           />
         )}
-        
-        {/* Designer: mount once, hide/show with CSS */}
-        {hasVisitedDesigner && (
-          <div style={{ display: currentPath === 'designer' ? 'block' : 'none' }}>
-            <DesignerV2_1 />
+
+        {/* Designer: keep mounted for persistent state; hidden when not active */}
+        {designerMounted && (
+          <div style={{ display: currentPath === 'designer' ? 'block' : 'none' }} aria-hidden={currentPath !== 'designer'}>
+            <DesignerKeepAlive />
           </div>
         )}
       </main>
-      
-      <PerformanceDebugPanel />
     </div>
   );
 }

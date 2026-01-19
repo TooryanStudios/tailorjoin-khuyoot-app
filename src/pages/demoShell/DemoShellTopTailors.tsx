@@ -1,8 +1,9 @@
 import React from 'react';
-import { useThumbnailCache } from '../../hooks/useThumbnailCache';
-import { usePopularRegions } from '../../hooks/useHomeData';
+import { useOutletContext } from 'react-router-dom';
+import { useThumbnailCache, useThumbnail } from '../../hooks/useThumbnailCache';
 import { MapPin, Star, User } from 'lucide-react';
 import type { Tailor } from '../../../types';
+import type { DemoShellOutletContext } from './DemoShellLayout';
 
 type RegionWithTailors = {
   regionId: string;
@@ -10,34 +11,16 @@ type RegionWithTailors = {
   tailors: Tailor[];
 };
 
-const TOP_TAILORS_CACHE_TTL_MS = 1000 * 60 * 10;
-let topTailorsCache: { data: RegionWithTailors[]; cachedAt: number } | null = null;
-
-function getCachedTopTailors(): RegionWithTailors[] | null {
-  if (!topTailorsCache) return null;
-  if (Date.now() - topTailorsCache.cachedAt > TOP_TAILORS_CACHE_TTL_MS) return null;
-  return topTailorsCache.data;
-}
-
-function setCachedTopTailors(data: RegionWithTailors[]) {
-  topTailorsCache = { data, cachedAt: Date.now() };
-}
-
 const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: Tailor }) {
-  const { getThumbnailSrc, prefetchThumbnails } = useThumbnailCache({ maxEntries: 100 });
   const previewSrc = tailor.image || null;
-
-  React.useEffect(() => {
-    if (!previewSrc) return;
-    prefetchThumbnails([previewSrc]);
-  }, [previewSrc, prefetchThumbnails]);
+  const displaySrc = useThumbnail(previewSrc, { maxEntries: 100 });
 
   return (
     <article className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm dark:shadow-none transition hover:shadow-md">
       <div className="flex items-start gap-3">
-        {previewSrc ? (
+        {displaySrc ? (
           <img
-            src={getThumbnailSrc(previewSrc) || undefined}
+            src={displaySrc}
             alt={tailor.name}
             className="h-14 w-14 rounded-xl object-cover"
             loading="lazy"
@@ -235,58 +218,33 @@ const tailorsByRegion = [
 ];
 
 export function DemoShellTopTailors() {
-  const { data: popularRegions = [], isPending: isRegionsLoading } = usePopularRegions(10);
-  const [regionsWithTailors, setRegionsWithTailors] = React.useState<RegionWithTailors[]>(() => getCachedTopTailors() ?? []);
-  const [isLoadingTailors, setIsLoadingTailors] = React.useState(false);
+  const { 
+    dbTailors, 
+    isTailorsLoading, 
+    dbRegions, 
+    isRegionsLoading 
+  } = useOutletContext<DemoShellOutletContext>();
+  
+  const regionsWithTailors = React.useMemo(() => {
+    if (!dbRegions.length || !dbTailors.length) return [];
+    
+    return dbRegions.map(region => {
+      // Primary match by regionId, fallback to name matching in location
+      const regionalTailors = dbTailors.filter(t => 
+        t.regionId === region.id ||
+        (t.region && t.region === region.name) || 
+        (t.location && t.location.includes(region.name))
+      );
+      
+      return {
+        regionId: region.id,
+        regionName: region.name,
+        tailors: regionalTailors
+      };
+    }).filter(r => r.tailors.length > 0);
+  }, [dbRegions, dbTailors]);
 
-  React.useEffect(() => {
-    if (popularRegions.length === 0) return;
-
-    const cached = getCachedTopTailors();
-    if (cached && cached.length > 0) {
-      setRegionsWithTailors(cached);
-      return;
-    }
-
-    const loadTailorsForRegions = async () => {
-      setIsLoadingTailors(true);
-      try {
-        const { firebaseService } = await import('../../../services/firebase');
-
-        const regionsData = await Promise.all(
-          popularRegions.map(async (region) => {
-            try {
-              const tailors = await firebaseService.getTailorsByRegion(region.name, 6);
-              return {
-                regionId: region.id,
-                regionName: region.name,
-                tailors,
-              };
-            } catch (error) {
-              console.error(`Error loading tailors for region ${region.name}:`, error);
-              return {
-                regionId: region.id,
-                regionName: region.name,
-                tailors: [],
-              };
-            }
-          })
-        );
-
-        const filtered = regionsData.filter((r) => r.tailors.length > 0);
-        setCachedTopTailors(filtered);
-        setRegionsWithTailors(filtered);
-      } catch (error) {
-        console.error('Error loading tailors:', error);
-      } finally {
-        setIsLoadingTailors(false);
-      }
-    };
-
-    loadTailorsForRegions();
-  }, [popularRegions]);
-
-  const isLoading = (isRegionsLoading && regionsWithTailors.length === 0) || isLoadingTailors;
+  const isLoading = (isRegionsLoading || isTailorsLoading) && regionsWithTailors.length === 0;
 
   return (
     <div className="space-y-6 border border-slate-200 dark:border-slate-800 rounded-3xl bg-white dark:bg-slate-900 p-6">
@@ -302,7 +260,7 @@ export function DemoShellTopTailors() {
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
             <div
-              key={i}
+              key={`region-skeleton-${i}`}
               className="h-48 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800"
             />
           ))}

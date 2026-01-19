@@ -18,7 +18,10 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
   const controls = useAnimation();
   const dragControls = useDragControls();
   const contentRef = useRef<HTMLDivElement>(null);
+  const handleRef = useRef<HTMLDivElement>(null);
+  const sheetRef = useRef<HTMLDivElement>(null);
   const blocks = getEnabledBlocks();
+  const [sheetHeightPx, setSheetHeightPx] = React.useState<number | null>(null);
 
   // Keep the sheet above the master footer. This offset must match the mobile footer height.
   const FOOTER_OFFSET_PX = 74;
@@ -31,26 +34,45 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
 
   React.useLayoutEffect(() => {
     const updateVariants = () => {
-      const vh = window.innerHeight;
-      // The sheet height is defined in CSS as calc(92vh - var(--footer-height))
-      const sheetHeight = (vh * 0.92) - FOOTER_OFFSET_PX;
+      const vv = window.visualViewport;
+      const viewportHeight = vv?.height || window.innerHeight;
+      const viewportTop = vv?.offsetTop ?? 0;
+      const layoutHeight = window.innerHeight;
+      const chromeTopInset = Math.max(0, layoutHeight - viewportHeight);
+      const headerHeightRaw = getComputedStyle(document.documentElement).getPropertyValue('--header-height');
+      const headerHeight = Math.max(0, Number.parseFloat(headerHeightRaw) || 0);
+      const safeTop = Math.max(8, viewportTop, chromeTopInset + 8, headerHeight);
+      const computedSheetHeight = Math.max(0, (viewportHeight * 0.92) - FOOTER_OFFSET_PX);
+      const sheetHeight = computedSheetHeight || sheetRef.current?.getBoundingClientRect().height || 0;
+      const handleHeight = Math.max(48, Math.ceil(handleRef.current?.getBoundingClientRect().height || 0));
+
+      // Ensure the handle stays below the visible top (address bar/header)
+      const targetHandleBottom = safeTop;
+      const expandedY = Math.max(0, (targetHandleBottom - handleHeight) - (layoutHeight - sheetHeight));
+
+      setSheetHeightPx((prev) => (prev === sheetHeight ? prev : sheetHeight));
       
       // Use fixed pixel values for predictable positioning:
       // - expanded: fully open
       // - standard: middle position for browsing
-      // - collapsed: show only handle (48px visible)
-      const COLLAPSED_VISIBLE_PX = 48; // Height of handle area to keep visible
+      // - collapsed: show only handle (dynamic height)
       
       setVariants({
-        expanded: { y: 0 },
+        expanded: { y: expandedY },
         standard: { y: Math.min(sheetHeight * 0.65, 520) },
-        collapsed: { y: sheetHeight - COLLAPSED_VISIBLE_PX }
+        collapsed: { y: sheetHeight - handleHeight }
       });
     };
 
     updateVariants();
     window.addEventListener('resize', updateVariants);
-    return () => window.removeEventListener('resize', updateVariants);
+    window.visualViewport?.addEventListener('resize', updateVariants);
+    window.visualViewport?.addEventListener('scroll', updateVariants);
+    return () => {
+      window.removeEventListener('resize', updateVariants);
+      window.visualViewport?.removeEventListener('resize', updateVariants);
+      window.visualViewport?.removeEventListener('scroll', updateVariants);
+    };
   }, []);
 
   useEffect(() => {
@@ -80,22 +102,20 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
   const onDragEnd = (event: any, info: PanInfo) => {
     const velocity = info.velocity.y;
     const currentY = info.offset.y + (variants[initialSnap as keyof typeof variants]?.y || 0);
+    const threshold = variants.collapsed.y - 24;
 
-    // Thresholds for snapping
-    const tExpanded = variants.standard.y * 0.4;
-    const tStandard = variants.standard.y + (variants.collapsed.y - variants.standard.y) * 0.5;
-
-    if (velocity > 20) {
-      if (currentY < tExpanded) controls.start('standard');
-      else controls.start('collapsed');
-    } else if (velocity < -20) {
-      if (currentY > tStandard) controls.start('standard');
-      else controls.start('expanded');
-    } else {
-      if (currentY < tExpanded) controls.start('expanded');
-      else if (currentY < tStandard) controls.start('standard');
-      else controls.start('collapsed');
+    // One-drag behavior: snap to expanded unless released near collapsed.
+    if (velocity < -20) {
+      controls.start('expanded');
+      return;
     }
+    if (velocity > 20) {
+      controls.start('collapsed');
+      return;
+    }
+
+    if (currentY < threshold) controls.start('expanded');
+    else controls.start('collapsed');
   };
 
   const renderBlock = (blockId: string, index: number) => {
@@ -118,7 +138,9 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
 
   return (
     <motion.div
+      ref={sheetRef}
       className={styles.sheetContainer}
+      style={sheetHeightPx ? { height: `${sheetHeightPx}px` } : undefined}
       initial={initialSnap}
       animate={controls}
       variants={variants}
@@ -133,6 +155,7 @@ export const StudioSheet: React.FC<StudioSheetProps> = ({
       {/* Drag Handle Area */}
       <div 
         className={styles.dragHandleArea}
+        ref={handleRef}
         onPointerDown={(e) => dragControls.start(e)}
       >
         <div className={styles.dragHandle} />

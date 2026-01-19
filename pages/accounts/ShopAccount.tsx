@@ -16,10 +16,15 @@ export const ShopAccount = () => {
   const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'dashboard' | 'settings'>('products');
   const [shopOrders, setShopOrders] = useState<Order[]>([]);
 
-  // Redirect non-shop users after hydration
+  // Redirect users who are not a tailor with shopType 'shop'
   useEffect(() => {
     if (!user) return;
-    if (user.role !== 'shop') {
+    const shopType = (user as any)?.shopType;
+    if (user.role === 'tailor') {
+      if (shopType !== 'shop') {
+        navigate('/tailor-account', { replace: true });
+      }
+    } else {
       navigate('/account', { replace: true });
     }
   }, [user, navigate]);
@@ -52,7 +57,7 @@ export const ShopAccount = () => {
     );
   }
 
-  if (user.role !== 'shop') {
+  if (!(user.role === 'tailor' && (user as any)?.shopType === 'shop')) {
     return (
       <div className="min-h-screen flex items-center justify-center px-4">
         <div className="max-w-md w-full bg-white dark:bg-slate-800 rounded-2xl p-6 text-center border border-slate-200 dark:border-slate-700">

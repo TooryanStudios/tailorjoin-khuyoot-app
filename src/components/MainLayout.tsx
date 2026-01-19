@@ -1,5 +1,5 @@
 import React, { Suspense } from 'react'
-import { Outlet, ScrollRestoration } from 'react-router-dom'
+import { Outlet, ScrollRestoration, useLocation } from 'react-router-dom'
 import { AppShellSkeleton } from './skeletons/AppShellSkeleton'
 
 /**
@@ -16,6 +16,8 @@ import { AppShellSkeleton } from './skeletons/AppShellSkeleton'
 export const MainLayout = React.memo(
   React.forwardRef<HTMLDivElement, {}>(
     function MainLayout(_props, ref) {
+      const location = useLocation()
+      const isHome = location.pathname === '/'
       return (
         <div
           ref={ref}
@@ -31,7 +33,7 @@ export const MainLayout = React.memo(
 
           {/* Main content area - routes render here */}
           <main
-            className="flex-1 overflow-auto bg-white dark:bg-slate-950"
+            className={`flex-1 overflow-auto ${isHome ? 'custom-scrollbar bg-zinc-950 text-zinc-100' : 'bg-white dark:bg-slate-950'} `}
             role="main"
           >
             <Suspense fallback={<AppShellSkeleton />}>

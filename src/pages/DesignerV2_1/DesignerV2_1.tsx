@@ -18,7 +18,7 @@ import { ErrorModal } from './components/ErrorModal';
 import { taskStorage, generateTaskId, copyTaskUrlToClipboard } from './services/taskStorage';
 import { type DesignTask } from './types/task';
 import { usePrivacyShield } from '../../modules/PrivacyShield';
-import { TemplateSelectorView, useTemplateSelection } from '../../modules/TemplatePicker';
+import { TemplateSelectorView, useTemplateSelection, useTemplateStore } from '../../modules/TemplatePicker';
 import { CreditBadge, useCredits } from '../../modules/CreditManager';
 import { DesignerHeader } from '../../modules/navigation/DesignerHeader';
 import { ProcessingOverlay } from '../../modules/canvas/components/ProcessingOverlay';
@@ -27,6 +27,8 @@ import { useLightingGenerator } from '../../modules/generator/hooks/useLightingG
 import { useDesignerStore } from '../../store/useDesignerStore';
 import { MobileDesignerV2, useMobileDetection } from '../../modules/designer/mobile';
 import { ImagePrepModal } from '../../components/image/ImagePrepModal';
+import { FabricTilingModal } from '../../designer/components/FabricTilingModal';
+import { useModalStore } from '../../store/useModalStore';
 import { traceEnd, traceSetActive, traceStep } from '../../utils/trace';
 import './DesignerV2_1.module.css';
 
@@ -116,6 +118,18 @@ function safeLocalStorageSet(key: string, value: unknown) {
 
 function toDataUrl(base64: string, mimeType: string) {
   return `data:${mimeType};base64,${base64}`;
+}
+
+function dataUrlToFile(dataUrl: string, fileName: string) {
+  const [header, base64] = dataUrl.split(',');
+  const mimeMatch = header?.match(/data:(.*?);base64/);
+  const mimeType = mimeMatch?.[1] || 'image/webp';
+  const binary = atob(base64 || '');
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i += 1) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  return new File([bytes], fileName, { type: mimeType });
 }
 
 function prefetchImage(url: string): Promise<void> {
@@ -209,57 +223,38 @@ async function smartCompressImage(file: File): Promise<{ base64: string; mimeTyp
       
       // Use JPEG with 85% quality for good balance
       canvas.toBlob(
-        (blob) => {
+        async (blob) => {
           if (!blob) {
-            reject(new Error('Failed to create blob'));
+            reject(new Error('Failed to compress image'));
             return;
           }
-          
-          const reader = new FileReader();
-          reader.onloadend = () => {
-            const dataUrl = reader.result as string;
-            const base64 = dataUrl.split(',')[1];
-            console.log('  ✅ Compressed to:', (base64.length * 0.75 / 1024).toFixed(0), 'KB (ready for API)');
-            resolve({ base64, mimeType: 'image/jpeg' });
-          };
-          reader.onerror = () => reject(new Error('Failed to read blob'));
-          reader.readAsDataURL(blob);
+
+          try {
+            const mimeType = normalizeMimeType(blob.type || file.type);
+            const compressedFile = new File([blob], file.name || 'image.jpg', { type: mimeType });
+            const base64 = await fileToBase64NoPrefix(compressedFile);
+            resolve({ base64, mimeType });
+          } catch (error) {
+            reject(error as Error);
+          }
         },
-        'image/jpeg',
+        normalizeMimeType(file.type),
         0.85
       );
     };
-    
+
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
       reject(new Error('Failed to load image'));
     };
-    
+
     img.src = objectUrl;
   });
 }
 
-type ControlGroupProps = {
-  label: string;
-  value: number;
-  onChange: (next: number) => void;
-  min?: number;
-  max?: number;
-  step?: number;
-  disabled?: boolean;
-};
-
-const ControlGroup: React.FC<ControlGroupProps> = ({
-  label,
-  value,
-  onChange,
-  min = 0,
-  max = 10,
-  step = 1,
-  disabled = false,
-}) => (
-  <div className="mb-6">
-    <div className="flex justify-between items-center mb-2">
+const RangeInput = ({ label, value, min, max, step = 1, disabled, onChange }: { label: string; value: number; min: number; max: number; step?: number; disabled?: boolean; onChange: (value: number) => void }) => (
+  <div className="space-y-1">
+    <div className="flex items-center justify-between">
       <label className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{label}</label>
       <span className="text-xs text-purple-400 font-mono bg-purple-500/10 px-2 py-0.5 rounded border border-purple-500/20">
         {value}
@@ -305,6 +300,22 @@ const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: st
   );
 });
 
+const UpgradeModalHost = React.memo(function UpgradeModalHost(props: { onUpgrade: () => void | Promise<void> }) {
+  const isUpgradeModalOpen = useModalStore((s) => s.isUpgradeModalOpen);
+  const setIsUpgradeModalOpen = useModalStore((s) => s.setIsUpgradeModalOpen);
+
+  return (
+    <UpgradeModal
+      isOpen={isUpgradeModalOpen}
+      onClose={() => {
+        console.log('🔴 UpgradeModal CLOSE clicked');
+        setIsUpgradeModalOpen(false);
+      }}
+      onUpgradeClick={props.onUpgrade}
+    />
+  );
+});
+
 export const DesignerV2_1: React.FC = () => {
   // ========== PERFORMANCE TRACKING ==========
   const renderCountRef = React.useRef(0);
@@ -347,6 +358,22 @@ export const DesignerV2_1: React.FC = () => {
     hydrateDesignerStore();
   }, [hydrateDesignerStore]);
 
+  // ========== TEMPLATE SELECTION HOOKS (MUST BE BEFORE handleFabricSwap) ==========
+  const { selectedTemplate, selectTemplate } = useTemplateSelection(null);
+  const { addToCloset } = useTemplateStore();
+  const selectedTemplateIdRef = React.useRef<string | null>(null);
+  
+  React.useEffect(() => {
+    selectedTemplateIdRef.current = selectedTemplate?.id;
+  }, [selectedTemplate?.id]);
+
+  // Cache remote template downloads so re-selecting the same template doesn't refetch.
+  // This is intentionally File-based (not blob: URLs) to stay compatible with CSP that blocks fetch(blob:...).
+  const templateFileCacheRef = React.useRef<Map<string, File>>(new Map());
+  
+  // Track uploaded templates that should be added to closet after successful generation
+  const pendingClosetUploadRef = React.useRef<{ file: File; name: string } | null>(null);
+
   // Error modal state (must be declared before callbacks that use it)
   const [errorModalOpen, setErrorModalOpen] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState('');
@@ -375,7 +402,7 @@ export const DesignerV2_1: React.FC = () => {
 
   // Mobile rule: use only ImagePrepModal for privacy filtering.
   // Desktop/global privacy controls must not affect mobile uploads.
-  const effectivePrivacyModeForProcessing = !isMobile && Boolean(isPrivacyMode);
+  const effectivePrivacyModeForProcessing = false;
 
   // Auto-apply privacy mask when settings change
   React.useEffect(() => {
@@ -479,7 +506,7 @@ export const DesignerV2_1: React.FC = () => {
   const [closetImageMimeType, setClosetImageMimeType] = React.useState<string | null>(null);
 
   // Track which tab was last used to determine active preview state
-  const [lastActiveTemplateTab, setLastActiveTemplateTab] = React.useState<'Studio' | 'Shop' | 'Closet'>('Studio');
+  const [lastActiveTemplateTab, setLastActiveTemplateTab] = React.useState<'Studio' | 'Shop' | 'Closet'>('Closet');
 
   // Convenience getters for current active preview based on last tab
   const sourcePreviewUrl =
@@ -520,6 +547,9 @@ export const DesignerV2_1: React.FC = () => {
   const [fabricImageBase64, setFabricImageBase64] = React.useState<string | null>(null);
   const [fabricImageMimeType, setFabricImageMimeType] = React.useState<string | null>(null);
   const [fabricMaterial, setFabricMaterial] = React.useState<'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null>(null);
+  const [fabricTilingOpen, setFabricTilingOpen] = React.useState(false);
+  const fabricInputRef = React.useRef<HTMLInputElement | null>(null);
+  const templateInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Image Preparation (crop + optional face hide) before fabric upload
   const [fabricPrepOpen, setFabricPrepOpen] = React.useState(false);
@@ -533,6 +563,20 @@ export const DesignerV2_1: React.FC = () => {
   const closeFabricPrep = React.useCallback(() => {
     setFabricPrepOpen(false);
     setFabricPrepFile(null);
+  }, []);
+
+  // Image Preparation for user image upload (crop + optional face hide)
+  const [userImagePrepOpen, setUserImagePrepOpen] = React.useState(false);
+  const [userImagePrepFile, setUserImagePrepFile] = React.useState<File | null>(null);
+
+  const openUserImagePrep = React.useCallback((file: File) => {
+    setUserImagePrepFile(file);
+    setUserImagePrepOpen(true);
+  }, []);
+
+  const closeUserImagePrep = React.useCallback(() => {
+    setUserImagePrepOpen(false);
+    setUserImagePrepFile(null);
   }, []);
 
   // Hydrate local upload state from persisted store (Directive 3)
@@ -573,7 +617,9 @@ export const DesignerV2_1: React.FC = () => {
   // Watermark & subscription settings
   const [isWatermarkEnabled, setIsWatermarkEnabled] = React.useState<boolean>(true); // Default ON for free users
   const [isSubscribed, setIsSubscribed] = React.useState<boolean>(false); // Mock: false for testing free tier
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = React.useState<boolean>(false);
+  
+  // Use global modal store action, but avoid subscribing this entire page to modal open/close.
+  const setIsUpgradeModalOpen = useModalStore((s) => s.setIsUpgradeModalOpen);
 
   const {
     canAfford,
@@ -587,27 +633,46 @@ export const DesignerV2_1: React.FC = () => {
   const upscaleCost = getCost('upscale');
 
   const handleUpgrade = React.useCallback(async () => {
+    console.log('🔵 handleUpgrade START');
     const currentUser = firebaseService.auth?.currentUser;
-    if (!currentUser) throw new Error('Not logged in');
-
-    const idToken = await currentUser.getIdToken();
-    const resp = await fetch('/api/credits/upgrade-bonus', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${idToken}`,
-      },
-      body: JSON.stringify({ amount: 200 }),
-    });
-
-    if (!resp.ok) {
-      const text = await resp.text();
-      throw new Error(text || `Upgrade bonus failed (${resp.status})`);
+    if (!currentUser) {
+      console.error('❌ No user logged in');
+      throw new Error('يجب تسجيل الدخول أولاً');
     }
 
+    console.log('🔵 User ID:', currentUser.uid);
+    
+    // Try Firebase directly (simpler and more reliable)
+    try {
+      console.log('🔵 Calling Firebase adminAdjustCredits...');
+      const result = await firebaseService.adminAdjustCredits({
+        userId: currentUser.uid,
+        amount: 200,
+        reason: 'Upgrade bonus',
+      });
+      
+      console.log('✅ Firebase result:', result);
+      
+      if (result?.new_balance != null) {
+        console.log('✅ New balance:', result.new_balance);
+        try {
+          window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(result.new_balance));
+        } catch (e) {
+          console.warn('⚠️ Failed to save to localStorage:', e);
+        }
+      }
+    } catch (error: any) {
+      console.error('❌ Firebase adminAdjustCredits failed:', error);
+      throw new Error(error?.message || 'فشل في إضافة الرصيد');
+    }
+
+    console.log('🔵 Setting subscription flags...');
     setIsSubscribed(true);
     setIsWatermarkEnabled(false);
+    
+    console.log('🔵 Refreshing credits...');
     await refreshCredits();
+    console.log('✅ handleUpgrade COMPLETE');
   }, [refreshCredits]);
 
   // Generation history
@@ -825,34 +890,7 @@ export const DesignerV2_1: React.FC = () => {
     setLoadingTemplateId(null);
   }, [waitForImage]);
 
-  const handleApplyPrivacyShieldToCurrentTemplate = React.useCallback(async () => {
-    if (!sourceImageBase64) return;
-
-    try {
-      const currentSliderPos = sliderPos;
-
-      const binaryString = atob(sourceImageBase64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i);
-      }
-      const blob = new Blob([bytes], { type: sourceImageMimeType || 'image/jpeg' });
-      const file = new File([blob], 'template.jpg', { type: blob.type });
-
-      const processedFile = await processWithPrivacyShield(file);
-      const processedUrl = URL.createObjectURL(processedFile);
-
-      setAfterImage(processedUrl);
-      setSliderPos(currentSliderPos);
-    } catch (error) {
-      console.error('[Privacy Apply] Failed:', error);
-      showError('Privacy Shield failed');
-    }
-  }, [processWithPrivacyShield, showError, sliderPos, sourceImageBase64, sourceImageMimeType]);
-
-  // Avoid temporal-dead-zone issues: template selection is initialized later in the file.
-  // Keep a ref for templateId so getApiPayload can read it safely.
-  const selectedTemplateIdRef = React.useRef<string | undefined>(undefined);
+  // Privacy masking is applied ONLY in the crop window (ImagePrepModal).
 
   // ========== CENTRALIZED UI STATE (COMPUTED) ==========
   const uiState: DesignerUIState = React.useMemo(() => ({
@@ -1112,12 +1150,12 @@ export const DesignerV2_1: React.FC = () => {
         
         // Add fabric material instruction (simplified)
         const materialInstructions = {
-          silk: 'silk with natural sheen',
-          cotton: 'natural cotton texture',
-          linen: 'linen with visible weave',
-          velvet: 'luxurious velvet texture',
-          transparent: 'transparent/translucent fabric',
-          wool: 'wool with dense texture'
+          silk: 'silk with natural sheen, soft drape, and gentle folds',
+          cotton: 'matte cotton texture with crisp folds',
+          linen: 'linen with visible weave and relaxed wrinkles',
+          velvet: 'luxurious velvet with rich texture and deep folds',
+          transparent: 'transparent/translucent fabric with light passing through and soft folds',
+          wool: 'dense wool texture with structured folds'
         };
         
         if (fabricMaterial && materialInstructions[fabricMaterial]) {
@@ -1201,6 +1239,19 @@ export const DesignerV2_1: React.FC = () => {
           return prev;
         });
       }, 160);
+
+      if (pendingClosetUploadRef.current) {
+        const pending = pendingClosetUploadRef.current;
+        pendingClosetUploadRef.current = null;
+        Promise.resolve()
+          .then(() => addToCloset(pending.file, pending.name))
+          .then(() => {
+            console.log('[Designer V2.1] 📁 Upload saved to closet (generation started)');
+          })
+          .catch((e) => {
+            console.warn('[Designer V2.1] ⚠️ Failed to save upload to closet (generation started):', e);
+          });
+      }
 
       try {
         const res = await generateFabricSwap(payload);
@@ -1321,7 +1372,7 @@ export const DesignerV2_1: React.FC = () => {
       }
       return;
     }
-  }, [addPendingGeneration, executeCreditAction, features.showHistoryFilmstrip, finalizePendingGeneration, getApiPayload, isProcessing, refreshHistory, removePendingGeneration, revealSlider, selectedModel, setActiveId, sourcePreviewUrl, currentTaskId, sourceImageMimeType, fabricPreviewUrl, fabricImageMimeType, user?.uid, urlTaskId, navigate, showError]);
+  }, [addPendingGeneration, addToCloset, executeCreditAction, features.showHistoryFilmstrip, finalizePendingGeneration, getApiPayload, isProcessing, refreshHistory, removePendingGeneration, revealSlider, selectedModel, setActiveId, sourcePreviewUrl, currentTaskId, sourceImageMimeType, fabricPreviewUrl, fabricImageMimeType, user?.uid, urlTaskId, navigate, showError]);
 
   // Directive 4: lighting buttons trigger generation
   const lightingGenerator = useLightingGenerator({
@@ -1466,26 +1517,8 @@ export const DesignerV2_1: React.FC = () => {
 
     setIsProcessingTemplate(true);
 
-    // Apply Privacy Shield if enabled (blur faces locally)
-    let processedFile = file;
-    if (effectivePrivacyModeForProcessing && !options?.skipPrivacy) {
-      try {
-        traceStep('Template privacyMask START');
-        console.time('[Template] privacyMask');
-        processedFile = await processWithPrivacyShield(file);
-        console.timeEnd('[Template] privacyMask');
-        traceStep('Template privacyMask DONE', { size: processedFile.size, type: processedFile.type });
-      } catch (privacyError) {
-        console.warn('[Designer V2.1] Privacy Shield failed, using original image:', privacyError);
-        traceStep('Template privacyMask FAILED (using original)', { message: String((privacyError as any)?.message || privacyError) });
-        // Continue with original file
-      }
-    } else {
-      traceStep('Template privacyMask SKIP', {
-        isPrivacyMode: Boolean(effectivePrivacyModeForProcessing),
-        skipPrivacy: Boolean(options?.skipPrivacy),
-      });
-    }
+    // Privacy masking is ONLY applied via the crop window (ImagePrepModal).
+    const processedFile = file;
 
     // Show preview ASAP.
     const previewUrl = URL.createObjectURL(processedFile);
@@ -1553,16 +1586,6 @@ export const DesignerV2_1: React.FC = () => {
     await finalize();
   }, [isPrivacyMode, persistTemplateSelection, processWithPrivacyShield, showError, sourcePreviewUrl]);
 
-  const { selectedTemplate, selectTemplate } = useTemplateSelection(null);
-
-  React.useEffect(() => {
-    selectedTemplateIdRef.current = selectedTemplate?.id;
-  }, [selectedTemplate?.id]);
-
-  // Cache remote template downloads so re-selecting the same template doesn't refetch.
-  // This is intentionally File-based (not blob: URLs) to stay compatible with CSP that blocks fetch(blob:...).
-  const templateFileCacheRef = React.useRef<Map<string, File>>(new Map());
-
   const handleTemplateSelect = React.useCallback(
     async (templateData: any) => {
       const incomingTraceId = (templateData as any)?.__traceId;
@@ -1624,13 +1647,21 @@ export const DesignerV2_1: React.FC = () => {
             privacyApplied: Boolean((templateData as any)?.privacyApplied),
             deferCompression: Boolean(isMobile),
           });
+          
+          // Track upload for closet after successful generation
+          if ((templateData as any)?.__fromImagePrepModal && !templateData?.isClosetItem) {
+            pendingClosetUploadRef.current = {
+              file: templateData.file,
+              name: templateData.name || templateData.file.name || 'Upload',
+            };
+            console.log('[Designer V2.1] 📤 Tracked upload for closet:', pendingClosetUploadRef.current.name);
+          }
+          
           await onPickSource(templateData.file, {
-            // If the file came from ImagePrepModal, its privacy toggle is authoritative.
-            // Never apply the global/Desktop privacy filter on top of that.
             skipPrivacy: Boolean((templateData as any)?.__fromImagePrepModal) || Boolean((templateData as any)?.privacyApplied),
             deferCompression: Boolean(isMobile),
           });
-          setLoadingTemplateId(null); // Clear loading after file upload
+          setLoadingTemplateId(null);
           traceStep('Template select: file done');
           return;
         }
@@ -1713,18 +1744,8 @@ export const DesignerV2_1: React.FC = () => {
     setIsProcessingFabric(true);
     console.log('[Designer V2.1] 🎨 FABRIC UPLOADED - Processing...');
 
-    // Apply Privacy Shield if enabled (blur faces locally)
-    let processedFile = file;
-    if (isPrivacyMode && !options?.skipPrivacy) {
-      try {
-        console.time('[Fabric] privacyMask');
-        processedFile = await processWithPrivacyShield(file);
-        console.timeEnd('[Fabric] privacyMask');
-      } catch (privacyError) {
-        console.warn('[Designer V2.1] Privacy Shield failed, using original image:', privacyError);
-        // Continue with original file
-      }
-    }
+    // Privacy masking is ONLY applied via the crop window (ImagePrepModal).
+    const processedFile = file;
 
     // Show preview ASAP.
     const previewUrl = URL.createObjectURL(processedFile);
@@ -2013,6 +2034,9 @@ export const DesignerV2_1: React.FC = () => {
     return (
       <>
         <ImagePrepModal
+          mode="fabric"
+          fabricMaterial={fabricMaterial}
+          onFabricMaterialChange={setFabricMaterial}
           isOpen={fabricPrepOpen}
           file={fabricPrepFile}
           onReplaceFile={(nextFile) => {
@@ -2024,6 +2048,9 @@ export const DesignerV2_1: React.FC = () => {
               skipPrivacy: Boolean(meta?.privacyApplied),
               deferCompression: true,
             });
+            if (meta && 'fabricMaterial' in meta) {
+              setFabricMaterial(meta.fabricMaterial ?? null);
+            }
             closeFabricPrep();
             try {
               traceStep('Studio sheet collapse DISPATCH');
@@ -2088,6 +2115,8 @@ export const DesignerV2_1: React.FC = () => {
           onSelectHistoryItem={handleHistorySelect}
           inputsDisabled={uiState.inputsDisabled}
         />
+
+        <UpgradeModalHost onUpgrade={handleUpgrade} />
       </>
     );
   }
@@ -2095,7 +2124,11 @@ export const DesignerV2_1: React.FC = () => {
   // ========== DESKTOP LAYOUT ==========
   return (
     <>
+      {/* Fabric Image Prep Modal */}
       <ImagePrepModal
+        mode="fabric"
+        fabricMaterial={fabricMaterial}
+        onFabricMaterialChange={setFabricMaterial}
         isOpen={fabricPrepOpen}
         file={fabricPrepFile}
         onReplaceFile={(nextFile) => {
@@ -2104,7 +2137,36 @@ export const DesignerV2_1: React.FC = () => {
         onCancel={closeFabricPrep}
         onApply={async (processedFile, meta) => {
           await onPickFabric(processedFile, { skipPrivacy: Boolean(meta?.privacyApplied) });
+          if (meta && 'fabricMaterial' in meta) {
+            setFabricMaterial(meta.fabricMaterial ?? null);
+          }
           closeFabricPrep();
+        }}
+      />
+
+      <FabricTilingModal
+        isOpen={fabricTilingOpen}
+        onClose={() => setFabricTilingOpen(false)}
+        imageUrl={fabricPreviewUrl}
+        onApply={(tiledDataUrl) => {
+          const file = dataUrlToFile(tiledDataUrl, 'fabric-tiling.webp');
+          void onPickFabric(file, { skipPrivacy: true });
+          setFabricTilingOpen(false);
+        }}
+      />
+
+      {/* User Image Prep Modal */}
+      <ImagePrepModal
+        mode="template"
+        isOpen={userImagePrepOpen}
+        file={userImagePrepFile}
+        onReplaceFile={(nextFile) => {
+          setUserImagePrepFile(nextFile);
+        }}
+        onCancel={closeUserImagePrep}
+        onApply={async (processedFile, meta) => {
+          await onPickSource(processedFile, { skipPrivacy: Boolean(meta?.privacyApplied) });
+          closeUserImagePrep();
         }}
       />
 
@@ -2124,46 +2186,66 @@ export const DesignerV2_1: React.FC = () => {
           >
             {/* Sidebar is cleaner without header - title moved to top bar */}
 
-            {/* Model/Template Image */}
-            {features.showTemplateUpload && (
-              <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                  النموذج / القالب
-                  {isLoadingProduct && (
-                    <span className="ml-2 text-[10px] text-purple-400 animate-pulse">جاري التحميل...</span>
-                  )}
-                </div>
-                <div className={uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''}>
-                  <TemplateSelectorView
-                    onSelect={handleTemplateSelect}
-                    onTabChange={(tab) => {
-                      // Update active tab immediately when user clicks tab button
-                      setLastActiveTemplateTab(tab);
-                      console.log(`[Designer] Tab switched to: ${tab}`);
-                    }}
-                    currentId={selectedTemplate?.id}
-                    shopItems={productTemplates || undefined}
-                    closetItems={undefined}
-                    enableUpload
-                    isSubscribed={isSubscribed || canAfford('premium_template')}
-                    onPremiumClick={() => setIsUpgradeModalOpen(true)}
-                    defaultTab={productTemplates ? 'Shop' : undefined}
-                    loadingTemplateId={isLoadingProduct ? 'loading-product' : loadingTemplateId}
+            {/* User Image Upload Card */}
+            <div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">صورة المستخدم</div>
+              <label
+                className={`relative h-[8.4rem] rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 flex flex-col items-center justify-center gap-2 overflow-hidden cursor-pointer ${
+                  uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''
+                }`}
+              >
+                <input
+                  ref={templateInputRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  disabled={uiState.uploadsDisabled}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      openUserImagePrep(file);
+                      e.currentTarget.value = '';
+                    }
+                  }}
+                />
+                {sourcePreviewUrl ? (
+                  <img
+                    src={sourcePreviewUrl}
+                    alt="User Image"
+                    className="absolute inset-0 w-full h-full object-contain object-center"
+                    loading="lazy"
+                    decoding="async"
+                    onClick={() => templateInputRef.current?.click()}
                   />
-                </div>
-              </div>
-            )}
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => templateInputRef.current?.click()}
+                    className="flex flex-col items-center justify-center gap-2"
+                  >
+                    <Upload className="w-5 h-5 text-zinc-500" />
+                    <div className="text-xs text-zinc-500">رفع صورة</div>
+                  </button>
+                )}
+                {sourcePreviewUrl && (
+                  <div className="absolute bottom-2 left-2 text-xs font-normal px-3 py-1 rounded-md bg-black/60 border border-zinc-700 text-zinc-200">
+                    تغيير
+                  </div>
+                )}
+              </label>
+            </div>
 
             {/* Fabric/Pattern Image */}
             {features.showFabricUpload && (
               <div>
                 <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">القماش / النقشة</div>
-                <label
-                  className={`relative h-28 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 flex flex-col items-center justify-center gap-2 overflow-hidden cursor-pointer ${
+                <div
+                  className={`grid grid-cols-[1fr_96px] gap-2 ${
                     uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''
                   }`}
                 >
                   <input
+                    ref={fabricInputRef}
                     type="file"
                     accept="image/*"
                     className="hidden"
@@ -2174,24 +2256,49 @@ export const DesignerV2_1: React.FC = () => {
                       e.currentTarget.value = '';
                     }}
                   />
-                  {fabricPreviewUrl ? (
-                    <img
-                      src={fabricPreviewUrl}
-                      alt="Fabric"
-                      className="absolute inset-0 w-full h-full object-contain object-center"
-                    />
-                  ) : (
-                    <>
-                      <Upload className="w-5 h-5 text-zinc-500" />
-                      <div className="text-xs text-zinc-500">رفع</div>
-                    </>
-                  )}
-                  {fabricPreviewUrl && (
-                    <div className="absolute bottom-2 left-2 text-[10px] px-2 py-0.5 rounded bg-black/50 border border-zinc-700">
-                      تغيير
-                    </div>
-                  )}
-                </label>
+                  <div className="relative h-28 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 overflow-hidden">
+                    {fabricPreviewUrl ? (
+                      <img
+                        src={fabricPreviewUrl}
+                        alt="Fabric"
+                        className="absolute inset-2 w-[calc(100%-1rem)] h-[calc(100%-1rem)] object-cover object-center rounded-lg cursor-pointer"
+                        loading="lazy"
+                        decoding="async"
+                        onClick={() => fabricInputRef.current?.click()}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => fabricInputRef.current?.click()}
+                        className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-zinc-500"
+                      >
+                        <Upload className="w-5 h-5" />
+                        <span>لا يوجد قماش</span>
+                      </button>
+                    )}
+                  </div>
+                  <div className="h-28 rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 p-2 flex flex-col gap-2">
+                    <button
+                      type="button"
+                      onClick={() => fabricInputRef.current?.click()}
+                      className="w-full h-10 rounded-md border border-zinc-700 bg-zinc-900 text-xs text-zinc-200 hover:bg-zinc-800 transition-colors"
+                    >
+                      {fabricPreviewUrl ? 'تغيير' : 'رفع'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFabricTilingOpen(true)}
+                      disabled={!fabricPreviewUrl}
+                      className={`w-full h-10 rounded-md border text-xs transition-colors ${
+                        fabricPreviewUrl
+                          ? 'border-zinc-700 bg-zinc-900 text-zinc-100 hover:bg-zinc-800'
+                          : 'border-zinc-800 bg-zinc-950 text-zinc-600 cursor-not-allowed'
+                      }`}
+                    >
+                      تبليط
+                    </button>
+                  </div>
+                </div>
 
                 {/* Fabric Material Selection */}
                 <details className="mt-3 mb-4">
@@ -2247,10 +2354,40 @@ export const DesignerV2_1: React.FC = () => {
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <span className="animate-pulse">✨</span>
-                    <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
+                    <span>{`توليد 1${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
                   </span>
                 )}
               </button>
+            )}
+
+            {/* Model/Template Gallery */}
+            {features.showTemplateUpload && (
+              <div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
+                  النموذج / القالب
+                  {isLoadingProduct && (
+                    <span className="ml-2 text-[10px] text-purple-400 animate-pulse">جاري التحميل...</span>
+                  )}
+                </div>
+                <div className={uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''}>
+                  <TemplateSelectorView
+                    onSelect={handleTemplateSelect}
+                    onTabChange={(tab) => {
+                      // Update active tab immediately when user clicks tab button
+                      setLastActiveTemplateTab(tab);
+                      console.log(`[Designer] Tab switched to: ${tab}`);
+                    }}
+                    currentId={selectedTemplate?.id}
+                    shopItems={undefined}
+                    closetItems={undefined}
+                    enableUpload
+                    isSubscribed={isSubscribed || canAfford('premium_template')}
+                    onPremiumClick={() => setIsUpgradeModalOpen(true)}
+                    defaultTab="Closet"
+                    loadingTemplateId={isLoadingProduct ? 'loading-product' : loadingTemplateId}
+                  />
+                </div>
+              </div>
             )}
 
             {/* Privacy Shield Section */}
@@ -2376,160 +2513,17 @@ export const DesignerV2_1: React.FC = () => {
                         </div>
                       )}
 
-                      {/* Test Button */}
-                      {sourceImageBase64 && (
-                        <div className="pt-2 border-t border-zinc-800">
-                          <button
-                          onClick={async () => {
-                            try {
-                              console.log('[Privacy Test] Starting test on current template image');
-                              
-                              const currentSliderPos = sliderPos;
-                              
-                              const binaryString = atob(sourceImageBase64);
-                              const bytes = new Uint8Array(binaryString.length);
-                              for (let i = 0; i < binaryString.length; i++) {
-                                bytes[i] = binaryString.charCodeAt(i);
-                              }
-                              const blob = new Blob([bytes], { type: sourceImageMimeType || 'image/jpeg' });
-                              const file = new File([blob], 'test-image.jpg', { type: blob.type });
-                              
-                              const processedFile = await processWithPrivacyShield(file);
-                              const processedUrl = URL.createObjectURL(processedFile);
-                              
-                              setAfterImage(processedUrl);
-                              setSliderPos(currentSliderPos);
-                              
-                              console.log('[Privacy Test] ✅ Processing complete, showing result');
-                            } catch (error) {
-                              console.error('[Privacy Test] Failed:', error);
-                              showError('Privacy Shield test failed');
-                            }
-                          }}
-                          disabled={isProcessingPrivacy}
-                          className={`w-full px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                            isProcessingPrivacy
-                              ? 'bg-purple-500/30 text-purple-300 cursor-wait'
-                              : 'bg-purple-600 text-white hover:bg-purple-700 active:scale-95'
-                          }`}
-                        >
-                          {isProcessingPrivacy ? (
-                            <span className="flex items-center justify-center gap-2">
-                              <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                              Testing...
-                            </span>
-                          ) : (
-                            '🧪 Test Privacy Shield'
-                          )}
-                        </button>
-                        </div>
-                      )}
                   </div>
                 </details>
               )}
             </div>
-
-          {/* Sidebar Generate button */}
-          {features.showRefinementPrompt && (
-            <button
-              type="button"
-              disabled={uiState.generationDisabled}
-              onClick={handleFabricSwap}
-              className={`generateButtonShine mt-3 w-full px-4 py-3 rounded-xl font-extrabold tracking-wide text-base transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ${
-                uiState.generationDisabled
-                  ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20'
-                  : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40 hover:border-purple-400/60'
-              }`}
-            >
-              {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-              {isProcessing ? (
-                'جاري المعالجة...'
-              ) : (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="animate-pulse">✨</span>
-                  <span>{`توليد${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
-                </span>
-              )}
-            </button>
-          )}
-
-          {/* Apply Privacy Shield Button - Always visible when enabled */}
-          {isPrivacyMode && sourceImageBase64 && (
-            <button
-              onClick={() => void handleApplyPrivacyShieldToCurrentTemplate()}
-              disabled={isProcessingPrivacy}
-              className={`mt-3 w-full px-4 py-2 rounded-lg font-medium text-sm transition-all ${
-                isProcessingPrivacy
-                  ? 'bg-purple-500/30 text-purple-300 cursor-wait'
-                  : 'bg-purple-600 text-white hover:bg-purple-700 active:scale-95'
-              }`}
-            >
-              {isProcessingPrivacy ? (
-                <span className="flex items-center justify-center gap-2">
-                  <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                  جاري التطبيق...
-                </span>
-              ) : (
-                '🛡️ تطبيق حماية الخصوصية'
-              )}
-            </button>
-          )}
 
           {(features.showModelSelection || features.showRefinementPrompt) && (
             <details className="pt-6 border-t border-zinc-800">
               <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
                 إعدادات متقدمة
               </summary>
-
-              {/* Model Selection */}
-              {features.showModelSelection && (
-                <div className="mt-3">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">اختيار النموذج</div>
-                    <div className="group relative">
-                      <Info className="w-3.5 h-3.5 text-zinc-500 cursor-help" />
-                      <div className="invisible group-hover:visible absolute left-0 top-full mt-1 w-40 bg-zinc-900 border border-zinc-700 rounded-lg p-2 text-[10px] text-zinc-300 z-50">
-                        اختر بين التبديل السريع (NanoBana) أو النتائج عالية الجودة (Pro).
-                      </div>
-                    </div>
-                  </div>
-                  <SegmentedToggle
-                    options={[
-                      {
-                        label: 'NanoBana',
-                        badge: 'سريع',
-                        description: 'الأفضل للاستبدال السريع للقماش مع الحفاظ على الوضعية والميزات.',
-                      },
-                      {
-                        label: 'Pro',
-                        badge: 'جودة عالية',
-                        description: 'فهم عميق مع مزج فني للقماش وتدلي طبيعي.',
-                      },
-                    ]}
-                    active={selectedModel}
-                    onChange={(v) => setSelectedModel(v as 'NanoBana' | 'Pro')}
-                    disabled={uiState.inputsDisabled}
-                    showDescription
-                  />
-                </div>
-              )}
-
-              {/* Refinement Prompt */}
-              {features.showRefinementPrompt && (
-                <div className="mt-4">
-                  <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                    تعليمات التحسين (اختياري)
-                  </div>
-                  <textarea
-                    value={refinementPrompt}
-                    onChange={(e) => setRefinementPrompt(e.target.value)}
-                    disabled={uiState.inputsDisabled}
-                    placeholder="مثلًا، 'اجعل القماش يتدلى بشكل طبيعي' أو 'حافظ على الخلفية الأصلية'"
-                    className="w-full bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40 resize-none"
-                    rows={3}
-                  />
-                </div>
-              )}
+              <div className="mt-3 text-xs text-zinc-500">—</div>
             </details>
           )}
 
@@ -2700,26 +2694,6 @@ export const DesignerV2_1: React.FC = () => {
           )}
         </div>
 
-        {/* Fixed Button Footer - Always visible at bottom */}
-        {features.showGenerateButton && (
-        <div className="p-4 border-t border-zinc-800 bg-zinc-950">
-          <button
-            type="button"
-            disabled={uiState.generationDisabled}
-            onClick={handleFabricSwap}
-            className={`generateButtonShine w-full h-14 rounded-2xl font-extrabold tracking-wide text-base transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ${
-              uiState.generationDisabled
-                ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20 opacity-50 pointer-events-none'
-                : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-95 border-purple-500/40 hover:border-purple-400/60'
-            }`}
-          >
-            {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
-            {isProcessing
-              ? 'جاري المعالجة...'
-              : `توليد وتحسين${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}
-          </button>
-        </div>
-        )}
       </aside>
 
       {/* Center Content */}
@@ -2773,6 +2747,9 @@ export const DesignerV2_1: React.FC = () => {
                   <ImageSlider
                     before={sourceForComparison}
                     after={afterImage}
+                    mode="fabric"
+                    fabricMaterial={fabricMaterial}
+                    onFabricMaterialChange={setFabricMaterial}
                     value={sliderPos}
                     onChange={setSliderPos}
                   />
@@ -2793,56 +2770,59 @@ export const DesignerV2_1: React.FC = () => {
                     </div>
                   )}
 
-                  {/* Floating Vertical Toolbar */}
-                  {features.showFloatingToolbar && (
-                    <div className="absolute top-1/2 -translate-y-1/2 right-4 flex flex-col gap-2 z-50">
-                      <button
-                        type="button"
-                        title={shareUrlCopied ? 'تم نسخ الرابط!' : 'مشاركة التصميم'}
-                        onClick={handleShareTask}
-                        disabled={!currentTaskId}
-                        className={`p-3 bg-zinc-900/90 border rounded-xl transition-all ${
-                          shareUrlCopied
-                            ? 'border-green-500/60 bg-green-500/10'
-                            : 'border-zinc-800 hover:border-purple-500/60'
-                        } ${!currentTaskId ? 'opacity-50 cursor-not-allowed' : ''}`}
-                      >
-                        {shareUrlCopied ? (
-                          <Check className="w-5 h-5 text-green-400" />
-                        ) : (
-                          <Share2 className="w-5 h-5 text-zinc-300" />
-                        )}
-                      </button>
-                      <button
-                        type="button"
-                        title="تحميل النتيجة"
-                        className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
-                      >
-                        <Download className="w-5 h-5 text-zinc-300" />
-                      </button>
-                      <button
-                        type="button"
-                        title="تكبير"
-                        className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
-                      >
-                        <ZoomIn className="w-5 h-5 text-zinc-300" />
-                      </button>
-                      <button
-                        type="button"
-                        title="وضع ملء الشاشة"
-                        className="p-3 bg-zinc-900/90 border border-zinc-800 rounded-xl hover:border-purple-500/60 transition-colors"
-                      >
-                        <Maximize2 className="w-5 h-5 text-zinc-300" />
-                      </button>
-                    </div>
-                  )}
+                  {/* Floating Vertical Toolbar removed - moved to lighting row */}
                 </div>
+
               ) : null}
             </div>
 
             {/* Lighting presets row (below canvas) */}
-            <div className="mt-2 mb-1 flex justify-center">
-              <LightingPresets value={lightingGenerator.value} onChange={lightingGenerator.onSelectPreset} />
+            <div className="mt-2 mb-1 flex items-center justify-between">
+              {!isMobile && features.showFloatingToolbar && (
+                <div className="flex items-center gap-2 h-12 px-2 rounded-xl border border-zinc-800 bg-zinc-900/60">
+                  <button
+                    type="button"
+                    title={shareUrlCopied ? 'تم نسخ الرابط!' : 'مشاركة التصميم'}
+                    onClick={handleShareTask}
+                    disabled={!currentTaskId}
+                    className={`p-2 bg-zinc-900/90 border rounded-lg transition-all ${
+                      shareUrlCopied
+                        ? 'border-green-500/60 bg-green-500/10'
+                        : 'border-zinc-800 hover:border-purple-500/60'
+                    } ${!currentTaskId ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {shareUrlCopied ? (
+                      <Check className="w-4 h-4 text-green-400" />
+                    ) : (
+                      <Share2 className="w-4 h-4 text-zinc-300" />
+                    )}
+                  </button>
+                  <button
+                    type="button"
+                    title="تحميل النتيجة"
+                    className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
+                  >
+                    <Download className="w-4 h-4 text-zinc-300" />
+                  </button>
+                  <button
+                    type="button"
+                    title="تكبير"
+                    className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
+                  >
+                    <ZoomIn className="w-4 h-4 text-zinc-300" />
+                  </button>
+                  <button
+                    type="button"
+                    title="وضع ملء الشاشة"
+                    className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
+                  >
+                    <Maximize2 className="w-4 h-4 text-zinc-300" />
+                  </button>
+                </div>
+              )}
+              <div className="flex-1 flex justify-center">
+                <LightingPresets value={lightingGenerator.value} onChange={lightingGenerator.onSelectPreset} />
+              </div>
             </div>
           </div>
 
@@ -3000,13 +2980,7 @@ export const DesignerV2_1: React.FC = () => {
         </div>
 
         {/* Upgrade Modal */}
-        {features.showUpgradeModal && (
-          <UpgradeModal
-            isOpen={isUpgradeModalOpen}
-            onClose={() => setIsUpgradeModalOpen(false)}
-            onUpgradeClick={handleUpgrade}
-          />
-        )}
+        {features.showUpgradeModal ? <UpgradeModalHost onUpgrade={handleUpgrade} /> : null}
       </main>
     </div>
     

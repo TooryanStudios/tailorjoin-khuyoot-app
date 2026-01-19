@@ -6,6 +6,7 @@ import { Star, ShoppingBag, MapPin, Clock, ChevronLeft, ChevronRight, Loader2, T
 import { useApp } from '../context/AppContext';
 import ProductActions from './ProductActions';
 import { firebaseService } from '../services/firebase';
+import { StableImage } from './StableImage';
 
 interface ProductCardProps {
   product: Product;
@@ -98,18 +99,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
           className="relative w-32 h-32 flex-shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer"
           onClick={() => navigate(`/product/${product.id}`)}
         >
-          {!imageLoaded && !imageError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-200 dark:bg-slate-800">
-              <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
-            </div>
-          )}
-          <img 
+          <StableImage 
             src={productImages[currentImageIndex]} 
             alt={product.name} 
-            className={`w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            loading="lazy"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            className="w-full h-full object-cover transition-opacity duration-300"
           />
           {showLegacyBadge && usingLegacyImage && (
             <div className={`absolute bottom-1 right-1 ${legacyBadgeClassName} backdrop-blur-md px-1.5 py-0.5 rounded text-white text-[10px] z-10`}>
@@ -168,18 +161,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
           className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900 cursor-pointer"
           onClick={() => navigate(`/product/${product.id}`)}
         >
-          {!imageLoaded && !imageError && (
-            <div className="absolute inset-0 flex items-center justify-center bg-slate-200 dark:bg-slate-800">
-              <Loader2 className="w-6 h-6 text-blue-500 animate-spin" />
-            </div>
-          )}
-          <img 
+          <StableImage 
             src={productImages[currentImageIndex]} 
             alt={product.name} 
-            className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-            loading="eager"
-            onLoad={() => setImageLoaded(true)}
-            onError={() => setImageError(true)}
+            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
           />
           {showLegacyBadge && usingLegacyImage && (
             <div className={`absolute bottom-1 right-1 ${legacyBadgeClassName} backdrop-blur-md px-1.5 py-0.5 rounded text-white text-[10px] z-10`}>
@@ -218,19 +203,10 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
         className="relative aspect-[3/4] overflow-hidden bg-slate-100 dark:bg-slate-900 cursor-pointer"
         onClick={() => navigate(`/product/${product.id}`)}
       >
-        {!imageLoaded && !imageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-200 dark:bg-slate-800 z-10">
-            <Loader2 className="w-10 h-10 text-blue-500 animate-spin" />
-          </div>
-        )}
-        <img 
+        <StableImage 
           src={productImages[currentImageIndex]} 
           alt={product.name} 
-          className={`w-full h-full object-cover group-hover:scale-105 transition-all duration-500 ${imageLoaded ? 'opacity-100' : 'opacity-0'}`}
-          loading="lazy"
-          decoding="async"
-          onLoad={() => setImageLoaded(true)}
-          onError={() => setImageError(true)}
+          className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
         />
         {showLegacyBadge && usingLegacyImage && (
           <div className={`absolute bottom-2 right-2 ${legacyBadgeClassName} backdrop-blur-md px-2 py-0.5 rounded-full text-white text-[10px] font-medium z-10`}>

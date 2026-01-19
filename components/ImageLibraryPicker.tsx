@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { X, Image as ImageIcon, Loader2 } from 'lucide-react';
 import { getImageCategories, getImagesByCategoryId } from '../services/imageLibraryService';
 import { ImageLibraryCategory, ImageLibraryItem } from '../types';
+import { StableImage } from './StableImage';
 
 interface ImageLibraryPickerProps {
   onSelect: (imageUrl: string) => void;
@@ -301,10 +302,11 @@ export const ImageLibraryPicker: React.FC<ImageLibraryPickerProps> = ({ onSelect
                         className="group relative rounded-xl overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-blue-500 dark:hover:border-blue-400 transition-all hover:shadow-lg hover:scale-105"
                         style={{ width: '108px', height: '154px' }}
                       >
-                        <img 
+                        <StableImage 
                           src={img.imageUrl} 
                           alt={img.label || 'صورة'}
-                          className="w-full h-full object-cover"
+                          aspectClass="aspect-auto h-full w-full"
+                          imgClassName="object-cover"
                         />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/60 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-2">
                           <span className="text-xs text-white font-medium truncate">{img.label}</span>

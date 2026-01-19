@@ -6,7 +6,6 @@ import { designService } from '../../../services/designService';
 import { firebaseService } from '../../../services/firebase';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { requestNotificationPermission, showLocalTestNotification, isNotificationSupported } from '../../../utils/notifications';
-import { CreditBadge } from '../../modules/CreditManager/CreditBadge';
 
 const HeaderComponent = () => {
   const { user, loading, toggleAuthModal, theme, toggleTheme, cartCount, ordersCount, appSettings } = useApp();
@@ -15,9 +14,6 @@ const HeaderComponent = () => {
   const { showInstallButton, isInstalled, promptInstall } = usePWAInstall();
   const [designsCount, setDesignsCount] = useState<number>(0);
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [draftsCount, setDraftsCount] = useState<number>(0);
-  const [showDraftToast, setShowDraftToast] = useState(false);
-  const [draftToastMsg, setDraftToastMsg] = useState('');
 
   // Debounced designs count fetch to reduce repeated loads
   useEffect(() => {
@@ -67,80 +63,8 @@ const HeaderComponent = () => {
   // Close mobile menu on route change
   useEffect(() => { setMobileOpen(false); }, [location.pathname]);
 
-  // Load drafts count for badge
-  useEffect(() => {
-    let cancelled = false;
-
-    const uid = user?.id || 'guest';
-
-    // Cache-first: show cached count immediately (prevents “late” badge on refresh)
-    try {
-      const raw = localStorage.getItem(`order_drafts_${uid}`);
-      const arr = raw ? JSON.parse(raw) : [];
-      if (Array.isArray(arr)) setDraftsCount(arr.length);
-    } catch {
-      // ignore
-    }
-
-    const t = setTimeout(async () => {
-      if (cancelled) return;
-      try {
-        const items = await firebaseService.loadOrderDrafts(uid);
-        if (!cancelled) {
-          const safeItems = Array.isArray(items) ? items : [];
-          setDraftsCount(safeItems.length);
-          try {
-            localStorage.setItem(`order_drafts_${uid}`, JSON.stringify(safeItems));
-          } catch {
-            // ignore
-          }
-        }
-      } catch (e) {
-        console.warn('Failed to load drafts count, using fallback', e);
-        if (!cancelled) {
-          try {
-            const raw = localStorage.getItem(`order_drafts_${uid}`);
-            const arr = raw ? JSON.parse(raw) : [];
-            setDraftsCount(Array.isArray(arr) ? arr.length : 0);
-          } catch {}
-        }
-      }
-    }, 200);
-    return () => { cancelled = true; clearTimeout(t); };
-  }, [user?.id]);
-
-  // Toast when drafts count increases
-  useEffect(() => {
-    // Read previous count from session to avoid noisy toasts across navigations
-    const key = `__last_drafts_count_${user?.id || 'guest'}`;
-    const lastRaw = sessionStorage.getItem(key);
-    const last = lastRaw ? parseInt(lastRaw, 10) : 0;
-    if (Number.isFinite(last) && draftsCount > last) {
-      setDraftToastMsg(`تم حفظ ${draftsCount - last} مسودة جديدة`);
-      setShowDraftToast(true);
-      const timer = setTimeout(() => setShowDraftToast(false), 2500);
-      return () => clearTimeout(timer);
-    }
-    sessionStorage.setItem(key, String(draftsCount));
-  }, [draftsCount, user?.id]);
-
   const isActive = (path: string) => location.pathname === path;
   const isDev = import.meta.env.DEV;
-  const isDesignerRoute = location.pathname.startsWith('/designer-v2-1');
-
-  const triggerDesignerUpgrade = () => {
-    try {
-      sessionStorage.setItem('__khuyoot_open_upgrade_modal', '1');
-    } catch {
-      // ignore
-    }
-    if (!location.pathname.startsWith('/designer-v2-1')) {
-      navigate('/designer-v2-1');
-    } else {
-      // Let the designer page react to this without requiring navigation.
-      window.dispatchEvent(new Event('khuyoot:open-upgrade-modal'));
-    }
-  };
 
   const canShowHomeSection = (section: 'installButton' | 'notificationButton') => {
     const sectionSettings = (appSettings?.homeSections ?? {}) as Record<string, boolean | undefined>;
@@ -168,69 +92,82 @@ const HeaderComponent = () => {
   const roleLinks = useMemo(() => {
     return {
       guest: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'الرئيسية', path: '/', icon: null },
         { label: 'المجموعات', path: '/collections', icon: Package },
         { label: 'المحلات', path: '/shops', icon: null },
         { label: 'الخياطون', path: '/tailors', icon: null },
         { label: 'تصاميمي', path: '/designs', icon: null, badge: () => (user ? designsCount : 0) },
-        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => draftsCount },
+        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => 0 },
       ],
       user: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'الرئيسية', path: '/', icon: null },
         { label: 'المجموعات', path: '/collections', icon: Package },
         { label: 'المحلات', path: '/shops', icon: null },
         { label: 'الخياطون', path: '/tailors', icon: null },
         { label: 'تصاميمي', path: '/designs', icon: null, badge: () => designsCount },
-        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => draftsCount },
+        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => 0 },
       ],
       tailor: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'الرئيسية', path: '/', icon: null },
         { label: 'منتجاتي', path: '/tailor/collections', icon: Scissors },
         { label: 'الطلبات', path: '/tailor/orders', icon: ClipboardList, badge: () => (ordersCount ?? 0) },
         { label: 'الأقمشة', path: '/tailor-materials', icon: null },
         { label: 'لوحة التحكم', path: '/tailor-dashboard', icon: null },
-        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => draftsCount },
+        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => 0 },
       ],
       boutique: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'الرئيسية', path: '/', icon: null },
         { label: 'الطلبات', path: '/boutique/orders', icon: PackageOpen, badge: () => (ordersCount ?? 0) },
         { label: 'المنتجات', path: '/boutique-account', icon: null },
-        { label: 'الإحصائيات', path: '/boutique-account', icon: null },
-        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => draftsCount },
+        { label: 'الإحصائيات', path: '/account', icon: null },
+        { label: 'مسوداتي', path: '/drafts', icon: ClipboardList, badge: () => 0 },
       ],
       shop: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'الرئيسية', path: '/', icon: null },
         { label: 'الطلبات', path: '/shop/orders', icon: Store, badge: () => (ordersCount ?? 0) },
         { label: 'المخزون', path: '/shop/inventory', icon: Box },
         { label: 'المنتجات', path: '/shop-account', icon: null },
-        { label: 'المبيعات', path: '/shop-account', icon: null },
+        { label: 'المبيعات', path: '/account', icon: null },
         { label: 'مسوداتي', path: '/drafts', icon: ClipboardList },
       ],
       admin: [
+        { label: 'Page A', path: '/demo-shell/a', icon: null },
+        { label: 'Page B', path: '/demo-shell/b', icon: null },
+        { label: 'Top Tailors', path: '/demo-shell/top-tailors', icon: null },
+        { label: 'Designer', path: '/designer-v2-1', icon: null },
         { label: 'لوحة التحكم', path: '/admin', icon: null },
         { label: 'المستخدمين', path: '/admin', icon: null },
         { label: 'الطلبات', path: '/admin', icon: null },
         { label: 'الإعدادات', path: '/admin', icon: null },
       ],
     } as const;
-  }, [designsCount, ordersCount, draftsCount, user]);
+  }, [designsCount, ordersCount, user]);
 
   return (
     <>
       {/* Skip to content for accessibility */}
       <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-2 focus:left-2 bg-blue-600 text-white px-3 py-2 rounded-md">تخطي إلى المحتوى</a>
       <header className="bg-white/80 dark:bg-[#050817]/80 backdrop-blur-md border-b border-slate-200 dark:border-white/5 py-3 px-4 transition-colors duration-300" role="banner">
-        {/* Lightweight toast for drafts updates */}
-        {showDraftToast && (
-          <button
-            onClick={() => navigate('/drafts')}
-            className="fixed top-2 right-2 z-50 bg-blue-600 text-white text-xs px-3 py-2 rounded-lg shadow-lg hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-white"
-            aria-label="فتح صفحة المسودات"
-            title="افتح المسودات"
-          >
-            {draftToastMsg || 'تم حفظ المسودة بنجاح'}
-          </button>
-        )}
         <div className="max-w-7xl mx-auto flex items-center gap-4">
           {/* Logo block - top left */}
           <div 
@@ -249,12 +186,29 @@ const HeaderComponent = () => {
           {!(loading && !user) ? (
             <nav aria-label="التنقل الرئيسي" className="hidden md:flex items-center gap-2">
               {(() => {
-                const role = user?.role ?? (user ? 'user' : 'guest');
+                // Determine role key - handle both legacy roles and new shopType model
+                let role = user?.role ?? (user ? 'user' : 'guest');
+                const shopType = (user as any)?.shopType;
+                
+                // If role is already boutique/shop, use it directly (legacy data)
+                // Otherwise if tailor, check shopType
+                if (user?.role === 'tailor' && shopType) {
+                  if (shopType === 'boutique') role = 'boutique';
+                  else if (shopType === 'shop' || shopType === 'fabric_store' || shopType === 'sewing_supplies') {
+                    role = 'shop';
+                  }
+                }
                 const links = roleLinks[role as keyof typeof roleLinks] ?? roleLinks.guest;
+                
                 return links.map((l) => (
                   <button
                     key={l.path + l.label}
-                    onClick={() => navigate(l.path)}
+                    onClick={() => {
+                      try {
+                        console.log('Header navigate click', { label: l.label, path: l.path });
+                      } catch {}
+                      navigate(l.path);
+                    }}
                     className={`text-xs font-medium transition-colors flex items-center gap-1 px-2 py-1.5 rounded-md hover:bg-slate-100 dark:hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 ${
                       'text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400'
                     } ${isActive(l.path) ? 'font-semibold text-blue-600 dark:text-blue-400' : ''}`}
@@ -275,19 +229,6 @@ const HeaderComponent = () => {
 
           {/* Empty space */}
           <div className="flex-1" />
-
-          {/* Designer V2.1 meta + credits (Designer routes only) */}
-          {isDesignerRoute && (
-            <div className="hidden sm:flex flex-col items-end gap-2 min-w-0 max-w-[240px]">
-              <div className="text-right min-w-0">
-                <p className="text-[11px] font-semibold text-slate-700 dark:text-slate-200 whitespace-nowrap">Designer V2.1</p>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">Fabric Swap (Powered by NanoBana)</p>
-              </div>
-              <div className="min-w-0">
-                <CreditBadge onRefill={triggerDesignerUpgrade} />
-              </div>
-            </div>
-          )}
 
           {/* Actions: Mobile menu + Role icons + Theme + Auth */}
           <div className="flex items-center gap-3 shrink-0">
@@ -441,12 +382,26 @@ const HeaderComponent = () => {
         {mobileOpen && !(loading && !user) ? (
           <nav aria-label="التنقل الرئيسي" className="md:hidden mt-3 pb-2 flex flex-col gap-2">
             {(() => {
-              const role = user?.role ?? (user ? 'user' : 'guest');
+              // Determine role key - handle both legacy roles and new shopType model
+              let role = user?.role ?? (user ? 'user' : 'guest');
+              const shopType = (user as any)?.shopType;
+              
+              // If role is already boutique/shop, use it directly (legacy data)
+              // Otherwise if tailor, check shopType
+              if (user?.role === 'tailor' && shopType) {
+                if (shopType === 'boutique') role = 'boutique';
+                else if (shopType === 'shop' || shopType === 'fabric_store' || shopType === 'sewing_supplies') {
+                  role = 'shop';
+                }
+              }
               const links = roleLinks[role as keyof typeof roleLinks] ?? roleLinks.guest;
               return links.map((l) => (
                 <button
                   key={l.path + l.label}
                   onClick={() => {
+                    try {
+                      console.log('Header navigate click (mobile)', { label: l.label, path: l.path });
+                    } catch {}
                     navigate(l.path);
                     setMobileOpen(false);
                   }}
