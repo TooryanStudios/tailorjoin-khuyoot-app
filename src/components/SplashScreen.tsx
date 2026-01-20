@@ -5,9 +5,9 @@ export function SplashScreen() {
     <div className="min-h-screen w-screen flex flex-col items-center justify-center bg-slate-950 text-slate-100">
       <div className="mb-6 animate-pulse">
         <img
-          src="/pwa-192x192.svg"
+          src="/logo_big.png?v=4"
           alt="Khuyoot"
-          className="h-24 w-24"
+          className="h-32 w-32"
           decoding="async"
           loading="eager"
         />

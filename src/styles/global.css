@@ -3,6 +3,20 @@
 :root {
   --app-height: 100vh;
   --footer-height: 74px;
+  
+  /* Master/Main Color Theme */
+  --theme-primary: #2fb8b3;
+  --theme-main: #2fb8b3;
+  --theme-master: #2fb8b3;
+  
+  /* Derived theme colors (fallbacks; enhanced below when supported) */
+  --theme-primary-dark: #1f8f8b;
+}
+
+@supports (color: color-mix(in srgb, black, white)) {
+  :root {
+    --theme-primary-dark: color-mix(in srgb, var(--theme-primary) 72%, black);
+  }
 }
 
 * {
@@ -80,5 +94,32 @@ html, body {
 .custom-scrollbar {
   scrollbar-width: thin;
   scrollbar-color: #3f3f46 transparent;
+}
+
+/* Hide scrollbar utility */
+.scrollbar-hide {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;  /* Chrome, Safari and Opera */
+}
+
+/* Fix autofill styling for dark inputs */
+input:-webkit-autofill,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:active {
+  -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
+  box-shadow: 0 0 0 30px #1e293b inset !important;
+}
+
+input:-webkit-autofill {
+  -webkit-text-fill-color: #ffffff !important;
+}
+
+input:-webkit-autofill::first-line {
+  font-size: 16px;
 }
 

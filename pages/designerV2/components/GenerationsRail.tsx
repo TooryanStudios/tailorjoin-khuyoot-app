@@ -25,6 +25,138 @@ interface GenerationsRailProps {
   placeholderCount?: number;
 }
 
+
+interface GenerationCardProps {
+  generation: GenerationItem;
+  menuOpen: boolean;
+  onToggleMenu: (key: string) => void;
+  onOpenImage: (url: string) => void;
+  onSetBefore?: (url: string) => void;
+  onSetAfter?: (url: string) => void;
+  formatTime: (ts: number) => string;
+  formatDims: (w?: number | null, h?: number | null) => string;
+}
+
+const GenerationCard = React.memo(({
+  generation: g,
+  menuOpen,
+  onToggleMenu,
+  onOpenImage,
+  onSetBefore,
+  onSetAfter,
+  formatTime,
+  formatDims
+}: GenerationCardProps) => {
+  const key = `${g.jobId}:${g.url}`;
+  
+  return (
+    <div
+      onClick={() => onToggleMenu(key)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onToggleMenu(key);
+        }
+      }}
+      className="group relative w-[92px] sm:w-[92px] aspect-[3/4] flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:opacity-95"
+      title="خيارات"
+      role="button"
+      tabIndex={0}
+      aria-label="خيارات"
+    >
+      <StableImage
+        src={g.thumbnailUrl || g.url}
+        alt="Generation thumbnail"
+        aspectClass="h-full"
+        className="absolute inset-0"
+      />
+
+      <div
+          className={
+            `absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-2 p-2 transition-opacity ` +
+            (menuOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') +
+            ' md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto'
+          }
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          <div className="w-full rounded-md bg-black/70 px-2 py-2 text-[11px] leading-5 text-white text-right">
+            <div className="flex items-center justify-between gap-2">
+              <span className="opacity-90">الوقت</span>
+              <span className="font-bold">{formatTime(g.createdAt)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="opacity-90">الأبعاد</span>
+              <span className="font-bold">{formatDims(g.width, g.height)}</span>
+            </div>
+            <div className="flex items-center justify-between gap-2">
+              <span className="opacity-90">القماش</span>
+              <span
+                className="font-bold truncate max-w-[64px]"
+                title={g.fabricId ?? ''}
+              >
+                {g.fabricId || '—'}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex flex-col items-center justify-center gap-1.5">
+            {onSetBefore ? (
+              <button
+                type="button"
+                title="تعيين كـ قبل"
+                aria-label="تعيين كـ قبل"
+                className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSetBefore(g.url);
+                  onToggleMenu(key);
+                }}
+              >
+                <ChevronLeft size={12} />
+              </button>
+            ) : null}
+
+            {onSetAfter ? (
+              <button
+                type="button"
+                title="تعيين كـ بعد"
+                aria-label="تعيين كـ بعد"
+                className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSetAfter(g.url);
+                  onToggleMenu(key);
+                }}
+              >
+                <ChevronRight size={12} />
+              </button>
+            ) : null}
+
+            <button
+              type="button"
+              title="عرض الصورة"
+              aria-label="عرض الصورة"
+              className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                onOpenImage(g.url);
+                onToggleMenu(key);
+              }}
+            >
+              <ZoomIn size={12} />
+            </button>
+          </div>
+        </div>
+    </div>
+  );
+});
+
 export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
   ({
     anchorId,
@@ -88,6 +220,10 @@ export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
     return `${w}×${h}`;
   }, []);
 
+  const handleToggleMenu = React.useCallback((key: string) => {
+    setMenuKey((prev) => (prev === key ? null : key));
+  }, []);
+
   return (
     
     <AdminAnchor
@@ -110,111 +246,17 @@ export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
         {generations.slice(visibleRange.start, visibleRange.end).map((g) => {
           const key = `${g.jobId}:${g.url}`;
           return (
-            <div
+            <GenerationCard
               key={key}
-              onClick={() => setMenuKey((prev) => (prev === key ? null : key))}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault();
-                  setMenuKey((prev) => (prev === key ? null : key));
-                }
-              }}
-              className="group relative w-[92px] sm:w-[92px] aspect-[3/4] flex-shrink-0 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 hover:opacity-95"
-              title="خيارات"
-              role="button"
-              tabIndex={0}
-              aria-label="خيارات"
-            >
-              <StableImage
-                src={g.thumbnailUrl || g.url}
-                alt="Generation thumbnail"
-                aspectClass="h-full"
-                className="absolute inset-0"
-              />
-
-              <div
-                  className={
-                    `absolute inset-0 bg-black/55 flex flex-col items-center justify-center gap-2 p-2 transition-opacity ` +
-                    (menuKey === key ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none') +
-                    ' md:opacity-0 md:pointer-events-none md:group-hover:opacity-100 md:group-hover:pointer-events-auto'
-                  }
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                >
-                  <div className="w-full rounded-md bg-black/70 px-2 py-2 text-[11px] leading-5 text-white text-right">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="opacity-90">الوقت</span>
-                      <span className="font-bold">{formatTime(g.createdAt)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="opacity-90">الأبعاد</span>
-                      <span className="font-bold">{formatDims(g.width, g.height)}</span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="opacity-90">القماش</span>
-                      <span
-                        className="font-bold truncate max-w-[64px]"
-                        title={g.fabricId ?? ''}
-                      >
-                        {g.fabricId || '—'}
-                      </span>
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col items-center justify-center gap-1.5">
-                    {onSetBefore ? (
-                      <button
-                        type="button"
-                        title="تعيين كـ قبل"
-                        aria-label="تعيين كـ قبل"
-                        className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onSetBefore(g.url);
-                          setMenuKey(null);
-                        }}
-                      >
-                        <ChevronLeft size={12} />
-                      </button>
-                    ) : null}
-
-                    {onSetAfter ? (
-                      <button
-                        type="button"
-                        title="تعيين كـ بعد"
-                        aria-label="تعيين كـ بعد"
-                        className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          onSetAfter(g.url);
-                          setMenuKey(null);
-                        }}
-                      >
-                        <ChevronRight size={12} />
-                      </button>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      title="عرض الصورة"
-                      aria-label="عرض الصورة"
-                      className="w-5 h-5 rounded bg-black/60 text-white flex items-center justify-center hover:bg-black/80 transition-colors"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        onOpenImage(g.url);
-                        setMenuKey(null);
-                      }}
-                    >
-                      <ZoomIn size={12} />
-                    </button>
-                  </div>
-                </div>
-            </div>
+              generation={g}
+              menuOpen={menuKey === key}
+              onToggleMenu={handleToggleMenu}
+              onOpenImage={onOpenImage}
+              onSetBefore={onSetBefore}
+              onSetAfter={onSetAfter}
+              formatTime={formatTime}
+              formatDims={formatDims}
+            />
           );
         })}
         

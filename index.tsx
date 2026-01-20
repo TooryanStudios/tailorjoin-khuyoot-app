@@ -5,6 +5,9 @@ import 'react-image-crop/dist/ReactCrop.css';
 import App from './App';
 import { queryClient } from './src/lib/queryClient';
 
+// i18n (language + RTL/LTR) must initialize before React renders
+import './src/i18n/i18n';
+
 // PWA Service Worker registration (production only)
 // - Forces immediate activation on deploy (paired with workbox.skipWaiting/clientsClaim)
 // - Forces a reload when an updated SW is ready so users don't stay on stale bundles

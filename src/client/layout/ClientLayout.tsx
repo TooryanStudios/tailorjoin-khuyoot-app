@@ -31,7 +31,7 @@ export const ClientLayout: React.FC = () => {
   const headerRef = React.useRef<HTMLDivElement | null>(null);
   const location = useLocation();
   const pathname = location.pathname;
-  const isDesignerRoute = pathname.startsWith('/designer-v2-1') || pathname === '/demo-shell/designer';
+  const isDesignerRoute = pathname.startsWith('/designer-v2-1');
   const isMobile = useIsMobile();
 
   // For Designer 2.1 on mobile, we want a fullscreen canvas (no global chrome).

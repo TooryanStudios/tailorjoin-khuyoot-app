@@ -1,4 +1,5 @@
 import React from 'react';
+import { RefreshCw, RotateCcw, Trash2, AlertTriangle } from 'lucide-react';
 
 type ErrorBoundaryState = { hasError: boolean; error: Error | null };
 type ErrorBoundaryProps = React.PropsWithChildren<{
@@ -51,32 +52,62 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     if (hasError) {
       return (
         this.props.fallback || (
-          <div className="max-w-xl mx-auto my-8 p-4 rounded-xl border border-red-200 bg-red-50 text-right">
-            <h2 className="font-bold text-red-700 mb-2">حدث خطأ في هذه الصفحة</h2>
-            <p className="text-[12px] text-red-600 mb-3">جرّب تحديث الصفحة أو العودة لاحقًا.</p>
-            <div className="flex items-center gap-2 justify-end">
-              <button
-                type="button"
-                onClick={this.resetBoundary}
-                className="px-3 py-2 rounded-lg text-sm bg-white border border-red-200 text-red-700 hover:bg-red-100"
-              >
-                إعادة المحاولة
-              </button>
+          <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
+            <div className="w-20 h-20 mb-6 relative">
+              <img 
+                src="/logo.png" 
+                alt="Logo" 
+                className="w-full h-full object-contain drop-shadow-lg"
+                onError={(e) => {
+                  e.currentTarget.style.display = 'none';
+                  e.currentTarget.nextElementSibling?.classList.remove('hidden');
+                }}
+              />
+              <div className="hidden absolute inset-0 flex items-center justify-center bg-purple-50 rounded-full">
+                <AlertTriangle className="w-10 h-10 text-purple-600/50" />
+              </div>
+            </div>
+
+            <div className="max-w-md mx-auto space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 dark:text-white">
+                We have a technical issue
+              </h2>
+              <p className="text-sm text-slate-500 dark:text-slate-400 leading-relaxed">
+                Please refresh the page to continue.
+                <br />
+                <span className="font-arabic opacity-80 mt-1 block">نواجه مشكلة فنية، يرجى تحديث الصفحة</span>
+              </p>
+            </div>
+
+            <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
               <button
                 type="button"
                 onClick={() => window.location.reload()}
-                className="px-3 py-2 rounded-lg text-sm bg-red-600 text-white hover:bg-red-700"
+                className="inline-flex items-center gap-2 px-6 py-2.5 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-900 text-sm font-bold shadow-lg hover:shadow-xl hover:-translate-y-0.5 transition-all"
               >
-                تحديث الصفحة
+                <RefreshCw size={16} />
+                <span>Refresh Page</span>
               </button>
+
               <button
                 type="button"
-                onClick={() => { this.clearLocalAppCaches(); this.resetBoundary(); }}
-                className="px-3 py-2 rounded-lg text-sm bg-red-50 text-red-700 border border-red-200 hover:bg-red-100"
+                onClick={this.resetBoundary}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-full bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 text-slate-600 dark:text-slate-300 text-sm font-medium hover:bg-slate-50 dark:hover:bg-white/10 transition-colors"
+                title="Try removing the error view without reloading"
               >
-                مسح البيانات المؤقتة
+                <RotateCcw size={16} />
+                <span>Retry</span>
               </button>
             </div>
+            
+            <button
+               type="button"
+               onClick={() => { this.clearLocalAppCaches(); window.location.reload(); }}
+               className="mt-4 text-[11px] text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1 opacity-60 hover:opacity-100"
+            >
+               <Trash2 size={12} />
+               Clear Cache & Reload
+            </button>
           </div>
         )
       );

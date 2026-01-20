@@ -4,6 +4,9 @@ import './src/styles/global.css';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { HelmetProvider } from 'react-helmet-async';
 import { createPortal } from 'react-dom';
+import { DemoShellLayout } from './src/pages/demoShell/DemoShellLayout';
+import { DemoShellPageA } from './src/pages/demoShell/DemoShellPageA';
+import { DemoShellPageB } from './src/pages/demoShell/DemoShellPageB';
 import { AppProvider, useApp } from './context/AppContext';
 import { MainLayout } from './src/components/MainLayout';
 import { ProductList } from './pages/ProductList';
@@ -37,7 +40,6 @@ import { Customization } from './pages/Customization';
 import { CustomizationPage } from './pages/CustomizationPage';
 const ClientMeasurements = React.lazy(() => import('./pages/ClientMeasurements').then(m => ({ default: m.ClientMeasurements })));
 import ClientMeasurementsV2 from './src/modules/measurements/ClientMeasurementsV2';
-import DesignsList from './pages/DesignsList';
 import { OrderSummary } from './src/modules/orders/OrderSummary';
 import { Checkout } from './pages/Checkout';
 import TailorJoinFlow from './src/features/tailor-join/TailorJoinFlow';
@@ -48,11 +50,8 @@ import { TryOnPage } from './pages/TryOnPage';
 import { JankSandbox } from './pages/JankSandbox';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+import ReturnPolicy from './pages/ReturnPolicy';
 import { Settings } from './pages/Settings';
-import { DemoShellLayout } from './src/pages/demoShell/DemoShellLayout';
-import { DemoShellPageA } from './src/pages/demoShell/DemoShellPageA';
-import { DemoShellPageB } from './src/pages/demoShell/DemoShellPageB';
-import { DemoShellTopTailors } from './src/pages/demoShell/DemoShellTopTailors';
 import { useAppStore } from './src/store/useAppStore';
 import { LoadingShell } from './src/components/LoadingShell';
 import { NewProductPage } from './src/modules/admin/features/product-creator-v2';
@@ -64,8 +63,13 @@ import { TouchPointerOverlay } from './src/components/TouchPointerOverlay';
 import { firebaseService } from './services/firebase';
 import { isAdmin } from './types/user-schema';
 import { ErrorBoundary as GlobalErrorBoundary } from './components/ErrorBoundary';
-const Drafts = React.lazy(() => import('./pages/Drafts'));
+import { AuthModal } from './components/AuthModal';
+import { PrivacyModal } from './components/PrivacyModal';
+import { TermsModal } from './components/TermsModal';
+import { ReturnPolicyModal } from './components/ReturnPolicyModal';
+// Removed designs/drafts pages per request
 const DevVideoLabPage = React.lazy(() => import('./src/pages/DevVideoLab/DevVideoLabPage'));
+const VisualizerPage = React.lazy(() => import('./pages/VisualizerPage'));
 import { NavDebugA, NavDebugB, NavDebugC, NavDebugIndex, NavDebugLayout } from './src/pages/NavDebugPage';
 import { ClientNavDebugPage } from './src/pages/ClientNavDebugPage';
 // Ensure dev.khuyoot.app defaults to designer (not tailor join)
@@ -91,6 +95,17 @@ const TailorJoinRedirect: React.FC = () => {
   }, [navigate]);
   return null;
 };
+
+// (Unused) Temporary placeholder retained for reference
+const HomeDisabled: React.FC = () => (
+  <div className="min-h-[60vh] flex flex-col items-center justify-center gap-4 text-center px-4">
+    <img src="/logo_big.png?v=4" alt="خيوط" className="h-24 w-24 object-contain" />
+    <div className="text-xl font-bold text-slate-900 dark:text-white">الرئيسية معطلة مؤقتاً</div>
+    <div className="text-sm text-slate-600 dark:text-slate-300 max-w-md">
+      تم إيقاف واجهة العرض التجريبية (Demo Shell). يمكنك متابعة التصفح عبر باقي الصفحات.
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
@@ -320,17 +335,22 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                <Route path="/test-template-picker" element={<TestTemplatePickerPage />} />
                {/* Jank sandbox without ClientLayout (no header/footer) */}
                <Route path="/jank-sandbox" element={<JankSandbox />} />
-
-               {/* Designer 2.1 routes outside ClientLayout for fullscreen rendering */}
+                 <Route path="/visualizer" element={<VisualizerPage />} />
                <Route path="/designer-v2-1" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
                <Route path="/designer-v2-1/:productId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
                <Route path="/designer-v2-1/design/:taskId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
 
+               {/* Block old demo shell routes */}
+               <Route path="/demo-shell/*" element={<Navigate to="/" replace />} />
+
                {/* Public App Routes */}
                <Route element={<ClientLayout />}>
                  {isDev && <Route path="/__dev/client-nav-debug" element={<ClientNavDebugPage />} />}
-                 {/* Canonical homepage */}
-                 <Route path="/" element={<Navigate to="/demo-shell/a" replace />} />
+                 {/* Homepage */}
+                 <Route path="/" element={<DemoShellLayout />}>
+                   <Route index element={<DemoShellPageA />} />
+                   <Route path="page-b" element={<DemoShellPageB />} />
+                 </Route>
                  <Route path="/jackets" element={<ProductList />} />
                  <Route path="/tailor-account" element={<TailorAccount />} />
                  <Route path="/boutique-account" element={<BoutiqueAccount />} />
@@ -342,16 +362,15 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                  <Route path="/measurements-v2" element={<ClientMeasurementsV2 />} />
                  <Route path="/measurements-v2/:productId" element={<ClientMeasurementsV2 />} />
                  <Route path="/order-summary/:orderId" element={<OrderSummary />} />
-                 <Route path="/drafts" element={<React.Suspense fallback={<div>Loading drafts...</div>}><Drafts /></React.Suspense>} />
                  <Route path="/checkout" element={<Checkout />} />
                  <Route path="/measurements-old" element={<Measurements />} />
                  <Route path="/designer" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
                  <Route path="/designer/:id" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
-                 <Route path="/designs" element={<DesignsList />} />
                  <Route path="/tailors" element={<TailorList />} />
                  <Route path="/tailor/:id" element={<TailorProfile />} />
                  <Route path="/shops" element={<ShopsList />} />
                  <Route path="/shop/:id" element={<ShopProfile />} />
+                 <Route path="/product" element={<Navigate to="/jackets" replace />} />
                  <Route path="/product/:id" element={<ProductDetails />} />
                  <Route path="/customization" element={<CustomizationPage />} />
                  <Route path="/customization/:productId" element={<CustomizationPage />} />
@@ -372,16 +391,9 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                 <Route path="/kling-effects" element={<KlingEffectViewer />} />
                 <Route path="/privacy" element={<Privacy />} />
                 <Route path="/terms" element={<Terms />} />
+                <Route path="/return-policy" element={<ReturnPolicy />} />
                 <Route path="/settings" element={<Settings />} />
 
-                   <Route path="/demo-shell" element={<DemoShellLayout />}>
-                     <Route index element={<Navigate to="a" replace />} />
-                     <Route path="a" element={<DemoShellPageA />} />
-                     <Route path="b" element={<DemoShellPageB />} />
-                     <Route path="top-tailors" element={<DemoShellTopTailors />} />
-                     {/* Designer route kept for navigation but rendered manually in layout */}
-                     <Route path="designer" element={<div />} />
-                   </Route>
                </Route>
 
                {/* Standalone Tailor Join (no ClientLayout header/footer) */}
@@ -395,13 +407,13 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
              </Routes>
              </GlobalErrorBoundary>
              </CreditProvider>
-            </BrowserRouter>
-            
+
             {/* Global Root-Level Modal Portal */}
             {createPortal(
               <RootModalPortal />,
               document.body
             )}
+            </BrowserRouter>
     </>
   );
 };
@@ -409,6 +421,11 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
 // Separate component for root-level modals to prevent re-renders
 const RootModalPortal: React.FC = () => {
   const { isUpgradeModalOpen, setIsUpgradeModalOpen } = useModalStore();
+  const { isPrivacyModalOpen, togglePrivacyModal, isTermsModalOpen, toggleTermsModal, isReturnPolicyModalOpen, toggleReturnPolicyModal, appSettings } = useApp();
+
+  const privacyContent = (appSettings as any)?.pageTexts?.privacyPolicy || '';
+  const termsContent = (appSettings as any)?.pageTexts?.termsAndConditions || '';
+  const returnPolicyContent = (appSettings as any)?.pageTexts?.returnPolicy || '';
 
   const handleUpgrade = async () => {
     console.log('🚀 App - User clicked upgrade from root portal');
@@ -489,14 +506,32 @@ const RootModalPortal: React.FC = () => {
   };
 
   return (
-    <UpgradeModal
-      isOpen={isUpgradeModalOpen}
-      onClose={() => {
-        console.log('🔴 RootModalPortal - UpgradeModal CLOSE clicked');
-        setIsUpgradeModalOpen(false);
-      }}
-      onUpgradeClick={handleUpgrade}
-    />
+    <>
+      <AuthModal />
+      <UpgradeModal
+        isOpen={isUpgradeModalOpen}
+        onClose={() => {
+          console.log('🔴 RootModalPortal - UpgradeModal CLOSE clicked');
+          setIsUpgradeModalOpen(false);
+        }}
+        onUpgradeClick={handleUpgrade}
+      />
+      <PrivacyModal
+        isOpen={isPrivacyModalOpen}
+        onClose={() => togglePrivacyModal(false)}
+        content={privacyContent}
+      />
+      <TermsModal
+        isOpen={isTermsModalOpen}
+        onClose={() => toggleTermsModal(false)}
+        content={termsContent}
+      />
+      <ReturnPolicyModal
+        isOpen={isReturnPolicyModalOpen}
+        onClose={() => toggleReturnPolicyModal(false)}
+        content={returnPolicyContent}
+      />
+    </>
   );
 };
 

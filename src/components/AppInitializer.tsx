@@ -1,6 +1,6 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { SplashScreen } from './SplashScreen';
+import { LoadingShell } from './LoadingShell';
 import { ADMIN_CONFIG_QUERY_KEY, fetchAdminConfig } from '../lib/adminConfig';
 import type { AppSettings } from '../../types';
 
@@ -60,7 +60,7 @@ export function AppInitializer({ children }: AppInitializerProps) {
   const configToUse = data || (useFallback ? FALLBACK_SETTINGS : null);
 
   if (!configToUse) {
-    return <SplashScreen />;
+    return <LoadingShell />;
   }
 
   return (

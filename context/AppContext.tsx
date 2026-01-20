@@ -26,8 +26,14 @@ interface AppContextType {
   ordersCount?: number;
   isAuthModalOpen: boolean;
   authModalMode: 'login' | 'register';
+  isPrivacyModalOpen: boolean;
+  isTermsModalOpen: boolean;
+  isReturnPolicyModalOpen: boolean;
   theme: Theme;
   appSettings: AppSettings;
+  togglePrivacyModal: (isOpen: boolean) => void;
+  toggleTermsModal: (isOpen: boolean) => void;
+  toggleReturnPolicyModal: (isOpen: boolean) => void;
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => Promise<void>;
   logout: () => Promise<void>;
@@ -112,6 +118,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
   const [ordersCount, setOrdersCount] = useState<number>(0);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isReturnPolicyModalOpen, setIsReturnPolicyModalOpen] = useState(false);
   // Initialize theme synchronously from localStorage/app_settings to match the inline script in index.html
   const getInitialTheme = (): Theme => {
     try {
@@ -538,6 +547,18 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     }
   };
 
+  const togglePrivacyModal = (isOpen: boolean) => {
+    setIsPrivacyModalOpen(isOpen);
+  };
+
+  const toggleTermsModal = (isOpen: boolean) => {
+    setIsTermsModalOpen(isOpen);
+  };
+
+  const toggleReturnPolicyModal = (isOpen: boolean) => {
+    setIsReturnPolicyModalOpen(isOpen);
+  };
+
   const updateAppSettings = (newSettings: Partial<AppSettings>) => {
     setAppSettings(prev => ({ ...prev, ...newSettings }));
   };
@@ -599,6 +620,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
       ordersCount,
       isAuthModalOpen,
       authModalMode,
+      isPrivacyModalOpen,
+      isTermsModalOpen,
+      isReturnPolicyModalOpen,
       theme,
       appSettings,
       login,
@@ -608,6 +632,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
       addToCart,
       clearCart,
       toggleAuthModal,
+      togglePrivacyModal,
+      toggleTermsModal,
+      toggleReturnPolicyModal,
       toggleTheme,
       updateAppSettings,
       saveAppSettings,

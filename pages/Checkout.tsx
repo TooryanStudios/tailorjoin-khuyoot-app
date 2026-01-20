@@ -61,6 +61,11 @@ export const Checkout = () => {
         customerAddress: formData.address,
         productId: state?.productId,
         productName: state?.product?.name,
+        // Persist original shop/tailor for accurate navigation and summary.
+        tailorId: state?.product?.tailorId,
+        tailorName: state?.product?.tailorName,
+        tailorLocation: state?.product?.location || state?.product?.region,
+        region: state?.product?.region || state?.product?.location,
         measurementId: state?.measurementId,
         customizationId: state?.customizationId,
         measurements: state?.measurements,

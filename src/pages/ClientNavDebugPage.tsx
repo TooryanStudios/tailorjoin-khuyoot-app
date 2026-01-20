@@ -31,7 +31,7 @@ export const ClientNavDebugPage: React.FC = () => {
           <Button label="Go /tailors" onClick={() => navigate('/tailors')} />
           <Button label="Go /shops" onClick={() => navigate('/shops')} />
           <Button label="Go /designer-v2-1" onClick={() => navigate('/designer-v2-1')} />
-          <Button label="Go /demo-shell/a" onClick={() => navigate('/demo-shell/a')} />
+          <Button label="Go /" onClick={() => navigate('/')} />
         </div>
 
         <div className="mt-4 text-xs text-slate-500 dark:text-white/50">

@@ -748,11 +748,11 @@ export const DesignerV2 = () => {
     return id;
   };
 
-  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info', duration = 3000) => {
+  const showToast = useCallback((message: string, type: 'success' | 'error' | 'info' = 'info', duration = 3000) => {
     if (toastTimer.current) { window.clearTimeout(toastTimer.current); toastTimer.current = null; }
     setToast({ open: true, message, type });
     toastTimer.current = window.setTimeout(() => { setToast(prev => ({ ...prev, open: false })); toastTimer.current = null; }, duration);
-  };
+  }, []);
 
   const generateThumbnailFromDataUrl = (dataUrl: string, width: number, height: number): Promise<string | null> => {
     return new Promise((resolve) => {
@@ -842,13 +842,56 @@ export const DesignerV2 = () => {
       const jobs = await firebaseService.getUserTryOnJobs(user.id, 100);
       console.log('[DesignerV2] Reloaded try-on jobs from Firestore:', jobs.length);
       
-      jobs.forEach((job) => {
-        upsertGeneration(job.jobId, job.resultUrl, job.thumbnailUrl, { fabricId: job.fabricId || null });
-      });
+      if (jobs.length > 0) {
+        setGenerations(prev => {
+          const incoming = jobs.map(job => ({
+            jobId: job.jobId,
+            url: job.resultUrl,
+            thumbnailUrl: job.thumbnailUrl || job.resultUrl,
+            createdAt: job.createdAt || Date.now(),
+            fabricId: job.fabricId || null,
+            width: null,
+            height: null
+          }));
+          
+          const all = [...incoming, ...prev];
+          const unique: GenerationItem[] = [];
+          const seen = new Set();
+          
+          for (const item of all) {
+            const key = `${item.jobId}:${item.url}`;
+            if (!seen.has(key)) {
+              seen.add(key);
+              unique.push(item);
+            }
+          }
+          return unique.slice(0, 20);
+        });
+
+        // Trigger dimension loading for new items
+        jobs.forEach(job => {
+          const url = job.thumbnailUrl || job.resultUrl;
+          if (!url) return;
+          loadImageDims(url).then(dims => {
+            if (!dims) return;
+            setGenerations(prev => {
+              const needsUpdate = prev.some(g => g.jobId === job.jobId && (!g.width || !g.height));
+              if (!needsUpdate) return prev;
+              
+              return prev.map(g => {
+                if (g.jobId === job.jobId && g.url === job.resultUrl) {
+                  return { ...g, width: dims.width, height: dims.height };
+                }
+                return g;
+              });
+            });
+          });
+        });
+      }
     } catch (e) {
       console.error('[DesignerV2] Failed to reload try-on jobs:', e);
     }
-  }, [user?.id, upsertGeneration]);
+  }, [user?.id, loadImageDims]);
 
   // Load user's try-on jobs from Firestore on mount
   useEffect(() => {
@@ -919,22 +962,24 @@ export const DesignerV2 = () => {
       }
     })();
   }, [generations, tryOnThumbnailsByJobId]);
-  const handleOpenImage = (url: string | null) => {
+  const handleOpenImage = useCallback((url: string | null) => {
     if (!url) return;
     try {
       window.open(url, '_blank', 'noopener,noreferrer');
     } catch {}
-  };
-  const handleSetGenerationBefore = (url: string) => {
+  }, []);
+
+  const handleSetGenerationBefore = useCallback((url: string) => {
     if (!url) return;
     setGenerationsBeforeUrl(url);
     showToast('تم تعيين كـ قبل', 'success');
-  };
-  const handleSetGenerationAfter = (url: string) => {
+  }, [showToast]);
+
+  const handleSetGenerationAfter = useCallback((url: string) => {
     if (!url) return;
     setGenerationsAfterUrl(url);
     showToast('تم تعيين كـ بعد', 'success');
-  };
+  }, [showToast]);
   
   // Refresh the after image with the latest generation
   const handleRefreshAfterImage = React.useCallback(() => {

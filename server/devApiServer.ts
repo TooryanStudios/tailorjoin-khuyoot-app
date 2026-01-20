@@ -4,6 +4,7 @@ import { handleTryOnFabric } from './tryon/tryonHandler';
 import { handleUpscale } from './upscale/upscaleHandler';
 import { handleFabricSwap } from './fabricSwap/fabricSwapHandler';
 import { getFirestore, verifyFirebaseIdToken } from './tryon/firebaseAdmin';
+import { generateVisualizerImage, saveVisualizerGeneration } from './visualizer/visualizerHandler';
 
 console.log('Starting Try-On API dev server...');
 console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
@@ -299,6 +300,165 @@ const server = http.createServer(async (req, res) => {
     } catch (e: any) {
       res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ jobId: 'n/a', status: 'failed', error: e?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  if (req.url.startsWith('/api/visualizer/generate')) {
+    if (req.method !== 'POST') {
+      setCors(res);
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+      return;
+    }
+
+    try {
+      const authHeader = String(req.headers.authorization || '');
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+      if (!token) {
+        setCors(res);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
+        return;
+      }
+
+      const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded?.uid) {
+        setCors(res);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token' }));
+        return;
+      }
+
+      const body = await readJsonBody(req);
+      const imageBase64 = body?.imageBase64;
+      const imageMimeType = body?.imageMimeType || 'image/png';
+      const promptText = body?.promptText || '';
+      const model = body?.model || 'gemini-1.5-flash';
+      const aspectLabel = body?.aspectLabel || null;
+      const cameraInfo = body?.cameraInfo || null;
+      const dofEnabled = body?.dofEnabled ?? false;
+      const dofFocusDistance = body?.dofFocusDistance;
+      const dofAperture = body?.dofAperture;
+      const dofFocalLength = body?.dofFocalLength;
+
+      if (!imageBase64 || typeof imageBase64 !== 'string') {
+        setCors(res);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing imageBase64' }));
+        return;
+      }
+
+      const ip =
+        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
+        (req.socket?.remoteAddress || 'unknown');
+
+      const { imageBase64: outBase64, mimeType } = await generateVisualizerImage({
+        imageBase64,
+        imageMimeType,
+        promptText,
+        model,
+        ip,
+      });
+
+      if (!outBase64) {
+        setCors(res);
+        res.writeHead(502, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No image returned' }));
+        return;
+      }
+
+      const saved = await saveVisualizerGeneration({
+        userId: decoded.uid,
+        imageBase64: outBase64,
+        mimeType: mimeType || 'image/png',
+        promptText,
+        model,
+        aspectLabel,
+        cameraInfo,
+        dofEnabled,
+        dofFocusDistance,
+        dofAperture,
+        dofFocalLength,
+      });
+
+      setCors(res);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({
+        imageBase64: outBase64,
+        mimeType,
+        storedImageUrl: saved.imageUrl,
+        recordId: saved.recordId,
+      }));
+    } catch (e: any) {
+      setCors(res);
+      res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e?.message || 'Server error' }));
+    }
+    return;
+  }
+
+  if (req.url.startsWith('/api/visualizer/presets/delete')) {
+    if (req.method !== 'POST') {
+      setCors(res);
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+      return;
+    }
+
+    try {
+      const authHeader = String(req.headers.authorization || '');
+      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+      if (!token) {
+        setCors(res);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
+        return;
+      }
+
+      const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded?.uid) {
+        setCors(res);
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid token' }));
+        return;
+      }
+
+      const body = await readJsonBody(req, 64 * 1024);
+      const presetId = String(body?.presetId || '').trim();
+      if (!presetId) {
+        setCors(res);
+        res.writeHead(400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Missing presetId' }));
+        return;
+      }
+
+      const db = getFirestore();
+      const docRef = db.collection('visualizer_camera_presets').doc(presetId);
+      const snap = await docRef.get();
+      if (!snap.exists) {
+        setCors(res);
+        res.writeHead(404, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Preset not found' }));
+        return;
+      }
+
+      const data = snap.data() as any;
+      if (!data || data.userId !== decoded.uid) {
+        setCors(res);
+        res.writeHead(403, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Not allowed' }));
+        return;
+      }
+
+      await docRef.delete();
+      setCors(res);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+    } catch (e: any) {
+      setCors(res);
+      res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e?.message || 'Server error' }));
     }
     return;
   }

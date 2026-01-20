@@ -4,7 +4,7 @@ import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, Shoppi
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
 import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { DevSectionAnchor } from './components/DevSectionAnchor';
 import { UpgradeModal } from '../components/DesignerV2_1/UpgradeModal';
@@ -35,6 +35,7 @@ import { RegionsManagement } from './regions/RegionsManagement';
 import { TryOnTemplates } from './tryon/TryOnTemplates';
 import { CreditsManagement } from './credits/CreditsManagement';
 import { AdminDevTools } from '../components/AdminDevTools';
+import { SurveyResponsesPage } from '../features/admin/surveys/SurveyResponsesPage';
 
 type AdminSection = 
   | 'dashboard' 
@@ -348,12 +349,21 @@ export const AdminApp = () => {
             <h2 className="text-xl font-black text-white drop-shadow-sm">إعدادات النظام</h2>
             <p className="text-sm text-zinc-400">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
           </div>
-          {configSection === 'general' && (
-            <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400">
-              {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
-              <span>حفظ التغييرات</span>
-            </Button>
-          )}
+          <div className="flex flex-wrap items-center gap-2">
+            <Link
+              to="/visualizer"
+              className="inline-flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-500/20 transition-colors"
+            >
+              <Maximize2 size={14} />
+              <span>فتح الـ 3D Visualizer</span>
+            </Link>
+            {configSection === 'general' && (
+              <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400">
+                {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
+                <span>حفظ التغييرات</span>
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -687,6 +697,9 @@ export const AdminApp = () => {
   };
 
   const renderContent = () => {
+    if (location.pathname.startsWith('/admin/settings/surveys/khuyoot-validation')) {
+      return <SurveyResponsesPage />;
+    }
     switch(activeSection) {
       case 'dashboard': return <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />;
       case 'orders': return <OrdersTable orders={orders} />;
@@ -975,8 +988,8 @@ export const AdminApp = () => {
               </button>
               <button
                 onClick={() => {
-                  console.log('🖥️ AdminApp - Opening full-screen dashboard mode');
-                  setIsFullScreenMode(true);
+                  console.log('🖥️ AdminApp - Opening visualizer');
+                  window.open('/visualizer', '_blank', 'noopener,noreferrer');
                 }}
                 className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg font-semibold text-sm flex items-center gap-2"
                 title="فتح لوحة التحكم في نافذة منفصلة"

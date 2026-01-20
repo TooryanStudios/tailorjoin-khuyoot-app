@@ -16,13 +16,13 @@ const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: Tailor }
   const displaySrc = useThumbnail(previewSrc, { maxEntries: 100 });
 
   return (
-    <article className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm dark:shadow-none transition hover:shadow-md">
+    <article className="group rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4 shadow-sm dark:shadow-none transition hover:shadow-lg hover:border-slate-300 dark:hover:border-slate-700">
       <div className="flex items-start gap-3">
         {displaySrc ? (
           <img
             src={displaySrc}
             alt={tailor.name}
-            className="h-14 w-14 rounded-xl object-cover"
+            className="h-14 w-14 rounded-xl object-cover transition duration-300 group-hover:scale-105 group-hover:shadow-md"
             loading="lazy"
             decoding="async"
           />
@@ -34,32 +34,35 @@ const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: Tailor }
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-lg font-semibold text-slate-900 dark:text-white truncate">{tailor.name}</h3>
-            <span className="flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400 shrink-0">
-              <Star className="h-3.5 w-3.5 fill-current" />
-              {tailor.rating?.toFixed(1) || '—'}
-            </span>
+            <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">{tailor.name}</h3>
           </div>
           
           {tailor.specialization && (
-            <p className="mt-1 text-sm text-purple-600 dark:text-purple-400 font-medium">
+            <p className="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
               {tailor.specialization === 'males' ? 'تفصيل رجالي' : tailor.specialization === 'females' ? 'تفصيل نسائي' : tailor.specialization}
             </p>
           )}
           
           {tailor.bio && (
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 line-clamp-2">
+            <p className="mt-2 text-xs text-slate-600 dark:text-slate-300 line-clamp-2">
               {tailor.bio}
             </p>
           )}
-          
-          <dl className="mt-3 grid gap-2 text-sm text-slate-500 dark:text-slate-400">
+
+          <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-slate-300">
+            <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-semibold">
+              <Star className="h-3 w-3" style={{ color: '#469788' }} />
+              {tailor.rating?.toFixed(1) || '—'}
+            </span>
             {tailor.location && (
-              <div className="flex items-center gap-2">
-                <MapPin className="h-4 w-4 text-slate-400 shrink-0" />
-                <dd className="truncate">{tailor.location}</dd>
-              </div>
+              <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-semibold">
+                <MapPin className="h-3 w-3 text-slate-500 shrink-0" />
+                <span className="truncate">{tailor.location}</span>
+              </span>
             )}
+          </div>
+          
+          <dl className="mt-3 grid gap-2 text-xs text-slate-500 dark:text-slate-400">
             {tailor.experience && (
               <div className="flex items-center justify-between gap-2">
                 <dt className="font-semibold text-slate-700 dark:text-slate-200">الخبرة</dt>

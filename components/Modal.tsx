@@ -16,6 +16,7 @@ interface ModalProps {
   confirmText?: string;
   debugId?: string;
   headerActions?: React.ReactNode;
+  containerClassName?: string;
 }
 
 export const Modal: React.FC<ModalProps> = ({ 
@@ -31,7 +32,8 @@ export const Modal: React.FC<ModalProps> = ({
   cancelText = 'إلغاء الأمر',
   confirmText = 'اعتماد',
   debugId,
-  headerActions
+  headerActions,
+  containerClassName
 }) => {
   const modalRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef<number>(0);
@@ -100,7 +102,7 @@ export const Modal: React.FC<ModalProps> = ({
     >
       <div
         ref={modalRef}
-        className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700 relative`}
+        className={`bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full ${maxWidth} max-h-[80vh] flex flex-col animate-in zoom-in-95 duration-200 pointer-events-auto border border-slate-200 dark:border-slate-700 relative ${containerClassName || ''}`}
         onClick={(e) => e.stopPropagation()}
         data-debug-modal={debugId || undefined}
       >

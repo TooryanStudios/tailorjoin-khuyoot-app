@@ -1,6 +1,6 @@
 import * as firebaseApp from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp, documentId } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
 import { applyUserDefaults } from '../utils/userDefaults';
@@ -440,19 +440,29 @@ export const firebaseService = {
 
     try {
       // First, try to find in collectionGroup (users/{userId}/products subcollections)
+      // Use a targeted query by documentId() to avoid scanning the entire collectionGroup.
       const productsGroup = collectionGroup(db, 'products');
-      const snapshot = await getDocs(productsGroup);
-      
-      let foundProduct: Product | null = null;
-      snapshot.forEach(doc => {
-        if (doc.id === productId && !foundProduct) {
-          foundProduct = { id: doc.id, ...doc.data() } as Product;
+      const q = query(productsGroup, where(documentId(), '==', productId), limit(1));
+      const snapshot = await getDocs(q);
+
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        const data: any = docSnap.data();
+        const segments = docSnap.ref.path.split('/');
+        const usersIndex = segments.indexOf('users');
+        const inferredOwnerId = usersIndex >= 0 ? segments[usersIndex + 1] : undefined;
+
+        const normalized: any = {
+          id: docSnap.id,
+          ...data,
+        };
+
+        if (!normalized.tailorId) {
+          normalized.tailorId = inferredOwnerId || normalized.ownerId || normalized.shopId || normalized.merchantId || undefined;
         }
-      });
-      
-      if (foundProduct) {
+
         console.log('[getProduct] Found in subcollection:', productId);
-        return foundProduct;
+        return normalized as Product;
       }
       
       // Fallback: Try root-level products collection (for legacy data)
@@ -461,7 +471,12 @@ export const firebaseService = {
       
       if (productSnap.exists()) {
         console.log('[getProduct] Found in root collection:', productId);
-        return { id: productSnap.id, ...productSnap.data() } as Product;
+        const data: any = productSnap.data();
+        const normalized: any = { id: productSnap.id, ...data };
+        if (!normalized.tailorId) {
+          normalized.tailorId = normalized.ownerId || normalized.shopId || normalized.merchantId || undefined;
+        }
+        return normalized as Product;
       } else {
         console.log('[getProduct] Product not found in Firebase, checking mock data');
         const mockProduct = MOCK_PRODUCTS.find(p => p.id === productId);

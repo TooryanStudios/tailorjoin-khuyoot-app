@@ -52,7 +52,7 @@ const DesignerKeepAlive = React.memo(DesignerV2_1);
 export function DemoShellLayout() {
   const { prefetchThumbnails } = useThumbnailCache({ maxEntries: 100 });
   const location = useLocation();
-  const currentPath = location.pathname.split('/').pop() || 'a';
+  const currentPath = location.pathname.split('/').pop() || 'home';
   
   // Track designer visits - keep it mounted once visited
   const [designerMounted, setDesignerMounted] = React.useState(false);
@@ -124,7 +124,7 @@ export function DemoShellLayout() {
 
   const imageUrls = React.useMemo(
     () => ({
-      a: ['/logo.png', '/og-image.png', '/auth-panel.jpg', '/og/khuyoot-og.jpg'],
+      a: ['/logo_big.png?v=4', '/og-image.png', '/auth-panel.jpg', '/og/khuyoot-og.jpg'],
       b: ['/icons/icon-512.png', '/icons/maskable-512.png', '/og-image.svg', '/pwa-512x512.svg'],
     }),
     []
@@ -159,7 +159,7 @@ export function DemoShellLayout() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-zinc-950 text-zinc-200">
+    <div className="min-h-screen bg-white text-slate-900 dark:bg-zinc-950 dark:text-zinc-200">
       {/* 🚀 UNIFIED BLOB LAYER: These images stay mounted so blobs remain valid & cached */}
       <div className="sr-only" aria-hidden="true">
         {allImageUrls.map((url) => (

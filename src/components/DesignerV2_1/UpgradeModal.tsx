@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { createPortal } from 'react-dom';
 import { X, Crown, Sparkles, Loader2, Check } from 'lucide-react';
 
@@ -13,6 +14,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   onClose,
   onUpgradeClick,
 }) => {
+  const { t } = useTranslation(['designer']);
   const [phase, setPhase] = React.useState<'idle' | 'progress' | 'done'>('idle');
   const [error, setError] = React.useState<string>('');
   const [activeTab, setActiveTab] = React.useState<'onetime' | 'monthly'>('onetime');
@@ -46,7 +48,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
       timeoutsRef.current.push(window.setTimeout(() => onClose(), 700));
     } catch (e: any) {
       setPhase('idle');
-      setError(e?.message || 'فشلت عملية الترقية. يرجى المحاولة مرة أخرى.');
+      setError(e?.message || t('upgradeFailed'));
     }
   };
 
@@ -78,29 +80,29 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         <div className="px-5 pt-5 pb-3 text-center">
           <div className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-0.5 rounded-full bg-purple-500/20 border border-purple-500/40">
             <Crown className="w-3.5 h-3.5 text-purple-400" />
-            <span className="text-[10px] font-bold text-purple-300">خيوط احترافي</span>
+            <span className="text-[10px] font-bold text-purple-300">{t('upgradeBadge')}</span>
           </div>
-          <h2 className="text-xl font-bold text-white mb-1">الترقية إلى احترافي</h2>
-          <p className="text-xs text-zinc-400">افتح الميزات المتقدمة وأنشئ تصاميم بدون علامة مائية</p>
+          <h2 className="text-xl font-bold text-white mb-1">{t('upgradeTitle')}</h2>
+          <p className="text-xs text-zinc-400">{t('upgradeSubtitle')}</p>
         </div>
 
         {/* Features List */}
         <div className="px-5 py-3 space-y-1.5">
           <div className="flex items-center gap-2 text-xs">
             <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">إزالة العلامات المائية</span>
+            <span className="text-zinc-300">{t('upgradeFeatureRemoveWatermark')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">تصدير 4K</span>
+            <span className="text-zinc-300">{t('upgradeFeature4k')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">معالجة ذات أولوية</span>
+            <span className="text-zinc-300">{t('upgradeFeaturePriority')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
             <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">نماذج متقدمة</span>
+            <span className="text-zinc-300">{t('upgradeFeatureAdvancedModels')}</span>
           </div>
         </div>
 
@@ -116,7 +118,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              حزم الرصيد
+              {t('upgradeTabCredits')}
             </button>
             <button
               onClick={() => setActiveTab('monthly')}
@@ -126,25 +128,25 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                   : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
               }`}
             >
-              الاشتراك الشهري
+              {t('upgradeTabMonthly')}
             </button>
           </div>
 
           {/* One-Time Packs */}
           {activeTab === 'onetime' && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-purple-400 mb-2 font-medium">لا تنتهي صلاحيته أبدًا</div>
+              <div className="text-[10px] text-center text-purple-400 mb-2 font-medium">{t('upgradeCreditsNeverExpire')}</div>
               <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
-                <span className="text-zinc-300">البداية: 25 توليد</span>
-                <span className="text-white font-semibold">2 ر.ع</span>
+                <span className="text-zinc-300">{t('upgradePackStarter')}</span>
+                <span className="text-white font-semibold">2 {t('currencyOmr')}</span>
               </div>
               <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
-                <span className="text-zinc-300">القيمة: 75 توليد</span>
-                <span className="text-white font-semibold">5 ر.ع</span>
+                <span className="text-zinc-300">{t('upgradePackValue')}</span>
+                <span className="text-white font-semibold">5 {t('currencyOmr')}</span>
               </div>
               <div className="flex items-center justify-between text-xs py-2 px-2.5 bg-purple-500/20 border border-purple-500/40 rounded-lg">
-                <span className="text-purple-200 font-medium">الاحترافي: 200 توليد</span>
-                <span className="text-white font-bold">10 ر.ع</span>
+                <span className="text-purple-200 font-medium">{t('upgradePackPro')}</span>
+                <span className="text-white font-bold">10 {t('currencyOmr')}</span>
               </div>
             </div>
           )}
@@ -152,18 +154,18 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           {/* Monthly Subscriptions */}
           {activeTab === 'monthly' && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-emerald-400 mb-2 font-medium">ينتهي كل شهر • يتجدد تلقائيًا</div>
+              <div className="text-[10px] text-center text-emerald-400 mb-2 font-medium">{t('upgradeMonthlyRenews')}</div>
               <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
-                <span className="text-zinc-300">الأساسي: 100 توليد/شهر</span>
-                <span className="text-white font-semibold">3 ر.ع</span>
+                <span className="text-zinc-300">{t('upgradeMonthlyBasic')}</span>
+                <span className="text-white font-semibold">3 {t('currencyOmr')}</span>
               </div>
               <div className="flex items-center justify-between text-xs py-1.5 px-2.5 rounded hover:bg-zinc-800/50 transition-colors">
-                <span className="text-zinc-300">القياسي: 250 توليد/شهر</span>
-                <span className="text-white font-semibold">6 ر.ع</span>
+                <span className="text-zinc-300">{t('upgradeMonthlyStandard')}</span>
+                <span className="text-white font-semibold">6 {t('currencyOmr')}</span>
               </div>
               <div className="flex items-center justify-between text-xs py-2 px-2.5 bg-emerald-500/20 border border-emerald-500/40 rounded-lg">
-                <span className="text-emerald-200 font-medium">بلس: 600 توليد/شهر</span>
-                <span className="text-white font-bold">12 ر.ع</span>
+                <span className="text-emerald-200 font-medium">{t('upgradeMonthlyPlus')}</span>
+                <span className="text-white font-bold">12 {t('currencyOmr')}</span>
               </div>
             </div>
           )}
@@ -187,17 +189,17 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                   : 'bg-gradient-to-r from-emerald-600 to-emerald-700'
             }`}
           >
-            {phase === 'idle' && 'الترقية الآن'}
+            {phase === 'idle' && t('upgradeNow')}
             {phase === 'progress' && (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>جاري الترقية…</span>
+                <span>{t('upgrading')}</span>
               </>
             )}
             {phase === 'done' && (
               <>
                 <Check className="w-4 h-4" />
-                <span>تمت الترقية</span>
+                <span>{t('upgraded')}</span>
               </>
             )}
           </button>
@@ -210,14 +212,14 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
             }`}
           >
-            ربما لاحقًا
+            {t('upgradeLater')}
           </button>
         </div>
 
         {/* Footer Note */}
         <div className="px-5 pb-3 text-center">
           <p className="text-xs text-zinc-500">
-            تجربة مجانية لمدة 7 أيام. الإلغاء في أي وقت.
+            {t('upgradeTrialNote')}
           </p>
         </div>
       </div>

@@ -1,41 +1,78 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
 import { 
   X, Mail, Lock, User as UserIcon, Scissors, Store, MapPin, 
   Phone, Zap, ArrowRight, CheckCircle, Sparkles, Box, ChevronRight,
-  ShieldCheck, BadgeCheck, Calendar
+  ShieldCheck, BadgeCheck, Calendar, Eye, EyeOff
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserRole, ShopType, Gender, AgeGroup, PopularRegion } from '../types';
 import { tailorGenderToSpecialization } from '../utils/specializationHelper';
 import { firebaseService } from '../services/firebase';
 
+const ageGroupOptions: { value: AgeGroup; label: string }[] = [
+  { value: 'not_specified', label: 'أفضل عدم التحديد' },
+  { value: '18-23', label: '18-23 سنة' },
+  { value: '24-30', label: '24-30 سنة' },
+  { value: '31-40', label: '31-40 سنة' },
+];
+
 // --- Types ---
 interface ModernInputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   icon: React.ElementType;
   label?: string;
   className?: string;
+  enablePasswordToggle?: boolean;
 }
 
 // --- Components ---
-const ModernInput = React.memo(({ icon: Icon, label, className, ...props }: ModernInputProps) => (
-  <div className="group space-y-1.5 w-full">
-    {label && (
-      <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-        {label}
-      </label>
-    )}
-    <div className="relative">
-      <div className="absolute inset-y-0 right-0 pl-3 flex items-center pr-4 pointer-events-none text-slate-400 group-focus-within:text-indigo-600 transition-colors">
-        <Icon size={18} />
+const ModernInput = React.memo(({ icon: Icon, label, className, enablePasswordToggle, ...props }: ModernInputProps) => {
+  const [showPassword, setShowPassword] = React.useState(false);
+  const isPasswordField = props.type === 'password' && enablePasswordToggle;
+  const effectiveType = isPasswordField && showPassword ? 'text' : props.type;
+
+  return (
+    <div className="group space-y-1.5 w-full">
+      {label && (
+        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
+          {label}
+        </label>
+      )}
+      <div className="relative">
+        <div className="absolute inset-y-0 right-0 pl-3 flex items-center pr-4 pointer-events-none text-slate-400 group-focus-within:transition-colors" style={{color: 'var(--brand-color, #469788)'}}>
+          <Icon size={18} />
+        </div>
+        {isPasswordField && (
+          <button
+            type="button"
+            onClick={() => setShowPassword((v) => !v)}
+            className="absolute inset-y-0 left-2 flex items-center text-slate-400 hover:text-slate-200 transition-colors"
+            aria-label={showPassword ? 'إخفاء كلمة المرور' : 'إظهار كلمة المرور'}
+          >
+            {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+          </button>
+        )}
+        <input
+          {...props}
+          type={effectiveType}
+          style={{
+            backgroundColor: '#1e293b',
+            color: '#ffffff',
+            borderColor: '#475569',
+          }}
+          className={`w-full border rounded-lg py-2.5 pr-11 ${isPasswordField ? 'pl-12' : 'pl-4'} text-sm font-medium placeholder:text-slate-500/70 focus:ring-2 shadow-sm transition-all ${className}`}
+          onFocus={(e) => {
+            e.currentTarget.style.borderColor = '#469788';
+          }}
+          onBlur={(e) => {
+            e.currentTarget.style.borderColor = '#475569';
+          }}
+        />
       </div>
-      <input
-        {...props}
-        className={`w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-indigo-100 rounded-xl py-3.5 pr-11 pl-4 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-300 focus:ring-4 focus:ring-indigo-500/10 focus:bg-white dark:focus:bg-slate-900 shadow-sm transition-all ${className}`}
-      />
     </div>
-  </div>
-));
+  );
+});
 
 // Simple Section Header Component
 const SectionLabel = ({ title }: { title: string }) => (
@@ -84,6 +121,17 @@ export const AuthModal = () => {
     const t = setTimeout(() => setSubmitting(false), 12000);
     return () => clearTimeout(t);
   }, [submitting]);
+
+  // Manage modal-open class on body to prevent cleanup from removing modal
+  useEffect(() => {
+    if (isAuthModalOpen) {
+      document.body.classList.add('modal-open');
+      return () => {
+        document.body.classList.remove('modal-open');
+      };
+    }
+  }, [isAuthModalOpen]);
+
   const [regions, setRegions] = useState<PopularRegion[]>([]);
   
   // Form State
@@ -328,28 +376,29 @@ export const AuthModal = () => {
     finally { setSubmitting(false); }
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-start md:items-center justify-center p-4 md:p-6 overflow-y-auto">
+  if (!isAuthModalOpen) return null;
+
+  return createPortal(
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2 md:p-4 overflow-y-auto" data-overlay="khuyoot-modal">
       <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={() => toggleAuthModal(false)} />
 
-      <div className="relative w-full max-w-4xl bg-white dark:bg-slate-900 rounded-[2rem] shadow-2xl overflow-y-auto flex max-h-[90vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-y-auto flex max-h-[80vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
         
         {/* --- Right Section (Form) --- */}
-        <div className="w-full md:w-1/2 flex flex-col relative z-10">
+        <div className="w-full md:w-3/5 flex flex-col relative z-10">
           
-          <div className="p-6 pb-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 z-index-100">
-             <div className="flex items-center gap-2">
-                <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold shadow-indigo-200 shadow-lg">K</div>
-                <span className="font-bold text-lg tracking-tight text-slate-800 dark:text-white">Khiyoot</span>
+          <div className="px-3 py-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800">
+             <div className="flex items-center">
+                <img src="/logo_big.png" alt="Khuyoot" className="w-16 h-16 object-contain" />
              </div>
-             <button onClick={() => toggleAuthModal(false)} className="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
-                <X size={20}/>
+             <button onClick={() => toggleAuthModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
+                <X size={18}/>
              </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-6 pt-2">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 pt-2.5">
             
-            <div className="mb-6 mt-2">
+            <div className="mb-4 mt-1">
               <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">
                 {isLogin ? 'مرحباً بعودتك! 👋' : 'ابدأ رحلتك معنا 🚀'}
               </h1>
@@ -359,7 +408,7 @@ export const AuthModal = () => {
             </div>
 
             {/* Toggle Switch */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-8 relative isolate">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-5 relative isolate">
               <div
                 className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${
                   isLogin ? 'right-1' : 'left-1'
@@ -394,74 +443,83 @@ export const AuthModal = () => {
             </div>
 
             {!allowRegistrations && (
-              <div className="mb-6 rounded-xl border border-amber-200 bg-amber-50 text-amber-900 px-4 py-3 text-xs dark:border-amber-900/50 dark:bg-amber-900/20 dark:text-amber-200">
+              <div className="mb-4 rounded-xl border px-4 py-3 text-xs" style={{borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'}}>
                 التسجيل للمستخدمين الجدد مغلق حالياً. يمكن للإدارة تفعيله من إعدادات النظام.
               </div>
             )}
 
-            <form onSubmit={handleSubmit} className="space-y-6">
+            <form onSubmit={handleSubmit} className="space-y-4">
               
               {/* --- Group 1: Identity & Credentials --- */}
-              <div className="space-y-4">
-                 {!isLogin && <SectionLabel title="البيانات الأساسية" />}
-                 
+              <div className="space-y-3">
                  {!isLogin && (
                     <ModernInput icon={UserIcon} label="الاسم الكامل" placeholder="مثال: محمد سعيد" value={name} onChange={(e) => setName(e.target.value)} required />
                  )}
                  
                  <ModernInput icon={Mail} label={isLogin ? "البريد الإلكتروني أو رقم الهاتف" : undefined} placeholder={isLogin ? "name@example.com أو 9xxxxxxx" : "name@example.com"} type="text" value={email} onChange={(e) => setEmail(e.target.value)} required />
                  
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <div className={isLogin ? 'md:col-span-2' : ''}>
-                        <ModernInput icon={Lock} label={isLogin ? "كلمة المرور" : undefined} placeholder="••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+                      <ModernInput icon={Lock} label={isLogin ? "كلمة المرور" : undefined} placeholder="••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} enablePasswordToggle required />
                     </div>
                     {!isLogin && (
-                        <ModernInput icon={ShieldCheck} placeholder="تأكيد كلمة المرور" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} required />
+                      <ModernInput icon={ShieldCheck} placeholder="تأكيد كلمة المرور" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} enablePasswordToggle required />
                     )}
                  </div>
               </div>
 
               {/* --- Group 2: Registration Details (Hidden on Login) --- */}
               {!isLogin && (
-                <div className="space-y-6 animate-in slide-in-from-top-4 duration-500">
+                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
                   
                   {/* Personal Info Group */}
                   <div>
                       <SectionLabel title="معلومات التواصل" />
                       <div className="grid grid-cols-2 gap-4">
                           <div className="col-span-2">
-                            <ModernInput icon={Phone} label="رقم الهاتف" placeholder="9xxxxxxx" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-                          </div>
-                          <div className="col-span-2">
-                            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block">الجنس</label>
-                            <div className="grid grid-cols-2 gap-3">
-                              <button type="button" onClick={() => setGender('male')} className={`py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'male' ? 'border-blue-500 text-blue-600 bg-blue-50 dark:bg-blue-900/20' : 'border-slate-100 dark:border-slate-700 text-slate-500'}`}>ذكر</button>
-                              <button type="button" onClick={() => setGender('female')} className={`py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2 ${gender === 'female' ? 'border-pink-500 text-pink-600 bg-pink-50 dark:bg-pink-900/20' : 'border-slate-100 dark:border-slate-700 text-slate-500'}`}>أنثى</button>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">رقم الهاتف</span>
+                              <div className="flex-1">
+                                <ModernInput icon={Phone} label={undefined} placeholder="9xxxxxxx" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
+                              </div>
                             </div>
                           </div>
                           <div className="col-span-2">
-                            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2 block flex items-center gap-1">
-                              <MapPin size={12} />
-                              المنطقة/الولاية (اختياري)
-                            </label>
-                            <select
-                              value={region}
-                              onChange={(e) => {
-                                const newRegion = e.target.value;
-                                const oldRegion = region;
-                                setRegion(newRegion);
-                                // تعيين الموقع افتراضياً فقط إذا كان فارغاً أو يساوي المنطقة القديمة
-                                if (!location || location === oldRegion) {
-                                  setLocation(newRegion);
-                                }
-                              }}
-                              className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-indigo-100 rounded-xl py-3.5 px-4 text-sm font-medium text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-500/10 focus:bg-white dark:focus:bg-slate-900 shadow-sm transition-all"
-                            >
-                              <option value="">اختر المنطقة/الولاية</option>
-                              {regions.map(r => (
-                                <option key={r.id} value={r.name}>{r.name}</option>
-                              ))}
-                            </select>
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">الجنس</span>
+                              <div className="flex flex-1 gap-2">
+                                <button type="button" onClick={() => setGender('male')} className={`flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2`} style={gender === 'male' ? {borderColor: '#469788', color: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0', color: '#64748b'}}>ذكر</button>
+                                <button type="button" onClick={() => setGender('female')} className={`flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2`} style={gender === 'female' ? {borderColor: '#469788', color: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0', color: '#64748b'}}>أنثى</button>
+                              </div>
+                            </div>
+                          </div>
+                          <div className="col-span-2">
+                            <div className="flex items-center gap-3">
+                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                                <MapPin size={12} /> المنطقة/الولاية (اختياري)
+                              </span>
+                              <div className="flex-1">
+                                <input
+                                  list="regions-list"
+                                  value={region}
+                                  onChange={(e) => {
+                                    const newRegion = e.target.value;
+                                    const oldRegion = region;
+                                    setRegion(newRegion);
+                                    if (!location || location === oldRegion) {
+                                      setLocation(newRegion);
+                                    }
+                                  }}
+                                  placeholder="اختر أو اكتب منطقتك/ولايتك"
+                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-indigo-100 rounded-xl py-3.5 px-4 text-sm font-medium text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-500/10 focus:bg-white dark:focus:bg-slate-900 shadow-sm transition-all placeholder:text-slate-500/70"
+                                />
+                                <datalist id="regions-list">
+                                  {regions.map((r) => (
+                                    <option key={r.id} value={r.name} />
+                                  ))}
+                                </datalist>
+                              </div>
+                            </div>
                           </div>
                       </div>
                   </div>
@@ -469,24 +527,23 @@ export const AuthModal = () => {
                   {/* Age Group - Only for regular users */}
                   {role === 'user' && (
                     <div>
-                      <SectionLabel title="الفئة العمرية (اختياري)" />
-                      <div className="space-y-1.5">
-                        <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-                          <Calendar size={12} />
-                          <span>اختر فئتك العمرية (يساعدنا في تحسين تجربتك)</span>
-                        </label>
-                        <select
-                          value={ageGroup}
-                          onChange={(e) => setAgeGroup(e.target.value as AgeGroup)}
-                          className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-indigo-100 rounded-xl py-3.5 px-4 text-sm font-medium text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-500/10 focus:bg-white dark:focus:bg-slate-900 shadow-sm transition-all"
-                        >
-                          <option value="not_specified">أفضل عدم التحديد</option>
-                          <option value="18-23">18-23 سنة</option>
-                          <option value="24-30">24-30 سنة</option>
-                          <option value="31-40">31-40 سنة</option>
-                          <option value="41-50">41-50 سنة</option>
-                          <option value="50+">50+ سنة</option>
-                        </select>
+                      <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
+                        <Calendar size={12} />
+                        <span>الفئة العمرية</span>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {ageGroupOptions.map((option) => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            onClick={() => setAgeGroup(option.value)}
+                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all`}
+                            style={ageGroup === option.value ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'} : {borderColor: '#cbd5e1', color: '#64748b'}}
+                            aria-pressed={ageGroup === option.value}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -495,19 +552,19 @@ export const AuthModal = () => {
                   <div>
                     <SectionLabel title="نوع الحساب" />
                     <div className="grid grid-cols-2 gap-4">
-                      <div onClick={() => setRole('user')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200 ${role === 'user' ? 'border-indigo-600 bg-indigo-50/50 dark:bg-indigo-900/20' : 'border-slate-100 dark:border-slate-700 hover:border-indigo-200'}`}>
+                      <div onClick={() => setRole('user')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200`} style={role === 'user' ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0'}}>
                         <div className="flex justify-between items-start mb-2">
-                           <div className={`p-2 rounded-xl ${role === 'user' ? 'bg-indigo-600 text-white' : 'bg-white shadow-sm text-slate-400'}`}><UserIcon size={20}/></div>
-                           {role === 'user' && <div className="w-2 h-2 rounded-full bg-indigo-600 animate-pulse"/>}
+                           <div className={`p-2 rounded-xl`} style={role === 'user' ? {backgroundColor: '#469788', color: '#fff'} : {backgroundColor: '#fff', color: '#94a3b8', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'}}><UserIcon size={20}/></div>
+                           {role === 'user' && <div className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor: '#469788'}}/>}
                         </div>
                         <h3 className="font-bold text-sm text-slate-900 dark:text-white">مستخدم</h3>
                         <p className="text-[10px] text-slate-500 mt-1">أبحث عن خياطين</p>
                       </div>
 
-                      <div onClick={() => setRole('tailor')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200 ${role === 'tailor' ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-900/20' : 'border-slate-100 dark:border-slate-700 hover:border-amber-200'}`}>
+                      <div onClick={() => setRole('tailor')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200`} style={role === 'tailor' ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0'}}>
                         <div className="flex justify-between items-start mb-2">
-                           <div className={`p-2 rounded-xl ${role === 'tailor' ? 'bg-amber-500 text-white' : 'bg-white shadow-sm text-slate-400'}`}><Store size={20}/></div>
-                           {role === 'tailor' && <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"/>}
+                           <div className={`p-2 rounded-xl`} style={role === 'tailor' ? {backgroundColor: '#469788', color: '#fff'} : {backgroundColor: '#fff', color: '#94a3b8', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'}}><Store size={20}/></div>
+                           {role === 'tailor' && <div className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor: '#469788'}}/>}
                         </div>
                         <h3 className="font-bold text-sm text-slate-900 dark:text-white">تاجر / خياط</h3>
                         <p className="text-[10px] text-slate-500 mt-1">أقدم خدماتي</p>
@@ -529,9 +586,10 @@ export const AuthModal = () => {
                            ].map((item) => (
                              <button 
                                key={item.val} type="button" onClick={() => setShopType(item.val as ShopType)} 
-                               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all ${shopType === item.val ? 'bg-amber-500 text-white border-amber-500' : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300'}`}
+                               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all`}
+                               style={shopType === item.val ? {backgroundColor: '#469788', color: '#fff', borderColor: '#469788'} : {backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#64748b'}}
                              >
-                               <item.ic size={16} className={shopType === item.val ? 'text-white' : 'text-amber-500'}/> {item.lbl}
+                               <item.ic size={16} style={{color: shopType === item.val ? '#fff' : '#469788'}}/> {item.lbl}
                              </button>
                            ))}
                          </div>
@@ -546,16 +604,33 @@ export const AuthModal = () => {
                               value={location}
                               onChange={(e) => setLocation(e.target.value)}
                               placeholder="مثال: الخوير، مسقط"
-                              className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-white text-sm"
+                              className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 text-slate-900 dark:text-white text-sm placeholder:text-slate-500/70"
+                              onFocus={(e) => e.currentTarget.style.borderColor = '#469788'}
+                              onBlur={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
                             />
                             <p className="text-[10px] text-slate-400 mt-1">يمكنك تحديد موقع أكثر دقة</p>
                           </div>
                           <div className="space-y-1.5">
                             <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">التخصص</label>
-                            <div className="flex bg-white dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700">
-                               <button type="button" onClick={() => setTailorGender('male')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tailorGender === 'male' ? 'bg-amber-100 text-amber-900' : 'text-slate-400'}`}>رجالي</button>
-                               <button type="button" onClick={() => setTailorGender('female')} className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all ${tailorGender === 'female' ? 'bg-amber-100 text-amber-900' : 'text-slate-400'}`}>نسائي</button>
-                            </div>
+                             <div className="flex bg-white dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700 items-center">
+                               <button 
+                                 type="button" 
+                                 onClick={() => setTailorGender('male')} 
+                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all`}
+                                 style={{backgroundColor: tailorGender === 'male' ? 'rgba(70, 151, 136, 0.2)' : 'transparent', color: tailorGender === 'male' ? '#469788' : '#94a3b8'}}
+                               >
+                                 رجالي
+                               </button>
+                               <div className="h-6 w-px mx-1" style={{backgroundColor: '#cbd5e1'}} aria-hidden="true"/>
+                               <button 
+                                 type="button" 
+                                 onClick={() => setTailorGender('female')} 
+                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all`}
+                                 style={{backgroundColor: tailorGender === 'female' ? 'rgba(70, 151, 136, 0.2)' : 'transparent', color: tailorGender === 'female' ? '#469788' : '#94a3b8'}}
+                               >
+                                 نسائي
+                               </button>
+                             </div>
                           </div>
                        </div>
                     </div>
@@ -572,7 +647,7 @@ export const AuthModal = () => {
                 </button>
                 {statusText && (<div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">{statusText}</div>)}
                 {showFallback && isLogin && (
-                  <div className="mt-4 p-3 rounded-xl border border-amber-300 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-200">
+                  <div className="mt-4 p-3 rounded-xl border" style={{borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'}}>
                     <div className="text-sm font-bold mb-2">لا يوجد بريد مرتبط بهذا الحساب</div>
                     <div className="text-xs mb-2">أدخل بريدك الإلكتروني لإكمال ربط الحساب بهذا الرقم.</div>
                     <div className="flex items-center gap-2">
@@ -630,7 +705,7 @@ export const AuthModal = () => {
         </div>
 
         {/* --- Left Section (Image) --- */}
-          <div className="hidden md:block w-1/2 relative bg-slate-100">
+          <div className="hidden md:block w-2/5 relative bg-slate-100">
            <img src="/auth-panel.jpg" alt="Tailoring Art" className="absolute inset-0 w-full h-full object-cover"/>
            <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
            <div className="absolute bottom-0 left-0 right-0 p-12 text-white rtl:text-right">
@@ -639,11 +714,12 @@ export const AuthModal = () => {
                  <span>تصميم عصري 2025</span>
               </div>
               <h2 className="text-4xl font-extrabold leading-tight mb-4">
-                 فصّل أناقتك <br/> <span className="text-transparent bg-clip-text bg-gradient-to-r from-amber-200 to-amber-500">بلمسة زر واحدة.</span>
+                 فصَل أناقتك <br/> <span className="text-transparent bg-clip-text" style={{backgroundImage: 'linear-gradient(to right, rgba(70, 151, 136, 0.6), #469788)'}}>بلمسة زر واحدة.</span>
               </h2>
            </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

@@ -1,4 +1,5 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 
 type Field = { key: string; label: string };
 
@@ -43,8 +44,7 @@ interface MeasurementStudioCanvasProps {
   onLineThicknessChange?: (value: number) => void;
   pointScale?: number;
   onPointScaleChange?: (value: number) => void;
-  onSaveTemplate?: () => void;
-  onLoadTemplate?: () => void;
+  children?: React.ReactNode;
 }
 
 export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = ({
@@ -54,15 +54,15 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
   onGenerate,
   coverImageUrl,
   onVideoClick,
-  lineThickness = 0.7,
+  lineThickness = 5,
   onLineThicknessChange,
-  pointScale = 0.8,
+  pointScale = 1,
   onPointScaleChange,
-  onSaveTemplate,
-  onLoadTemplate,
+  children
 }) => {
+  const { t, i18n } = useTranslation();
+  const isAr = i18n.language === 'ar';
   const [unit, setUnit] = useState<'CM' | 'IN'>('CM');
-  const [gender, setGender] = useState<'male' | 'female'>('male');
   const [values, setValues] = useState<Record<string, string>>(measurements);
   const inputsRef = useRef<Record<string, HTMLInputElement | null>>({});
   const [isClearing, setIsClearing] = useState(false);
@@ -111,25 +111,84 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
 
   return (
     <div className="space-y-3">
-      {/* Row: Help Card + Product Thumbnail (separate blocks) */}
-      <div className="grid grid-cols-[77%_23%] gap-2">
+      <style>{`
+        @keyframes shine-sweep {
+          0% { transform: translateX(-150%) skewX(-45deg); }
+          20% { transform: translateX(150%) skewX(-45deg); }
+          100% { transform: translateX(150%) skewX(-45deg); }
+        }
+        @keyframes play-pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.15); }
+        }
+      `}</style>
+      {/* Row: Help Card + Product Thumbnail (separate blocks) - Desktop Only */}
+      <div className="hidden sm:grid grid-cols-[77%_23%] gap-2">
         <div className="bg-[#252525] border border-white/5 rounded-lg p-4">
           <button
             type="button"
             onClick={onVideoClick}
             className="w-full flex items-center gap-4 text-left hover:opacity-80 transition-all group"
           >
-            <div className="w-16 h-16 rounded-xl bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all">
-              <svg className="w-8 h-8 text-[color:var(--theme-primary)]" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M8 5v14l11-7z" />
-              </svg>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-white">How to Take Measurements</p>
-              <p className="text-xs text-white/50">Watch video guide</p>
-            </div>
+            {isAr ? (
+              <>
+                <div className="flex-1 text-right">
+                  <p className="text-sm font-semibold text-white">
+                    {t('measurements.howToTakeMeasurements')}
+                  </p>
+                  <p className="text-xs text-white/50">
+                    {t('common.watchVideo')}
+                  </p>
+                </div>
+                <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
+                  {/* Shine Effect */}
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
+                    style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                  />
+                  
+                  {/* Play Arrow */}
+                  <svg 
+                    className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                    style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
+                  {/* Shine Effect */}
+                  <div 
+                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
+                    style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                  />
+                  
+                  {/* Play Arrow */}
+                  <svg 
+                    className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10" 
+                    fill="currentColor" 
+                    viewBox="0 0 24 24"
+                    style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
+                  >
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-white">
+                    {t('measurements.howToTakeMeasurements')}
+                  </p>
+                  <p className="text-xs text-white/50">
+                    {t('common.watchVideo')}
+                  </p>
+                </div>
+              </>
+            )}
             <svg className="w-5 h-5 text-white/30 group-hover:text-white/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isAr ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} />
             </svg>
           </button>
         </div>
@@ -148,53 +207,34 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
         )}
       </div>
 
+      {children}
+
       {/* Header */}
       <div className="space-y-0.5">
-        <h2 className="text-base font-bold text-white">Enter Your Measurements</h2>
-        <p className="text-[10px] text-white/50">الأبعاد الخمسة الرئيسية</p>
+        <h2 className="text-base font-bold text-white">
+          {t('measurements.enterYourMeasurements')}
+        </h2>
       </div>
 
-      {/* Unit & Gender Toggles */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">Unit</label>
-          <div className="flex gap-1 rounded-lg bg-[#252525] border border-white/5 p-0.5">
-            {['CM', 'IN'].map((u) => (
-              <button
-                key={u}
-                onClick={() => setUnit(u as 'CM' | 'IN')}
-                className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
-                  unit === u
-                    ? 'bg-[color:var(--theme-primary)] text-white'
-                    : 'text-white/50 hover:text-white'
-                }`}
-              >
-                {u}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">Gender</label>
-          <div className="flex gap-1 rounded-lg bg-[#252525] border border-white/5 p-0.5">
-            {[
-              { key: 'male', label: 'ذكر' },
-              { key: 'female', label: 'أنثى' },
-            ].map(({ key, label }) => (
-              <button
-                key={key}
-                onClick={() => setGender(key as 'male' | 'female')}
-                className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
-                  gender === key
-                    ? 'bg-[color:var(--theme-primary)] text-white'
-                    : 'text-white/50 hover:text-white'
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+      {/* Unit Toggle */}
+      <div>
+        <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
+          {t('common.unit')}
+        </label>
+        <div className="flex gap-1 rounded-lg bg-[#252525] border border-white/5 p-0.5">
+          {['CM', 'IN'].map((u) => (
+            <button
+              key={u}
+              onClick={() => setUnit(u as 'CM' | 'IN')}
+              className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
+                unit === u
+                  ? 'bg-[color:var(--theme-primary)] text-white'
+                  : 'text-white/50 hover:text-white'
+              }`}
+            >
+              {u}
+            </button>
+          ))}
         </div>
       </div>
 
@@ -244,7 +284,7 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
       </div>
 
       {/* Input Fields Grid - Compact Cards */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-2 gap-2">
         {mappedFields.map((field) => (
           <BoutiqueInput
             key={field.key}
@@ -257,32 +297,19 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
         ))}
       </div>
 
-      {/* Quick Actions */}
-      <div className="grid grid-cols-3 gap-2 pt-2 border-t border-white/5">
-        <button onClick={onLoadTemplate} className="py-1.5 px-3 rounded-lg bg-[#252525] hover:bg-[#2f2f2f] text-white text-[10px] font-semibold transition-all">
-          Load
-        </button>
-        <button onClick={onSaveTemplate} className="py-1.5 px-3 rounded-lg bg-[#252525] hover:bg-[#2f2f2f] text-white text-[10px] font-semibold transition-all">
-          Save
-        </button>
-        <button onClick={handleClearAll} className={`py-1.5 px-3 rounded-lg bg-[#252525] text-white text-[10px] font-semibold transition-all ${isClearing ? 'opacity-70' : 'hover:bg-[#2f2f2f]' }`}>
-          Clear
-        </button>
-      </div>
-
       {/* Generate Button */}
       <button
         disabled={!isComplete}
         onClick={() => isComplete && onGenerate?.(values)}
         className={`w-full border rounded-lg p-4 transition-all flex items-center justify-center gap-3 ${
           isComplete
-            ? 'bg-[#252525] border-white/5 hover:bg-[#2f2f2f] cursor-pointer'
+            ? 'bg-[color:var(--theme-primary)] hover:bg-[color:var(--theme-primary)]/90 border-[color:var(--theme-primary)] cursor-pointer'
             : 'bg-[#1a1a1a] border-white/10 text-white/40 cursor-not-allowed'
         }`}
         aria-disabled={!isComplete}
-        title={isComplete ? 'Start stitching' : 'Fill all measurements to enable'}
+        title={isComplete ? t('measurements.startStitching') : t('measurements.fillAllMeasurements')}
       >
-        <span className={`text-sm font-bold ${isComplete ? 'text-[color:var(--theme-primary)]' : 'text-white/40'}`}>Start Stitching</span>
+        <span className={`text-sm font-bold ${isComplete ? 'text-white' : 'text-white/40'}`}>{t('measurements.startStitching')}</span>
         <span className={`text-lg ${isComplete ? '' : 'opacity-40'}`}>✨</span>
       </button>
     </div>

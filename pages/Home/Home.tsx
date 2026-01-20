@@ -1,7 +1,7 @@
 ﻿/**
  * @deprecated Legacy homepage implementation.
  *
- * Homepage is now the Demo Shell (root redirects to /demo-shell/a).
+ * Homepage is now served at `/`.
  * This module intentionally exports nothing.
  */
 export {};

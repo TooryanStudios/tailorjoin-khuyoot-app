@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import { ChevronDown, Download, Loader2, Maximize2, Upload, ZoomIn, Info, Share2, Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
 import { useParams, useNavigate } from 'react-router-dom';
 import ImageSlider from '../../components/DesignerV2_1/ImageSlider';
@@ -30,7 +31,10 @@ import { ImagePrepModal } from '../../components/image/ImagePrepModal';
 import { FabricTilingModal } from '../../designer/components/FabricTilingModal';
 import { useModalStore } from '../../store/useModalStore';
 import { traceEnd, traceSetActive, traceStep } from '../../utils/trace';
+import { Footer } from '../../client/components/Footer';
 import './DesignerV2_1.module.css';
+
+const FREE_GENERATION_LIMIT = 5;
 
 // Placeholder for empty image state - use null to avoid empty src warnings
 const ORIGINAL = null as string | null;
@@ -274,7 +278,8 @@ const RangeInput = ({ label, value, min, max, step = 1, disabled, onChange }: { 
 );
 
 const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: string; onCopy: (url: string, label: string) => void }) => {
-  if (!url) return <div className="text-zinc-600 italic">غير متوفر</div>;
+  const { t } = useTranslation(['designer']);
+  if (!url) return <div className="text-zinc-600 italic">{t('urlUnavailable')}</div>;
   const filename = url.split('/').pop()?.split('?')[0] || 'file';
   return (
     <div className="space-y-1">
@@ -291,7 +296,7 @@ const URLDisplay = React.memo(({ label, url, onCopy }: { label: string; url?: st
         <button
           onClick={() => onCopy(url, label)}
           className="p-1 hover:bg-zinc-800 rounded transition-colors flex-shrink-0"
-          title={`نسخ رابط ${label}`}
+          title={t('copyLinkTitle', { label })}
         >
           <Copy className="w-3 h-3 text-zinc-400" />
         </button>
@@ -321,6 +326,7 @@ export const DesignerV2_1: React.FC = () => {
   const renderCountRef = React.useRef(0);
   const mountTimeRef = React.useRef(new Date().toISOString());
   
+  const { t } = useTranslation(['designer']);
   React.useEffect(() => {
     renderCountRef.current++;
   });
@@ -339,6 +345,57 @@ export const DesignerV2_1: React.FC = () => {
   // ========== AUTH & ADMIN ==========
   const { user } = useApp();
   const isAdminUser = user?.role === 'admin';
+
+  // ========== FREE GENERATION TRACKING ==========
+  const freeGenerationKeyRef = React.useRef<string>('designer_v2:freeGen:guest');
+  const [freeGenerationsUsed, setFreeGenerationsUsed] = React.useState(0);
+
+  React.useEffect(() => {
+    const key = user?.uid ? `designer_v2:freeGen:${user.uid}` : 'designer_v2:freeGen:guest';
+    freeGenerationKeyRef.current = key;
+    try {
+      const stored = window.localStorage.getItem(key);
+      setFreeGenerationsUsed(stored ? Number(stored) || 0 : 0);
+    } catch (err) {
+      console.warn('[Designer] Failed to read free generation count', err);
+      setFreeGenerationsUsed(0);
+    }
+  }, [user?.uid]);
+
+  const incrementFreeGenerationsUsed = React.useCallback(() => {
+    setFreeGenerationsUsed((prev) => {
+      const next = prev + 1;
+      try {
+        window.localStorage.setItem(freeGenerationKeyRef.current, String(next));
+      } catch (err) {
+        console.warn('[Designer] Failed to persist free generation count', err);
+      }
+      return next;
+    });
+  }, []);
+
+  const planBonusKeyRef = React.useRef<string>('designer_v2:planBonusClaimed:guest');
+  const [planBonusClaimed, setPlanBonusClaimed] = React.useState(false);
+
+  React.useEffect(() => {
+    const key = user?.uid ? `designer_v2:planBonusClaimed:${user.uid}` : 'designer_v2:planBonusClaimed:guest';
+    planBonusKeyRef.current = key;
+    try {
+      setPlanBonusClaimed(window.localStorage.getItem(key) === '1');
+    } catch (err) {
+      console.warn('[Designer] Failed to read plan bonus flag', err);
+      setPlanBonusClaimed(false);
+    }
+  }, [user?.uid]);
+
+  const markPlanBonusClaimed = React.useCallback(() => {
+    setPlanBonusClaimed(true);
+    try {
+      window.localStorage.setItem(planBonusKeyRef.current, '1');
+    } catch (err) {
+      console.warn('[Designer] Failed to persist plan bonus flag', err);
+    }
+  }, []);
 
   // ========== PERSISTENT SELECTION STATE (DIRECTIVE 3) ==========
   const hydrateDesignerStore = useDesignerStore((s) => s.hydrateFromStorage);
@@ -632,12 +689,47 @@ export const DesignerV2_1: React.FC = () => {
   const generationCost = getCost('generation');
   const upscaleCost = getCost('upscale');
 
+  const openUpgradeModal = React.useCallback(
+    (source: string = 'unknown') => {
+      traceStep('designer_v2_upgrade_click', { source });
+      setIsUpgradeModalOpen(true);
+    },
+    [setIsUpgradeModalOpen]
+  );
+
+  const handlePlanSelect = React.useCallback(
+    async (planId: string) => {
+      traceStep('designer_v2_plan_select', { planId, bonusApplied: !planBonusClaimed });
+      if (planBonusClaimed) return;
+
+      const currentUser = firebaseService.auth?.currentUser;
+      if (!currentUser) {
+        showError(t('loginRequired'));
+        return;
+      }
+
+      try {
+        await firebaseService.adminAdjustCredits({
+          userId: currentUser.uid,
+          amount: 10,
+          reason: `Plan selection bonus (${planId})`,
+        });
+        markPlanBonusClaimed();
+        await refreshCredits();
+      } catch (error: any) {
+        console.error('[Designer] Failed to apply plan bonus', error);
+        showError(error?.message || t('planBonusAddFailed'));
+      }
+    },
+    [markPlanBonusClaimed, planBonusClaimed, refreshCredits, showError]
+  );
+
   const handleUpgrade = React.useCallback(async () => {
     console.log('🔵 handleUpgrade START');
     const currentUser = firebaseService.auth?.currentUser;
     if (!currentUser) {
       console.error('❌ No user logged in');
-      throw new Error('يجب تسجيل الدخول أولاً');
+      throw new Error(t('mustLoginFirst'));
     }
 
     console.log('🔵 User ID:', currentUser.uid);
@@ -645,10 +737,14 @@ export const DesignerV2_1: React.FC = () => {
     // Try Firebase directly (simpler and more reliable)
     try {
       console.log('🔵 Calling Firebase adminAdjustCredits...');
+      const baseAmount = 200;
+      const bonusAmount = !planBonusClaimed ? 10 : 0;
+      const totalAmount = baseAmount + bonusAmount;
+
       const result = await firebaseService.adminAdjustCredits({
         userId: currentUser.uid,
-        amount: 200,
-        reason: 'Upgrade bonus',
+        amount: totalAmount,
+        reason: bonusAmount > 0 ? `Upgrade bonus (${baseAmount}) + Plan Selection Bonus (${bonusAmount})` : 'Upgrade bonus',
       });
       
       console.log('✅ Firebase result:', result);
@@ -661,9 +757,17 @@ export const DesignerV2_1: React.FC = () => {
           console.warn('⚠️ Failed to save to localStorage:', e);
         }
       }
+
+      if (bonusAmount > 0) {
+        markPlanBonusClaimed();
+        traceStep('designer_v2_plan_selection_bonus', {
+          bonus: bonusAmount,
+          user: currentUser.uid,
+        });
+      }
     } catch (error: any) {
       console.error('❌ Firebase adminAdjustCredits failed:', error);
-      throw new Error(error?.message || 'فشل في إضافة الرصيد');
+      throw new Error(error?.message || t('creditReserveFailed'));
     }
 
     console.log('🔵 Setting subscription flags...');
@@ -673,7 +777,7 @@ export const DesignerV2_1: React.FC = () => {
     console.log('🔵 Refreshing credits...');
     await refreshCredits();
     console.log('✅ handleUpgrade COMPLETE');
-  }, [refreshCredits]);
+  }, [markPlanBonusClaimed, planBonusClaimed, refreshCredits]);
 
   // Generation history
   const {
@@ -1119,10 +1223,10 @@ export const DesignerV2_1: React.FC = () => {
 
   const getApiPayload = React.useCallback((opts?: { lightingPreset?: LightingPreset }) => {
     if (!sourceImageBase64 || !sourceImageMimeType) {
-      throw new Error('يرجى رفع صورة النموذج/القالب أولاً.');
+      throw new Error(t('uploadTemplateFirst'));
     }
     if (!fabricImageBase64 || !fabricImageMimeType) {
-      throw new Error('يرجى رفع صورة القماش/النقشة.');
+      throw new Error(t('uploadFabricFirst'));
     }
 
     // Get userId from Firebase auth if available
@@ -1199,6 +1303,24 @@ export const DesignerV2_1: React.FC = () => {
   const handleFabricSwap = React.useCallback(async (opts?: { lightingPreset?: LightingPreset }) => {
     if (isProcessing) return;
 
+    if (!user) {
+      showError(t('accountRequiredGeneration'));
+      traceStep('designer_v2_generation_blocked', { reason: 'no_account' });
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
+    if (!isSubscribed && freeGenerationsUsed >= FREE_GENERATION_LIMIT) {
+      showError(t('freeGenerationExhausted', { limit: FREE_GENERATION_LIMIT }));
+      traceStep('designer_v2_generation_blocked', {
+        reason: 'limit_reached',
+        used: freeGenerationsUsed,
+        limit: FREE_GENERATION_LIMIT,
+      });
+      setIsUpgradeModalOpen(true);
+      return;
+    }
+
     let payload: ReturnType<typeof getApiPayload>;
     try {
       payload = getApiPayload(opts);
@@ -1206,6 +1328,13 @@ export const DesignerV2_1: React.FC = () => {
       showError(e?.message || 'Missing model template or fabric pattern');
       return;
     }
+
+    traceStep('designer_v2_generation_start', {
+      tier: isSubscribed ? 'paid' : 'free',
+      usedFree: freeGenerationsUsed,
+      limit: FREE_GENERATION_LIMIT,
+      user: user?.uid || 'unknown',
+    });
 
     // Show processing UI immediately. Credit reservation happens before the callback executes,
     // so we need to flip UI state before awaiting executeCreditAction to avoid a perceived freeze.
@@ -1336,6 +1465,15 @@ export const DesignerV2_1: React.FC = () => {
           navigate(`/designer-v2-1/design/${newTaskId}`, { replace: true });
         }
 
+        if (!isSubscribed) {
+          incrementFreeGenerationsUsed();
+          traceStep('designer_v2_generation_free_used', {
+            used: freeGenerationsUsed + 1,
+            limit: FREE_GENERATION_LIMIT,
+            user: user?.uid || 'unknown',
+          });
+        }
+
         setTimeout(() => {
           revealSlider();
           setIsProcessing(false);
@@ -1350,13 +1488,13 @@ export const DesignerV2_1: React.FC = () => {
           removePendingGeneration(pendingClientId);
         }
 
-        const errorMsg = e?.message || 'فشل تبديل القماش. يرجى المحاولة مرة أخرى.';
+        const errorMsg = e?.message || t('fabricSwitchFailed');
         const isConnectionError = errorMsg.includes('fetch') || errorMsg.includes('network');
 
         showError(
           isConnectionError
-            ? 'خطأ في الاتصال - قد تكون الصورة كبيرة جدًا. يرجى المحاولة بصور أصغر أو المحاولة مجددًا.'
-            : `خطأ: ${errorMsg}`
+            ? t('imageSizeError')
+            : `${t('error')}: ${errorMsg}`
         );
       }
     });
@@ -1372,7 +1510,7 @@ export const DesignerV2_1: React.FC = () => {
       }
       return;
     }
-  }, [addPendingGeneration, addToCloset, executeCreditAction, features.showHistoryFilmstrip, finalizePendingGeneration, getApiPayload, isProcessing, refreshHistory, removePendingGeneration, revealSlider, selectedModel, setActiveId, sourcePreviewUrl, currentTaskId, sourceImageMimeType, fabricPreviewUrl, fabricImageMimeType, user?.uid, urlTaskId, navigate, showError]);
+  }, [addPendingGeneration, addToCloset, executeCreditAction, features.showHistoryFilmstrip, finalizePendingGeneration, freeGenerationsUsed, getApiPayload, incrementFreeGenerationsUsed, isProcessing, isSubscribed, navigate, refreshHistory, removePendingGeneration, revealSlider, selectedModel, setActiveId, setIsUpgradeModalOpen, showError, sourceImageMimeType, sourcePreviewUrl, fabricPreviewUrl, fabricImageMimeType, user?.uid, urlTaskId]);
 
   // Directive 4: lighting buttons trigger generation
   const lightingGenerator = useLightingGenerator({
@@ -1483,7 +1621,7 @@ export const DesignerV2_1: React.FC = () => {
         window.clearInterval(interval);
         setIsUpscaling(false);
         setUpscaleProgress(0);
-        showError(`خطأ في التحسين: ${e?.message || 'فشل التحسين. يرجى المحاولة مرة أخرى.'}`);
+        showError(t('upscaleError', { message: e?.message || t('upscaleFailedDefault') }));
       }
     });
 
@@ -1563,7 +1701,7 @@ export const DesignerV2_1: React.FC = () => {
       } catch (e: any) {
         if (token !== templateProcessTokenRef.current) return;
         traceStep('Template finalize ERROR', { message: String(e?.message || e) });
-        showError(e?.message || 'فشل تحميل الصورة');
+        showError(e?.message || t('failedToLoadImage'));
       } finally {
         if (token === templateProcessTokenRef.current) {
           setIsProcessingTemplate(false);
@@ -1714,7 +1852,7 @@ export const DesignerV2_1: React.FC = () => {
           } catch (e) {
             console.warn('[TemplatePicker] Failed to fetch template src:', e);
             traceStep('Template select: remote fetch ERROR', { message: String((e as any)?.message || e) });
-            showError('فشل تحميل القالب المختار');
+            showError(t('failedToLoadTemplate'));
             setLoadingTemplateId(null);
           }
         } else {
@@ -1772,7 +1910,7 @@ export const DesignerV2_1: React.FC = () => {
         });
       } catch (e: any) {
         if (token !== fabricProcessTokenRef.current) return;
-        showError(e?.message || 'فشل تحميل صورة القماش');
+        showError(e?.message || t('failedToLoadFabric'));
       } finally {
         if (token === fabricProcessTokenRef.current) {
           setIsProcessingFabric(false);
@@ -2030,9 +2168,10 @@ export const DesignerV2_1: React.FC = () => {
 
   // ========== MOBILE LAYOUT ==========
   if (isMobile) {
-    const canGenerateNow = !uiState.generationDisabled && (!creditsEnabled || canAfford('generation'));
+    const hasFreeQuota = isSubscribed || freeGenerationsUsed < FREE_GENERATION_LIMIT;
+    const canGenerateNow = Boolean(user) && !uiState.generationDisabled && (!creditsEnabled || canAfford('generation')) && hasFreeQuota;
     return (
-      <>
+      <div className="relative min-h-screen">
         <ImagePrepModal
           mode="fabric"
           fabricMaterial={fabricMaterial}
@@ -2071,7 +2210,10 @@ export const DesignerV2_1: React.FC = () => {
           onSelectTemplate={handleTemplateSelect}
           currentTemplateId={selectedTemplate?.id}
           isSubscribedToPremiumTemplates={isSubscribed || canAfford('premium_template')}
-          onPremiumTemplateClick={() => setIsUpgradeModalOpen(true)}
+          onPremiumTemplateClick={() => {
+            traceStep('designer_v2_upgrade_click', { context: 'premium_template', user: user?.uid || 'unknown' });
+            setIsUpgradeModalOpen(true);
+          }}
           privacy={{
             isPrivacyMode: false,
             setPrivacyMode: () => undefined,
@@ -2107,7 +2249,10 @@ export const DesignerV2_1: React.FC = () => {
           generationCost={generationCost}
           canGenerate={canGenerateNow}
           onGenerate={() => void handleFabricSwap()}
-          onRefillCredits={() => setIsUpgradeModalOpen(true)}
+          onRefillCredits={() => {
+            traceStep('designer_v2_refill_click', { user: user?.uid || 'unknown' });
+            setIsUpgradeModalOpen(true);
+          }}
           onClearSelections={handleClearSelections}
           history={history}
           historyLoading={isLoading}
@@ -2116,8 +2261,12 @@ export const DesignerV2_1: React.FC = () => {
           inputsDisabled={uiState.inputsDisabled}
         />
 
+        <div className="fixed inset-x-0 bottom-0 z-[300] bg-zinc-950">
+          <Footer />
+        </div>
+
         <UpgradeModalHost onUpgrade={handleUpgrade} />
-      </>
+      </div>
     );
   }
 
@@ -2188,7 +2337,7 @@ export const DesignerV2_1: React.FC = () => {
 
             {/* User Image Upload Card */}
             <div>
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">صورة المستخدم</div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('userImageLabel')}</div>
               <label
                 className={`relative h-[8.4rem] rounded-xl border border-dashed border-zinc-700 bg-zinc-950/60 flex flex-col items-center justify-center gap-2 overflow-hidden cursor-pointer ${
                   uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''
@@ -2224,12 +2373,12 @@ export const DesignerV2_1: React.FC = () => {
                     className="flex flex-col items-center justify-center gap-2"
                   >
                     <Upload className="w-5 h-5 text-zinc-500" />
-                    <div className="text-xs text-zinc-500">رفع صورة</div>
+                    <div className="text-xs text-zinc-500">{t('uploadImage')}</div>
                   </button>
                 )}
                 {sourcePreviewUrl && (
                   <div className="absolute bottom-2 left-2 text-xs font-normal px-3 py-1 rounded-md bg-black/60 border border-zinc-700 text-zinc-200">
-                    تغيير
+                    {t('change')}
                   </div>
                 )}
               </label>
@@ -2238,7 +2387,7 @@ export const DesignerV2_1: React.FC = () => {
             {/* Fabric/Pattern Image */}
             {features.showFabricUpload && (
               <div>
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">القماش / النقشة</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">{t('fabricPatternLabel')}</div>
                 <div
                   className={`grid grid-cols-[1fr_96px] gap-2 ${
                     uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''
@@ -2273,7 +2422,7 @@ export const DesignerV2_1: React.FC = () => {
                         className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-xs text-zinc-500"
                       >
                         <Upload className="w-5 h-5" />
-                        <span>لا يوجد قماش</span>
+                        <span>{t('noFabric')}</span>
                       </button>
                     )}
                   </div>
@@ -2283,7 +2432,7 @@ export const DesignerV2_1: React.FC = () => {
                       onClick={() => fabricInputRef.current?.click()}
                       className="w-full h-10 rounded-md border border-zinc-700 bg-zinc-900 text-xs text-zinc-200 hover:bg-zinc-800 transition-colors"
                     >
-                      {fabricPreviewUrl ? 'تغيير' : 'رفع'}
+                      {fabricPreviewUrl ? t('change') : t('upload')}
                     </button>
                     <button
                       type="button"
@@ -2295,7 +2444,7 @@ export const DesignerV2_1: React.FC = () => {
                           : 'border-zinc-800 bg-zinc-950 text-zinc-600 cursor-not-allowed'
                       }`}
                     >
-                      تبليط
+                      {t('tile')}
                     </button>
                   </div>
                 </div>
@@ -2303,17 +2452,17 @@ export const DesignerV2_1: React.FC = () => {
                 {/* Fabric Material Selection */}
                 <details className="mt-3 mb-4">
                   <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    نوع القماش
+                    {t('fabricType')}
                   </summary>
 
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     {[
-                      { id: 'silk', label: 'حرير', icon: '✨' },
-                      { id: 'cotton', label: 'قطن', icon: '☁️' },
-                      { id: 'linen', label: 'كتان', icon: '🌾' },
-                      { id: 'velvet', label: 'مخمل', icon: '🎭' },
-                      { id: 'transparent', label: 'شفاف', icon: '💎' },
-                      { id: 'wool', label: 'صوف', icon: '🧶' }
+                      { id: 'silk', label: t('materialSilk'), icon: '✨' },
+                      { id: 'cotton', label: t('materialCotton'), icon: '☁️' },
+                      { id: 'linen', label: t('materialLinen'), icon: '🌾' },
+                      { id: 'velvet', label: t('materialVelvet'), icon: '🎭' },
+                      { id: 'transparent', label: t('materialTransparent'), icon: '💎' },
+                      { id: 'wool', label: t('materialWool'), icon: '🧶' }
                     ].map(material => (
                       <button
                         key={material.id}
@@ -2350,11 +2499,14 @@ export const DesignerV2_1: React.FC = () => {
               >
                 {isProcessing && <Loader2 className="w-4 h-4 animate-spin" />}
                 {isProcessing ? (
-                  'جاري المعالجة...'
+                  t('processing')
                 ) : (
                   <span className="flex items-center justify-center gap-2">
                     <span className="animate-pulse">✨</span>
-                    <span>{`توليد 1${creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}`}</span>
+                    <span>
+                      {t('generateOne')}
+                      {creditsEnabled && generationCost > 0 ? ` (${generationCost})` : ''}
+                    </span>
                   </span>
                 )}
               </button>
@@ -2364,9 +2516,9 @@ export const DesignerV2_1: React.FC = () => {
             {features.showTemplateUpload && (
               <div>
                 <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-2">
-                  النموذج / القالب
+                  {t('modelTemplateLabel')}
                   {isLoadingProduct && (
-                    <span className="ml-2 text-[10px] text-purple-400 animate-pulse">جاري التحميل...</span>
+                    <span className="ml-2 text-[10px] text-purple-400 animate-pulse">{t('loading')}</span>
                   )}
                 </div>
                 <div className={uiState.uploadsDisabled ? 'opacity-60 pointer-events-none' : ''}>
@@ -2392,12 +2544,12 @@ export const DesignerV2_1: React.FC = () => {
 
             {/* Privacy Shield Section */}
             <div className="pt-6 border-t border-zinc-800">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">حماية الخصوصية</div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4">{t('privacyProtectionTitle')}</div>
               
               <div className="flex items-center justify-between mb-3">
                 <div className="flex items-center gap-2">
-                  <label className="text-sm text-zinc-300">وضع الخصوصية</label>
-                  <span className="text-[10px] text-purple-400">🛡️ محلي فقط</span>
+                  <label className="text-sm text-zinc-300">{t('privacyModeLabel')}</label>
+                  <span className="text-[10px] text-purple-400">{t('localOnlyBadge')}</span>
                 </div>
                 <button
                   onClick={() => {
@@ -2424,14 +2576,14 @@ export const DesignerV2_1: React.FC = () => {
                   <>
                     <div className="flex items-start gap-2 mb-2">
                       <span className="text-emerald-400">✓</span>
-                      <span>سيتم طمس الوجوه تلقائيًا <strong>محليًا</strong> قبل الرفع</span>
+                      <span>{t('privacyMaskingEnabled')}</span>
                     </div>
                     <div className="text-[9px] text-zinc-500">
-                      تتم المعالجة على جهازك. الصور الأصلية غير المطموسة لا تغادر جهازك أبدًا.
+                      {t('privacyMaskingDescription')}
                     </div>
                   </>
                 ) : (
-                  <span>فعّل لطمس الوجوه تلقائيًا في الصور المرفوعة لحماية الخصوصية</span>
+                  <span>{t('privacyMaskingPrompt')}</span>
                 )}
               </div>
 
@@ -2439,18 +2591,18 @@ export const DesignerV2_1: React.FC = () => {
               {isPrivacyMode && (
                 <details className="mb-4">
                   <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                    نمط الإخفاء والإعدادات
+                    {t('maskingModeSettings')}
                   </summary>
 
                   <div className="mt-3 p-3 bg-zinc-900/50 border-2 border-purple-500/30 rounded-lg space-y-3">
                       {/* Masking Style Cards */}
                       <div>
-                        <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">النمط</label>
+                        <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">{t('maskingStyleLabel')}</label>
                         <div className="grid grid-cols-3 gap-3">
                           {[
-                            { value: 'feathered-blur', icon: '🎭', label: 'ضبابية' },
-                            { value: 'pixelate', icon: '🔲', label: 'بكسلة' },
-                            { value: 'emoji', icon: '😊', label: 'إيموجي' },
+                            { value: 'feathered-blur', icon: '🎭', label: t('maskingStyleBlur') },
+                            { value: 'pixelate', icon: '🔲', label: t('maskingStylePixelate') },
+                            { value: 'emoji', icon: '😊', label: t('maskingStyleEmoji') },
                           ].map((style) => (
                             <button
                               key={style.value}
@@ -2471,9 +2623,9 @@ export const DesignerV2_1: React.FC = () => {
                       {/* Blur Strength Slider */}
                       {maskingStyle === 'feathered-blur' && (
                         <div className="pt-2 border-t border-zinc-800">
-                          <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">Intensity</label>
+                          <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">{t('intensityLabel')}</label>
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-xs text-zinc-400">Blur Strength</span>
+                            <span className="text-xs text-zinc-400">{t('blurStrengthLabel')}</span>
                             <span className="text-xs text-purple-400">{blurStrength}px</span>
                           </div>
                           <input
@@ -2485,8 +2637,8 @@ export const DesignerV2_1: React.FC = () => {
                             className="w-full h-2 bg-zinc-800 rounded-lg appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-purple-500"
                           />
                           <div className="flex justify-between text-[9px] text-zinc-500 mt-1">
-                            <span>Light</span>
-                            <span>Heavy</span>
+                            <span>{t('lightLabel')}</span>
+                            <span>{t('heavyLabel')}</span>
                           </div>
                         </div>
                       )}
@@ -2494,7 +2646,7 @@ export const DesignerV2_1: React.FC = () => {
                       {/* Emoji Selector */}
                       {maskingStyle === 'emoji' && (
                         <div className="pt-2 border-t border-zinc-800">
-                          <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">Choose Emoji</label>
+                          <label className="text-[10px] text-zinc-500 uppercase tracking-wider mb-2 block">{t('chooseEmojiLabel')}</label>
                           <div className="grid grid-cols-6 gap-2">
                             {['😊', '😃', '🙂', '😄', '😁', '🥰', '😍', '🤗', '😌', '😎', '🤩', '😇'].map((emoji) => (
                               <button
@@ -2521,7 +2673,7 @@ export const DesignerV2_1: React.FC = () => {
           {(features.showModelSelection || features.showRefinementPrompt) && (
             <details className="pt-6 border-t border-zinc-800">
               <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                إعدادات متقدمة
+                {t('advancedSettings')}
               </summary>
               <div className="mt-3 text-xs text-zinc-500">—</div>
             </details>
@@ -2530,11 +2682,11 @@ export const DesignerV2_1: React.FC = () => {
           {/* Output Quality Section */}
           {features.showOutputQuality && (
             <div className="pt-6 border-t border-zinc-800">
-              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">جودة المخرجات</div>
+              <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-3">{t('outputQuality')}</div>
 
               {features.showUpscaleEngine && (
                 <div className="mb-3">
-                  <div className="text-xs text-zinc-500 mb-1.5">محرك التحسين</div>
+                  <div className="text-xs text-zinc-500 mb-1.5">{t('upscaleEngine')}</div>
                   <div className={`relative ${uiState.allDisabled ? 'opacity-60' : ''}`}>
                     <select
                       value={upscaleEngine}
@@ -2542,8 +2694,8 @@ export const DesignerV2_1: React.FC = () => {
                       onChange={(e) => setUpscaleEngine(e.target.value as 'standard' | 'creative')}
                       className="w-full appearance-none bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                     >
-                      <option value="standard">حاد قياسي</option>
-                      <option value="creative">تفاصيل إبداعية</option>
+                      <option value="standard">{t('upscaleStandard')}</option>
+                      <option value="creative">{t('upscaleCreative')}</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   </div>
@@ -2552,7 +2704,7 @@ export const DesignerV2_1: React.FC = () => {
 
               {features.showOutputFit && (
                 <div className="mb-1">
-                  <div className="text-xs text-zinc-500 mb-1.5">ملاءمة المخرج</div>
+                  <div className="text-xs text-zinc-500 mb-1.5">{t('outputFit')}</div>
                   <div className={`relative ${uiState.inputsDisabled ? 'opacity-60' : ''}`}>
                     <select
                       value={outputFit}
@@ -2560,8 +2712,8 @@ export const DesignerV2_1: React.FC = () => {
                       onChange={(e) => setOutputFit(e.target.value as 'contain' | 'cover')}
                       className="w-full appearance-none bg-zinc-950 border border-zinc-800 rounded-lg px-3 py-2 text-sm text-zinc-200 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                     >
-                      <option value="contain">ملائم (بدون قص)</option>
-                      <option value="cover">ممتلئ (مع القص)</option>
+                      <option value="contain">{t('fitContain')}</option>
+                      <option value="cover">{t('fitCover')}</option>
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none" />
                   </div>
@@ -2582,19 +2734,19 @@ export const DesignerV2_1: React.FC = () => {
                     {isUpscaling ? (
                       <span className="flex items-center justify-center gap-2">
                         <span className="inline-block w-4 h-4 border-2 border-purple-300/30 border-t-purple-300 rounded-full animate-spin" />
-                        جاري التحسين ({Math.round(upscaleProgress)}%)
+                        {t('upscalingInProgress', { percent: Math.round(upscaleProgress) })}
                       </span>
                     ) : (
                       <span className="flex items-center justify-center gap-2">
                         <span>
-                          ✨ تحسين النتيجة (2x)
+                          ✨ {t('upscaleResult')}
                           {creditsEnabled && upscaleCost > 0 ? ` (${upscaleCost})` : ''}
                         </span>
                       </span>
                     )}
                   </button>
                   <div className="text-xs text-zinc-500 text-center mt-2">
-                    الصورة المولدة ستصبح "قبل"، والنسخة المحسنة ستصبح "بعد"
+                    {t('upscaleDescription')}
                   </div>
                 </div>
               )}
@@ -2605,7 +2757,7 @@ export const DesignerV2_1: React.FC = () => {
           {features.showExportSettings && (
             <details className="pt-6 border-t border-zinc-800">
               <summary className="cursor-pointer select-none text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-                إعدادات التصدير
+                {t('exportSettings')}
               </summary>
 
               <div className="mt-3">
@@ -2614,9 +2766,9 @@ export const DesignerV2_1: React.FC = () => {
                 <>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center gap-2">
-                      <label className="text-sm text-zinc-300">إضافة علامة مائية</label>
-                      {!isSubscribed && <span className="text-[10px] text-purple-400">🔒 الوضع المجاني</span>}
-                      {isSubscribed && <span className="text-[10px] text-emerald-400">✓ احترافي</span>}
+                      <label className="text-sm text-zinc-300">{t('addWatermark')}</label>
+                      {!isSubscribed && <span className="text-[10px] text-purple-400">{t('freeMode')}</span>}
+                      {isSubscribed && <span className="text-[10px] text-emerald-400">{t('proMode')}</span>}
                     </div>
                     <button
                       onClick={() => {
@@ -2648,7 +2800,7 @@ export const DesignerV2_1: React.FC = () => {
 
                   {isWatermarkEnabled && (
                     <div className="text-[10px] text-zinc-400 p-2 bg-zinc-900/50 rounded border border-zinc-800 mb-4">
-                      سيتم إضافة علامة مائية "تم التوليد بواسطة خيوط" على الصورة.
+                      {t('watermarkApplied')}
                     </div>
                   )}
                 </>
@@ -2656,16 +2808,19 @@ export const DesignerV2_1: React.FC = () => {
 
               {features.showSubscriptionControls && uiState.showUpgradePrompt && (
                 <button
-                  onClick={() => setIsUpgradeModalOpen(true)}
+                  onClick={() => {
+                    traceStep('designer_v2_upgrade_click', { context: 'watermark_upgrade', user: user?.uid || 'unknown' });
+                    setIsUpgradeModalOpen(true);
+                  }}
                   className="w-full mt-4 px-3 py-2 text-sm font-semibold text-purple-300 bg-purple-500/10 border border-purple-500/30 rounded-lg hover:bg-purple-500/20 hover:border-purple-500/50 transition-all"
                 >
-                  الترقية إلى احترافي (إزالة العلامات المائية)
+                  {t('upgradeToPro')}
                 </button>
               )}
 
               {features.showSubscriptionControls && uiState.showProFeatures && (
                 <div className="w-full mt-4 px-3 py-2 text-sm font-semibold text-emerald-300 bg-emerald-500/10 border border-emerald-500/30 rounded-lg text-center">
-                  ✓ تم فتح الميزات الاحترافية!
+                  {t('proFeaturesUnlocked')}
                 </div>
               )}
               </div>
@@ -2675,7 +2830,7 @@ export const DesignerV2_1: React.FC = () => {
           {features.showDebugSection && (
           <details className="rounded-lg border border-zinc-800 bg-zinc-950/40">
           <summary className="cursor-pointer select-none px-3 py-2 text-xs font-semibold text-zinc-400 uppercase tracking-wider">
-            تصحيح الأخطاء
+            {t('debugSectionTitle')}
           </summary>
           <div className="px-3 pb-3 text-[11px] text-zinc-300">
             <div className="text-zinc-500 mb-2">Last request/response (dev only)</div>
@@ -2702,10 +2857,14 @@ export const DesignerV2_1: React.FC = () => {
         {features.showTopBar && (
         <DesignerHeader
           onHome={navigateHome}
-          title="مصمم الأقمشة V2.1"
           rightSlot={
             <div className="flex items-center gap-3">
-              <CreditBadge onRefill={() => setIsUpgradeModalOpen(true)} />
+              <CreditBadge 
+                onRefill={() => {
+                  traceStep('designer_v2_refill_click', { context: 'desktop_badge', user: user?.uid || 'unknown' });
+                  setIsUpgradeModalOpen(true);
+                }} 
+              />
               <button
                 type="button"
                 onClick={handleClearSelections}
@@ -2715,8 +2874,8 @@ export const DesignerV2_1: React.FC = () => {
                     ? 'bg-zinc-900/40 border-zinc-800 text-zinc-600 cursor-not-allowed'
                     : 'bg-zinc-900 border-zinc-800 text-zinc-300 hover:bg-zinc-800 hover:border-zinc-700'
                 }`}
-                title="مسح المقارنة"
-                aria-label="مسح المقارنة"
+                title={t('clearComparison')}
+                aria-label={t('clearComparison')}
               >
                 <Trash2 className="w-4 h-4" />
               </button>
@@ -2782,7 +2941,7 @@ export const DesignerV2_1: React.FC = () => {
                 <div className="flex items-center gap-2 h-12 px-2 rounded-xl border border-zinc-800 bg-zinc-900/60">
                   <button
                     type="button"
-                    title={shareUrlCopied ? 'تم نسخ الرابط!' : 'مشاركة التصميم'}
+                    title={shareUrlCopied ? t('shareLinkCopied') : t('shareDesign')}
                     onClick={handleShareTask}
                     disabled={!currentTaskId}
                     className={`p-2 bg-zinc-900/90 border rounded-lg transition-all ${
@@ -2799,21 +2958,21 @@ export const DesignerV2_1: React.FC = () => {
                   </button>
                   <button
                     type="button"
-                    title="تحميل النتيجة"
+                    title={t('resultLoading')}
                     className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
                   >
                     <Download className="w-4 h-4 text-zinc-300" />
                   </button>
                   <button
                     type="button"
-                    title="تكبير"
+                    title={t('zoomIn')}
                     className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
                   >
                     <ZoomIn className="w-4 h-4 text-zinc-300" />
                   </button>
                   <button
                     type="button"
-                    title="وضع ملء الشاشة"
+                    title={t('fullscreen')}
                     className="p-2 bg-zinc-900/90 border border-zinc-800 rounded-lg hover:border-purple-500/60 transition-colors"
                   >
                     <Maximize2 className="w-4 h-4 text-zinc-300" />
@@ -2846,7 +3005,7 @@ export const DesignerV2_1: React.FC = () => {
             <div className="grid grid-cols-2 gap-6 max-w-7xl mx-auto min-h-[420px]">
               {/* Source Image */}
               <div className="space-y-2 flex flex-col">
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">النموذج الأصلي</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('originalModel')}</div>
                 <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
                   {sourceForComparison ? (
                     <img
@@ -2860,7 +3019,7 @@ export const DesignerV2_1: React.FC = () => {
 
               {/* Result Image */}
               <div className="space-y-2 flex flex-col">
-                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">نتيجة الذكاء الاصطناعي</div>
+                <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider">{t('aiResult')}</div>
                 <div className="flex-1 bg-zinc-900 rounded-lg overflow-hidden border border-zinc-800 flex items-center justify-center relative min-h-[420px]">
                   {afterImage ? (
                     <img
@@ -2875,8 +3034,8 @@ export const DesignerV2_1: React.FC = () => {
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                         </svg>
                       </div>
-                      <div className="text-sm font-medium">لا توجد نتيجة بعد</div>
-                      <div className="text-xs text-zinc-600">قم بالتوليد لرؤية تصميمك</div>
+                      <div className="text-sm font-medium">{t('noResultYet')}</div>
+                      <div className="text-xs text-zinc-600">{t('generateToSee')}</div>
                     </div>
                   )}
                 </div>
@@ -2893,20 +3052,20 @@ export const DesignerV2_1: React.FC = () => {
                 <div className="p-4 bg-zinc-900 rounded-lg border border-zinc-800 max-w-7xl mx-auto">
                   <div className="text-xs font-semibold text-zinc-400 uppercase tracking-wider mb-4 flex items-center gap-2">
                     <Info className="w-4 h-4" />
-                    تفاصيل التوليد
+                    {t('generationDetails')}
                   </div>
                   
                   {/* Currently Displayed Images Info */}
                   <div className="mb-6 p-3 bg-zinc-950 rounded-lg border border-zinc-700">
-                    <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-3">المعروض حاليًا</div>
+                    <div className="text-xs font-semibold text-purple-400 uppercase tracking-wider mb-3">{t('currentlyDisplayed')}</div>
                     <div className="grid grid-cols-2 gap-4 text-xs">
                       <div>
                         <div className="text-zinc-500 mb-1 flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-blue-500"></div>
-                          النموذج الأصلي (يسار)
+                          {t('originalLeft')}
                         </div>
                         <div className="text-zinc-300 font-mono text-[10px]">
-                          {sourceImageDimensions ? `${sourceImageDimensions.width} × ${sourceImageDimensions.height}px` : 'جاري التحميل...'}
+                          {sourceImageDimensions ? `${sourceImageDimensions.width} × ${sourceImageDimensions.height}px` : t('loading')}
                         </div>
                         <div className="text-zinc-600 text-[9px] mt-1 truncate" title={sourceForComparison}>
                           {sourceForComparison === ORIGINAL ? 'Placeholder' : sourceForComparison.split('/').pop()?.split('?')[0]}
@@ -2915,10 +3074,10 @@ export const DesignerV2_1: React.FC = () => {
                       <div>
                         <div className="text-zinc-500 mb-1 flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-purple-500"></div>
-                          نتيجة الذكاء الاصطناعي (يمين)
+                          {t('aiRight')}
                         </div>
                         <div className="text-zinc-300 font-mono text-[10px]">
-                          {afterImageDimensions ? `${afterImageDimensions.width} × ${afterImageDimensions.height}px` : 'جاري التحميل...'}
+                          {afterImageDimensions ? `${afterImageDimensions.width} × ${afterImageDimensions.height}px` : t('loading')}
                         </div>
                         <div className="text-zinc-600 text-[9px] mt-1 truncate" title={afterImage}>
                           {afterImage === ORIGINAL ? 'Placeholder' : afterImage.split('/').pop()?.split('?')[0]}
@@ -2930,7 +3089,7 @@ export const DesignerV2_1: React.FC = () => {
                   {/* Selected Generation Data */}
                   <div className="space-y-4">
                     <div>
-                      <div className="text-zinc-500 mb-1 text-xs">معرف العملية</div>
+                      <div className="text-zinc-500 mb-1 text-xs">{t('processId')}</div>
                       <div className="flex items-center gap-2">
                         <div className="text-zinc-300 font-mono text-xs flex-1 break-all">{activeId}</div>
                         <button
@@ -2949,25 +3108,25 @@ export const DesignerV2_1: React.FC = () => {
                     
                     <div className="grid grid-cols-2 gap-4">
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">رابط الصورة الكاملة</div>
-                        <URLDisplay label="Full Image" url={activeItem?.fullImageUrl} onCopy={copyToClipboard} />
+                        <div className="text-zinc-500 mb-2 text-xs">{t('fullImageLink')}</div>
+                        <URLDisplay label={t('fullImageLink')} url={activeItem?.fullImageUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">رابط الصورة المصغرة</div>
-                        <URLDisplay label="Thumbnail" url={activeItem?.thumbnailUrl} onCopy={copyToClipboard} />
+                        <div className="text-zinc-500 mb-2 text-xs">{t('thumbnailLink')}</div>
+                        <URLDisplay label={t('thumbnailLink')} url={activeItem?.thumbnailUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">رابط النموذج</div>
-                        <URLDisplay label="Template" url={activeItem?.templateUrl} onCopy={copyToClipboard} />
+                        <div className="text-zinc-500 mb-2 text-xs">{t('templateLink')}</div>
+                        <URLDisplay label={t('templateLink')} url={activeItem?.templateUrl} onCopy={copyToClipboard} />
                       </div>
                       <div>
-                        <div className="text-zinc-500 mb-2 text-xs">رابط القماش</div>
-                        <URLDisplay label="Fabric" url={activeItem?.fabricUrl} onCopy={copyToClipboard} />
+                        <div className="text-zinc-500 mb-2 text-xs">{t('fabricLink')}</div>
+                        <URLDisplay label={t('fabricLink')} url={activeItem?.fabricUrl} onCopy={copyToClipboard} />
                       </div>
                     </div>
                     
                     <div>
-                      <div className="text-zinc-500 mb-1 text-xs">تاريخ الإنشاء</div>
+                      <div className="text-zinc-500 mb-1 text-xs">{t('createdAt')}</div>
                       <div className="text-zinc-300 text-xs">
                         {new Date(activeItem?.createdAt || '').toLocaleString()}
                       </div>
@@ -2988,13 +3147,13 @@ export const DesignerV2_1: React.FC = () => {
       isOpen={deleteModalOpen}
       onConfirm={confirmDelete}
       onCancel={cancelDelete}
-      itemName="هذا التوليد"
+      itemName={t('deleteGeneration')}
     />
     
     <ErrorModal
       isOpen={errorModalOpen}
       onClose={() => setErrorModalOpen(false)}
-      title="خطأ"
+      title={t('errorTitle')}
       message={errorMessage}
     />
     </>

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import ReactCrop, {
   type Crop,
   type PixelCrop,
@@ -6,7 +7,7 @@ import ReactCrop, {
   makeAspectCrop,
   convertToPixelCrop,
 } from 'react-image-crop';
-import { ChevronDown, Settings } from 'lucide-react';
+import { Check, ImagePlus, Settings, X } from 'lucide-react';
 
 import { Modal } from '../../../components/Modal';
 import { exportCroppedImage } from '../../utils/image/exportCroppedImage';
@@ -36,6 +37,7 @@ export type ImagePrepModalProps = {
 };
 
 export function ImagePrepModal(props: ImagePrepModalProps) {
+  const { t, i18n } = useTranslation(undefined, { keyPrefix: 'designer' });
   const {
     isOpen,
     file,
@@ -149,7 +151,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
 
     setIsMaskingForDisplay(true);
     setError(null);
-    setProgressText('جاري إخفاء الوجه...');
+    setProgressText(t('imagePrepProgressHideFace'));
 
     traceStep('Privacy mask (display) START', {
       maskingStyle,
@@ -159,7 +161,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
 
     try {
       if (detectorError) {
-        setError('فشل تفعيل كاشف الوجه. تحقق من الاتصال أو أعد المحاولة.');
+        setError(t('imagePrepErrorDetector'));
         return;
       }
       const focusRectRaw = getCropPx();
@@ -190,7 +192,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
         maskedFile = await processWithPrivacyShield(file);
       }
       if (maskedFile === file) {
-        setError('لم يتم العثور على وجه في الصورة الحالية. حاول تكبير منطقة القص أو اختيار صورة أوضح.');
+        setError(t('imagePrepErrorNoFace'));
         return;
       }
 
@@ -212,7 +214,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       traceStep('Privacy mask (display) DONE', { size: maskedFile.size, type: maskedFile.type });
     } catch (e: any) {
       if (unmountedRef.current || !isOpenRef.current || jobId !== maskJobIdRef.current) return;
-      setError(e?.message || 'Failed to hide face');
+      setError(e?.message || t('imagePrepErrorHideFace'));
       traceStep('Privacy mask (display) ERROR', { message: String(e?.message || e) });
     } finally {
       if (!unmountedRef.current && isOpenRef.current && jobId === maskJobIdRef.current) {
@@ -380,7 +382,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
 
     try {
       setIsApplying(true);
-      setProgressText(isPrivacyMode ? 'جاري إخفاء الوجه...' : 'جاري تجهيز الصورة...');
+      setProgressText(isPrivacyMode ? t('imagePrepProgressHideFace') : t('imagePrepProgressPreparing'));
 
       traceStep('ImagePrepModal SUBMIT', {
         privacyMode: Boolean(isPrivacyMode),
@@ -426,12 +428,12 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       // No second privacy pass here: privacy (if enabled) is applied to the displayed image
       // before cropping. So cropping already includes the mask.
 
-      setProgressText('جاري تحديث المعاينة...');
+      setProgressText(t('imagePrepProgressUpdatingPreview'));
       traceStep('Parent onApply START', { privacyApplied });
       await onApply(processedFile, { privacyApplied, fabricMaterial: selectedFabricMaterial });
       traceStep('Parent onApply DONE');
     } catch (e: any) {
-      setError(e?.message || 'Failed to process image');
+      setError(e?.message || t('imagePrepErrorProcess'));
       traceStep('ImagePrepModal ERROR', { message: String(e?.message || e) });
     } finally {
       setIsApplying(false);
@@ -446,36 +448,57 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
         if (isApplying) return;
         onCancel();
       }}
-      title="تحضير الصورة"
-      maxWidth="max-w-lg"
+      title={t('imagePrepTitle')}
+      maxWidth="max-w-[540px]"
+      containerClassName="rounded-xl mx-auto"
       showFooter={false}
       debugId="IMAGE-PREP"
       footer={
-        <div className="flex gap-2">
+        <div className={`flex items-center justify-center gap-2 ${i18n.language === 'ar' ? 'flex-row-reverse' : ''}`}>
           <button
             type="button"
-            className="flex-1 px-4 py-2.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98]"
+            className="h-11 w-11 sm:h-10 sm:w-auto sm:flex-1 sm:px-3 sm:py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center gap-2"
             disabled={isApplying}
             onClick={() => void handleApply()}
           >
-            {isApplying ? 'جاري المعالجة...' : 'تطبيق'}
+            {isApplying ? (
+              <>
+                <span className="sm:hidden">
+                  <Check size={16} />
+                </span>
+                <span className="hidden sm:inline">{t('imagePrepProcessing')}</span>
+              </>
+            ) : (
+              <>
+                <span className="sm:hidden">
+                  <Check size={16} />
+                </span>
+                <span className="hidden sm:inline">{t('imagePrepApply')}</span>
+              </>
+            )}
           </button>
           <button
             type="button"
-            className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            className="h-11 w-11 sm:h-10 sm:w-auto sm:px-3 sm:py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             disabled={isApplying || !onReplaceFile}
             onClick={() => rebrowseInputRef.current?.click()}
-            title={!onReplaceFile ? 'غير متاح هنا' : 'اختيار صورة أخرى'}
+            title={!onReplaceFile ? t('imagePrepNotAvailableHere') : t('imagePrepChooseOther')}
           >
-            تغيير
+            <span className="sm:hidden">
+              <ImagePlus size={16} />
+            </span>
+            <span className="hidden sm:inline">{t('imagePrepChange')}</span>
           </button>
           <button
             type="button"
-            className="px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98]"
+            className="h-11 w-11 sm:h-10 sm:w-auto sm:px-3 sm:py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
             disabled={isApplying}
             onClick={onCancel}
           >
-            إلغاء
+            <span className="sm:hidden">
+              <X size={16} />
+            </span>
+            <span className="hidden sm:inline">{t('imagePrepCancel')}</span>
           </button>
         </div>
       }
@@ -507,7 +530,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                   ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
                   : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
               } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
-              title={isPrivacyMode ? 'تعطيل إخفاء الوجه' : 'تفعيل إخفاء الوجه'}
+              title={isPrivacyMode ? t('imagePrepDisableFaceHide') : t('imagePrepEnableFaceHide')}
               aria-pressed={isPrivacyMode}
             >
               <span className={`text-lg ${isPrivacyMode ? '' : 'opacity-90'}`}>🎭</span>
@@ -523,7 +546,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                     ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                     : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
-              title={isPrivacyMode ? 'إعدادات متقدمة' : 'فعّل إخفاء الوجه لإظهار الإعدادات'}
+              title={isPrivacyMode ? t('imagePrepAdvancedSettings') : t('imagePrepEnableFaceHideToShow')}
             >
               <Settings size={18} />
             </button>
@@ -545,7 +568,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       />
 
       {!file || !imgSrc ? (
-        <div className="text-sm text-slate-600 dark:text-slate-300">اختر صورة أولاً.</div>
+        <div className="text-sm text-slate-600 dark:text-slate-300">{t('imagePrepSelectImageFirst')}</div>
       ) : (
         <div className="relative flex flex-col">
           <style>{`
@@ -586,7 +609,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           {/* Crop Section - Compact */}
           <div className="image-prep-crop-wrapper mb-2">
             <div
-              className="h-[54vh] sm:h-[42vh] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-2 overflow-visible flex items-center justify-center"
+              className="h-[46vh] sm:h-[40vh] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-2 overflow-visible flex items-center justify-center"
               dir="ltr"
             >
               <ReactCrop
@@ -624,17 +647,17 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           {!isTemplateMode && (
             <div className="mb-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5">
               <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
-                نوع القماش
+                {t('imagePrepFabricType')}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
                 {[
-                  { id: null, label: 'بدون', icon: '➖' },
-                  { id: 'transparent', label: 'شفاف', icon: '🫧' },
-                  { id: 'silk', label: 'حرير', icon: '🧵' },
-                  { id: 'cotton', label: 'قطن', icon: '☁️' },
-                  { id: 'linen', label: 'كتان', icon: '🌾' },
-                  { id: 'velvet', label: 'مخمل', icon: '✨' },
-                  { id: 'wool', label: 'صوف', icon: '🧶' },
+                  { id: null, label: t('imagePrepMaterialNone'), icon: '➖' },
+                  { id: 'transparent', label: t('imagePrepMaterialTransparent'), icon: '🫧' },
+                  { id: 'silk', label: t('imagePrepMaterialSilk'), icon: '🧵' },
+                  { id: 'cotton', label: t('imagePrepMaterialCotton'), icon: '☁️' },
+                  { id: 'linen', label: t('imagePrepMaterialLinen'), icon: '🌾' },
+                  { id: 'velvet', label: t('imagePrepMaterialVelvet'), icon: '✨' },
+                  { id: 'wool', label: t('imagePrepMaterialWool'), icon: '🧶' },
                 ].map((material) => {
                   const isActive = fabricMaterial === material.id;
                   return (
@@ -670,13 +693,13 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 {/* Masking Style - Compact Icons */}
                 <div>
                   <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 block">
-                    النمط
+                    {t('imagePrepMaskStyleLabel')}
                   </label>
                   <div className="flex gap-1.5">
                     {[
-                      { value: 'feathered-blur' as const, icon: '🎭', label: 'Blur' },
-                      { value: 'pixelate' as const, icon: '🔲', label: 'Pixel' },
-                      { value: 'emoji' as const, icon: '😊', label: 'Emoji' },
+                      { value: 'feathered-blur' as const, icon: '🎭', label: t('imagePrepMaskStyleBlur') },
+                      { value: 'pixelate' as const, icon: '🔲', label: t('imagePrepMaskStylePixel') },
+                      { value: 'emoji' as const, icon: '😊', label: t('imagePrepMaskStyleEmoji') },
                     ].map((style) => (
                       <button
                         key={style.value}
@@ -699,7 +722,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 {maskingStyle === 'feathered-blur' && (
                   <div>
                     <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1 flex items-center justify-between">
-                      <span>القوة</span>
+                      <span>{t('imagePrepStrength')}</span>
                       <span className="text-xs text-purple-600 dark:text-purple-400 font-bold">{blurStrength}px</span>
                     </label>
                     <input
@@ -717,7 +740,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 {maskingStyle === 'emoji' && (
                   <div>
                     <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 block">
-                      اختر الرمز
+                      {t('imagePrepChooseEmoji')}
                     </label>
                     <div className="grid grid-cols-4 gap-1.5">
                       {['😊', '😎', '🤐', '😴', '👽', '🤖', '😺', '🐵'].map((emoji) => (

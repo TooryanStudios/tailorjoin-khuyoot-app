@@ -37,7 +37,7 @@ export const NavDebugLayout: React.FC = () => {
           <Button label="Go: C" tone="primary" onClick={() => navigate('/__dev/nav-debug/c')} />
 
           <Button label="Go: Home (/)" onClick={() => navigate('/')} />
-          <Button label="Go: Demo Shell" onClick={() => navigate('/demo-shell/a')} />
+          <Button label="Go: Home" onClick={() => navigate('/')} />
           <Button label="Go: Collections" onClick={() => navigate('/collections')} />
         </div>
 
@@ -62,8 +62,8 @@ export const NavDebugLayout: React.FC = () => {
         </div>
 
         <div className="mt-6 text-sm">
-          <Link className="underline" to="/demo-shell/a">
-            Open Demo Shell
+          <Link className="underline" to="/">
+            Open Home
           </Link>
         </div>
       </div>

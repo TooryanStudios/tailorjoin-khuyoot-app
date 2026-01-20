@@ -79,6 +79,20 @@ function sanitizeFirestoreDocId(value: string): string {
   return base.replace(/[\/]/g, '_').slice(0, 256);
 }
 
+function normalizeVec3(input: any, fallback: [number, number, number]): [number, number, number] {
+  if (Array.isArray(input) && input.length >= 3) {
+    const vals = input.slice(0, 3).map((v) => Number(v));
+    if (vals.every((v) => Number.isFinite(v))) return vals as [number, number, number];
+  }
+  if (input && typeof input === 'object') {
+    const x = Number((input as any).x);
+    const y = Number((input as any).y);
+    const z = Number((input as any).z);
+    if ([x, y, z].every((v) => Number.isFinite(v))) return [x, y, z];
+  }
+  return fallback;
+}
+
 const LOCAL_MEASUREMENT_TEMPLATES_KEY = 'khuyoot_measurement_templates';
 
 const SAMPLE_MEASUREMENT_TEMPLATES: MeasurementTemplate[] = [
@@ -220,6 +234,106 @@ export const firebaseService = {
       console.warn('[CreditSystem] getCreditPricing failed', e);
       return {};
     }
+  },
+
+  // ============================================================
+  // VISUALIZER CAMERA PRESETS
+  // ============================================================
+
+  async saveVisualizerCameraPreset(params: {
+    name: string;
+    cameraPosition: [number, number, number];
+    cameraTarget: [number, number, number];
+    cameraFov: number;
+    cameraInfo?: { yaw?: number; pitch?: number; distance?: number } | null;
+    dofEnabled?: boolean;
+    dofFocusDistance?: number;
+    dofAperture?: number;
+    dofFocalLength?: number;
+    thumbnailDataUrl?: string | null;
+  }): Promise<{ id: string }> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!auth.currentUser) throw new Error('Not authenticated');
+
+    const name = String(params?.name || '').trim();
+    if (!name) throw new Error('Preset name is required');
+
+    const uid = auth.currentUser.uid;
+    const payload = {
+      userId: uid,
+      name,
+      cameraPosition: normalizeVec3(params.cameraPosition, [0, 2, 5]),
+      cameraTarget: normalizeVec3(params.cameraTarget, [0, 2, 0]),
+      cameraFov: params.cameraFov,
+      cameraInfo: params.cameraInfo || null,
+      dofEnabled: params.dofEnabled ?? false,
+      dofFocusDistance: typeof params.dofFocusDistance === 'number' ? params.dofFocusDistance : 5,
+      dofAperture: typeof params.dofAperture === 'number' ? params.dofAperture : 2.8,
+      dofFocalLength: typeof params.dofFocalLength === 'number' ? params.dofFocalLength : 50,
+      thumbnailDataUrl: params.thumbnailDataUrl || null,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    };
+
+    const refCol = collection(db, 'visualizer_camera_presets');
+    const docRef = await addDoc(refCol, payload as any);
+    return { id: docRef.id };
+  },
+
+  async getVisualizerCameraPresets(): Promise<Array<{ id: string; name: string; cameraPosition: [number, number, number]; cameraTarget: [number, number, number]; cameraFov: number; cameraInfo?: { yaw?: number; pitch?: number; distance?: number } | null; dofEnabled?: boolean; dofFocusDistance?: number; dofAperture?: number; dofFocalLength?: number; thumbnailDataUrl?: string | null }>> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!auth.currentUser) throw new Error('Not authenticated');
+
+    const uid = auth.currentUser.uid;
+    const refCol = collection(db, 'visualizer_camera_presets');
+    const q = query(refCol, where('userId', '==', uid), orderBy('createdAt', 'desc'));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data: any = d.data() || {};
+      return {
+        id: d.id,
+        name: String(data.name || ''),
+        cameraPosition: normalizeVec3(data.cameraPosition, [0, 2, 5]),
+        cameraTarget: normalizeVec3(data.cameraTarget, [0, 2, 0]),
+        cameraFov: typeof data.cameraFov === 'number' ? data.cameraFov : 45,
+        cameraInfo: data.cameraInfo || null,
+        dofEnabled: data.dofEnabled ?? false,
+        dofFocusDistance: typeof data.dofFocusDistance === 'number' ? data.dofFocusDistance : 5,
+        dofAperture: typeof data.dofAperture === 'number' ? data.dofAperture : 2.8,
+        dofFocalLength: typeof data.dofFocalLength === 'number' ? data.dofFocalLength : 50,
+        thumbnailDataUrl: typeof data.thumbnailDataUrl === 'string' ? data.thumbnailDataUrl : null,
+      };
+    });
+  },
+
+  async deleteVisualizerCameraPreset(id: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!auth.currentUser) throw new Error('Not authenticated');
+    const docId = sanitizeFirestoreDocId(id);
+    if (!docId) throw new Error('Invalid preset id');
+    const refDoc = doc(db, 'visualizer_camera_presets', docId);
+    await deleteDoc(refDoc);
+  },
+
+  async getVisualizerGenerations(limitCount: number = 20): Promise<Array<{ id: string; imageUrl: string; promptText: string; createdAt: number; aspectLabel?: string | null }>> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    if (!auth.currentUser) throw new Error('Not authenticated');
+
+    const uid = auth.currentUser.uid;
+    const refCol = collection(db, 'visualizer_generations');
+    const q = query(refCol, where('userId', '==', uid), orderBy('createdAt', 'desc'), limit(limitCount));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data: any = d.data() || {};
+      const createdAt = data?.createdAt?.toMillis ? data.createdAt.toMillis() : (data?.createdAt ? Date.parse(data.createdAt) : Date.now());
+      return {
+        id: d.id,
+        imageUrl: String(data.imageUrl || ''),
+        promptText: String(data.promptText || ''),
+        createdAt: Number.isFinite(createdAt) ? createdAt : Date.now(),
+        aspectLabel: data.aspectLabel ?? null,
+      };
+    });
   },
 
   async upsertCreditPricing(params: { feature_name: string; credit_cost: number; is_active?: boolean }): Promise<void> {

@@ -47,7 +47,7 @@ export async function applyWatermark(
 
     if (!hasLogo) {
       // Fallback to PWA icon
-      logoPath = path.resolve(__dirname, '../../public/pwa-192x192.png');
+      logoPath = path.resolve(__dirname, '../../public/icons/icon-192.png');
       hasLogo = fs.existsSync(logoPath);
     }
 

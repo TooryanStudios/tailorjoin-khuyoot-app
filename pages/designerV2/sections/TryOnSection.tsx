@@ -90,6 +90,24 @@ export const TryOnSection: React.FC<TryOnSectionProps> = ({
   lastTryOnJobId,
   features,
 }) => {
+  const comparisonOverride = React.useMemo(() => ({
+    beforeImage: generationsBeforeUrl,
+    afterImage: generationsAfterUrl,
+    beforeLabel: 'القماش',
+    afterLabel: 'النتيجة',
+  }), [generationsBeforeUrl, generationsAfterUrl]);
+
+  const panelFeatures = React.useMemo(() => ({
+    ...features,
+    showPreviewSection: true,
+    showTemplatePreview: true,
+    showFabricPreview: true,
+    showGenerateButton: true,
+    showFabricTilingButton: true,
+    showComparisonSlider: true,
+    showGenerationsRail: true,
+  }), [features]);
+
   return (
     <AdminAnchor
       ref={tryFabricSectionRef}
@@ -125,12 +143,7 @@ export const TryOnSection: React.FC<TryOnSectionProps> = ({
           externalFabricImageUrl={fabricImage}
           selectedFabricId={selectedFabricId}
           showToast={showToast}
-          comparisonOverride={{
-            beforeImage: generationsBeforeUrl,
-            afterImage: generationsAfterUrl,
-            beforeLabel: 'القماش',
-            afterLabel: 'النتيجة',
-          }}
+          comparisonOverride={comparisonOverride}
           onResultHelp={onResultHelp}
           onResultToggleAdminAnchors={onResultToggleAdminAnchors}
           showAdminAnchors={showAdminLabels}
@@ -149,16 +162,7 @@ export const TryOnSection: React.FC<TryOnSectionProps> = ({
           onGenerated={onGenerated}
           initialOptions={initialOptions}
           onApplyResult={onApplyResult}
-          features={{
-            ...features,
-            showPreviewSection: true,
-            showTemplatePreview: true,
-            showFabricPreview: true,
-            showGenerateButton: true,
-            showFabricTilingButton: true,
-            showComparisonSlider: true,
-            showGenerationsRail: true,
-          }}
+          features={panelFeatures}
         />
         )}
       </AdminAnchor>

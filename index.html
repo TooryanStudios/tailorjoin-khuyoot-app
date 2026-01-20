@@ -30,6 +30,23 @@
       })();
     </script>
 
+    <!-- CRITICAL: Apply language before React loads to prevent flash -->
+    <script>
+      (function() {
+        try {
+          const savedLang = localStorage.getItem('i18nextLng') || localStorage.getItem('language') || 'ar';
+          const lang = String(savedLang).toLowerCase().split('-')[0];
+          
+          document.documentElement.lang = lang;
+          document.documentElement.dir = (lang === 'ar' || lang === 'ur' || lang === 'he') ? 'rtl' : 'ltr';
+        } catch (e) {
+          // Fallback to default (Arabic)
+          document.documentElement.lang = 'ar';
+          document.documentElement.dir = 'rtl';
+        }
+      })();
+    </script>
+
     <!-- CRITICAL: Apply theme before first paint to prevent flash -->
     <script>
       (function() {
@@ -80,7 +97,7 @@
                media-src 'self' data: blob: https: http: https://static.higgsfield.ai https://*.higgsfield.ai;
                font-src 'self' https://fonts.gstatic.com;
                frame-src 'self' https://www.youtube.com https://www.youtube-nocookie.com https://*.firebaseapp.com https://accounts.google.com;
-               connect-src 'self' blob: https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://queue.fal.run https://fal.media https://placehold.co https://cdn.jsdelivr.net https://images.unsplash.com ws: wss:; 
+               connect-src 'self' blob: http://localhost:8788 http://127.0.0.1:8788 https://*.firebaseio.com https://*.googleapis.com https://firestore.googleapis.com https://securetoken.googleapis.com https://identitytoolkit.googleapis.com https://queue.fal.run https://fal.media https://placehold.co https://cdn.jsdelivr.net https://images.unsplash.com https://raw.githubusercontent.com https://modelviewer.dev ws: wss:; 
                worker-src 'self' blob:;">
     <meta http-equiv="X-Content-Type-Options" content="nosniff">
     <meta name="referrer" content="strict-origin-when-cross-origin">
@@ -243,7 +260,8 @@
         margin: 0 !important;
         padding: 0 !important;
         display: block !important; /* Prevents flex-centering of the whole app */
-        background-color: inherit;
+        background-color: #0a0a0a;
+        color: white;
       }
       
       /* Dark mode overrides (في حال استخدمت html.classList.add('dark')) */
@@ -412,12 +430,66 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="خيوط">
-    <link rel="apple-touch-icon" href="/icons/icon-192.png">
+    <link rel="apple-touch-icon" href="/logo_big.png">
     <link rel="manifest" href="/manifest.webmanifest">
   </head>
 
   <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
-    <div id="root"></div>
+    <div id="root" style="background: #0a0a0a; color: white; min-height: 100vh;">
+      <!-- Inline splash screen before React loads -->
+      <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a0a0a; z-index: 9999;">
+        <div style="text-align: center;">
+          <img src="/logo_big.png?v=4" alt="خيوط" style="width: 200px; height: 200px; margin: 0 auto; object-fit: contain;">
+        </div>
+      </div>
+    </div>
+
+    <!-- Global Error Handler: If React fails to mount (e.g. 500 on import), replace splash with Error UI -->
+    <script>
+      (function() {
+        function showGlobalError() {
+          const root = document.getElementById('root');
+          if (!root) return;
+          // Check if we are still on the splash screen (logo_big present)
+          if (!root.innerHTML.includes('logo_big.png?v=4')) return;
+          // Avoid double render
+          if (root.getAttribute('data-error-shown')) return;
+          root.setAttribute('data-error-shown', 'true');
+
+          root.innerHTML = `
+            <div style="min-height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; background-color: #050817; color: white; font-family: 'Cairo', sans-serif;">
+              <div style="width: 80px; height: 80px; margin-bottom: 1.5rem; position: relative;">
+                  <img src="/logo.png" alt="Logo" style="width: 100%; height: 100%; object-fit: contain;">
+              </div>
+              
+              <div style="max-width: 28rem; margin: 0 auto;">
+                  <h2 style="font-size: 1.25rem; font-weight: 700; margin-bottom: 0.5rem;">We have a technical issue</h2>
+                  <p style="font-size: 0.875rem; color: #94a3b8; line-height: 1.6;">
+                      Please refresh the page to continue.
+                      <br />
+                      <span style="opacity: 0.8; display: block; margin-top: 0.25rem; font-family: 'Cairo', sans-serif;">نواجه مشكلة فنية، يرجى تحديث الصفحة</span>
+                  </p>
+              </div>
+
+              <div style="margin-top: 2rem; display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center;">
+                  <button onclick="window.location.reload()" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1.5rem; border-radius: 9999px; background-color: white; color: #0f172a; font-size: 0.875rem; font-weight: 700; border: none; cursor: pointer; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 12"></path><path d="M3 3v9h9"></path></svg>
+                      <span>Refresh Page</span>
+                  </button>
+                  
+                  <button onclick="localStorage.clear(); window.location.reload()" style="display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.625rem 1rem; border-radius: 9999px; background-color: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); color: #cbd5e1; font-size: 0.875rem; font-weight: 500; cursor: pointer;">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                      <span>Clear Cache</span>
+                  </button>
+              </div>
+            </div>
+          `;
+        }
+
+        window.addEventListener('error', showGlobalError);
+        window.addEventListener('unhandledrejection', showGlobalError);
+      })();
+    </script>
 
     <script type="module" src="/index.tsx"></script>
   </body>

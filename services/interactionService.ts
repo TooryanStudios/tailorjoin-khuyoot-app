@@ -1,17 +1,20 @@
-import { 
-  collection, 
-  addDoc, 
-  query, 
-  where, 
-  getDocs, 
-  updateDoc, 
-  doc, 
+import {
+  addDoc,
+  collection,
+  collectionGroup,
   deleteDoc,
-  orderBy,
-  limit,
-  Timestamp,
+  doc,
+  documentId,
+  getDoc,
+  getDocs,
   increment,
-  getDoc
+  limit,
+  orderBy,
+  query,
+  Timestamp,
+  updateDoc,
+  where,
+  type DocumentReference,
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { PortfolioItem, WishlistItem, ProductCollection, ProductLike } from '../types';
@@ -30,7 +33,7 @@ export async function addPortfolioItem(
       likes: 0,
       views: 0,
       createdAt: Timestamp.now(),
-      updatedAt: Timestamp.now()
+      updatedAt: Timestamp.now(),
     });
 
     return {
@@ -39,8 +42,8 @@ export async function addPortfolioItem(
       likes: 0,
       views: 0,
       createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString()
-    };
+      updatedAt: new Date().toISOString(),
+    } as PortfolioItem;
   } catch (error) {
     console.error('Error adding portfolio item:', error);
     throw new Error('فشل إضافة العنصر إلى المعرض');
@@ -299,6 +302,29 @@ export async function deleteCollection(collectionId: string): Promise<void> {
 // Product Likes (الإعجابات)
 // ==========================================
 
+async function getBestEffortProductRef(productId: string): Promise<DocumentReference | null> {
+  try {
+    // Prefer the actual doc in users/{uid}/products via collectionGroup
+    const groupRef = collectionGroup(db, 'products');
+    const q = query(groupRef, where(documentId(), '==', productId), limit(1));
+    const snap = await getDocs(q);
+    if (!snap.empty) return snap.docs[0].ref;
+  } catch (error) {
+    console.warn('[interactionService] Failed to resolve product ref via collectionGroup:', error);
+  }
+
+  // Fallback: legacy root products collection
+  try {
+    const legacyRef = doc(db, 'products', productId);
+    const legacySnap = await getDoc(legacyRef);
+    if (legacySnap.exists()) return legacyRef;
+  } catch (error) {
+    console.warn('[interactionService] Failed to resolve legacy product ref:', error);
+  }
+
+  return null;
+}
+
 export async function likeProduct(userId: string, productId: string): Promise<void> {
   try {
     // التحقق من عدم وجود إعجاب مسبق
@@ -315,10 +341,10 @@ export async function likeProduct(userId: string, productId: string): Promise<vo
     });
 
     // زيادة عدد الإعجابات في المنتج
-    const productRef = doc(db, 'products', productId);
-    await updateDoc(productRef, {
-      likes: increment(1)
-    });
+    const productRef = await getBestEffortProductRef(productId);
+    if (productRef) {
+      await updateDoc(productRef, { likes: increment(1) });
+    }
   } catch (error) {
     console.error('Error liking product:', error);
     throw error;
@@ -340,10 +366,10 @@ export async function unlikeProduct(userId: string, productId: string): Promise<
       await deleteDoc(querySnapshot.docs[0].ref);
       
       // تقليل عدد الإعجابات في المنتج
-      const productRef = doc(db, 'products', productId);
-      await updateDoc(productRef, {
-        likes: increment(-1)
-      });
+      const productRef = await getBestEffortProductRef(productId);
+      if (productRef) {
+        await updateDoc(productRef, { likes: increment(-1) });
+      }
     }
   } catch (error) {
     console.error('Error unliking product:', error);

@@ -148,6 +148,56 @@ service cloud.firestore {
       allow read: if true;
       allow write: if false;
     }
+
+    // ============================================================
+    // SURVEY (Khuyoot Validation)
+    // ============================================================
+
+    function isSurveyStatus(value) {
+      return value == 'in_progress' || value == 'completed' || value == 'skipped';
+    }
+
+    function isSurveyAnswersMap(value) {
+      return value is map;
+    }
+
+    function isSurveySessionCreate() {
+      let data = request.resource.data;
+      return data.surveyId == 'khuyoot_validation_v1'
+        && data.anonymousId is string
+        && data.anonymousId == request.resource.id
+        && data.status is string
+        && isSurveyStatus(data.status)
+        && data.currentStep is number
+        && data.answers is map
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isSurveySessionUpdate() {
+      let data = request.resource.data;
+      return data.surveyId == 'khuyoot_validation_v1'
+        && data.anonymousId is string
+        && data.anonymousId == resource.data.anonymousId
+        && data.anonymousId == resource.id
+        && data.status is string
+        && isSurveyStatus(data.status)
+        && data.currentStep is number
+        && isSurveyAnswersMap(data.answers)
+        && data.updatedAt is timestamp;
+    }
+
+    match /surveySessions/{sessionId} {
+      allow read: if isAdminUser();
+      allow create: if isSurveySessionCreate();
+      allow update: if isSurveySessionUpdate();
+      allow delete: if isAdminUser();
+    }
+
+    match /surveyConfigs/{surveyId} {
+      allow read: if true;
+      allow create, update, delete: if isAdminUser();
+    }
     
     // ============================================================
     // PUBLIC COLLECTIONS - Open Read Access
@@ -182,6 +232,25 @@ service cloud.firestore {
     match /advertisements/{adId} {
       allow read: if true;
       allow write: if false;
+    }
+
+    // ============================================================
+    // VISUALIZER - Camera Presets & Generations
+    // ============================================================
+
+    match /visualizer_camera_presets/{presetId} {
+      allow read: if (request.auth != null && resource.data.userId == request.auth.uid) || isAdminUser();
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update: if request.auth != null
+        && resource.data.userId == request.auth.uid
+        && request.resource.data.userId == resource.data.userId;
+      allow delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    match /visualizer_generations/{generationId} {
+      allow read: if (request.auth != null && resource.data.userId == request.auth.uid) || isAdminUser();
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isAdminUser();
     }
 
     // Categories

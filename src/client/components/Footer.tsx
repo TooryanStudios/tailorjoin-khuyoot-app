@@ -1,21 +1,22 @@
 import React from 'react';
 import { Home, Layers, ShoppingCart, PenTool, Scissors, ClipboardList, PackageOpen, Store, Box } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
 import { useDesignerStore } from '../../store/useDesignerStore';
 
-function roleBadge(role?: string) {
+function roleBadge(role: string | undefined, t: (key: string) => string) {
   switch (role) {
     case 'tailor':
-      return { text: 'خياط', cls: 'bg-amber-500' };
+      return { text: t('roleTailor'), cls: 'bg-amber-500' };
     case 'boutique':
-      return { text: 'بوتيك', cls: 'bg-purple-500' };
+      return { text: t('roleBoutique'), cls: 'bg-purple-500' };
     case 'shop':
-      return { text: 'محل', cls: 'bg-green-500' };
+      return { text: t('roleShop'), cls: 'bg-green-500' };
     case 'admin':
-      return { text: 'إدارة', cls: 'bg-red-500' };
+      return { text: t('roleAdmin'), cls: 'bg-red-500' };
     default:
-      return { text: 'حساب', cls: 'bg-blue-500' };
+      return { text: t('roleAccount'), cls: 'bg-blue-500' };
   }
 }
 
@@ -96,7 +97,8 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   active: boolean;
   user: any;
 }) {
-  const badge = roleBadge(user?.role);
+  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
+  const badge = roleBadge(user?.role, t);
 
   return (
     <button
@@ -109,7 +111,7 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
         }`}
       >
         {user?.profileImage ? (
-          <img src={user.profileImage} alt="صورة الحساب" className="h-full w-full rounded-full object-cover" />
+          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-full w-full rounded-full object-cover" />
         ) : (
           <div className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -143,6 +145,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
   onClick: () => void;
   disabled: boolean;
 }) {
+  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
   return (
     <button
       onClick={onClick}
@@ -151,7 +154,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
         'group mx-1 flex flex-[1.4] flex-col items-center justify-start pt-3 gap-1 transition-transform duration-200 active:scale-95 h-full ' +
         (disabled ? 'cursor-not-allowed' : '')
       }
-      aria-label="Place order"
+      aria-label={t('placeOrder')}
     >
       <div
         className={
@@ -170,7 +173,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
         )}
         <span className="relative z-10 flex items-center justify-center gap-2">
           <span className="inline-flex h-2 w-2 rounded-full bg-white/90 shadow-[0_0_10px_rgba(255,255,255,0.6)]" />
-          إتمام الطلب
+          {t('placeOrder')}
         </span>
 
         {/* Hover indicator (mouse only) */}
@@ -185,7 +188,8 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
   );
 });
 
-export const Footer = React.memo(function Footer() {
+export function Footer() {
+  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
   const navigate = useNavigate();
   const location = useLocation();
   const selectedTemplateId = useDesignerStore((s) => s.selectedTemplateId);
@@ -246,14 +250,14 @@ export const Footer = React.memo(function Footer() {
       {/* Container height increased slightly to accommodate lifted icons */}
       <div className="mx-auto flex h-[74px] w-full max-w-lg items-start justify-between px-2">
 
-        <FooterNavItem icon={Home} label="الرئيسية" active={isActive('/')} onClick={() => navigate('/')} />
+        <FooterNavItem icon={Home} label={t('navHome')} active={isActive('/')} onClick={() => navigate('/')} />
 
         {!loading && (
           <>
             {isRegularUser && (
               <FooterNavItem
                 icon={Layers}
-                label="المجموعات"
+                label={t('navCollections')}
                 active={isActive('/collections')}
                 onClick={() => navigate('/collections')}
               />
@@ -261,7 +265,7 @@ export const Footer = React.memo(function Footer() {
             {isTailor && (
               <FooterNavItem
                 icon={Scissors}
-                label="منتجاتي"
+                label={t('navMyProducts')}
                 active={isActive('/tailor/collections')}
                 onClick={() => navigate('/tailor/collections')}
               />
@@ -269,7 +273,7 @@ export const Footer = React.memo(function Footer() {
             {isBoutique && (
               <FooterNavItem
                 icon={PackageOpen}
-                label="الطلبات"
+                label={t('orders')}
                 active={isActive('/boutique/orders')}
                 onClick={() => navigate('/boutique/orders')}
               />
@@ -277,7 +281,7 @@ export const Footer = React.memo(function Footer() {
             {isShop && (
               <FooterNavItem
                 icon={Store}
-                label="الطلبات"
+                label={t('orders')}
                 active={isActive('/shop/orders')}
                 onClick={() => navigate('/shop/orders')}
               />
@@ -291,7 +295,7 @@ export const Footer = React.memo(function Footer() {
           ) : (
             <FooterNavItem
               icon={PenTool}
-              label="المصمم"
+              label={t('navDesigner')}
               active={isInDesigner}
               onClick={() => navigate('/designer-v2-1')}
             />
@@ -302,7 +306,7 @@ export const Footer = React.memo(function Footer() {
             {appSettings.cartEnabled && isRegularUser && (
               <FooterNavItem
                 icon={ShoppingCart}
-                label="السلة"
+                label={t('cart')}
                 active={isActive('/cart')}
                 onClick={() => navigate('/cart')}
               />
@@ -310,7 +314,7 @@ export const Footer = React.memo(function Footer() {
             {isTailor && (
               <FooterNavItem
                 icon={ClipboardList}
-                label="الطلبات"
+                label={t('orders')}
                 active={isActive('/tailor/orders')}
                 onClick={() => navigate('/tailor/orders')}
               />
@@ -318,7 +322,7 @@ export const Footer = React.memo(function Footer() {
             {isShop && (
               <FooterNavItem
                 icon={Box}
-                label="المخزون"
+                label={t('navInventory')}
                 active={isActive('/shop/inventory')}
                 onClick={() => navigate('/shop/inventory')}
               />
@@ -327,7 +331,7 @@ export const Footer = React.memo(function Footer() {
         )}
 
         <FooterAccountItem
-          label="الحساب"
+          label={t('navAccount')}
           user={user}
           active={
             isActive(
@@ -359,4 +363,4 @@ export const Footer = React.memo(function Footer() {
       </div>
     </div>
   );
-});
+}

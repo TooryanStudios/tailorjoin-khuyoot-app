@@ -18,6 +18,10 @@ let version = 0;
 
 const entries = new Map<string, CacheEntry>(); // remoteUrl -> entry (insertion order = LRU order)
 const inFlight = new Map<string, Promise<string>>();
+// IMPORTANT: Use a global capacity that only grows.
+// If some views request a smaller maxEntries, it should NOT evict entries created
+// for other views (otherwise navigating away/back causes visible image reloads).
+let globalMaxEntries = 0;
 
 function bump() {
   version += 1;
@@ -91,6 +95,8 @@ function evictOldest(maxEntries: number) {
 function ensure(remoteUrl: string, maxEntries: number) {
   if (!isCacheableUrl(remoteUrl)) return;
 
+  globalMaxEntries = Math.max(globalMaxEntries, maxEntries);
+
   const existing = entries.get(remoteUrl);
   if (existing) {
     touch(remoteUrl);
@@ -105,7 +111,7 @@ function ensure(remoteUrl: string, maxEntries: number) {
 
       // Add as newest
       entries.set(remoteUrl, { blobUrl, lastAccess: Date.now() });
-      evictOldest(maxEntries);
+      evictOldest(globalMaxEntries);
       writeMeta();
       bump();
       return blobUrl;
@@ -133,6 +139,14 @@ function getServerSnapshot() {
 export function useThumbnailCache(params?: { maxEntries?: number; enabled?: boolean }) {
   const maxEntries = params?.maxEntries ?? 30;
   const enabled = params?.enabled ?? true;
+
+  // Make capacity monotonic (only grows) across the entire SPA session.
+  // This prevents a view with a smaller maxEntries from shrinking the cache.
+  React.useEffect(() => {
+    if (!enabled) return;
+    if (typeof window === 'undefined') return;
+    globalMaxEntries = Math.max(globalMaxEntries, maxEntries);
+  }, [enabled, maxEntries]);
 
   // Ensure sessionStorage is initialized (metadata-only). We don't attempt to persist blobs.
   React.useEffect(() => {
