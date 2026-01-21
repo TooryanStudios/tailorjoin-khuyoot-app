@@ -583,6 +583,71 @@ export const firebaseService = {
 
     return result;
   },
+
+  /**
+   * Purchase credits for a user (user-accessible)
+   * Creates a completed purchase transaction and updates credit balance
+   */
+  async purchaseCredits(params: {
+    userId: string;
+    amount: number;
+  }): Promise<{ new_balance: number; transaction_id: string }>
+  {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const uid = sanitizeFirestoreDocId(params.userId);
+    if (!uid) throw new Error('userId is required');
+    const amount = Math.floor(Number(params.amount || 0));
+    if (!Number.isFinite(amount) || amount <= 0) throw new Error('amount must be a positive integer');
+
+    const profileRef = doc(db, 'user_profiles', uid);
+    const txRef = doc(collection(db, 'credit_transactions'));
+
+    const result = await runTransaction(db, async (tx) => {
+      const profileSnap = await tx.get(profileRef);
+      const current = profileSnap.exists() ? (profileSnap.data() as any) : null;
+      const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
+      const newBalance = currentBalance + amount;
+
+      // Create the purchase transaction first
+      tx.set(txRef, {
+        transaction_id: txRef.id,
+        user_id: uid,
+        amount,
+        action_type: 'purchase',
+        status: 'completed',
+        meta: {
+          purchase_type: 'credit_package',
+          timestamp: Date.now(),
+        },
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      // Update user profile with PURCHASE operation
+      if (profileSnap.exists()) {
+        tx.update(profileRef, { 
+          credit_balance: newBalance, 
+          last_credit_op: 'purchase',
+          last_credit_tx: txRef.id,
+          updatedAt: serverTimestamp() 
+        });
+      } else {
+        tx.set(profileRef, {
+          user_id: uid,
+          credit_balance: newBalance,
+          last_credit_op: 'purchase',
+          last_credit_tx: txRef.id,
+          tier: 'Free',
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
+
+      return { new_balance: newBalance, transaction_id: txRef.id };
+    });
+
+    return result;
+  },
   
   async findUserByLoginId(loginId: string): Promise<{ uid: string; email: string | '' } | null> {
     if (!isFirebaseInitialized) return null;
@@ -660,14 +725,20 @@ export const firebaseService = {
     
     for (let attempt = 0; attempt <= maxRetries; attempt++) {
       try {
-        const credential = await signInWithEmailAndPassword(auth, email, pass);
+        // Add timeout to prevent hanging indefinitely
+        const loginPromise = signInWithEmailAndPassword(auth, email, pass);
+        const timeoutPromise = new Promise<never>((_, reject) => 
+          setTimeout(() => reject(new Error('Login timeout - Firebase is not responding')), 15000)
+        );
+        
+        const credential = await Promise.race([loginPromise, timeoutPromise]);
         return mapFirebaseUser(credential.user);
       } catch (error: any) {
         lastError = error;
         
-        // Only retry on network errors
-        if (error.code === 'auth/network-request-failed' && attempt < maxRetries) {
-          console.warn(`🔄 Login attempt ${attempt + 1} failed due to network, retrying...`);
+        // Retry on network errors or timeouts
+        if ((error.code === 'auth/network-request-failed' || error.message?.includes('timeout')) && attempt < maxRetries) {
+          console.warn(`🔄 Login attempt ${attempt + 1} failed (${error.message}), retrying...`);
           await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
           continue;
         }

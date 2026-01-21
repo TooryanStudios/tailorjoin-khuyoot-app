@@ -415,66 +415,26 @@ const RootModalPortal: React.FC = () => {
     console.log('🔵 User ID:', currentUser.uid);
     
     try {
-      console.log('🔵 Adding 200 credits (optimistic update)...');
+      console.log('🔵 Adding 200 credits...');
       
-      // Optimistic update: Read current balance and add 200 immediately
-      let currentBalance = 0;
-      try {
-        const stored = window.localStorage.getItem(`khuyoot:credits:lastBalance:${currentUser.uid}`);
-        currentBalance = stored ? parseInt(stored, 10) : 0;
-      } catch (e) {
-        console.warn('⚠️ Failed to read from localStorage:', e);
-      }
+      console.log('💳 Purchasing credits for user:', currentUser.uid);
       
-      const newBalance = currentBalance + 200;
+      // Use user-accessible purchase function
+      const result = await firebaseService.purchaseCredits({
+        userId: currentUser.uid,
+        amount: 200
+      });
       
-      // Update localStorage immediately for instant UI feedback
-      try {
-        window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(newBalance));
-      } catch (e) {
-        console.warn('⚠️ Failed to save to localStorage:', e);
-      }
+      const newBalance = result.new_balance;
+      console.log('✅ Credits purchased! Transaction:', result.transaction_id, 'New balance:', newBalance);
       
-      console.log('✅ Credits updated in UI instantly! New balance:', newBalance);
+      // Update localStorage for instant UI
+      window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(newBalance));
       
-      // Trigger event to update all credit displays immediately
+      // Trigger event to update all credit displays
       window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
         detail: { balance: newBalance } 
       }));
-      
-      // Save to Firebase in the background (don't await - fire and forget)
-      firebaseService.adminAdjustCredits({
-        userId: currentUser.uid,
-        amount: 200,
-        reason: 'Upgrade bonus',
-      }).then(result => {
-        console.log('✅ Credits synced to Firebase! Server balance:', result.new_balance);
-        
-        // If server balance differs from optimistic update, sync it
-        if (result?.new_balance != null && result.new_balance !== newBalance) {
-          try {
-            window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(result.new_balance));
-            window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
-              detail: { balance: result.new_balance } 
-            }));
-            console.log('🔄 Balance corrected to server value:', result.new_balance);
-          } catch (e) {
-            console.warn('⚠️ Failed to sync server balance:', e);
-          }
-        }
-      }).catch(error => {
-        console.error('❌ Failed to save credits to Firebase:', error);
-        // Revert optimistic update on error
-        try {
-          window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(currentBalance));
-          window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
-            detail: { balance: currentBalance } 
-          }));
-          console.log('🔄 Reverted to previous balance due to error:', currentBalance);
-        } catch (e) {
-          console.warn('⚠️ Failed to revert balance:', e);
-        }
-      });
     } catch (error: any) {
       console.error('❌ Failed to add credits:', error);
       throw new Error(error?.message || 'فشل في إضافة الرصيد');

@@ -1,4 +1,4 @@
-export type SupportedLanguage = 'ar' | 'en' | 'fr';
+﻿export type SupportedLanguage = 'ar' | 'en' | 'fr';
 
 export const SUPPORTED_LANGUAGES: SupportedLanguage[] = ['ar', 'en', 'fr'];
 
@@ -907,7 +907,7 @@ export const translations = {
       fabricFromStore: 'Depuis la boutique',
       fabricSavedSet: 'Collection enregistrée',
       comingSoon: 'Bientôt',
-      fabricOnlyCustomerAvailableNote: 'Actuellement : seule l’option « le client fournit le tissu » est disponible.',
+      fabricOnlyCustomerAvailableNote: 'Actuellement : seule l\'option "le client fournit le tissu" est disponible.',
 
       submitThisOrder: 'Envoyer cette commande',
       submitting: 'Envoi…',

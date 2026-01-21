@@ -534,6 +534,19 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount < 0
             && request.resource.data.credit_balance == resource.data.credit_balance + (-getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount)
           )
+          ||
+          // PURCHASE: balance increases by positive amount from a completed purchase tx.
+          (
+            request.resource.data.last_credit_op == 'purchase'
+            && request.resource.data.last_credit_tx is string
+            && existsAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx))
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.user_id == uid
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.status == 'completed'
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.action_type == 'purchase'
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount is number
+            && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount > 0
+            && request.resource.data.credit_balance == resource.data.credit_balance + getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount
+          )
         )
       );
     }
@@ -543,6 +556,7 @@ service cloud.firestore {
       allow delete: if isAdminUser();
 
       // Users can create their own pending tx ONLY at the priced cost.
+      // OR users can create completed purchase transactions with positive amounts.
       allow create: if isAdminUser() || (
         isSignedIn()
         && request.resource.data.user_id == request.auth.uid
@@ -553,6 +567,14 @@ service cloud.firestore {
         && pricingDoc(request.resource.data.action_type).data.is_active != false
         && request.resource.data.amount is number
         && request.resource.data.amount == -pricingDoc(request.resource.data.action_type).data.credit_cost
+      ) || (
+        isSignedIn()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.transaction_id == txId
+        && request.resource.data.status == 'completed'
+        && request.resource.data.action_type == 'purchase'
+        && request.resource.data.amount is number
+        && request.resource.data.amount > 0
       );
 
       // Users can only change status from pending -> completed/failed.

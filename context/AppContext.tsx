@@ -52,6 +52,13 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 // Helper to translate Firebase errors to Arabic
 const getFirebaseErrorMessage = (error: any) => {
   const code = error.code;
+  const message = error.message || '';
+  
+  // Check for timeout errors
+  if (message.includes('timeout') || message.includes('Timeout')) {
+    return 'انتهت مهلة الاتصال. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
+  }
+  
   switch (code) {
     case 'auth/email-already-in-use':
       return 'البريد الإلكتروني مستخدم بالفعل بحساب آخر.';
@@ -360,8 +367,11 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         }
       })();
 
-      if (isLocalDev && error?.code === 'auth/network-request-failed') {
-        console.warn('⚠️ Firebase Auth network failed on localhost; falling back to mock login for development.');
+      // Handle timeout or network errors with mock login in dev
+      const isNetworkOrTimeout = error?.code === 'auth/network-request-failed' || error?.message?.includes('timeout');
+      
+      if (isLocalDev && isNetworkOrTimeout) {
+        console.warn('⚠️ Firebase Auth failed on localhost (network/timeout); falling back to mock login for development.');
         try {
           const { mockLogin } = await import('../services/mockService');
           const userData = await mockLogin(email);

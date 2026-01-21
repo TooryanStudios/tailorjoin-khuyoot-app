@@ -258,6 +258,8 @@ export const AuthModal = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log('🔐 Login form submitted', { isLogin, email: email?.substring(0, 5) + '***' });
+    
     if (!isLogin && password !== confirmPassword) { 
       alert('كلمة المرور غير متطابقة! يرجى التأكد من تطابق الحقلين.'); 
       return; 
@@ -271,9 +273,12 @@ export const AuthModal = () => {
       //
       if (isLogin) {
         const input = email.trim();
+        console.log('🔐 Login type detected:', input.includes('@') ? 'email' : 'phone');
         if (input.includes('@')) {
           setStatusText('يتم تسجيل الدخول...');
+          console.log('🔐 Attempting email login...');
           await login(input, password);
+          console.log('✅ Email login successful');
         } else {
           const phoneDigits = normalizePhone(input);
           //
@@ -336,9 +341,12 @@ export const AuthModal = () => {
             }
           }
           setStatusText('يتم تسجيل الدخول...');
+          console.log('🔐 Phone login - found email:', found.email);
           await login(found.email, password);
+          console.log('✅ Phone login successful');
         }
       } else {
+        console.log('📝 Registration attempt...');
         // Build merchant info for all shop types
         const merchantInfo = { 
           phone, gender, region,
@@ -365,15 +373,21 @@ export const AuthModal = () => {
         }
         
         await register(email, password, name, actualRole, merchantInfo);
+        console.log('✅ Registration successful');
       }
-      toggleAuthModal(false);
-    } catch (error) { 
-      console.error("Auth error:", error);
-      // Ensure local UI unlocks even if an unexpected error occurs
+      // Note: modal closure now handled by AppContext.login() on success
+    } catch (error: any) { 
+      console.error("❌ Auth error:", error);
+      console.error("❌ Error code:", error?.code);
+      console.error("❌ Error message:", error?.message);
+      // AppContext.login/register already shows an alert, so we just unlock the UI
       setSubmitting(false);
       setStatusText('');
     } 
-    finally { setSubmitting(false); }
+    finally { 
+      console.log('🏁 Auth flow complete, submitting:', submitting);
+      setSubmitting(false); 
+    }
   };
 
   if (!isAuthModalOpen) return null;

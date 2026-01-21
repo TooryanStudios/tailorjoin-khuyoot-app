@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogIn, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download } from 'lucide-react';
+import { LogIn, LogOut, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download, User, ChevronDown } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
 import { designService } from '../../../services/designService';
@@ -11,7 +11,7 @@ import { setLanguage } from '../../i18n/i18n';
 
 const HeaderComponent = () => {
   const { i18n, t } = useTranslation('common');
-  const { user, loading, toggleAuthModal, theme, toggleTheme, cartCount, ordersCount, appSettings } = useApp();
+  const { user, loading, logout, toggleAuthModal, theme, toggleTheme, cartCount, ordersCount, appSettings } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const { showInstallButton, isInstalled, promptInstall } = usePWAInstall();
@@ -19,7 +19,9 @@ const HeaderComponent = () => {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [langMenuOpen, setLangMenuOpen] = useState(false);
   const [langMenuAlign, setLangMenuAlign] = useState<'left' | 'right'>('left');
+  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const langButtonRef = React.useRef<HTMLButtonElement | null>(null);
+  const userMenuRef = React.useRef<HTMLDivElement | null>(null);
 
   const activeLang = React.useMemo(() => {
     const lower = (i18n.language || 'ar').toLowerCase();
@@ -170,6 +172,9 @@ const HeaderComponent = () => {
   // Close language menu on route change
   useEffect(() => { setLangMenuOpen(false); }, [location.pathname]);
 
+  // Close user menu on route change
+  useEffect(() => { setUserMenuOpen(false); }, [location.pathname]);
+
   // Close language menu on outside click / escape
   useEffect(() => {
     if (!langMenuOpen) return;
@@ -194,6 +199,32 @@ const HeaderComponent = () => {
       window.removeEventListener('pointerdown', onPointerDown);
     };
   }, [langMenuOpen]);
+
+  // Close user menu on outside click / escape
+  useEffect(() => {
+    if (!userMenuOpen) return;
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setUserMenuOpen(false);
+    };
+
+    const onPointerDown = (e: MouseEvent | PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Check if click is inside user menu
+      if (userMenuRef.current && userMenuRef.current.contains(target)) return;
+      setUserMenuOpen(false);
+    };
+
+    window.addEventListener('keydown', onKeyDown);
+    window.addEventListener('mousedown', onPointerDown);
+    window.addEventListener('pointerdown', onPointerDown);
+    return () => {
+      window.removeEventListener('keydown', onKeyDown);
+      window.removeEventListener('mousedown', onPointerDown);
+      window.removeEventListener('pointerdown', onPointerDown);
+    };
+  }, [userMenuOpen]);
 
   // Recompute language menu alignment while open (resize/scroll)
   useEffect(() => {
@@ -560,9 +591,53 @@ const HeaderComponent = () => {
                {theme === 'light' ? <Moon size={18} /> : <Sun size={18} />}
             </button>
 
-            
+            {/* User Menu (when logged in) */}
+            {user ? (
+              <div className="relative" ref={userMenuRef}>
+                <button
+                  onClick={() => setUserMenuOpen((v) => !v)}
+                  className="h-8 px-3 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs font-bold inline-flex items-center gap-2"
+                  aria-label="User menu"
+                  aria-haspopup="menu"
+                  aria-expanded={userMenuOpen}
+                >
+                  <User size={14} />
+                  <span className="truncate max-w-[100px]">{user.name || 'User'}</span>
+                  <ChevronDown size={12} className={userMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                </button>
 
-            {!user && (
+                {userMenuOpen && (
+                  <div
+                    role="menu"
+                    className="absolute left-0 z-[1100] mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0b1020] shadow-xl overflow-hidden"
+                  >
+                    <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+                      <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
+                    </div>
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={async () => {
+                        console.log('🚪 Logout clicked');
+                        setUserMenuOpen(false);
+                        try {
+                          await logout();
+                          console.log('✅ Logout successful');
+                          navigate('/');
+                        } catch (error) {
+                          console.error('❌ Logout failed:', error);
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold text-right text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors flex items-center gap-2"
+                    >
+                      <LogOut size={14} />
+                      <span>تسجيل الخروج</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            ) : (
               <button 
                 onClick={() => toggleAuthModal(true)}
                 className="text-xs font-bold bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white px-4 py-1.5 rounded-full transition-all shadow-lg shadow-blue-500/30 hover:shadow-blue-500/50 flex items-center gap-1 focus:outline-none focus:ring-2 focus:ring-blue-500"

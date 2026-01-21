@@ -337,12 +337,10 @@ export const DesignerV2_1: React.FC = () => {
   }, []);
   
   const { t } = useTranslation(['designer']);
-  React.useEffect(() => {
-    renderCountRef.current++;
-  });
   
   React.useEffect(() => {
     // Component lifecycle tracking (debug disabled)
+    renderCountRef.current++;
   }, []);
 
   // ========== MOBILE DETECTION ==========
@@ -355,7 +353,7 @@ export const DesignerV2_1: React.FC = () => {
   const locationState = location.state as { product?: any };
 
   // ========== AUTH & ADMIN ==========
-  const { user } = useApp();
+  const { user, toggleAuthModal } = useApp();
   const isAdminUser = user?.role === 'admin';
 
   // ========== FREE GENERATION TRACKING ==========
@@ -1560,6 +1558,12 @@ export const DesignerV2_1: React.FC = () => {
       if ('reason' in creditRes && creditRes.reason === 'insufficient') {
         setIsUpgradeModalOpen(true);
       } else if ('reason' in creditRes && creditRes.reason === 'error') {
+        // Check if the error is due to not being logged in
+        const errorMsg = creditRes.error instanceof Error ? creditRes.error.message : String(creditRes.error || '');
+        if (errorMsg.includes('Not logged in')) {
+          toggleAuthModal(true, 'login');
+          return;
+        }
         showError('Unable to reserve credits. Please try again.');
       }
       return;
@@ -1626,17 +1630,6 @@ export const DesignerV2_1: React.FC = () => {
           imageBase64 = beforeUpscaleImage.split(',')[1];
         }
 
-        if (!creditRes.ok) {
-          setIsUpscaling(false);
-          setUpscaleProgress(0);
-          if ('reason' in creditRes && creditRes.reason === 'insufficient') {
-            setIsUpgradeModalOpen(true);
-          } else if ('reason' in creditRes && creditRes.reason === 'error') {
-            showError('Unable to reserve credits for upscale. Please try again.');
-          }
-          return;
-        }
-
         const upscalePayload = {
           imageBase64,
           imageMimeType: 'image/png',
@@ -1679,8 +1672,21 @@ export const DesignerV2_1: React.FC = () => {
       }
     });
 
-    if (!creditRes.ok && 'reason' in creditRes && creditRes.reason === 'insufficient') {
-      setIsUpgradeModalOpen(true);
+    if (!creditRes.ok) {
+      setIsUpscaling(false);
+      setUpscaleProgress(0);
+      if ('reason' in creditRes && creditRes.reason === 'insufficient') {
+        setIsUpgradeModalOpen(true);
+      } else if ('reason' in creditRes && creditRes.reason === 'error') {
+        // Check if the error is due to not being logged in
+        const errorMsg = creditRes.error instanceof Error ? creditRes.error.message : String(creditRes.error || '');
+        if (errorMsg.includes('Not logged in')) {
+          toggleAuthModal(true, 'login');
+          return;
+        }
+        showError('Unable to reserve credits for upscale. Please try again.');
+      }
+      return;
     }
   }, [beforeUpscaleImage, executeCreditAction, isUpscaling, upscaleEngine, isWatermarkEnabled, showError]);
 
@@ -1916,8 +1922,18 @@ export const DesignerV2_1: React.FC = () => {
 
       if (isPremium && !isSubscribed) {
         const res = await executeCreditAction('premium_template', doSelect);
-        if (!res.ok && 'reason' in res && res.reason === 'insufficient') {
-          setIsUpgradeModalOpen(true);
+        if (!res.ok) {
+          if ('reason' in res && res.reason === 'insufficient') {
+            setIsUpgradeModalOpen(true);
+          } else if ('reason' in res && res.reason === 'error') {
+            // Check if the error is due to not being logged in
+            const errorMsg = res.error instanceof Error ? res.error.message : String(res.error || '');
+            if (errorMsg.includes('Not logged in')) {
+              toggleAuthModal(true, 'login');
+              return;
+            }
+            showError('Unable to reserve credits for premium template. Please try again.');
+          }
         }
         return;
       }
