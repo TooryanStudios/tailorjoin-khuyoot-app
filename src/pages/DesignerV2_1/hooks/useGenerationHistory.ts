@@ -117,6 +117,13 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
     if (!userId) {
       return;
     }
+    
+    // Check if Firebase user is actually authenticated
+    if (!firebaseService.auth?.currentUser) {
+      console.log('[History Hook] Skipping fetch - user not authenticated yet');
+      return;
+    }
+    
     try {
       setIsLoading(true);
       const data = await fetchGenerationHistory(limit);

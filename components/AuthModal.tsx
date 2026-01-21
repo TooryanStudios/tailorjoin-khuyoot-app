@@ -61,7 +61,7 @@ const ModernInput = React.memo(({ icon: Icon, label, className, enablePasswordTo
             color: '#ffffff',
             borderColor: '#475569',
           }}
-          className={`w-full border rounded-lg py-2.5 pr-11 ${isPasswordField ? 'pl-12' : 'pl-4'} text-sm font-medium placeholder:text-slate-500/70 focus:ring-2 shadow-sm transition-all ${className}`}
+          className={`w-full border rounded-md md:rounded-lg py-2.5 pr-11 ${isPasswordField ? 'pl-12' : 'pl-4'} text-sm font-medium placeholder:text-slate-500/70 focus:ring-2 shadow-sm transition-all ${className}`}
           onFocus={(e) => {
             e.currentTarget.style.borderColor = '#469788';
           }}
@@ -393,38 +393,39 @@ export const AuthModal = () => {
   if (!isAuthModalOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-2 md:p-4 overflow-y-auto" data-overlay="khuyoot-modal">
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-0 md:p-4 overflow-y-auto" data-overlay="khuyoot-modal">
       <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={() => toggleAuthModal(false)} />
 
-      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-y-auto flex max-h-[80vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
+      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-none md:rounded-xl shadow-2xl overflow-y-auto flex max-h-full md:max-h-[80vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
         
         {/* --- Right Section (Form) --- */}
         <div className="w-full md:w-3/5 flex flex-col relative z-10">
           
-          <div className="px-3 py-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800">
-             <div className="flex items-center">
-                <img src="/logo_big.png" alt="Khuyoot" className="w-16 h-16 object-contain" />
+          {/* Mobile: Large Logo Header - Desktop: Small logo with close button */}
+          <div className="px-4 md:px-3 py-6 md:py-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800">
+             <div className="flex items-center justify-center md:justify-start w-full md:w-auto">
+                <img src="/logo_big.png" alt="Khuyoot" className="w-32 h-32 md:w-16 md:h-16 object-contain" />
              </div>
-             <button onClick={() => toggleAuthModal(false)} className="p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
+             <button onClick={() => toggleAuthModal(false)} className="absolute left-4 top-4 md:relative md:left-0 md:top-0 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
                 <X size={18}/>
              </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-3 pt-2.5">
+          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-3 pt-3 md:pt-2.5">
             
-            <div className="mb-4 mt-1">
-              <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-2">
+            <div className="mb-3 md:mb-4 mt-1">
+              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white mb-1.5 md:mb-2">
                 {isLogin ? 'مرحباً بعودتك! 👋' : 'ابدأ رحلتك معنا 🚀'}
               </h1>
-              <p className="text-slate-500 text-sm">
+              <p className="text-slate-500 text-xs md:text-sm">
                 {isLogin ? 'أدخل بياناتك للمتابعة حيث توقفت' : 'سجل الآن واستمتع بتجربة تفصيل عصرية'}
               </p>
             </div>
 
             {/* Toggle Switch */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-2xl mb-5 relative isolate">
+            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg md:rounded-2xl mb-4 md:mb-5 relative isolate">
               <div
-                className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${
+                className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-md md:rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${
                   isLogin ? 'right-1' : 'left-1'
                 }`}
               />
