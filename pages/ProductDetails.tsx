@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -9,6 +8,7 @@ import { getProductById, getTailorById, MOCK_PRODUCTS } from '../services/mockSe
 import { useApp } from '../context/AppContext';
 import { useQuery } from '@tanstack/react-query';
 import { StableImage } from '../components/StableImage';
+import { MobileProductDetails } from '../src/components/product-details/MobileProductDetails';
 
 type StarActionChoiceCardProps = {
   title: string;
@@ -112,6 +112,24 @@ export const ProductDetails = ({
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isLiked, setIsLiked] = useState(false);
   const [showStartTailoringActions, setShowStartTailoringActions] = useState(false);
+  
+  // Mobile detection
+  const [isMobile, setIsMobile] = React.useState(() => {
+    if (typeof window === 'undefined') return false;
+    return window.matchMedia?.('(max-width: 768px)')?.matches ?? false;
+  });
+
+  React.useEffect(() => {
+    if (typeof window === 'undefined' || !window.matchMedia) return;
+    const mq = window.matchMedia('(max-width: 768px)');
+    const onChange = () => setIsMobile(mq.matches);
+    onChange();
+
+    mq.addEventListener ? mq.addEventListener('change', onChange) : (mq as any).addListener(onChange);
+    return () => {
+      mq.removeEventListener ? mq.removeEventListener('change', onChange) : (mq as any).removeListener(onChange);
+    };
+  }, []);
 
   // Manage body class for modal
   useEffect(() => {
@@ -170,6 +188,37 @@ export const ProductDetails = ({
   const nextImage = () => setCurrentImageIndex((prev) => (prev + 1) % productImages.length);
   const prevImage = () => setCurrentImageIndex((prev) => (prev - 1 + productImages.length) % productImages.length);
 
+  const handleLikeToggle = () => setIsLiked(!isLiked);
+  const handleBack = () => navigate(-1);
+  const handleAddToCart = () => {
+    if (product) {
+      addToCart({
+        productId: product.id,
+        quantity: 1,
+        price: typeof product.price === 'string' ? parseFloat(product.price) : product.price,
+      });
+    }
+  };
+
+  // Mobile View
+  if (isMobile) {
+    return (
+      <MobileProductDetails
+        product={product}
+        tailor={tailor}
+        productImages={productImages}
+        currentImageIndex={currentImageIndex}
+        setCurrentImageIndex={setCurrentImageIndex}
+        isLiked={isLiked}
+        onLikeToggle={handleLikeToggle}
+        onBack={handleBack}
+        onStartTailoring={() => setShowStartTailoringActions(true)}
+        onAddToCart={handleAddToCart}
+      />
+    );
+  }
+
+  // Desktop View
   return (
     <main className="flex flex-col lg:flex-row w-full h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-950 overflow-hidden dir-rtl">
       

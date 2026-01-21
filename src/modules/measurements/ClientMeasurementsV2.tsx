@@ -150,6 +150,15 @@ const ClientMeasurementsV2Component: React.FC = () => {
         setIsLoading(true);
         setError(null);
 
+        // OPTIMIZATION: Use passed product object from navigation state if available
+        // This prevents unnecessary fetches and fixes "Product Not Found" for mock data items
+        if (state?.product && (state.product.id === effectiveProductId || !effectiveProductId)) {
+          console.log('✅ Using passed product state:', state.product);
+          setProductData(state.product);
+          setIsLoading(false);
+          return;
+        }
+
         if (!effectiveProductId) {
           setError(t('measurements.noProductId'));
           setIsLoading(false);
@@ -171,7 +180,7 @@ const ClientMeasurementsV2Component: React.FC = () => {
     };
 
     loadProductData();
-  }, [effectiveProductId]);
+  }, [effectiveProductId, state?.product]);
 
   const coverImageUrl = React.useMemo(() => {
     const pd: any = productData || {};

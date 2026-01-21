@@ -90,6 +90,18 @@ html, body {
   border-radius: 10px;
 }
 
+/* Hide scrollbars on mobile devices */
+@media (max-width: 768px) {
+  * {
+    -ms-overflow-style: none;  /* IE and Edge */
+    scrollbar-width: none;  /* Firefox */
+  }
+
+  *::-webkit-scrollbar {
+    display: none;  /* Chrome, Safari and Opera */
+  }
+}
+
 /* Optional: Keep .custom-scrollbar class for explicit usage */
 .custom-scrollbar {
   scrollbar-width: thin;

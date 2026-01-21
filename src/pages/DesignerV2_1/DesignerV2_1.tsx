@@ -1,7 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ChevronDown, Download, Loader2, Maximize2, Upload, ZoomIn, Info, Share2, Check, Copy, ExternalLink, Trash2 } from 'lucide-react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import ImageSlider from '../../components/DesignerV2_1/ImageSlider';
 import { LightingPresets, getLightingDescriptor, type LightingPreset } from './components/LightingPresets';
 import SegmentedToggle from '../../components/DesignerV2_1/SegmentedToggle';
@@ -325,6 +325,16 @@ export const DesignerV2_1: React.FC = () => {
   // ========== PERFORMANCE TRACKING ==========
   const renderCountRef = React.useRef(0);
   const mountTimeRef = React.useRef(new Date().toISOString());
+  // Track active async requests to prevent stale updates on remount
+  const activeRequestId = React.useRef<number>(0);
+  const isMounted = React.useRef(true);
+
+  React.useEffect(() => {
+    isMounted.current = true;
+    return () => {
+      isMounted.current = false;
+    };
+  }, []);
   
   const { t } = useTranslation(['designer']);
   React.useEffect(() => {
@@ -341,6 +351,8 @@ export const DesignerV2_1: React.FC = () => {
   // ========== ROUTING & TASK ID ==========
   const { taskId: urlTaskId, productId } = useParams<{ taskId?: string; productId?: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
+  const locationState = location.state as { product?: any };
 
   // ========== AUTH & ADMIN ==========
   const { user } = useApp();
@@ -820,10 +832,29 @@ export const DesignerV2_1: React.FC = () => {
         return;
       }
       loadedProductRef.current = productId;
+      
+      // Clear previous templates immediately to prevent ghosting
+      setProductTemplates([]); 
+
       const loadProductImage = async () => {
         setIsLoadingProduct(true);
+        // Track if this specific request is valid for the current effect cycle
+        const currentRequestId = Date.now();
+        activeRequestId.current = currentRequestId;
+        
         try {
-          const product = await getProductById(productId);
+          // OPTIMIZATION: Use passed product state if available to skip DB fetch
+          let product = locationState?.product;
+          
+          if (!product || product.id !== productId) {
+             console.log(`[ProductCache] No state product found, fetching from DB...`);
+             product = await getProductById(productId);
+          } else {
+             console.log(`[ProductCache] Using passed product state for ${productId}`);
+          }
+
+          // Abort if the effect was cleaned up (component unmounted or id changed)
+          if (!isMounted.current || activeRequestId.current !== currentRequestId) return;
           
           if (product) {
             // Determine which images to use
@@ -850,41 +881,58 @@ export const DesignerV2_1: React.FC = () => {
                 const imageId = `product-${productId}-${index}`;
                 
                 try {
-                  const res = await fetch(imageUrl);
+                  // Try to use browser's disk cache
+                  const res = await fetch(imageUrl, { cache: 'force-cache' });
                   if (!res.ok) throw new Error(`HTTP ${res.status}`);
                   
                   const blob = await res.blob();
+                  
+                  // Critical check: If unmounted, DO NOT create object URL to avoid leak/ghosting
+                  if (!isMounted.current || activeRequestId.current !== currentRequestId) {
+                    return { index, blobUrl: imageUrl, imageUrl, blob: null };
+                  }
+
                   const blobUrl = URL.createObjectURL(blob);
                   
-                  // Add to blob cache
-                  blobCache.current.set(imageId, blobUrl);
-                  console.log(`[ProductCache] Cached product image: ${imageId}`);
+                  // Safely add to cache
+                  if (blobCache.current) {
+                    blobCache.current.set(imageId, blobUrl);
+                  }
                   
                   return { index, blobUrl, imageUrl, blob };
                 } catch (e) {
                   console.warn(`[ProductCache] Failed to cache ${imageId}:`, e);
-                  return { index, blobUrl: imageUrl, imageUrl, blob: null }; // Fallback to original URL
+                  return { index, blobUrl: imageUrl, imageUrl, blob: null }; // Fallback
                 }
               });
               
               const cachedImages = await Promise.all(blobPromises);
               
+              // Final mount check before state updates
+              if (!isMounted.current || activeRequestId.current !== currentRequestId) {
+                // Cleanup any blobs we just created since we're aborting
+                cachedImages.forEach(img => {
+                  if (img.blob && img.blobUrl.startsWith('blob:')) {
+                    URL.revokeObjectURL(img.blobUrl);
+                  }
+                });
+                return;
+              }
+
               // Create template items with blob URLs
-              const templates = cachedImages.map(({ index, blobUrl, imageUrl }) => ({
+              const templates = cachedImages.map(({ index, blobUrl }) => ({
                 id: `product-${productId}-${index}`,
                 imageUrl: blobUrl, // Use blob URL for instant loading
                 name: index === mainImageIndex ? `${product.name} (Main)` : `${product.name} - ${index + 1}`,
                 isPremium: false,
-                isProductImage: true // Custom flag to identify product images
+                isProductImage: true 
               }));
               
-              // Set the product templates for the Shop tab
               setProductTemplates(templates);
               
               // Auto-load the main image using blob URL
               const mainImage = cachedImages.find(img => img.index === mainImageIndex);
               if (mainImage && mainImage.blob) {
-                // Switch to Shop tab and set its preview state
                 setLastActiveTemplateTab('Shop');
                 setShopPreviewUrl(mainImage.blobUrl);
                 setSourceForComparison(mainImage.blobUrl);
@@ -892,23 +940,20 @@ export const DesignerV2_1: React.FC = () => {
                 // Convert blob to base64 for API calls
                 const reader = new FileReader();
                 reader.onloadend = () => {
+                  if (!isMounted.current || activeRequestId.current !== currentRequestId) return;
                   const dataUrl = reader.result as string;
                   const parts = dataUrl.split(',');
                   const base64 = parts[1];
                   const mimeType = mainImage.blob!.type || 'image/jpeg';
                   
-                  // Set the base64 data needed for generation
                   setShopImageBase64(base64);
                   setShopImageMimeType(mimeType);
-                  
-                  console.log(`[ProductCache] Loaded main image as base64 for generation`);
                 };
                 reader.readAsDataURL(mainImage.blob);
                 
-                // Store a lightweight reference instead of full base64
                 persistTemplateSelection({
                   templateId: `product-${productId}-${mainImageIndex}`,
-                  image: null // Don't store base64 for product images
+                  image: null
                 });
               }
             }
@@ -916,10 +961,18 @@ export const DesignerV2_1: React.FC = () => {
         } catch (error) {
           console.error('Failed to load product:', error);
         } finally {
-          setIsLoadingProduct(false);
+          if (isMounted.current && activeRequestId.current === currentRequestId) {
+             setIsLoadingProduct(false);
+          }
         }
       };
+      
       loadProductImage();
+
+      return () => {
+        // We don't revoke blobs here; global cleanup handles that. 
+        // We just ensure we don't process the results of this overlapping effect.
+      };
     }
   }, [productId]);
 
@@ -1094,6 +1147,7 @@ export const DesignerV2_1: React.FC = () => {
       });
       console.log(`[BlobCache] Cleaned up ${blobCache.current.size} blob URLs`);
       blobCache.current.clear();
+      loadedProductRef.current = null;
     };
   }, []);
 

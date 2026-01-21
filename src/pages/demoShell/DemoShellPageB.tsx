@@ -1,8 +1,15 @@
 import React from 'react';
 import { ProductDetails } from '../../../pages/ProductDetails';
+import { useMobileDetection } from '../../modules/designer/mobile';
+import { DemoShellPageBMobile } from './DemoShellPageB.Mobile';
+import { DemoShellPageBDesktop } from './DemoShellPageB.Desktop';
 
 export function DemoShellPageB() {
-  return (
-    <ProductDetails forcedProductId="wKGcdrPeN7LK5UFIG2cz" embedded />
-  );
+  const isMobile = useMobileDetection();
+  
+  if (isMobile) {
+    return <DemoShellPageBMobile />;
+  }
+  
+  return <DemoShellPageBDesktop />;
 }

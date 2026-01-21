@@ -34,11 +34,22 @@ export const ClientLayout: React.FC = () => {
   const isDesignerRoute = pathname.startsWith('/designer-v2-1');
   const isMobile = useIsMobile();
 
-  // For Designer 2.1 on mobile, we want a fullscreen canvas (no global chrome).
+  // Check if we are on the tailor profile page (e.g. /tailor/123) but NOT on tailor admin pages
+  const isTailorProfile = pathname.startsWith('/tailor/') && 
+    !pathname.startsWith('/tailor/collections') && 
+    !pathname.startsWith('/tailor/orders') && 
+    !pathname.startsWith('/tailor/product');
+
+  // Check if we are on the product details page
+  const isProductDetails = pathname.startsWith('/product/');
+
+  // For mobile: hide header on designer, tailor profile, and product details pages
+  // For mobile tailor profile and product details, hide only the header but keep the footer
+  const hideHeader = isMobile && (pathname.startsWith('/designer-v2-1') || isTailorProfile || isProductDetails);
   const hideChrome = isMobile && pathname.startsWith('/designer-v2-1');
 
   React.useLayoutEffect(() => {
-    if (hideChrome) {
+    if (hideHeader) {
       document.documentElement.style.setProperty('--header-height', '0px');
       return;
     }
@@ -60,11 +71,11 @@ export const ClientLayout: React.FC = () => {
       ro.disconnect();
       window.removeEventListener('resize', setHeaderHeight);
     };
-  }, [hideChrome]);
+  }, [hideHeader]);
 
   return (
     <div className="app-shell">
-      {!hideChrome && (
+      {!hideHeader && (
         <div ref={headerRef}>
           <Header />
         </div>

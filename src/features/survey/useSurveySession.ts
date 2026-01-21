@@ -1,6 +1,7 @@
 import React from 'react';
 import { useApp } from '../../../context/AppContext';
 import {
+  SURVEY_QUESTIONS,
   getVisibleSteps,
   isAnswerEmpty,
   isOmanSelected,
@@ -337,6 +338,8 @@ export const useSurveySession = () => {
   const isStepValid = React.useCallback(
     (questionId: string): boolean => {
       if (!questionId) return true;
+      const question = SURVEY_QUESTIONS[questionId];
+      if (question?.type === 'info') return true;
       const value = answers[questionId];
       if (questionId === 'governorate_or_city' || questionId === 'tryon_fee_range') return true;
       if (questionId === 'pain_points_other' && !shouldShowPainPointsOther(answers)) return true;

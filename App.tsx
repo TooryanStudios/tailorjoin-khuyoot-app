@@ -64,6 +64,7 @@ import { AuthModal } from './components/AuthModal';
 import { PrivacyModal } from './components/PrivacyModal';
 import { TermsModal } from './components/TermsModal';
 import { ReturnPolicyModal } from './components/ReturnPolicyModal';
+import { PublicSurveyPreviewPage } from './src/features/survey/PublicSurveyPreviewPage';
 // Removed designs/drafts pages per request
 const DevVideoLabPage = React.lazy(() => import('./src/pages/DevVideoLab/DevVideoLabPage'));
 const VisualizerPage = React.lazy(() => import('./pages/VisualizerPage'));
@@ -301,6 +302,9 @@ const AppContent: React.FC = () => {
                )}
                {/* Standalone Admin Route (Separated from Client Layout) */}
                <Route path="/admin/*" element={<AdminApp />} />
+
+               {/* Public shareable survey preview (no admin login) */}
+               <Route path="/surveys/khuyoot-validation/preview" element={<PublicSurveyPreviewPage />} />
                
                {/* Store Admin Route (Separated Management) */}
                <Route path="/store-admin" element={<StoreAdmin />} />

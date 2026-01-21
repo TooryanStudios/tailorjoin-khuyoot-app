@@ -237,7 +237,7 @@ export function Footer() {
   return (
     // Mobile-only bottom navigation. On desktop, this takes visual space and feels oversized.
     <div
-      className="bottom-nav w-full bg-white dark:bg-[#1a1a1a] border-t border-slate-100 dark:border-slate-800 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.08)] overflow-visible shrink-0"
+      className="bottom-nav fixed bottom-0 left-0 right-0 w-full bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 dark:border-white/10 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.08)] overflow-visible shrink-0 z-50"
       style={{ paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}
     >
       <style>{`

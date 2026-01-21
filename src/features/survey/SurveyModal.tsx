@@ -43,6 +43,7 @@ export type SurveyModalProps = {
   updateAnswer: (questionId: string, value: SurveyAnswers[string]) => void;
   toggleMultiAnswer: (questionId: string, value: string) => void;
   forceWelcome?: boolean;
+  backdropVariant?: 'default' | 'designerV2_1';
 };
 
 const isOptionSelected = (value: SurveyAnswers[string], option: string) => {
@@ -129,7 +130,8 @@ const SURVEY_TRANSLATIONS: Record<string, any> = {
       willing_to_pay_tryon: 'هل ستدفع للتجربة الافتراضية؟',
       tryon_fee_range: 'ما النطاق المفضل لرسوم التجربة (اختياري)؟',
       privacy_concern: 'ما رأيك في رفع الصور للتجربة؟',
-      open_feedback: 'أي ملاحظات أخرى؟ (اختياري)'
+      open_feedback: 'أي ملاحظات أخرى؟ (اختياري)',
+      thank_you: 'شكراً لك'
     }
   },
   en: {
@@ -164,7 +166,8 @@ const SURVEY_TRANSLATIONS: Record<string, any> = {
       willing_to_pay_tryon: 'Would you pay for virtual try-on?',
       tryon_fee_range: 'Preferred try-on fee range (optional)',
       privacy_concern: 'How do you feel about uploading photos for try-on?',
-      open_feedback: 'Any other thoughts? (optional)'
+      open_feedback: 'Any other thoughts? (optional)',
+      thank_you: 'Thank you'
     }
   },
   fr: {
@@ -199,7 +202,8 @@ const SURVEY_TRANSLATIONS: Record<string, any> = {
       willing_to_pay_tryon: "Paieriez-vous pour l'essayage virtuel?",
       tryon_fee_range: "Plage de tarif préférée (optionnel)",
       privacy_concern: "Que pensez-vous du téléversement de photos pour l'essayage?",
-      open_feedback: 'Autres commentaires? (optionnel)'
+      open_feedback: 'Autres commentaires? (optionnel)',
+      thank_you: 'Merci'
     }
   }
 };
@@ -216,10 +220,12 @@ const COUNTRY_FLAGS: Record<string, string> = {
 const renderCountryThumbnails = (
   value: SurveyAnswers[string],
   onSelect: (value: string) => void,
-  lang: string
+  lang: string,
+  themeVariant: 'default' | 'designerV2_1' = 'default'
 ) => {
   const countries = ['oman', 'tunisia', 'morocco', 'algeria', 'libya', 'other'];
   const t = SURVEY_TRANSLATIONS[lang] || SURVEY_TRANSLATIONS.en;
+  const isDesigner = themeVariant === 'designerV2_1';
   
   return (
     <div className="grid grid-cols-3 gap-2">
@@ -235,9 +241,14 @@ const renderCountryThumbnails = (
             onClick={() => onSelect(country)}
             className={`relative flex flex-col items-center justify-center p-2.5 rounded-lg border-2 transition-all duration-200 ${
               selected
-                ? 'border-blue-500 bg-blue-50 shadow-md shadow-blue-500/20 scale-105 dark:bg-blue-900/40 dark:border-blue-400'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600'
+                ? isDesigner
+                  ? 'bg-zinc-950/40 shadow-md scale-105 border-zinc-700'
+                  : 'border-blue-500 bg-blue-50 shadow-md shadow-blue-500/20 scale-105 dark:bg-blue-900/40 dark:border-blue-400'
+                : isDesigner
+                  ? 'border-zinc-800 bg-zinc-950/20 hover:border-zinc-700 hover:bg-zinc-950/30'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600'
             }`}
+            style={selected && isDesigner ? { borderColor: '#2fb8b3' } : undefined}
           >
             {isOther ? (
               <div className="text-lg mb-1">🌍</div>
@@ -253,12 +264,23 @@ const renderCountryThumbnails = (
               </div>
             )}
             <span className={`text-[10px] font-medium text-center leading-tight ${
-              selected ? 'text-blue-700 dark:text-blue-300' : 'text-slate-700 dark:text-slate-300'
+              selected
+                ? isDesigner
+                  ? 'text-zinc-100'
+                  : 'text-blue-700 dark:text-blue-300'
+                : isDesigner
+                  ? 'text-zinc-300'
+                  : 'text-slate-700 dark:text-slate-300'
             }`}>
               {t.countries[country]}
             </span>
             {selected && (
-              <div className="absolute -top-1 -right-1 flex items-center justify-center h-5 w-5 rounded-full bg-blue-500 text-white shadow-md">
+              <div
+                className={`absolute -top-1 -right-1 flex items-center justify-center h-5 w-5 rounded-full text-white shadow-md ${
+                  isDesigner ? '' : 'bg-blue-500'
+                }`}
+                style={isDesigner ? { backgroundColor: '#2fb8b3' } : undefined}
+              >
                 <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
                 </svg>
@@ -282,11 +304,13 @@ const renderCardOptions = (
   value: SurveyAnswers[string],
   onSingle: (value: string) => void,
   onToggle: (value: string) => void,
-  lang: string
+  lang: string,
+  themeVariant: 'default' | 'designerV2_1' = 'default'
 ) => {
   const isMulti = question.type === 'multi';
   const currency = getCurrencyForLang(lang);
   const t = SURVEY_TRANSLATIONS[lang] || SURVEY_TRANSLATIONS.en;
+  const isDesigner = themeVariant === 'designerV2_1';
   const gridCols = question.gridColumns || 2;
   const isSmall = question.useSmallCards;
   
@@ -311,8 +335,12 @@ const renderCardOptions = (
             onClick={() => (isMulti ? onToggle(option.value) : onSingle(option.value))}
             className={`relative flex flex-col items-center justify-center ${padding} rounded-xl border-2 transition-all duration-200 ${minHeight} ${
               selected
-                ? 'bg-slate-50 shadow-lg ring-2 dark:bg-slate-800/40 dark:border-slate-600'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600'
+                ? isDesigner
+                  ? 'bg-zinc-950/30 shadow-lg border-zinc-700'
+                  : 'bg-slate-50 shadow-lg ring-2 dark:bg-slate-800/40 dark:border-slate-600'
+                : isDesigner
+                  ? 'border-zinc-800 bg-zinc-950/15 hover:bg-zinc-950/25 hover:border-zinc-700 hover:shadow-md'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-md dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600'
             }`}
             style={selected ? { borderColor: '#2fb8b3', borderWidth: '2px', boxShadow: '0 0 0 2px rgba(47, 184, 179, 0.2)' } : {}}
           >
@@ -327,7 +355,13 @@ const renderCardOptions = (
               <div className={iconSize + ' mb-2'}>{icon}</div>
             )}
             <span className={`text-center text-sm font-medium ${
-              selected ? 'dark:text-slate-100' : 'text-slate-700 dark:text-slate-300'
+              selected
+                ? isDesigner
+                  ? 'text-zinc-100'
+                  : 'dark:text-slate-100'
+                : isDesigner
+                  ? 'text-zinc-300'
+                  : 'text-slate-700 dark:text-slate-300'
             }`}>
               {displayLabel.replace(icon + ' ', '')}
             </span>
@@ -343,12 +377,14 @@ const renderOptions = (
   value: SurveyAnswers[string],
   onSingle: (value: string) => void,
   onToggle: (value: string) => void,
-  lang: string
+  lang: string,
+  themeVariant: 'default' | 'designerV2_1' = 'default'
 ) => {
   if (!question.options) return null;
   const isMulti = question.type === 'multi';
   const currency = getCurrencyForLang(lang);
   const t = SURVEY_TRANSLATIONS[lang] || SURVEY_TRANSLATIONS.en;
+  const isDesigner = themeVariant === 'designerV2_1';
   
   const gridClass = question.useTwoColumns ? 'grid grid-cols-2 gap-2' : 'grid gap-2';
   
@@ -366,8 +402,12 @@ const renderOptions = (
             onClick={() => (isMulti ? onToggle(option.value) : onSingle(option.value))}
             className={`w-full text-left px-4 py-2.5 rounded-lg border transition-all duration-200 ${
               selected
-                ? 'bg-slate-50 shadow-sm ring-1 dark:bg-slate-800/40 dark:border-slate-600'
-                : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-750'
+                ? isDesigner
+                  ? 'bg-zinc-950/30 shadow-sm border-zinc-700'
+                  : 'bg-slate-50 shadow-sm ring-1 dark:bg-slate-800/40 dark:border-slate-600'
+                : isDesigner
+                  ? 'border-zinc-800 bg-zinc-950/15 hover:border-zinc-700 hover:bg-zinc-950/25'
+                  : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-750'
             }`}
             style={selected ? { borderColor: '#2fb8b3', borderWidth: '1px' } : {}}
           >
@@ -620,6 +660,7 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
   updateAnswer,
   toggleMultiAnswer,
   forceWelcome = false,
+  backdropVariant = 'default',
 }) => {
     const { user } = useApp();
     const isAdminMode = user?.role === 'admin';
@@ -687,21 +728,38 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
     setView('question');
   };
 
-  return createPortal(
-    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center px-4 backdrop-blur-sm bg-black/40 transition-opacity" dir={isRTL ? 'rtl' : 'ltr'}>
-      <style>{shineAnimationStyles}</style>
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-slate-100/10 overflow-visible transform transition-all animate-in fade-in zoom-in-95 duration-200">
-        {/* Background blobs for appealing visuals */}
-        <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
-        <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+  const overlayClassName =
+    backdropVariant === 'designerV2_1'
+      ? 'fixed inset-0 z-[10000] flex items-center justify-center px-4 backdrop-blur-sm bg-zinc-950/60 transition-opacity'
+      : 'fixed inset-0 z-[10000] flex items-center justify-center px-4 backdrop-blur-sm bg-black/40 transition-opacity';
 
-        {/* Logo - shown only in question view */}
-        {view === 'question' ? (
+  const clickCatcherClassName =
+    backdropVariant === 'designerV2_1' ? 'absolute inset-0 bg-zinc-950/50' : 'absolute inset-0 bg-black/30';
+
+  const modalCardClassName =
+    backdropVariant === 'designerV2_1'
+      ? 'relative w-full max-w-lg rounded-2xl bg-zinc-900 p-6 shadow-2xl ring-1 ring-zinc-800 overflow-visible transform transition-all animate-in fade-in zoom-in-95 duration-200'
+      : 'relative w-full max-w-lg rounded-2xl bg-white p-6 shadow-2xl ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-slate-100/10 overflow-visible transform transition-all animate-in fade-in zoom-in-95 duration-200';
+
+  return createPortal(
+    <div data-overlay="khuyoot-modal" className={overlayClassName} dir={isRTL ? 'rtl' : 'ltr'}>
+      <style>{shineAnimationStyles}</style>
+      <div className={clickCatcherClassName} onClick={onClose} />
+      <div className={modalCardClassName}>
+        {backdropVariant !== 'designerV2_1' ? (
+          <>
+            {/* Background blobs for appealing visuals */}
+            <div className="absolute top-0 right-0 -mt-20 -mr-20 w-64 h-64 rounded-full bg-blue-500/10 blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 -mb-20 -ml-20 w-64 h-64 rounded-full bg-indigo-500/10 blur-3xl pointer-events-none" />
+          </>
+        ) : null}
+
+        {/* Logo - shown only in question view (except final thank-you step which has its own centered logo) */}
+        {view === 'question' && questionId !== 'thank_you' ? (
           <div className={`absolute top-3 ${isRTL ? 'right-3' : 'left-3'} z-10`}>
-            <img 
-              src="/logo.png" 
-              alt="Khuyoot" 
+            <img
+              src="/logo.png"
+              alt="Khuyoot"
               className="h-10 w-auto object-contain drop-shadow-md"
             />
           </div>
@@ -780,23 +838,31 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
           {view === 'question' && question && (
             <>
               {/* Progress Timeline */}
-              <ProgressTimeline 
-                currentStep={currentStep} 
-                totalSteps={totalSteps} 
-                lang={selectedLang}
-                onStepClick={goToStep}
-              />
+              {question.id !== 'thank_you' ? (
+                <ProgressTimeline
+                  currentStep={currentStep}
+                  totalSteps={totalSteps}
+                  lang={selectedLang}
+                  onStepClick={goToStep}
+                />
+              ) : null}
               
               <div className="mb-6">
-                <div className={`flex items-center justify-between mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
-                    {t.question} {currentStep + 1} {t.of} {totalSteps}
-                  </span>
-                </div>
-                <h2 className={`text-xl font-bold text-slate-900 dark:text-white leading-tight ${isRTL ? 'text-right' : 'text-left'}`}>
-                  {t.questions[question.id] || question.label}
-                </h2>
-                {question.description ? (
+                {question.id !== 'thank_you' ? (
+                  <div className={`flex items-center justify-between mb-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-600 dark:text-cyan-400">
+                      {t.question} {currentStep + 1} {t.of} {totalSteps}
+                    </span>
+                  </div>
+                ) : null}
+
+                {question.id !== 'thank_you' ? (
+                  <h2 className={`text-xl font-bold text-slate-900 dark:text-white leading-tight ${isRTL ? 'text-right' : 'text-left'}`}>
+                    {t.questions[question.id] || question.label}
+                  </h2>
+                ) : null}
+
+                {question.id !== 'thank_you' && question.description ? (
                   <p className={`mt-2 text-sm text-slate-500 dark:text-slate-400 leading-relaxed ${isRTL ? 'text-right' : 'text-left'}`}>
                     {question.description}
                   </p>
@@ -804,9 +870,38 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
               </div>
 
               <div className="space-y-4 min-h-[200px]">
+                {question.type === 'info' ? (
+                  <div className="py-8 text-center">
+                    <img
+                      src="/logo.png"
+                      alt="Khuyoot"
+                      className="mx-auto mb-6 h-14 w-auto object-contain"
+                    />
+
+                    <h2 className="text-3xl font-bold text-slate-900 dark:text-white mb-3">
+                      {isRTL ? 'شكراً لك' : 'Thank you'}
+                    </h2>
+
+                    <div className="mb-6">
+                      <div
+                        className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl"
+                        style={{ backgroundColor: 'rgba(47, 184, 179, 0.12)' }}
+                      >
+                        <svg className="h-10 w-10" fill="none" viewBox="0 0 24 24" stroke="#2fb8b3">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                      </div>
+                    </div>
+
+                    <p className="text-slate-600 dark:text-slate-300 text-base">
+                      {question.description ?? (isRTL ? 'نشكرك على وقتك وتعاونك معنا' : 'Thank you for your time and feedback')}
+                    </p>
+                  </div>
+                ) : null}
+
                 {/* Country selection with thumbnails */}
                 {question.id === 'country' ? (
-                  renderCountryThumbnails(answers[question.id], (selected) => updateAnswer(question.id, selected), selectedLang)
+                  renderCountryThumbnails(answers[question.id], (selected) => updateAnswer(question.id, selected), selectedLang, backdropVariant)
                 ) : null}
                 
                 {/* Video + Options Side-by-Side Layout */}
@@ -815,19 +910,19 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
                     {/* Options Column */}
                     <div>
                       {question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                        ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang)
+                        ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
                         : null}
 
                       {question.useCardLayout && question.type === 'multi'
-                        ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang)
+                        ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant)
                         : null}
 
                       {!question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                        ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang)
+                        ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
                         : null}
 
                       {!question.useCardLayout && question.type === 'multi' 
-                        ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang) 
+                        ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant) 
                         : null}
                     </div>
                     
@@ -869,20 +964,20 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
 
                     {/* Card layout for designated questions */}
                     {question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                      ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang)
+                      ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
                       : null}
 
                     {question.useCardLayout && question.type === 'multi'
-                      ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang)
+                      ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant)
                       : null}
 
                     {/* Standard list layout for non-card questions */}
                     {!question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                      ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang)
+                      ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
                       : null}
 
                     {!question.useCardLayout && question.type === 'multi' 
-                      ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang) 
+                      ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant) 
                       : null}
                   </>
                 )}
@@ -911,51 +1006,79 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
               </div>
 
               <div className="mt-8 pt-6 border-t border-slate-100 dark:border-slate-800">
-                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <div
+                  className={
+                    question.type === 'info'
+                      ? 'flex items-center justify-center'
+                      : `flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`
+                  }
+                >
                   {/* Footer actions */}
-                  <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                    {currentStep > 0 ? (
+                  {question.type === 'info' ? null : (
+                    <div className={`flex gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                      {currentStep > 0 ? (
+                        <button
+                          type="button"
+                          onClick={onBack}
+                          className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
+                        >
+                          {t.back}
+                        </button>
+                      ) : null}
+
                       <button
                         type="button"
-                        onClick={onBack}
-                        className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-900 hover:bg-slate-100 rounded-lg transition-colors dark:text-slate-400 dark:hover:text-slate-200 dark:hover:bg-slate-800"
+                        onClick={onNext}
+                        className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors dark:hover:text-slate-300 dark:hover:bg-slate-800/50"
                       >
-                        {t.back}
+                        {t.skip}
                       </button>
-                    ) : null}
-                    
-                    <button
-                      type="button"
-                      onClick={onNext}
-                      className="px-4 py-2 text-sm font-medium text-slate-400 hover:text-slate-600 hover:bg-slate-50 rounded-lg transition-colors dark:hover:text-slate-300 dark:hover:bg-slate-800/50"
-                    >
-                      {t.skip}
-                    </button>
-                  </div>
+                    </div>
+                  )}
 
                   {currentStep + 1 >= totalSteps ? (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setIsSubmitting(true);
-                        setView('thank-you');
-                        // Call onSubmit after a short delay to ensure state updates
-                        setTimeout(() => {
+                    question.type === 'info' ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSubmitting(true);
                           onSubmit();
-                        }, 100);
-                      }}
-                      disabled={!isStepValid(question.id) || isSubmitting}
-                      className={`px-6 py-2.5 text-sm font-semibold rounded-xl text-white shadow-lg transition-all ${
-                        isStepValid(question.id) && !isSubmitting
-                          ? 'hover:scale-105 active:scale-95 cta-shine'
-                          : 'bg-slate-300 cursor-not-allowed shadow-none dark:bg-slate-700 dark:text-slate-500'
-                      }`}
-                      style={!isSubmitting && isStepValid(question.id) ? { backgroundColor: '#2fb8b3', boxShadow: '0 4px 12px rgba(47, 184, 179, 0.2)' } : {}}
-                      onMouseEnter={(e) => !isSubmitting && isStepValid(question.id) && (e.currentTarget.style.backgroundColor = '#27a7a2')}
-                      onMouseLeave={(e) => !isSubmitting && isStepValid(question.id) && (e.currentTarget.style.backgroundColor = '#2fb8b3')}
-                    >
-                      {isSubmitting ? (isRTL ? 'جاري الإرسال...' : 'Submitting...') : t.complete}
-                    </button>
+                          onClose();
+                        }}
+                        disabled={isSubmitting}
+                        className={`px-6 py-2.5 text-sm font-semibold rounded-xl text-white shadow-lg transition-all ${
+                          !isSubmitting ? 'hover:scale-105 active:scale-95 cta-shine' : 'bg-slate-300 cursor-not-allowed shadow-none dark:bg-slate-700 dark:text-slate-500'
+                        }`}
+                        style={!isSubmitting ? { backgroundColor: '#2fb8b3', boxShadow: '0 4px 12px rgba(47, 184, 179, 0.2)' } : {}}
+                        onMouseEnter={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#27a7a2')}
+                        onMouseLeave={(e) => !isSubmitting && (e.currentTarget.style.backgroundColor = '#2fb8b3')}
+                      >
+                        {isSubmitting ? (isRTL ? 'جاري الإرسال...' : 'Submitting...') : (isRTL ? 'إغلاق' : 'Close')}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSubmitting(true);
+                          setView('thank-you');
+                          // Call onSubmit after a short delay to ensure state updates
+                          setTimeout(() => {
+                            onSubmit();
+                          }, 100);
+                        }}
+                        disabled={!isStepValid(question.id) || isSubmitting}
+                        className={`px-6 py-2.5 text-sm font-semibold rounded-xl text-white shadow-lg transition-all ${
+                          isStepValid(question.id) && !isSubmitting
+                            ? 'hover:scale-105 active:scale-95 cta-shine'
+                            : 'bg-slate-300 cursor-not-allowed shadow-none dark:bg-slate-700 dark:text-slate-500'
+                        }`}
+                        style={!isSubmitting && isStepValid(question.id) ? { backgroundColor: '#2fb8b3', boxShadow: '0 4px 12px rgba(47, 184, 179, 0.2)' } : {}}
+                        onMouseEnter={(e) => !isSubmitting && isStepValid(question.id) && (e.currentTarget.style.backgroundColor = '#27a7a2')}
+                        onMouseLeave={(e) => !isSubmitting && isStepValid(question.id) && (e.currentTarget.style.backgroundColor = '#2fb8b3')}
+                      >
+                        {isSubmitting ? (isRTL ? 'جاري الإرسال...' : 'Submitting...') : t.complete}
+                      </button>
+                    )
                   ) : (
                     <button
                       type="button"

@@ -1,6 +1,6 @@
 export type SurveyStatus = 'in_progress' | 'completed' | 'skipped';
 
-export type SurveyQuestionType = 'single' | 'multi' | 'scale' | 'text';
+export type SurveyQuestionType = 'single' | 'multi' | 'scale' | 'text' | 'info';
 
 export type SurveyAnswer = string | number | string[] | null;
 
@@ -268,6 +268,13 @@ export const SURVEY_QUESTIONS: Record<string, SurveyQuestion> = {
     label: 'Any other thoughts? (optional)',
     optional: true,
   },
+  thank_you: {
+    id: 'thank_you',
+    type: 'info',
+    label: 'Thank you!',
+    description: 'Thank you for your time and feedback.',
+    optional: true,
+  },
 };
 
 export const isAnswerEmpty = (value: SurveyAnswer): boolean => {
@@ -312,6 +319,7 @@ export const SURVEY_STEPS: SurveyStep[] = [
   },
   { id: 'privacy_concern', questionId: 'privacy_concern' },
   { id: 'open_feedback', questionId: 'open_feedback' },
+  { id: 'thank_you', questionId: 'thank_you' },
 ];
 
 export const getVisibleSteps = (answers: SurveyAnswers, hiddenQuestionIds: string[] = []): SurveyStep[] =>

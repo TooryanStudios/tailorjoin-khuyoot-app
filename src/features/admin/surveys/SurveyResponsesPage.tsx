@@ -496,8 +496,8 @@ export const SurveyResponsesPage: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => {
-                    resetPreview();
-                    setPreviewOpen(true);
+                    const url = `/surveys/khuyoot-validation/preview?open=1`;
+                    window.open(url, '_blank', 'noopener,noreferrer');
                   }}
                   className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white hover:bg-blue-700"
                 >
