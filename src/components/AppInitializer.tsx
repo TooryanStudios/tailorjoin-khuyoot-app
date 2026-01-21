@@ -34,24 +34,24 @@ export function AppInitializer({ children }: AppInitializerProps) {
     refetchOnWindowFocus: false,
   });
 
-  const [isAppVisible, setIsAppVisible] = React.useState(false);
+  const [isAppVisible, setIsAppVisible] = React.useState(true); // START VISIBLE to prevent black screen
   // Failsafe: If config takes too long, just use fallback
   const [useFallback, setUseFallback] = React.useState(false);
 
   React.useEffect(() => {
     if (data || useFallback) {
-      // Give React a paint boundary, then fade in.
-      const raf = requestAnimationFrame(() => setIsAppVisible(true));
-      return () => cancelAnimationFrame(raf);
+      // Config loaded, ensure visibility (already true by default)
+      setIsAppVisible(true);
     }
 
-    // If data doesn't load within 5 seconds, force fallback to prevent blank screen
+    // If data doesn't load within 2 seconds, force fallback to prevent blank screen
+    // REDUCED from 5s to 2s - users shouldn't wait longer than this
     const timer = setTimeout(() => {
-       console.warn('[AppInitializer] Config load timeout after 5s - forcing app render with defaults');
+       console.warn('[AppInitializer] Config load timeout after 2s - forcing app render with defaults');
        console.warn('[AppInitializer] This usually means Firebase connection is slow or blocked');
        console.warn('[AppInitializer] Try clearing cache: localStorage.clear(); location.reload();');
        setUseFallback(true);
-    }, 5000);
+    }, 2000);
     return () => clearTimeout(timer);
   }, [Boolean(data), useFallback]);
 
@@ -63,9 +63,7 @@ export function AppInitializer({ children }: AppInitializerProps) {
     return <LoadingShell />;
   }
 
-  return (
-    <div className={isAppVisible ? 'opacity-100 transition-opacity duration-300' : 'opacity-0'}>
-      {children(configToUse)}
-    </div>
-  );
+  // No opacity wrapper - LoadingShell and app should be immediately visible
+  // The splash screen removal in index.tsx handles the transition
+  return <>{children(configToUse)}</>;
 }

@@ -97,7 +97,7 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   active: boolean;
   user: any;
 }) {
-  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
+  const { t } = useTranslation('common');
   const badge = roleBadge(user?.role, t);
 
   return (
@@ -145,7 +145,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
   onClick: () => void;
   disabled: boolean;
 }) {
-  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
+  const { t } = useTranslation('common');
   return (
     <button
       onClick={onClick}
@@ -189,7 +189,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
 });
 
 export function Footer() {
-  const { t } = useTranslation(undefined, { keyPrefix: 'common' });
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
   const selectedTemplateId = useDesignerStore((s) => s.selectedTemplateId);

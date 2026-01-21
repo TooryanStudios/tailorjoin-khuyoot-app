@@ -87,6 +87,17 @@ if (!rootElement) {
   throw new Error("Could not find root element to mount to");
 }
 
+// CRITICAL: Remove splash screen IMMEDIATELY before React renders
+// This prevents black screen flickering on mobile
+try {
+  const splash = rootElement.querySelector('[data-splash-screen]');
+  if (splash) {
+    splash.remove();
+  }
+} catch (e) {
+  console.warn('Failed to remove splash screen:', e);
+}
+
 const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>

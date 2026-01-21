@@ -10,7 +10,7 @@ import { requestNotificationPermission, showLocalTestNotification, isNotificatio
 import { setLanguage } from '../../i18n/i18n';
 
 const HeaderComponent = () => {
-  const { i18n, t } = useTranslation(undefined, { keyPrefix: 'common' });
+  const { i18n, t } = useTranslation('common');
   const { user, loading, toggleAuthModal, theme, toggleTheme, cartCount, ordersCount, appSettings } = useApp();
   const navigate = useNavigate();
   const location = useLocation();

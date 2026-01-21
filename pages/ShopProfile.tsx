@@ -177,7 +177,9 @@ export const ShopProfile = () => {
           <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
             <Clock size={20} className="text-green-600 dark:text-green-400 mb-2" />
             <p className="text-xs text-slate-500 dark:text-slate-400 mb-1">ساعات العمل</p>
-            <p className="text-sm font-bold text-slate-900 dark:text-white">{shop.workingHours}</p>
+            <p className="text-sm font-bold text-slate-900 dark:text-white">
+              {typeof shop.workingHours === 'string' ? shop.workingHours : '9:00 ص - 10:00 م'}
+            </p>
           </div>
           {shop.hasOnlineStore && (
             <div className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700">

@@ -52,15 +52,18 @@ i18n
   .use(initReactI18next)
   .init({
     resources: {
-      ar: { translation: translations.ar },
-      en: { translation: translations.en },
-      fr: { translation: translations.fr },
+      ar: translations.ar,
+      en: translations.en,
+      fr: translations.fr,
     },
     lng: initialLanguage,
     fallbackLng: 'ar',
-    defaultNS: 'translation',
+    defaultNS: 'common',
+    ns: ['common', 'home', 'product', 'measurements', 'orderSummary', 'designer', 'admin', 'errors'],
     interpolation: { escapeValue: false },
     returnNull: false,
+    keySeparator: false, // Disable key separator to prevent 'common.navHome' from being interpreted as nested path
+    nsSeparator: ':', // Use colon for namespace separator (e.g., 'home:title')
   })
   .catch((err) => {
     // eslint-disable-next-line no-console

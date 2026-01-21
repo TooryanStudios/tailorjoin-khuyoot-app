@@ -22,8 +22,6 @@ import { Measurements } from './pages/Measurements';
 import { TailorMaterials } from './pages/TailorMaterials';
 import { CreditProvider } from './src/modules/CreditManager';
 import { OrderDetails } from './pages/OrderDetails';
-import { ShopsList } from './pages/ShopsList';
-import { ShopProfile } from './pages/ShopProfile';
 import { Notifications } from './pages/Notifications';
 import { StoreAdmin } from './pages/StoreAdmin';
 import { TailorDashboard } from './pages/TailorDashboard';
@@ -59,7 +57,6 @@ import { AppInitializer } from './src/components/AppInitializer';
 import { DesignerV2_1 } from './src/pages/DesignerV2_1/DesignerV2_1';
 import { useModalStore } from './src/store/useModalStore';
 import UpgradeModal from './src/components/DesignerV2_1/UpgradeModal';
-import { TouchPointerOverlay } from './src/components/TouchPointerOverlay';
 import { firebaseService } from './services/firebase';
 import { isAdmin } from './types/user-schema';
 import { ErrorBoundary as GlobalErrorBoundary } from './components/ErrorBoundary';
@@ -110,7 +107,6 @@ const HomeDisabled: React.FC = () => (
 const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
-  const [touchPointerEnabled, setTouchPointerEnabled] = React.useState(false);
 
   // Failsafe: never get stuck on a blank LoadingShell if Zustand rehydration errors.
   // If storage is blocked/corrupt, allow the app to mount with default in-memory state.
@@ -142,26 +138,6 @@ const App: React.FC = () => {
     };
   }, []);
 
-  // Touch pointer for screen recording (admin only)
-  React.useEffect(() => {
-    const savedState = localStorage.getItem('admin_touch_pointer_enabled');
-    if (savedState === 'true') {
-      setTouchPointerEnabled(true);
-    }
-
-    // Listen for toggle event
-    const handleToggle = ((event: CustomEvent) => {
-      const enabled = event.detail.enabled;
-      setTouchPointerEnabled(enabled);
-      localStorage.setItem('admin_touch_pointer_enabled', String(enabled));
-    }) as EventListener;
-
-    window.addEventListener('toggle-touch-pointer', handleToggle);
-    return () => {
-      window.removeEventListener('toggle-touch-pointer', handleToggle);
-    };
-  }, []);
-
   // Check if we're on the main production domain
   const isMaintenanceMode = React.useMemo(() => {
     const hostname = window.location.hostname;
@@ -188,7 +164,7 @@ const App: React.FC = () => {
       <AppInitializer>
         {(config) => (
           <AppProvider initialAppSettings={config}>
-            <AppContent touchPointerEnabled={touchPointerEnabled} />
+            <AppContent />
           </AppProvider>
         )}
       </AppInitializer>
@@ -197,7 +173,7 @@ const App: React.FC = () => {
 };
 
 // Wrapper component that has access to AppProvider context
-const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEnabled }) => {
+const AppContent: React.FC = () => {
   const { user } = useApp();
   const isDev = import.meta.env.DEV;
 
@@ -299,11 +275,9 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
   
   return (
     <>
-      {/* Admin-only touch pointer overlay for screen recording */}
-      {user && isAdmin(user) && <TouchPointerOverlay isEnabled={touchPointerEnabled} />}
-            <BrowserRouter>
-              <DevDefaultRoute />
-              <TailorJoinRedirect />
+      <BrowserRouter>
+        <DevDefaultRoute />
+        <TailorJoinRedirect />
               <CreditProvider>
               <GlobalErrorBoundary>
               <Routes>
@@ -368,8 +342,6 @@ const AppContent: React.FC<{ touchPointerEnabled: boolean }> = ({ touchPointerEn
                  <Route path="/designer/:id" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
                  <Route path="/tailors" element={<TailorList />} />
                  <Route path="/tailor/:id" element={<TailorProfile />} />
-                 <Route path="/shops" element={<ShopsList />} />
-                 <Route path="/shop/:id" element={<ShopProfile />} />
                  <Route path="/product" element={<Navigate to="/jackets" replace />} />
                  <Route path="/product/:id" element={<ProductDetails />} />
                  <Route path="/customization" element={<CustomizationPage />} />

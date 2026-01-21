@@ -437,12 +437,23 @@
   <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
     <div id="root" style="background: #0a0a0a; color: white; min-height: 100vh;">
       <!-- Inline splash screen before React loads -->
-      <div style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a0a0a; z-index: 9999;">
+      <div data-splash-screen style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a0a0a; z-index: 9999; transition: opacity 0.3s ease-out;">
         <div style="text-align: center;">
           <img src="/logo_big.png?v=4" alt="خيوط" style="width: 200px; height: 200px; margin: 0 auto; object-fit: contain;">
         </div>
       </div>
     </div>
+
+    <!-- Failsafe: Force remove splash after 3 seconds if React fails to mount -->
+    <script>
+      setTimeout(function() {
+        var splash = document.querySelector('[data-splash-screen]');
+        if (splash) {
+          splash.style.opacity = '0';
+          setTimeout(function() { splash.remove(); }, 300);
+        }
+      }, 3000);
+    </script>
 
     <!-- Global Error Handler: If React fails to mount (e.g. 500 on import), replace splash with Error UI -->
     <script>
