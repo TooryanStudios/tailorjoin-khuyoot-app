@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Add Test Regions</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      max-width: 800px;
+      margin: 40px auto;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #fff;
+    }
+    button {
+      background: #8b5cf6;
+      color: white;
+      border: none;
+      padding: 12px 24px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 16px;
+      margin: 10px 5px;
+    }
+    button:hover { background: #7c3aed; }
+    button:disabled { background: #444; cursor: not-allowed; }
+    #output {
+      background: #2a2a2a;
+      padding: 20px;
+      border-radius: 8px;
+      margin-top: 20px;
+      white-space: pre-wrap;
+      font-family: monospace;
+      font-size: 14px;
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .success { color: #10b981; }
+    .error { color: #ef4444; }
+    .info { color: #60a5fa; }
+  </style>
+</head>
+<body>
+  <h1>🗺️ Add Test Regions to Firebase</h1>
+  <p>This will add popular regions to your Firestore database.</p>
+  
+  <div>
+    <button id="addRegionsBtn" onclick="addTestRegions()">Add Test Regions</button>
+    <button onclick="clearRegions()">Clear All Regions</button>
+    <button onclick="checkRegions()">Check Current Regions</button>
+  </div>
+
+  <div id="output"></div>
+
+  <script>
+    const output = document.getElementById('output');
+    
+    function log(message, type = 'info') {
+      const timestamp = new Date().toLocaleTimeString();
+      const className = type === 'success' ? 'success' : type === 'error' ? 'error' : 'info';
+      output.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+      output.scrollTop = output.scrollHeight;
+      console.log(message);
+    }
+
+    // Initialize Firebase
+    const firebaseConfig = {
+      apiKey: "AIzaSyBkQA2VvqhvnkKztQH5HY4K5nQQGmNzqD0",
+      authDomain: "khuyoot-app01.firebaseapp.com",
+      projectId: "khuyoot-app01",
+      storageBucket: "khuyoot-app01.firebasestorage.app",
+      messagingSenderId: "346806334793",
+      appId: "1:346806334793:web:03b1e8a2a83c875e0fe2a4",
+      measurementId: "G-V0V56WZ9ZK"
+    };
+
+    log('🔥 Initializing Firebase...');
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    // Test regions data (Saudi Arabia popular cities)
+    const testRegions = [
+      { name: 'الرياض', nameEn: 'Riyadh', icon: '🏙️', order: 0, enabled: true },
+      { name: 'جدة', nameEn: 'Jeddah', icon: '🌊', order: 1, enabled: true },
+      { name: 'الدمام', nameEn: 'Dammam', icon: '🏢', order: 2, enabled: true },
+      { name: 'مكة المكرمة', nameEn: 'Makkah', icon: '🕋', order: 3, enabled: true },
+      { name: 'المدينة المنورة', nameEn: 'Madinah', icon: '🕌', order: 4, enabled: true },
+      { name: 'الخبر', nameEn: 'Khobar', icon: '🏖️', order: 5, enabled: true },
+      { name: 'الطائف', nameEn: 'Taif', icon: '🌹', order: 6, enabled: true },
+      { name: 'تبوك', nameEn: 'Tabuk', icon: '🏔️', order: 7, enabled: true },
+      { name: 'أبها', nameEn: 'Abha', icon: '⛰️', order: 8, enabled: true },
+      { name: 'الأحساء', nameEn: 'Al-Ahsa', icon: '🌴', order: 9, enabled: true },
+    ];
+
+    async function addTestRegions() {
+      const btn = document.getElementById('addRegionsBtn');
+      btn.disabled = true;
+      output.innerHTML = '';
+      
+      log('📍 Starting to add regions...', 'info');
+      
+      try {
+        let successCount = 0;
+        
+        for (const region of testRegions) {
+          try {
+            const regionData = {
+              ...region,
+              createdAt: firebase.firestore.FieldValue.serverTimestamp(),
+            };
+            
+            const docRef = await db.collection('popularRegions').add(regionData);
+            log(`✅ Added: ${region.name} (${region.nameEn}) - ID: ${docRef.id}`, 'success');
+            successCount++;
+            
+          } catch (error) {
+            log(`❌ Failed to add ${region.name}: ${error.message}`, 'error');
+          }
+        }
+        
+        log(`\n🎉 Done! Successfully added ${successCount}/${testRegions.length} regions`, 'success');
+        
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    }
+
+    async function clearRegions() {
+      if (!confirm('Are you sure you want to delete ALL regions?')) return;
+      
+      output.innerHTML = '';
+      log('🗑️ Deleting all regions...', 'info');
+      
+      try {
+        const snapshot = await db.collection('popularRegions').get();
+        const batch = db.batch();
+        
+        snapshot.docs.forEach(doc => {
+          batch.delete(doc.ref);
+        });
+        
+        await batch.commit();
+        log(`✅ Deleted ${snapshot.size} regions`, 'success');
+        
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    async function checkRegions() {
+      output.innerHTML = '';
+      log('🔍 Checking current regions...', 'info');
+      
+      try {
+        const snapshot = await db.collection('popularRegions').get();
+        
+        if (snapshot.empty) {
+          log('⚠️ No regions found in database', 'error');
+        } else {
+          log(`📊 Found ${snapshot.size} regions:\n`, 'success');
+          
+          const regions = [];
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            regions.push({ id: doc.id, ...data });
+          });
+          
+          regions.sort((a, b) => a.order - b.order);
+          
+          regions.forEach(region => {
+            const status = region.enabled ? '✅ Enabled' : '❌ Disabled';
+            log(`  ${region.order}. ${region.name} (${region.nameEn || 'N/A'}) ${region.icon || ''} - ${status}`, 'info');
+          });
+        }
+        
+      } catch (error) {
+        log(`❌ Error: ${error.message}`, 'error');
+      }
+    }
+
+    // Auto-check on load
+    setTimeout(checkRegions, 500);
+  </script>
+</body>
+</html>

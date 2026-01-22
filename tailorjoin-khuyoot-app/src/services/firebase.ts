@@ -19,6 +19,12 @@ const firebaseConfig = {
   measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Debug: Log the actual API key being used
+console.log('🔥 Firebase Config:', {
+  apiKey: firebaseConfig.apiKey?.substring(0, 20) + '...',
+  projectId: firebaseConfig.projectId
+});
+
 // Initialize Firebase
 let app;
 let auth: any;
@@ -1148,7 +1154,13 @@ export const firebaseService = {
 
     try {
       const regionsRef = collection(db, 'popularRegions');
-      const snapshot = await getDocs(regionsRef);
+      
+      // Add timeout to prevent hanging forever (same as other queries)
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => reject(new Error('getPopularRegions query timed out after 5000ms')), 5000);
+      });
+      
+      const snapshot = await Promise.race([getDocs(regionsRef), timeoutPromise]);
       
       return snapshot.docs.map(doc => ({
         id: doc.id,

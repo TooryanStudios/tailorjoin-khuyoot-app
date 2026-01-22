@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
-import { Heart, MapPin, Play, Sparkles, Star, User, Mail, Phone, Instagram, Twitter } from 'lucide-react';
+import { Heart, MapPin, Play, BadgeCheck, Sparkles, Star, User, Mail, Phone, Instagram, Twitter, User2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { DemoShellOutletContext } from './DemoShellLayout';
 import type { FabricMaterial, Product, Tailor } from '../../../types';
@@ -8,6 +8,7 @@ import { useThumbnail } from '../../hooks/useThumbnailCache';
 import { useApp } from '../../../context/AppContext';
 import { TailorPill } from './DemoShellTopTailors';
 import { HomeAdsRow, LatestFabricsRail, DiscoverDesignerPromo } from './DemoShellPageA';
+import { HomeHeader } from '../../components/HomeHeader';
 
 type PromoTile = {
   id: string;
@@ -17,8 +18,13 @@ type PromoTile = {
 };
 
 const getRegionName = (tailor: Tailor, regions: any[]) => {
-  const reg = regions.find((r) => r.id === (tailor as any).regionId);
-  return reg?.name || 'Unknown';
+  // Tailor.region is a STRING (like "Muscat"), match against region.name
+  const tailorRegionName = (tailor as any).region || (tailor as any).location || '';
+  
+  if (!tailorRegionName) return 'Unknown';
+  
+  const matchedRegion = regions.find((r) => r.name === tailorRegionName);
+  return matchedRegion?.name || tailorRegionName || 'Unknown';
 };
 
 const ProductCard = React.memo(function ProductCard({ product }: { product: Product }) {
@@ -59,6 +65,77 @@ const ProductCard = React.memo(function ProductCard({ product }: { product: Prod
   );
 });
 
+const TailorCardDesktop = React.memo(function TailorCardDesktop({ 
+  tailor, 
+  regionName, 
+  isSpecial, 
+  onClick 
+}: { 
+  tailor: Tailor; 
+  regionName: string; 
+  isSpecial: boolean; 
+  onClick: () => void;
+}) {
+  const displaySrc = useThumbnail(tailor.profileImage || tailor.image, { maxEntries: 100 });
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="snap-start min-w-[260px] group focus:outline-none rounded-3xl overflow-hidden"
+    >
+      <div className="relative h-[300px] w-[260px] overflow-hidden rounded-3xl">
+        {/* Background Image */}
+        {displaySrc ? (
+          <img
+            src={displaySrc}
+            alt={tailor.name}
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-500 group-hover:scale-110"
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-purple-900 via-slate-900 to-slate-950" />
+        )}
+
+        {/* Gradient Overlay */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/25 to-transparent" />
+
+        {/* Special Badge */}
+        {isSpecial && (
+          <div className="absolute top-5 right-5 flex items-center justify-center h-9 w-9 text-emerald-500">
+            <BadgeCheck size={18} />
+          </div>
+        )}
+
+        {/* Content - Professional RTL Layout */}
+        <div className="absolute inset-0 p-5 flex flex-col justify-end" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          {/* Bottom Section: Region and Icon on left, Name on right */}
+          <div className="flex justify-between items-end">
+            {/* Region and Gender Icon stacked on left */}
+            <div className="flex flex-col items-start gap-1">
+              {/* Region above icon */}
+              <p className="text-sm text-white/85">
+                {regionName}
+              </p>
+              
+              {/* Gender Icon below region */}
+              <div className="text-white/70">
+                <User2 size={20} strokeWidth={1.5} />
+              </div>
+            </div>
+
+            {/* Tailor Name on right */}
+            <h3 className="text-lg text-white text-right">
+              {tailor.name}
+            </h3>
+          </div>
+        </div>
+      </div>
+    </button>
+  );
+});
+
 export function DemoShellPageADesktop() {
   const { user, togglePrivacyModal, toggleTermsModal, toggleReturnPolicyModal } = useApp();
   const { t } = useTranslation(['home']);
@@ -73,6 +150,13 @@ export function DemoShellPageADesktop() {
   } = useOutletContext<DemoShellOutletContext>();
 
   const [selectedRegionId, setSelectedRegionId] = React.useState<string | null>(null);
+
+  // Debug: Log regions data
+  React.useEffect(() => {
+    console.log('🔍 Desktop - dbRegions:', dbRegions);
+    console.log('🔍 Desktop - isRegionsLoading:', isRegionsLoading);
+    console.log('🔍 Desktop - Filtered regions:', (dbRegions || []).filter((r: any) => r && r.id && r.name));
+  }, [dbRegions, isRegionsLoading]);
 
   const filteredTailors: Tailor[] = React.useMemo(() => {
     if (!selectedRegionId) return (dbTailors || []) as Tailor[];
@@ -122,134 +206,117 @@ export function DemoShellPageADesktop() {
   }, [dbProducts, t]);
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-2xl border border-zinc-800 bg-zinc-900/30 shadow-sm overflow-hidden">
-        <div className="relative w-full h-[140px] sm:h-[180px] bg-zinc-900">
-          <img
-            src="/images/Khyuoot_Bannar.png"
-            alt="Khuyoot"
-            className="absolute inset-0 h-full w-full object-cover"
-            loading="lazy"
-            decoding="async"
-          />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/10 to-transparent" />
-          <div className="absolute inset-0 bg-gradient-to-t from-black/35 via-transparent to-transparent" />
-        </div>
-      </section>
+    <div className="space-y-6 px-4" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+      {/* Header with User Info and Search */}
+      <HomeHeader />
 
-      <section className="rounded-2xl border border-zinc-950 bg-zinc-900/30 p-3 shadow-sm">
-        <div className="flex items-center justify-between gap-3 px-2">
-          <div>
-            <h2 className="text-xl font-bold text-zinc-100">{t('home:topTailorsByRegion')}</h2>
-          </div>
+      {/* Region Filter Chips - Above the section */}
+      <div className="flex gap-3 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-4">
+        <button
+          type="button"
+          onClick={() => setSelectedRegionId(null)}
+          className={`snap-start px-5 py-2.5 rounded-full text-base font-medium whitespace-nowrap transition-all ${
+            selectedRegionId === null
+              ? 'bg-slate-600 text-white'
+              : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+          }`}
+        >
+          {t('home:all')}
+        </button>
+
+        {(dbRegions || []).filter((r: any) => r && r.id && r.name).map((region: any) => (
+          <button
+            key={region.id}
+            type="button"
+            onClick={() => setSelectedRegionId(region.id)}
+            className={`snap-start px-5 py-2.5 rounded-full text-base font-medium whitespace-nowrap transition-all ${
+              selectedRegionId === region.id
+                ? 'bg-slate-600 text-white'
+                : 'bg-slate-800/60 text-slate-300 hover:bg-slate-700/60'
+            }`}
+          >
+            {region.name}
+          </button>
+        ))}
+      </div>
+
+      {/* Top Tailors Section - Card Design */}
+      <section className="space-y-5">
+        <div className="flex items-center justify-between px-1">
+          <h2 className="text-lg text-white">{t('home:topTailorsByRegion')}</h2>
           <button
             type="button"
             onClick={() => navigate('/tailors')}
-            className="text-sm font-semibold text-purple-400 hover:text-purple-300 transition-colors"
+            className="text-base font-semibold text-slate-300 hover:text-white transition-colors"
           >
-            {t('home:allTailors')}
+            {t('home:seeAll')}
           </button>
-        </div>
-
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-2 snap-x px-2">
-          <button
-            type="button"
-            onClick={() => setSelectedRegionId(null)}
-            className={`snap-start px-4 py-2 rounded-lg border text-sm font-normal whitespace-nowrap transition-colors ${
-              selectedRegionId === null
-                ? 'border-purple-500 bg-purple-500 text-white'
-                : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900'
-            }`}
-          >
-            {t('home:all')}
-          </button>
-
-          {(dbRegions || []).map((region: any) => (
-            <button
-              key={region.id}
-              type="button"
-              onClick={() => setSelectedRegionId(region.id)}
-              className={`snap-start px-4 py-2 rounded-lg border text-sm font-normal whitespace-nowrap transition-colors ${
-                selectedRegionId === region.id
-                  ? 'border-purple-500 bg-purple-500 text-white'
-                  : 'border-zinc-800 bg-zinc-950 text-zinc-300 hover:bg-zinc-900'
-              }`}
-            >
-              {region.name}
-            </button>
-          ))}
-
-          {isRegionsLoading && (
-            <div className="snap-start px-4 py-2 rounded-full border border-zinc-800 bg-zinc-950 text-sm font-semibold text-zinc-400">
-              {t('home:loading')}
-            </div>
-          )}
         </div>
 
         {isTailorsLoading && (!dbTailors || dbTailors.length === 0) ? (
-          <div className="mt-4 flex gap-2 overflow-x-auto pb-2 px-2 scrollbar-hide">
-            {[1, 2, 3, 4].map((i) => (
+          <div className="flex gap-5 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-6">
+            {[1, 2, 3].map((i) => (
               <div
                 key={`tailor-skeleton-${i}`}
-                className="min-w-[200px] rounded-2xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 p-4"
+                className="snap-start min-w-[260px] h-[300px] rounded-3xl bg-slate-800/60 animate-pulse"
+              />
+            ))}
+          </div>
+        ) : filteredTailors.length > 0 ? (
+          <div className="relative group">
+            {/* Left Arrow - Always visible */}
+            <button
+              type="button"
+              className="absolute -left-5 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+              </svg>
+            </button>
+
+            {/* Cards Container */}
+            <div className="flex gap-5 overflow-x-auto pb-2 snap-x scrollbar-hide">
+              {filteredTailors.slice(0, 8).map((tailor, index) => {
+                const regionName = getRegionName(tailor, (dbRegions || []) as any);
+                const isSpecial = index === 0;
+
+                return (
+                  <TailorCardDesktop
+                    key={tailor.id}
+                    tailor={tailor}
+                    regionName={regionName}
+                    isSpecial={isSpecial}
+                    onClick={() => navigate(`/tailor/${tailor.id}`)}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Right Arrow - Always visible */}
+            <button
+              type="button"
+              className="absolute -right-5 top-1/2 -translate-y-1/2 z-20 p-2 rounded-full bg-black/60 hover:bg-black/80 text-white transition-all"
+            >
+              <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+        ) : (
+          <div className="flex gap-5 overflow-x-auto pb-2 snap-x scrollbar-hide -mx-4 px-6">
+            {[1, 2, 3].map((i) => (
+              <div
+                key={`no-results-${i}`}
+                className="snap-start min-w-[260px] rounded-3xl overflow-hidden bg-slate-800/30"
               >
-                <div className="flex items-start gap-3">
-                  <div className="h-12 w-12 rounded-xl bg-slate-100 dark:bg-slate-800" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-3 w-3/4 rounded bg-slate-100 dark:bg-slate-800" />
-                    <div className="h-3 w-1/2 rounded bg-slate-100 dark:bg-slate-800" />
+                <div className="relative h-[300px] w-[260px] flex items-center justify-center">
+                  <div className="text-center px-6">
+                    <p className="text-lg font-semibold text-slate-300">{t('home:noResultsRegionTitle')}</p>
+                    <p className="mt-2 text-base text-slate-500">{t('home:noResultsRegionSubtitle')}</p>
                   </div>
                 </div>
               </div>
             ))}
-          </div>
-        ) : (
-          <div className="relative group/rail">
-            <button
-              type="button"
-              onClick={(e) => {
-                const container = e.currentTarget.nextElementSibling as HTMLElement;
-                container?.scrollBy({ left: -300, behavior: 'smooth' });
-              }}
-              className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-zinc-900/90 border border-zinc-700 flex items-center justify-center opacity-0 group-hover/rail:opacity-100 transition-opacity hover:bg-zinc-800"
-              aria-label={t('home:scrollLeft')}
-            >
-              <svg className="h-5 w-5 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-              </svg>
-            </button>
-            <div className="mt-4 flex gap-2 overflow-x-auto pb-2 snap-x px-2 scrollbar-hide">
-              {filteredTailors.slice(0, 12).map((tailor, index) => (
-                <button
-                  key={tailor.id}
-                  type="button"
-                  onClick={() => navigate(`/tailor/${tailor.id}`)}
-                  className="focus:outline-none focus:ring-2 focus:ring-purple-500/50 rounded-2xl"
-                >
-                  <TailorPill tailor={tailor} regionName={getRegionName(tailor, (dbRegions || []) as any)} isNew={index === 0} />
-                </button>
-              ))}
-
-              {!isTailorsLoading && filteredTailors.length === 0 && (
-                <div className="w-full py-10 text-center text-slate-600 dark:text-slate-400">
-                  <p className="text-sm font-semibold">{t('home:noResultsRegionTitle')}</p>
-                  <p className="mt-1 text-xs">{t('home:noResultsRegionSubtitle')}</p>
-                </div>
-              )}
-            </div>
-            <button
-              type="button"
-              onClick={(e) => {
-                const container = e.currentTarget.previousElementSibling as HTMLElement;
-                container?.scrollBy({ left: 300, behavior: 'smooth' });
-              }}
-              className="absolute right-0 top-1/2 -translate-y-1/2 z-10 h-10 w-10 rounded-full bg-zinc-900/90 border border-zinc-700 flex items-center justify-center opacity-0 group-hover/rail:opacity-100 transition-opacity hover:bg-zinc-800"
-              aria-label={t('home:scrollRight')}
-            >
-              <svg className="h-5 w-5 text-zinc-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-              </svg>
-            </button>
           </div>
         )}
       </section>

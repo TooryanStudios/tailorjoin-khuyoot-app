@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, Layers, ShoppingCart, PenTool, Scissors, ClipboardList, PackageOpen, Store, Box } from 'lucide-react';
+import { Home, User, BarChart3, Settings, PenTool } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
@@ -65,23 +65,19 @@ const FooterNavItem = React.memo(function FooterNavItem({
   return (
     <button
       onClick={onClick}
-      className="group flex flex-1 flex-col items-center justify-start pt-3 gap-1 transition-all duration-200 active:scale-95 h-full"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95 w-12 h-12"
     >
-      <div className={`relative p-0.5 transition-all duration-300 ${active ? '-translate-y-1' : ''}`}>
+      <div className={`relative transition-all duration-300 ${active ? 'scale-110' : 'scale-100'}`}>
         <Icon
-          size={26}
+          size={20}
           strokeWidth={active ? 2.5 : 2}
-          className={`transition-colors duration-300 ${active ? 'text-blue-600 dark:text-blue-400' : 'text-slate-400 dark:text-slate-500'}`}
+          className={`transition-colors duration-300 ${
+            active 
+              ? 'text-white' 
+              : 'text-slate-400 group-hover:text-slate-300'
+          }`}
         />
-
-        {active && <span className="absolute -bottom-1.5 left-1/2 h-1 w-1 -translate-x-1/2 rounded-full bg-blue-600 dark:bg-blue-400" />}
       </div>
-
-      <span
-        className={`text-[10px] font-medium transition-colors duration-300 ${active ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}
-      >
-        {label}
-      </span>
     </button>
   );
 });
@@ -103,37 +99,25 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   return (
     <button
       onClick={onClick}
-      className="group flex flex-1 flex-col items-center justify-start pt-3 gap-1 transition-all duration-200 active:scale-95 h-full"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95 w-12 h-12"
     >
       <div
-        className={`relative h-7 w-7 transition-all duration-300 ${
-          active ? '-translate-y-1 ring-2 ring-blue-500 ring-offset-2 ring-offset-white dark:ring-offset-[#1a1a1a] rounded-full' : ''
-        }`}
+        className={`relative transition-all duration-300 ${active ? 'scale-110' : 'scale-100'}`}
       >
         {user?.profileImage ? (
-          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-full w-full rounded-full object-cover" />
+          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-5 w-5 rounded-full object-cover" />
         ) : (
-          <div className="flex h-full w-full items-center justify-center rounded-full bg-slate-100 text-slate-400 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-              <circle cx="12" cy="7" r="4" />
-            </svg>
-          </div>
-        )}
-
-        {!active && (
-          <span
-            className={`absolute -bottom-1.5 -right-2 scale-[0.65] ${badge.cls} text-white px-1.5 py-0.5 rounded-full text-[9px] font-bold shadow-sm ring-2 ring-white dark:ring-[#1a1a1a]`}
-          >
-            {badge.text}
-          </span>
+          <User
+            size={20}
+            strokeWidth={active ? 2.5 : 2}
+            className={`transition-colors duration-300 ${
+              active 
+                ? 'text-white' 
+                : 'text-slate-400 group-hover:text-slate-300'
+            }`}
+          />
         )}
       </div>
-      <span
-        className={`text-[10px] font-medium transition-colors duration-300 ${active ? 'text-blue-600 font-bold dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}`}
-      >
-        {label}
-      </span>
     </button>
   );
 });
@@ -189,7 +173,7 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
 });
 
 export function Footer() {
-  const { t } = useTranslation('common');
+  const { t, i18n } = useTranslation('common');
   const navigate = useNavigate();
   const location = useLocation();
   const selectedTemplateId = useDesignerStore((s) => s.selectedTemplateId);
@@ -234,132 +218,116 @@ export function Footer() {
   const isShop = user?.role === 'shop';
   const isRegularUser = !user || user.role === 'user'; 
 
+  const isRTL = i18n.dir() === 'rtl';
+
   return (
-    // Mobile-only bottom navigation. On desktop, this takes visual space and feels oversized.
+    // Floating rounded navigation bar
     <div
-      className="bottom-nav fixed bottom-0 left-0 right-0 w-full bg-white/10 dark:bg-black/10 backdrop-blur-xl border-t border-white/20 dark:border-white/10 pb-safe shadow-[0_-4px_20px_rgba(0,0,0,0.08)] overflow-visible shrink-0 z-50"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)', display: 'flex' }}
+      className="bottom-nav fixed bottom-4 left-1/2 -translate-x-1/2 w-auto z-50"
+      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
-      <style>{`
-        @keyframes khuyootFooterShine {
-          0%   { transform: translateX(-160%) rotate(18deg); }
-          55%  { transform: translateX(160%) rotate(18deg); }
-          100% { transform: translateX(160%) rotate(18deg); }
-        }
-      `}</style>
-      {/* Container height increased slightly to accommodate lifted icons */}
-      <div className="mx-auto flex h-[74px] w-full max-w-lg items-start justify-between px-2">
+      {/* Rounded pill container with stronger blur */}
+      <div className="flex items-center gap-3 px-5 h-16 bg-slate-900/70 dark:bg-black/70 backdrop-blur-3xl rounded-full shadow-2xl shadow-black/40 border border-white/10">
 
-        <FooterNavItem icon={Home} label={t('navHome')} active={isActive('/')} onClick={() => navigate('/')} />
+        {/* Guest layout: Home / Account / Designer */}
+        {!user && (
+          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <button
+              onClick={() => navigate('/')}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
+                isActive('/')
+                  ? 'border-emerald-400 bg-emerald-400/15 text-emerald-100'
+                  : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20'
+              }`}
+            >
+              <Home size={20} strokeWidth={isActive('/') ? 2.6 : 2.2} />
+            </button>
 
-        {!loading && (
-          <>
-            {isRegularUser && (
-              <FooterNavItem
-                icon={Layers}
-                label={t('navCollections')}
-                active={isActive('/collections')}
-                onClick={() => navigate('/collections')}
-              />
-            )}
-            {isTailor && (
-              <FooterNavItem
-                icon={Scissors}
-                label={t('navMyProducts')}
-                active={isActive('/tailor/collections')}
-                onClick={() => navigate('/tailor/collections')}
-              />
-            )}
-            {isBoutique && (
-              <FooterNavItem
-                icon={PackageOpen}
-                label={t('orders')}
-                active={isActive('/boutique/orders')}
-                onClick={() => navigate('/boutique/orders')}
-              />
-            )}
-            {isShop && (
-              <FooterNavItem
-                icon={Store}
-                label={t('orders')}
-                active={isActive('/shop/orders')}
-                onClick={() => navigate('/shop/orders')}
-              />
-            )}
-          </>
-        )}
+            <button
+              onClick={() => {
+                // Open auth modal for guests
+                const event = new CustomEvent('openAuthModal');
+                window.dispatchEvent(event);
+              }}
+              className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
+                isActive('/account')
+                  ? 'border-emerald-400 bg-emerald-400/15 text-emerald-100'
+                  : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20'
+              }`}
+            >
+              <User size={20} strokeWidth={isActive('/account') ? 2.6 : 2.2} />
+            </button>
 
-        {appSettings.designerEnabled &&
-          (isInDesigner ? (
-            <FooterPlaceOrderCTA onClick={handlePlaceOrder} disabled={!resolvedProductId} />
-          ) : (
-            <FooterNavItem
-              icon={PenTool}
-              label={t('navDesigner')}
-              active={isInDesigner}
+            <button
               onClick={() => navigate('/designer-v2-1')}
-            />
-          ))}
-        
-        {!loading && (
+              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 overflow-hidden ${
+                isActive('/designer') || isActive('/designer-v2-1')
+                  ? 'border-emerald-400 bg-emerald-400/10 text-emerald-100'
+                  : 'border-white/10 bg-gradient-to-br from-indigo-500/30 via-blue-500/20 to-cyan-500/10 text-slate-200 hover:border-white/20'
+              }`}
+            >
+              <span
+                aria-hidden
+                className="pointer-events-none absolute inset-0 -translate-x-full bg-white/20"
+                style={{ animation: 'khuyootFooterShine 2.5s ease-in-out infinite' }}
+              />
+              <PenTool size={21} strokeWidth={2.4} className="relative" />
+            </button>
+          </div>
+        )}
+
+        {/* Signed-in layout remains as before */}
+        {user && (
           <>
-            {appSettings.cartEnabled && isRegularUser && (
-              <FooterNavItem
-                icon={ShoppingCart}
-                label={t('cart')}
-                active={isActive('/cart')}
-                onClick={() => navigate('/cart')}
-              />
-            )}
-            {isTailor && (
-              <FooterNavItem
-                icon={ClipboardList}
-                label={t('orders')}
-                active={isActive('/tailor/orders')}
-                onClick={() => navigate('/tailor/orders')}
-              />
-            )}
-            {isShop && (
-              <FooterNavItem
-                icon={Box}
-                label={t('navInventory')}
-                active={isActive('/shop/inventory')}
-                onClick={() => navigate('/shop/inventory')}
-              />
-            )}
+            <FooterNavItem icon={Home} label={t('navHome')} active={isActive('/')} onClick={() => navigate('/')} />
+
+            <FooterAccountItem
+              label={t('navAccount')}
+              user={user}
+              active={
+                isActive(
+                  user?.role === 'tailor'
+                    ? '/tailor-account'
+                    : user?.role === 'boutique'
+                      ? '/boutique-account'
+                      : user?.role === 'shop'
+                        ? '/shop-account'
+                        : user?.role === 'admin'
+                          ? '/admin'
+                          : '/account'
+                )
+              }
+              onClick={() => {
+                navigate(
+                  user?.role === 'tailor'
+                    ? '/tailor-account'
+                    : user?.role === 'boutique'
+                      ? '/boutique-account'
+                      : user?.role === 'shop'
+                        ? '/shop-account'
+                        : user?.role === 'admin'
+                          ? '/admin'
+                          : '/account'
+                );
+              }}
+            />
+
+            <FooterNavItem 
+              icon={BarChart3} 
+              label={t('navStats')} 
+              active={isActive('/stats')} 
+              onClick={() => navigate('/stats')} 
+            />
+
+            <FooterNavItem 
+              icon={Settings} 
+              label={t('navSettings')} 
+              active={isActive('/settings')} 
+              onClick={() => navigate('/settings')} 
+            />
           </>
         )}
 
-        <FooterAccountItem
-          label={t('navAccount')}
-          user={user}
-          active={
-            isActive(
-              user?.role === 'tailor'
-                ? '/tailor-account'
-                : user?.role === 'boutique'
-                  ? '/boutique-account'
-                  : user?.role === 'shop'
-                    ? '/shop-account'
-                    : user?.role === 'admin'
-                      ? '/admin'
-                      : '/account'
-            )
-          }
-          onClick={() =>
-            navigate(
-              user?.role === 'tailor'
-                ? '/tailor-account'
-                : user?.role === 'boutique'
-                  ? '/boutique-account'
-                  : user?.role === 'shop'
-                    ? '/shop-account'
-                    : user?.role === 'admin'
-                      ? '/admin'
-                      : '/account'
-            )
-          }
-        />
       </div>
     </div>
   );

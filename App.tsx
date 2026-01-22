@@ -48,6 +48,11 @@ import { TryOnPage } from './pages/TryOnPage';
 import { JankSandbox } from './pages/JankSandbox';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
+
+// DEV-ONLY: WhatsApp Sandbox Testing
+const WhatsAppSandboxPanel = React.lazy(() => 
+  import('./src/devtools/whatsapp/WhatsAppSandboxPanel').then(m => ({ default: m.WhatsAppSandboxPanel }))
+);
 import ReturnPolicy from './pages/ReturnPolicy';
 import { Settings } from './pages/Settings';
 import { useAppStore } from './src/store/useAppStore';
@@ -298,6 +303,14 @@ const AppContent: React.FC = () => {
                      <Route path="b" element={<NavDebugB />} />
                      <Route path="c" element={<NavDebugC />} />
                    </Route>
+                   <Route
+                     path="/__dev/whatsapp-sandbox"
+                     element={
+                       <React.Suspense fallback={<LoadingShell />}>
+                         <WhatsAppSandboxPanel />
+                       </React.Suspense>
+                     }
+                   />
                  </>
                )}
                {/* Standalone Admin Route (Separated from Client Layout) */}

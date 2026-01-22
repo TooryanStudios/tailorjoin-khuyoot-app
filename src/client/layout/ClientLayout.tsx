@@ -45,7 +45,8 @@ export const ClientLayout: React.FC = () => {
 
   // For mobile: hide header on designer, tailor profile, and product details pages
   // For mobile tailor profile and product details, hide only the header but keep the footer
-  const hideHeader = isMobile && (pathname.startsWith('/designer-v2-1') || isTailorProfile || isProductDetails);
+  // UPDATED: Hide header on ALL mobile pages
+  const hideHeader = isMobile;
   const hideChrome = isMobile && pathname.startsWith('/designer-v2-1');
 
   React.useLayoutEffect(() => {

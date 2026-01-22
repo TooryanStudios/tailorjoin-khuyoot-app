@@ -87,6 +87,7 @@ export const AuthModal = () => {
   const { isAuthModalOpen, toggleAuthModal, login, register, loading, authModalMode, user, appSettings } = useApp();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
+  const [showForm, setShowForm] = useState(false);
   // Quick access developer accounts menu removed
   const [submitting, setSubmitting] = useState(false);
   const [wasOpen, setWasOpen] = useState(false);
@@ -149,6 +150,9 @@ export const AuthModal = () => {
   const [experience, setExperience] = useState('');
   const [tailorGender, setTailorGender] = useState<'male' | 'female' | ''>('');
   const [statusText, setStatusText] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const specialization = tailorGender ? tailorGenderToSpecialization(tailorGender) : undefined;
   // Guided fallback state when phone matches a user without email
   const [fallbackUid, setFallbackUid] = useState<string>('');
   const [fallbackUserData, setFallbackUserData] = useState<any>(null);
@@ -184,59 +188,6 @@ export const AuthModal = () => {
     setConfirmPassword('');
   }, [isLogin]);
 
-  useEffect(() => {
-    loadRegions();
-  }, []);
-
-  // Manage body scroll lock - critical for preventing overlay persistence
-  useEffect(() => {
-    if (isAuthModalOpen) {
-      // Lock body scroll when modal opens using class
-      document.body.classList.add('modal-open');
-      console.log('🔒 Body scroll locked (class added)');
-      
-      return () => {
-        // Always remove lock class on cleanup
-        document.body.classList.remove('modal-open');
-        console.log('🔓 Body scroll unlocked (class removed)');
-      };
-    } else {
-      // Ensure lock is removed when modal closes
-      document.body.classList.remove('modal-open');
-    }
-  }, [isAuthModalOpen]);
-
-  // Global escape key handler
-  useEffect(() => {
-    if (!isAuthModalOpen) return;
-    
-    const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        toggleAuthModal(false);
-      }
-    };
-    
-    window.addEventListener('keydown', handleEscape);
-    return () => window.removeEventListener('keydown', handleEscape);
-  }, [isAuthModalOpen, toggleAuthModal]);
-
-  // Force close modal on route change (navigation)
-  useEffect(() => {
-    if (!isAuthModalOpen) return;
-    
-    const handleLocationChange = () => {
-      console.log('🚀 Route changed, closing auth modal');
-      toggleAuthModal(false);
-    };
-    
-    // Listen for popstate (back/forward button)
-    window.addEventListener('popstate', handleLocationChange);
-    
-    return () => {
-      window.removeEventListener('popstate', handleLocationChange);
-    };
-  }, [isAuthModalOpen, toggleAuthModal]);
-
   const loadRegions = async () => {
     try {
       const data = await firebaseService.getPopularRegions();
@@ -246,492 +197,342 @@ export const AuthModal = () => {
     }
   };
 
-  if (!isAuthModalOpen) return null;
+  useEffect(() => {
+    loadRegions();
+  }, []);
 
-  // Developer quick login removed
+  // Listen for 'openAuthModal' event from Footer
+  useEffect(() => {
+    const handleOpenAuthModal = () => {
+      console.log('🎯 openAuthModal event received, current state:', isAuthModalOpen);
+      if (!isAuthModalOpen) {
+        console.log('📖 Opening auth modal...');
+        toggleAuthModal(true); // Pass true to open the modal
+      } else {
+        console.log('⚠️ Modal already open, skipping');
+      }
+    };
 
-  const normalizePhone = (raw: string) => {
-    let digits = (raw || '').replace(/[^0-9]/g, '');
-    if (digits.startsWith('968')) digits = digits.slice(3);
-    return digits;
-  };
+    window.addEventListener('openAuthModal', handleOpenAuthModal);
+    console.log('✅ Event listener attached for openAuthModal');
+    
+    return () => {
+      window.removeEventListener('openAuthModal', handleOpenAuthModal);
+      console.log('🗑️ Event listener removed for openAuthModal');
+    };
+  }, [isAuthModalOpen, toggleAuthModal]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log('🔐 Login form submitted', { isLogin, email: email?.substring(0, 5) + '***' });
-    
-    if (!isLogin && password !== confirmPassword) { 
-      alert('كلمة المرور غير متطابقة! يرجى التأكد من تطابق الحقلين.'); 
-      return; 
-    }
-    if (!isLogin && role === 'tailor' && !tailorGender) { 
-      alert('يرجى اختيار التخصص (رجالي/نسائي)'); 
-      return; 
-    }
     setSubmitting(true);
+    
     try {
-      //
       if (isLogin) {
-        const input = email.trim();
-        console.log('🔐 Login type detected:', input.includes('@') ? 'email' : 'phone');
-        if (input.includes('@')) {
-          setStatusText('يتم تسجيل الدخول...');
-          console.log('🔐 Attempting email login...');
-          await login(input, password);
-          console.log('✅ Email login successful');
-        } else {
-          const phoneDigits = normalizePhone(input);
-          //
-          if (!phoneDigits) { alert('يرجى إدخال رقم هاتف صحيح'); setSubmitting(false); return; }
-          setStatusText('يتم التحقق من الرقم...');
-          // Try loginId first
-          const candidates = [phoneDigits, `968${phoneDigits}`];
-          //
-          let found = null as Awaited<ReturnType<typeof firebaseService.findUserByLoginId>>;
-          for (const cand of candidates) {
-            found = await firebaseService.findUserByLoginId(cand);
-            //
-            if (found) break;
-          }
-          // Fallback to phone field for older accounts
-          if (!found) {
-            //
-            for (const cand of candidates) {
-              found = await firebaseService.findUserByPhone(cand);
-              //
-              if (found) break;
-            }
-          }
-          if (!found) { 
-            alert('لا يوجد حساب مرتبط بهذا الرقم'); 
-            setSubmitting(false); 
-            return; 
-          }
-          //
-          if (!found.email) {
-            // Auto-assign temp email from phone and register credentials, or prompt if preferred
-            setStatusText('إنشاء بريد مؤقت وربط الحساب...');
-            try {
-              const data = await firebaseService.getUserById(found.uid);
-              setFallbackUid(found.uid);
-              setFallbackUserData(data || {});
-              const tempEmail = firebaseService.generateTempEmailFromPhone(phoneDigits);
-              const nameToUse = (data && data.name) ? data.name : 'مستخدم';
-              let roleToUse: UserRole = (data && data.role) ? (data.role as UserRole) : 'user';
-              const merchantInfo: any = {
-                phone: (data && data.phone) ? data.phone : phoneDigits,
-                loginId: (data && data.loginId) ? data.loginId : phoneDigits,
-                gender: data?.gender,
-                region: data?.region,
-                shopType: data?.shopType,
-                location: data?.location,
-                specialization: data?.specialization,
-                experience: data?.experience,
-                tailorGender: data?.tailorGender,
-              };
-              await register(tempEmail, password, nameToUse, roleToUse, merchantInfo);
-              toggleAuthModal(false);
-              return;
-            } catch (e) {
-              console.warn('Auto temp email register failed, falling back to manual entry', e);
-              setShowFallback(true);
-              setStatusText('أدخل بريد لربط الحساب ثم أكمل');
-              setSubmitting(false);
-              return;
-            }
-          }
-          setStatusText('يتم تسجيل الدخول...');
-          console.log('🔐 Phone login - found email:', found.email);
-          await login(found.email, password);
-          console.log('✅ Phone login successful');
-        }
+        await login(email, password);
       } else {
-        console.log('📝 Registration attempt...');
-        // Build merchant info for all shop types
-        const merchantInfo = { 
-          phone, gender, region,
-          loginId: phone ? normalizePhone(phone) : '',
-          ...(role === 'user' && { ageGroup }), // Add age group for regular users
-          ...(role === 'tailor' && { 
-            shopType, // Always include shopType for merchants
-            location, 
-            experience, 
-            specialization: tailorGender ? tailorGenderToSpecialization(tailorGender as 'male' | 'female') : [], 
-            tailorGender: tailorGender as 'male' | 'female' 
-          }) 
+        // Validate passwords match
+        if (password !== confirmPassword) {
+          alert('كلمات المرور غير متطابقة');
+          setSubmitting(false);
+          return;
+        }
+        
+        // التحقق من اختيار جنس الخياط (إلزامي)
+        if (role === 'tailor' && !tailorGender) {
+          alert('يرجى اختيار تخصص الخياط (رجالي أو نسائي)');
+          setSubmitting(false);
+          return;
+        }
+        
+        // رقم الهاتف مطلوب للجميع، معلومات إضافية للتجار فقط
+        const merchantInfo = {
+          phone, // رقم الهاتف لجميع المستخدمين
+          gender, // الجنس لجميع المستخدمين
+          ageGroup,
+          region,
+          ...(role === 'tailor' && {
+            shopType,
+            location,
+            specialization,
+            experience,
+            tailorGender: tailorGender as 'male' | 'female' // جنس الخياط إلزامي
+          })
         };
         
-        // Determine actual role based on shop type
+        // تحديد الدور الصحيح بناءً على نوع المتجر
         let actualRole: UserRole = 'user';
         if (role === 'tailor') {
-            // Map shopType to appropriate role
-            if (shopType === 'tailor') {
-                actualRole = 'tailor';
-            } else {
-                actualRole = 'shop'; // All other types (boutique, fabric_store, etc.) are 'shop'
-            }
+          // تحويل shopType إلى role المناسب
+          if (shopType === 'boutique') actualRole = 'boutique';
+          else if (shopType === 'tailor') actualRole = 'tailor';
+          else actualRole = 'user'; // fabric_store و sewing_supplies يصبحون مستخدمين عاديين حالياً
         }
         
         await register(email, password, name, actualRole, merchantInfo);
-        console.log('✅ Registration successful');
       }
-      // Note: modal closure now handled by AppContext.login() on success
-    } catch (error: any) { 
-      console.error("❌ Auth error:", error);
-      console.error("❌ Error code:", error?.code);
-      console.error("❌ Error message:", error?.message);
-      // AppContext.login/register already shows an alert, so we just unlock the UI
+    } catch (error) {
+      console.error('Auth error:', error);
+    } finally {
       setSubmitting(false);
-      setStatusText('');
-    } 
-    finally { 
-      console.log('🏁 Auth flow complete, submitting:', submitting);
-      setSubmitting(false); 
     }
   };
 
   if (!isAuthModalOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-0 md:p-4 overflow-y-auto" data-overlay="khuyoot-modal">
-      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={() => toggleAuthModal(false)} />
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 md:p-6" data-overlay="khuyoot-modal">
+      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={() => { toggleAuthModal(false); setShowForm(false); }} />
 
-      <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 rounded-none md:rounded-xl shadow-2xl overflow-y-auto flex max-h-full md:max-h-[80vh] animate-in zoom-in-95 duration-300" onClick={(e) => e.stopPropagation()}>
-        
-        {/* --- Right Section (Form) --- */}
-        <div className="w-full md:w-3/5 flex flex-col relative z-10">
-          
-          {/* Mobile: Large Logo Header - Desktop: Small logo with close button */}
-          <div className="px-4 md:px-3 py-6 md:py-2 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-20 border-b border-slate-200 dark:border-slate-800">
-             <div className="flex items-center justify-center md:justify-start w-full md:w-auto">
-                <img src="/logo_big.png" alt="Khuyoot" className="w-32 h-32 md:w-16 md:h-16 object-contain" />
-             </div>
-             <button onClick={() => toggleAuthModal(false)} className="absolute left-4 top-4 md:relative md:left-0 md:top-0 p-1.5 rounded-full hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 transition-colors">
-                <X size={18}/>
-             </button>
-          </div>
+      <div
+        className="relative w-full max-w-md bg-zinc-900/90 text-white rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          onClick={() => { toggleAuthModal(false); setShowForm(false); }}
+          className="absolute top-3 right-3 z-30 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+          aria-label="إغلاق"
+        >
+          <X size={14} />
+        </button>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar p-4 md:p-3 pt-3 md:pt-2.5">
-            
-            <div className="mb-3 md:mb-4 mt-1">
-              <h1 className="text-2xl md:text-3xl font-extrabold text-slate-900 dark:text-white mb-1.5 md:mb-2">
-                {isLogin ? 'مرحباً بعودتك! 👋' : 'ابدأ رحلتك معنا 🚀'}
-              </h1>
-              <p className="text-slate-500 text-xs md:text-sm">
-                {isLogin ? 'أدخل بياناتك للمتابعة حيث توقفت' : 'سجل الآن واستمتع بتجربة تفصيل عصرية'}
+        {/* Hero image */}
+        <div className="relative w-full h-48 md:h-56 overflow-visible">
+          <img src="/auth-panel.jpg" alt="Khuyoot Tailoring" className="absolute inset-0 w-full h-full object-cover" />
+          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent" />
+        </div>
+
+        {/* Title above logo */}
+        <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(14rem - 6rem)' }}>
+          <h2 className="text-sm md:text-base font-semibold text-zinc-100">مرحباً بك في </h2>
+        </div>
+
+        {/* Floating logo */}
+        <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(12rem - 4.5rem)' }}>
+          <img
+            src="/logo_big.png"
+            alt="Khuyoot"
+            className="w-36 h-36 md:w-44 md:h-44 drop-shadow-2xl pointer-events-none select-none"
+            style={{ imageRendering: 'high-quality', objectFit: 'contain' }}
+          />
+        </div>
+
+        <div className="p-6 md:p-8 text-center pt-12 md:pt-14">
+          {!showForm ? (
+            <div className="transition-opacity duration-300">
+              <p className="text-zinc-400 mb-5 md:mb-6 leading-relaxed text-xs md:text-sm">
+                سجل دخولك الآن للوصول إلى طلباتك، مقاساتك، والتواصل مع أمهر الخياطين في المنطقة.
               </p>
-            </div>
 
-            {/* Toggle Switch */}
-            <div className="flex p-1 bg-slate-100 dark:bg-slate-800 rounded-lg md:rounded-2xl mb-4 md:mb-5 relative isolate">
-              <div
-                className={`absolute inset-y-1 w-[calc(50%-4px)] bg-white dark:bg-slate-700 rounded-md md:rounded-xl shadow-sm transition-all duration-300 ease-out transform -z-10 ${
-                  isLogin ? 'right-1' : 'left-1'
-                }`}
-              />
-              <button
-                type="button"
-                onClick={() => setIsLogin(true)}
-                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
-                  isLogin ? 'text-indigo-600 dark:text-white' : 'text-slate-500 dark:text-slate-300'
-                }`}
-              >
-                تسجيل دخول
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (!allowRegistrations) return;
-                  setIsLogin(false);
-                }}
-                disabled={!allowRegistrations}
-                className={`flex-1 py-2.5 text-sm font-bold transition-colors ${
-                  !allowRegistrations
-                    ? 'text-slate-400 cursor-not-allowed'
-                    : !isLogin
-                      ? 'text-indigo-600 dark:text-white'
-                      : 'text-slate-500 dark:text-slate-300'
-                }`}
-              >
-                {allowRegistrations ? 'حساب جديد' : 'حساب جديد (مغلق)'}
-              </button>
-            </div>
-
-            {!allowRegistrations && (
-              <div className="mb-4 rounded-xl border px-4 py-3 text-xs" style={{borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'}}>
-                التسجيل للمستخدمين الجدد مغلق حالياً. يمكن للإدارة تفعيله من إعدادات النظام.
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-4">
-              
-              {/* --- Group 1: Identity & Credentials --- */}
-              <div className="space-y-3">
-                 {!isLogin && (
-                    <ModernInput icon={UserIcon} label="الاسم الكامل" placeholder="مثال: محمد سعيد" value={name} onChange={(e) => setName(e.target.value)} required />
-                 )}
-                 
-                 <ModernInput icon={Mail} label={isLogin ? "البريد الإلكتروني أو رقم الهاتف" : undefined} placeholder={isLogin ? "name@example.com أو 9xxxxxxx" : "name@example.com"} type="text" value={email} onChange={(e) => setEmail(e.target.value)} required />
-                 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div className={isLogin ? 'md:col-span-2' : ''}>
-                      <ModernInput icon={Lock} label={isLogin ? "كلمة المرور" : undefined} placeholder="••••••" type="password" value={password} onChange={(e) => setPassword(e.target.value)} enablePasswordToggle required />
-                    </div>
-                    {!isLogin && (
-                      <ModernInput icon={ShieldCheck} placeholder="تأكيد كلمة المرور" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} enablePasswordToggle required />
-                    )}
-                 </div>
-              </div>
-
-              {/* --- Group 2: Registration Details (Hidden on Login) --- */}
-              {!isLogin && (
-                <div className="space-y-4 animate-in slide-in-from-top-4 duration-500">
-                  
-                  {/* Personal Info Group */}
-                  <div>
-                      <SectionLabel title="معلومات التواصل" />
-                      <div className="grid grid-cols-2 gap-4">
-                          <div className="col-span-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">رقم الهاتف</span>
-                              <div className="flex-1">
-                                <ModernInput icon={Phone} label={undefined} placeholder="9xxxxxxx" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} required />
-                              </div>
-                            </div>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">الجنس</span>
-                              <div className="flex flex-1 gap-2">
-                                <button type="button" onClick={() => setGender('male')} className={`flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2`} style={gender === 'male' ? {borderColor: '#469788', color: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0', color: '#64748b'}}>ذكر</button>
-                                <button type="button" onClick={() => setGender('female')} className={`flex-1 py-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-center gap-2`} style={gender === 'female' ? {borderColor: '#469788', color: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0', color: '#64748b'}}>أنثى</button>
-                              </div>
-                            </div>
-                          </div>
-                          <div className="col-span-2">
-                            <div className="flex items-center gap-3">
-                              <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
-                                <MapPin size={12} /> المنطقة/الولاية (اختياري)
-                              </span>
-                              <div className="flex-1">
-                                <input
-                                  list="regions-list"
-                                  value={region}
-                                  onChange={(e) => {
-                                    const newRegion = e.target.value;
-                                    const oldRegion = region;
-                                    setRegion(newRegion);
-                                    if (!location || location === oldRegion) {
-                                      setLocation(newRegion);
-                                    }
-                                  }}
-                                  placeholder="اختر أو اكتب منطقتك/ولايتك"
-                                  className="w-full bg-slate-50 dark:bg-slate-800 border border-transparent focus:border-indigo-100 rounded-xl py-3.5 px-4 text-sm font-medium text-slate-900 dark:text-white focus:ring-4 focus:ring-indigo-500/10 focus:bg-white dark:focus:bg-slate-900 shadow-sm transition-all placeholder:text-slate-500/70"
-                                />
-                                <datalist id="regions-list">
-                                  {regions.map((r) => (
-                                    <option key={r.id} value={r.name} />
-                                  ))}
-                                </datalist>
-                              </div>
-                            </div>
-                          </div>
-                      </div>
-                  </div>
-
-                  {/* Age Group - Only for regular users */}
-                  {role === 'user' && (
-                    <div>
-                      <div className="flex items-center gap-2 mb-2 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">
-                        <Calendar size={12} />
-                        <span>الفئة العمرية</span>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {ageGroupOptions.map((option) => (
-                          <button
-                            key={option.value}
-                            type="button"
-                            onClick={() => setAgeGroup(option.value)}
-                            className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all`}
-                            style={ageGroup === option.value ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'} : {borderColor: '#cbd5e1', color: '#64748b'}}
-                            aria-pressed={ageGroup === option.value}
-                          >
-                            {option.label}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Account Type Group */}
-                  <div>
-                    <SectionLabel title="نوع الحساب" />
-                    <div className="grid grid-cols-2 gap-4">
-                      <div onClick={() => setRole('user')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200`} style={role === 'user' ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0'}}>
-                        <div className="flex justify-between items-start mb-2">
-                           <div className={`p-2 rounded-xl`} style={role === 'user' ? {backgroundColor: '#469788', color: '#fff'} : {backgroundColor: '#fff', color: '#94a3b8', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'}}><UserIcon size={20}/></div>
-                           {role === 'user' && <div className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor: '#469788'}}/>}
-                        </div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">مستخدم</h3>
-                        <p className="text-[10px] text-slate-500 mt-1">أبحث عن خياطين</p>
-                      </div>
-
-                      <div onClick={() => setRole('tailor')} className={`cursor-pointer group relative p-4 rounded-2xl border-2 transition-all duration-200`} style={role === 'tailor' ? {borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)'} : {borderColor: '#e2e8f0'}}>
-                        <div className="flex justify-between items-start mb-2">
-                           <div className={`p-2 rounded-xl`} style={role === 'tailor' ? {backgroundColor: '#469788', color: '#fff'} : {backgroundColor: '#fff', color: '#94a3b8', boxShadow: '0 1px 3px rgba(0,0,0,0.1)'}}><Store size={20}/></div>
-                           {role === 'tailor' && <div className="w-2 h-2 rounded-full animate-pulse" style={{backgroundColor: '#469788'}}/>}
-                        </div>
-                        <h3 className="font-bold text-sm text-slate-900 dark:text-white">تاجر / خياط</h3>
-                        <p className="text-[10px] text-slate-500 mt-1">أقدم خدماتي</p>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Business Details (Tailor Only) */}
-                  {role === 'tailor' && (
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-5 rounded-3xl border border-slate-100 dark:border-slate-700 space-y-5 animate-in slide-in-from-top-2">
-                       <div>
-                         <label className="text-[10px] font-bold text-slate-500 uppercase mb-2 block flex items-center gap-1"><BadgeCheck size={12}/> نشاط المتجر</label>
-                         <div className="grid grid-cols-2 gap-2">
-                           {[
-                             { val: 'tailor', lbl: 'خياط', ic: Scissors },
-                             { val: 'boutique', lbl: 'بوتيك', ic: Sparkles },
-                             { val: 'fabric_store', lbl: 'أقمشة', ic: Store },
-                             { val: 'sewing_supplies', lbl: 'مستلزمات', ic: Box }
-                           ].map((item) => (
-                             <button 
-                               key={item.val} type="button" onClick={() => setShopType(item.val as ShopType)} 
-                               className={`flex items-center gap-2 px-3 py-2.5 rounded-xl text-xs font-bold border transition-all`}
-                               style={shopType === item.val ? {backgroundColor: '#469788', color: '#fff', borderColor: '#469788'} : {backgroundColor: '#fff', borderColor: '#e2e8f0', color: '#64748b'}}
-                             >
-                               <item.ic size={16} style={{color: shopType === item.val ? '#fff' : '#469788'}}/> {item.lbl}
-                             </button>
-                           ))}
-                         </div>
-                       </div>
-                       <div className="grid grid-cols-2 gap-4">
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1 flex items-center gap-1">
-                              <MapPin size={12} /> المدينة/الموقع
-                            </label>
-                            <input
-                              type="text"
-                              value={location}
-                              onChange={(e) => setLocation(e.target.value)}
-                              placeholder="مثال: الخوير، مسقط"
-                              className="w-full px-4 py-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl focus:outline-none focus:ring-2 text-slate-900 dark:text-white text-sm placeholder:text-slate-500/70"
-                              onFocus={(e) => e.currentTarget.style.borderColor = '#469788'}
-                              onBlur={(e) => e.currentTarget.style.borderColor = '#cbd5e1'}
-                            />
-                            <p className="text-[10px] text-slate-400 mt-1">يمكنك تحديد موقع أكثر دقة</p>
-                          </div>
-                          <div className="space-y-1.5">
-                            <label className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mr-1">التخصص</label>
-                             <div className="flex bg-white dark:bg-slate-900 rounded-xl p-1 border border-slate-200 dark:border-slate-700 items-center">
-                               <button 
-                                 type="button" 
-                                 onClick={() => setTailorGender('male')} 
-                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all`}
-                                 style={{backgroundColor: tailorGender === 'male' ? 'rgba(70, 151, 136, 0.2)' : 'transparent', color: tailorGender === 'male' ? '#469788' : '#94a3b8'}}
-                               >
-                                 رجالي
-                               </button>
-                               <div className="h-6 w-px mx-1" style={{backgroundColor: '#cbd5e1'}} aria-hidden="true"/>
-                               <button 
-                                 type="button" 
-                                 onClick={() => setTailorGender('female')} 
-                                 className={`flex-1 py-2.5 rounded-lg text-xs font-bold transition-all`}
-                                 style={{backgroundColor: tailorGender === 'female' ? 'rgba(70, 151, 136, 0.2)' : 'transparent', color: tailorGender === 'female' ? '#469788' : '#94a3b8'}}
-                               >
-                                 نسائي
-                               </button>
-                             </div>
-                          </div>
-                       </div>
-                    </div>
-                  )}
+              <div className="space-y-2.5">
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    onClick={() => { setIsLogin(true); setShowForm(true); }}
+                    className="py-2.5 bg-indigo-600/90 hover:bg-indigo-500/90 backdrop-blur-xl text-white rounded-lg font-normal text-sm shadow-xl shadow-indigo-900/30 hover:shadow-2xl hover:shadow-indigo-900/40 transition-all duration-300 transform active:scale-[0.98] border border-white/10"
+                  >
+                    تسجيل الدخول
+                  </button>
+                  <button
+                    onClick={() => { if (allowRegistrations) { setIsLogin(false); setShowForm(true); }}}
+                    disabled={!allowRegistrations}
+                    className="py-2.5 bg-zinc-800/90 hover:bg-zinc-700/90 backdrop-blur-xl text-zinc-100 rounded-lg font-normal text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform active:scale-[0.98] border border-white/10 disabled:opacity-50"
+                  >
+                    حساب جديد
+                  </button>
                 </div>
-              )}
 
-              {/* Submit Button */}
-              <div className="pt-2">
-                <button disabled={submitting} type="submit" className="group w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold text-lg shadow-xl shadow-slate-200 dark:shadow-none hover:shadow-2xl hover:shadow-slate-300 dark:hover:shadow-slate-800/50 transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed">
-                    {submitting ? <span className="animate-spin w-5 h-5 border-2 border-white/20 border-t-white rounded-full"/> : (
-                    <>{isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'} <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform rtl:group-hover:-translate-x-1" /></>
-                    )}
+                <button
+                  onClick={() => { toggleAuthModal(false); setShowForm(false); navigate('/'); }}
+                  className="w-full py-2.5 bg-transparent text-zinc-400 hover:text-zinc-300 rounded-lg font-normal border border-zinc-700 hover:border-zinc-600 transition-colors text-sm"
+                >
+                  تصفح كزائر
                 </button>
-                {statusText && (<div className="mt-2 text-xs text-slate-500 dark:text-slate-400 text-center">{statusText}</div>)}
-                {showFallback && isLogin && (
-                  <div className="mt-4 p-3 rounded-xl border" style={{borderColor: '#469788', backgroundColor: 'rgba(70, 151, 136, 0.1)', color: '#469788'}}>
-                    <div className="text-sm font-bold mb-2">لا يوجد بريد مرتبط بهذا الحساب</div>
-                    <div className="text-xs mb-2">أدخل بريدك الإلكتروني لإكمال ربط الحساب بهذا الرقم.</div>
-                    <div className="flex items-center gap-2">
+              </div>
+            </div>
+          ) : (
+            <div className="transition-opacity duration-300">
+              <button
+                onClick={() => setShowForm(false)}
+                className="mb-4 text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm relative z-30"
+              >
+                <ArrowRight size={16} />
+                رجوع
+              </button>
+
+              <div className="flex gap-1.5 mb-5 bg-zinc-800/50 p-1 rounded-lg">
+                <button
+                  onClick={() => setIsLogin(true)}
+                  className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${isLogin ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+                >
+                  تسجيل الدخول
+                </button>
+                <button
+                  onClick={() => { if (allowRegistrations) setIsLogin(false); }}
+                  disabled={!allowRegistrations}
+                  className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${!isLogin ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'} ${!allowRegistrations ? 'opacity-50 cursor-not-allowed' : ''}`}
+                >
+                  حساب جديد
+                </button>
+              </div>
+
+              <form onSubmit={handleSubmit} className="space-y-2.5">
+                {!isLogin && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="relative">
+                      <UserIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
                       <input
-                        type="email"
-                        value={fallbackEmail}
-                        onChange={(e) => setFallbackEmail(e.target.value)}
-                        placeholder="name@example.com"
-                        className="flex-1 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 text-sm"
+                        type="text"
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="الاسم"
+                        required
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
                       />
-                      <button
-                        type="button"
-                        className="px-4 py-2 rounded-lg bg-amber-600 text-white text-sm font-bold disabled:opacity-60"
-                        disabled={!fallbackEmail || submitting}
-                        onClick={async () => {
-                          if (!fallbackEmail || !password) { alert('يرجى إدخال البريد وكلمة المرور'); return; }
-                          setSubmitting(true);
-                          try {
-                            const nameToUse = fallbackUserData?.name || 'مستخدم';
-                            // Determine role: default to 'user' if missing
-                            let roleToUse: UserRole = (fallbackUserData?.role as UserRole) || 'user';
-                            // If merchant info exists, preserve it
-                            const merchantInfo: any = {
-                              phone: fallbackUserData?.phone || '',
-                              loginId: fallbackUserData?.loginId || (fallbackUserData?.phone || ''),
-                              gender: fallbackUserData?.gender,
-                              region: fallbackUserData?.region,
-                              shopType: fallbackUserData?.shopType,
-                              location: fallbackUserData?.location,
-                              specialization: fallbackUserData?.specialization,
-                              experience: fallbackUserData?.experience,
-                              tailorGender: fallbackUserData?.tailorGender,
-                            };
-                            await register(fallbackEmail, password, nameToUse, roleToUse, merchantInfo);
-                            toggleAuthModal(false);
-                          } catch (err) {
-                            console.error('Fallback register error', err);
-                            alert('فشل ربط البريد. يرجى المحاولة لاحقاً.');
-                          } finally {
-                            setSubmitting(false);
-                          }
-                        }}
-                      >
-                        ربط البريد وإكمال التسجيل
-                      </button>
+                    </div>
+                    <div className="relative">
+                      <Phone className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <input
+                        type="tel"
+                        value={phone}
+                        onChange={(e) => setPhone(e.target.value)}
+                        placeholder="الهاتف (اختياري)"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                      />
                     </div>
                   </div>
                 )}
-              </div>
-            </form>
-            
-            {/* Developer Mode removed */}
 
-          </div>
-        </div>
+                <div className="relative">
+                  <Mail className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                  <input
+                    type="email"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="البريد الإلكتروني"
+                    required
+                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                  />
+                </div>
 
-        {/* --- Left Section (Image) --- */}
-          <div className="hidden md:block w-2/5 relative bg-slate-100">
-           <img src="/auth-panel.jpg" alt="Tailoring Art" className="absolute inset-0 w-full h-full object-cover"/>
-           <div className="absolute inset-0 bg-gradient-to-t from-slate-900/90 via-slate-900/40 to-transparent" />
-           <div className="absolute bottom-0 left-0 right-0 p-12 text-white rtl:text-right">
-              <div className="mb-4 inline-flex items-center gap-2 px-3 py-1 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-xs font-medium">
-                 <Sparkles size={14} className="text-amber-400" />
-                 <span>تصميم عصري 2025</span>
-              </div>
-              <h2 className="text-4xl font-extrabold leading-tight mb-4">
-                 فصَل أناقتك <br/> <span className="text-transparent bg-clip-text" style={{backgroundImage: 'linear-gradient(to right, rgba(70, 151, 136, 0.6), #469788)'}}>بلمسة زر واحدة.</span>
-              </h2>
-           </div>
+                <div className={`grid ${!isLogin ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                  <div className="relative">
+                    <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="كلمة المرور"
+                      required
+                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                    >
+                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                    </button>
+                  </div>
+
+                  {!isLogin && (
+                    <div className="relative">
+                      <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <input
+                        type={showConfirmPassword ? 'text' : 'password'}
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        placeholder="تأكيد"
+                        required
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowConfirmPassword((v) => !v)}
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                      >
+                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {!isLogin && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="flex gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setGender('male')}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${gender === 'male' ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
+                      >
+                        ذكر
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setGender('female')}
+                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${gender === 'female' ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
+                      >
+                        أنثى
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <input
+                        type="text"
+                        value={region}
+                        onChange={(e) => setRegion(e.target.value)}
+                        placeholder="المنطقة (اختياري)"
+                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                {!isLogin && (
+                  <div className="grid grid-cols-2 gap-2">
+                    {([
+                      { key: 'user', label: 'مستخدم', icon: UserIcon },
+                      { key: 'tailor', label: 'خياط', icon: Sparkles },
+                    ] as const).map((item) => {
+                      const ActiveIcon = item.icon;
+                      const active = role === item.key;
+                      return (
+                        <button
+                          key={item.key}
+                          type="button"
+                          onClick={() => setRole(item.key)}
+                          className={`p-2.5 rounded-lg border transition-all ${active ? 'border-indigo-600 bg-indigo-600/10 text-white' : 'border-zinc-700 hover:border-zinc-600 text-zinc-400'}`}
+                        >
+                          <ActiveIcon className={`mx-auto mb-1 ${active ? 'text-indigo-400' : 'text-zinc-500'}`} size={18} />
+                          <div className="text-xs font-medium">{item.label}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {statusText && (
+                  <div className="flex items-center gap-2 text-sm text-indigo-300 bg-indigo-500/10 border border-indigo-400/30 px-3 py-2 rounded-xl">
+                    <CheckCircle size={16} />
+                    <span>{statusText}</span>
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+                >
+                  {submitting ? (
+                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  ) : (
+                    <>
+                      {isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'}
+                      <ArrowRight size={16} />
+                    </>
+                  )}
+                </button>
+              </form>
+            </div>
+          )}
         </div>
       </div>
     </div>,
