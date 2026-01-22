@@ -81,26 +81,80 @@ export function usePopularRegions(maxRegions: number) {
   return useQuery<PopularRegion[]>({
     queryKey: ['home-popular-regions', maxRegions],
     queryFn: async () => {
-      console.log('[usePopularRegions] Fetching regions from Firebase...');
+      console.log('[usePopularRegions] 🚀 Starting fetch from Firebase...');
+      console.log('[usePopularRegions] 🔑 ENV Check:', {
+        apiKeyExists: !!import.meta.env.VITE_FIREBASE_API_KEY,
+        apiKeyPrefix: import.meta.env.VITE_FIREBASE_API_KEY?.slice(0, 10),
+        projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID
+      });
+      
+      // Primary fetch via Firebase SDK (with timeout to prevent hanging)
+      let list: PopularRegion[] = []
       try {
-        const data = await firebaseService.getPopularRegions?.()
-        const list: PopularRegion[] = Array.isArray(data) ? (data as PopularRegion[]) : []
-        const enabledRegions = list
-          .filter((r) => Boolean(r) && (r as any).enabled === true)
-          .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
-          .slice(0, maxRegions)
-        console.log('[usePopularRegions] Success:', enabledRegions.length, 'regions fetched');
-        return enabledRegions
-      } catch (error) {
-        console.error('[usePopularRegions] Error:', error);
-        return [];
+        const timeoutPromise = new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error('getPopularRegions SDK timeout after 5000ms')), 5000)
+        })
+        const data = await Promise.race([
+          firebaseService.getPopularRegions?.(),
+          timeoutPromise,
+        ])
+        console.log('[usePopularRegions] 📦 SDK returned:', { type: typeof data, isArray: Array.isArray(data), length: Array.isArray(data) ? data.length : 'N/A', data });
+        list = Array.isArray(data) ? (data as PopularRegion[]) : []
+      } catch (sdkError) {
+        console.error('[usePopularRegions] ❌ SDK fetch failed:', sdkError)
       }
+
+      // Fallback: REST call using same Firestore project + API key (no hardcoding, still DB data)
+      if (!list.length) {
+        console.log('[usePopularRegions] ⚠️ SDK returned 0 items, activating REST fallback...');
+        try {
+          const apiKey = import.meta.env.VITE_FIREBASE_API_KEY
+          const projectId = import.meta.env.VITE_FIREBASE_PROJECT_ID
+          console.log('[usePopularRegions] 🌐 REST fallback config:', { apiKeyPrefix: apiKey ? apiKey.slice(0, 10) : undefined, projectId })
+          if (apiKey && projectId) {
+            const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/popularRegions?key=${apiKey}`
+            console.log('[usePopularRegions] 📡 Fetching from:', url.replace(apiKey, 'API_KEY_HIDDEN'));
+            const res = await fetch(url)
+            console.log('[usePopularRegions] 📨 REST response status:', res.status, res.statusText);
+            const json = await res.json()
+            console.log('[usePopularRegions] 📄 REST response body:', json);
+            const docs = Array.isArray(json.documents) ? json.documents : []
+            console.log('[usePopularRegions] 📚 Documents found:', docs.length);
+            list = docs.map((doc: any) => {
+              const fields = doc.fields || {}
+              const toVal = (f: any) => f?.stringValue ?? f?.integerValue ?? f?.booleanValue ?? ''
+              return {
+                id: doc.name?.split('/').pop() || '',
+                name: toVal(fields.name),
+                nameEn: toVal(fields.nameEn),
+                icon: toVal(fields.icon),
+                enabled: Boolean(fields.enabled?.booleanValue ?? fields.enabled),
+                order: Number(fields.order?.integerValue ?? fields.order ?? 0),
+                createdAt: toVal(fields.createdAt),
+              } as PopularRegion
+            })
+            console.log('[usePopularRegions] ✅ REST fallback mapped regions:', list);
+          } else {
+            console.error('[usePopularRegions] ❌ Missing API key or projectId for REST fallback');
+          }
+        } catch (fallbackError) {
+          console.error('[usePopularRegions] ❌ REST fallback failed:', fallbackError)
+        }
+      }
+
+      console.log('[usePopularRegions] 📋 Before filtering - Total regions:', list.length, list);
+      const enabledRegions = list
+        .filter((r) => Boolean(r) && (r as any).enabled === true)
+        .sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0))
+        .slice(0, maxRegions)
+      console.log('[usePopularRegions] ✅ Final result:', enabledRegions.length, 'enabled regions:', enabledRegions);
+      return enabledRegions
     },
-    staleTime: 1000 * 60 * 2, // 2 minutes (regions change less frequently)
-    gcTime: 1000 * 60 * 15,
-    refetchOnWindowFocus: true,
-    retry: 2,
-    retryDelay: 1000,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+    gcTime: 1000 * 60 * 30, // 30 minutes
+    refetchOnWindowFocus: false,
+    retry: 3,
+    retryDelay: (attemptIndex) => Math.min(1000 * 2 ** attemptIndex, 5000),
   })
 }
 

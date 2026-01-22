@@ -2,9 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
-  LogOut, Ruler, Settings, ShoppingBag, Camera, ChevronLeft,
-  CreditCard, Phone, Edit2, Crown, ClipboardList, Heart, Users,
-  Package, Wallet, Sparkles, User as UserIcon, ArrowRight, MapPin
+   LogOut, Ruler, Settings, ShoppingBag, Camera, ChevronLeft,
+   CreditCard, Phone, Edit2, Crown, ClipboardList, Heart, Users,
+   Package, Wallet, Sparkles, User as UserIcon, ArrowRight, MapPin, X, Mail, Lock, Eye, EyeOff
 } from 'lucide-react';
 import { Button } from '../components/Button';
 import { Order, FamilyMember, PopularRegion } from '../types';
@@ -12,11 +12,28 @@ import { getUserOrders } from '../services/orderService';
 import { firebaseService } from '../services/firebase';
 
 export const Account = () => {
-  const { user, logout, toggleAuthModal, loading } = useApp();
+   const { user, logout, loading, login, register } = useApp();
   const navigate = useNavigate();
    const location = useLocation();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isEditing, setIsEditing] = useState(false);
+   const [inlineAuthOpen, setInlineAuthOpen] = useState(false);
+   const [inlineAuthMode, setInlineAuthMode] = useState<'login' | 'register'>('login');
+  
+  // Auth form state
+  const [authEmail, setAuthEmail] = useState('');
+  const [authPassword, setAuthPassword] = useState('');
+  const [authConfirmPassword, setAuthConfirmPassword] = useState('');
+  const [authName, setAuthName] = useState('');
+  const [authPhone, setAuthPhone] = useState('');
+  const [authGender, setAuthGender] = useState<'male' | 'female' | 'not_specified'>('not_specified');
+  const [authRegion, setAuthRegion] = useState('');
+  const [authRole, setAuthRole] = useState<'user' | 'tailor'>('user');
+  const [authSubmitting, setAuthSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  
+  // Profile form state
   const [name, setName] = useState(user?.name || '');
   const [phone, setPhone] = useState(user?.phone || '');
   const [region, setRegion] = useState(user?.region || '');
@@ -116,10 +133,11 @@ export const Account = () => {
            localStorage.setItem('prefillLoginPhone', loginPhone);
         }
         if (openAuth === '1') {
-           toggleAuthModal(true, mode as any);
+           setInlineAuthMode(mode as 'login' | 'register');
+           setInlineAuthOpen(true);
         }
      } catch {}
-  }, [user, location.search, toggleAuthModal]);
+   }, [user, location.search]);
 
   // --- Loading State ---
   if (loading) {
@@ -136,44 +154,339 @@ export const Account = () => {
   // --- Guest View (Modern Card) ---
   if (!user) {
     return (
-      <div className="min-h-[85vh] flex items-center justify-center px-4 relative overflow-hidden">
+      <div className="min-h-screen flex items-center justify-center px-4 bg-gradient-to-br from-slate-900 to-slate-800 overflow-hidden">
         {/* Abstract Background */}
-        <div className="absolute top-0 left-0 w-full h-full bg-slate-50 dark:bg-slate-950">
-           <div className="absolute top-10 right-10 w-72 h-72 bg-indigo-500/10 rounded-full blur-3xl"/>
-           <div className="absolute bottom-10 left-10 w-72 h-72 bg-amber-500/10 rounded-full blur-3xl"/>
+        <div className="absolute top-0 left-0 w-full h-full">
+           <div className="absolute top-10 right-10 w-72 h-72 bg-indigo-500/20 rounded-full blur-3xl"/>
+           <div className="absolute bottom-10 left-10 w-72 h-72 bg-purple-500/20 rounded-full blur-3xl"/>
         </div>
 
-        <div className="relative w-full max-w-md bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-2xl border border-white/50 dark:border-slate-800 text-center animate-in zoom-in-95 duration-500">
-           <div className="w-20 h-20 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-3xl rotate-6 flex items-center justify-center mx-auto mb-8 shadow-lg shadow-indigo-500/30">
-              <LogOut size={36} className="text-white -rotate-6" />
+            <div className="relative w-full max-w-md bg-zinc-900/90 backdrop-blur-xl rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-500">
+                <button
+                   onClick={() => navigate('/')}
+                   className="absolute top-3 right-3 z-10 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+                   aria-label="إغلاق"
+                >
+                   <X size={14} />
+                </button>
+           {/* Beautiful Image at Top */}
+           <div className="relative w-full h-48 md:h-56 overflow-visible border-0 outline-none">
+             <img 
+               src="/auth-panel.jpg" 
+               alt="Khuyoot Tailoring" 
+               className="absolute inset-0 w-full h-full object-cover border-0 outline-none"
+             />
+             <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent"></div>
            </div>
            
-           <h2 className="text-3xl font-extrabold text-slate-900 dark:text-white mb-3">مرحباً بك في خيوط</h2>
-           <p className="text-slate-500 dark:text-slate-400 mb-8 leading-relaxed">
-             سجل دخولك الآن للوصول إلى طلباتك، مقاساتك، والتواصل مع أمهر الخياطين في المنطقة.
-           </p>
-           
-           <div className="space-y-3">
-             <button
-               onClick={() => toggleAuthModal(true)}
-               className="group w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold text-lg shadow-xl shadow-slate-200 dark:shadow-none hover:shadow-2xl transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2"
-             >
-               تسجيل الدخول <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform rtl:group-hover:-translate-x-1"/>
-             </button>
-                  <button
-                     onClick={() => toggleAuthModal(true, 'register')}
-                     className="group w-full py-4 bg-slate-900 dark:bg-white text-white dark:text-slate-900 rounded-2xl font-bold text-lg shadow-xl shadow-slate-200 dark:shadow-none hover:shadow-2xl transition-all duration-300 transform active:scale-[0.98] flex items-center justify-center gap-2"
-                  >
-                     إنشاء حساب جديد <ArrowRight size={20} className="group-hover:translate-x-1 transition-transform rtl:group-hover:-translate-x-1"/>
-                  </button>
-             
-             <button
-               onClick={() => navigate('/')}
-               className="w-full py-4 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 rounded-2xl font-bold border border-slate-200 dark:border-slate-700 hover:bg-slate-50 transition-colors"
-             >
-               تصفح كزائر
-             </button>
+           {/* Title right above logo */}
+           <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(14rem - 6rem)' }}>
+             <h2 className="text-sm md:text-base font-semibold text-zinc-100">مرحباً بك في </h2>
            </div>
+           
+           {/* Logo floating between image and content */}
+           <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(12rem - 4.5rem)' }}>
+             <img 
+               src="/logo_big.png" 
+               alt="Khuyoot" 
+               className="w-36 h-36 md:w-44 md:h-44 drop-shadow-2xl pointer-events-none select-none"
+               style={{ imageRendering: 'high-quality', objectFit: 'contain' }}
+             />
+           </div>
+           
+                {/* Content Section */}
+                <div className="p-6 md:p-8 text-center pt-12 md:pt-14">
+                   {!inlineAuthOpen ? (
+                      // Welcome View
+                      <div className="transition-opacity duration-300">
+                         <p className="text-zinc-400 mb-5 md:mb-6 leading-relaxed text-xs md:text-sm">
+                            سجل دخولك الآن للوصول إلى طلباتك، مقاساتك، والتواصل مع أمهر الخياطين في المنطقة.
+                         </p>
+                 
+                         <div className="space-y-2.5">
+                            <div className="grid grid-cols-2 gap-2">
+                               <button
+                                  onClick={() => {
+                                     setInlineAuthMode('login');
+                                     setInlineAuthOpen(true);
+                                  }}
+                                  className="py-2.5 bg-indigo-600/90 hover:bg-indigo-500/90 backdrop-blur-xl text-white rounded-lg font-normal text-sm shadow-xl shadow-indigo-900/30 hover:shadow-2xl hover:shadow-indigo-900/40 transition-all duration-300 transform active:scale-[0.98] border border-white/10"
+                               >
+                                  تسجيل الدخول
+                               </button>
+                               <button
+                                  onClick={() => {
+                                     setInlineAuthMode('register');
+                                     setInlineAuthOpen(true);
+                                  }}
+                                  className="py-2.5 bg-zinc-800/90 hover:bg-zinc-700/90 backdrop-blur-xl text-zinc-100 rounded-lg font-normal text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform active:scale-[0.98] border border-white/10"
+                               >
+                                  حساب جديد
+                               </button>
+                            </div>
+                   
+                            <button
+                               onClick={() => navigate('/')}
+                               className="w-full py-2.5 bg-transparent text-zinc-400 hover:text-zinc-300 rounded-lg font-normal border border-zinc-700 hover:border-zinc-600 transition-colors text-sm"
+                            >
+                               تصفح كزائر
+                            </button>
+                         </div>
+                      </div>
+                   ) : (
+                      // Auth Form View (inline)
+                      <div className="transition-opacity duration-300">
+                         {/* Close button */}
+                         <button
+                            onClick={() => setInlineAuthOpen(false)}
+                            className="mb-4 text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm relative z-30"
+                         >
+                            <ArrowRight size={16} />
+                            رجوع
+                         </button>
+
+                         {/* Toggle between login and register */}
+                         <div className="flex gap-1.5 mb-5 bg-zinc-800/50 p-1 rounded-lg">
+                            <button
+                               onClick={() => setInlineAuthMode('login')}
+                               className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
+                                  inlineAuthMode === 'login'
+                                     ? 'bg-indigo-600 text-white shadow-lg'
+                                     : 'text-zinc-400 hover:text-white'
+                               }`}
+                            >
+                               تسجيل الدخول
+                            </button>
+                            <button
+                               onClick={() => setInlineAuthMode('register')}
+                               className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${
+                                  inlineAuthMode === 'register'
+                                     ? 'bg-indigo-600 text-white shadow-lg'
+                                     : 'text-zinc-400 hover:text-white'
+                               }`}
+                            >
+                               حساب جديد
+                            </button>
+                         </div>
+
+                         {/* Login/Register form */}
+                         <form
+                            onSubmit={async (e) => {
+                               e.preventDefault();
+                               
+                               if (inlineAuthMode === 'register') {
+                                  // Validation for registration
+                                  if (authPassword !== authConfirmPassword) {
+                                     alert('كلمة المرور غير متطابقة!');
+                                     return;
+                                  }
+                                  if (!authName) {
+                                     alert('يرجى إدخال الاسم');
+                                     return;
+                                  }
+                               }
+                               
+                               setAuthSubmitting(true);
+                               try {
+                                  if (inlineAuthMode === 'login') {
+                                     await login(authEmail, authPassword);
+                                  } else {
+                                     const merchantInfo = {
+                                        phone: authPhone,
+                                        loginId: authPhone.replace(/[^0-9]/g, ''),
+                                        gender: authGender,
+                                        region: authRegion,
+                                     };
+                                     await register(authEmail, authPassword, authName, authRole, merchantInfo);
+                                  }
+                                  setInlineAuthOpen(false);
+                                  // Reset form
+                                  setAuthEmail('');
+                                  setAuthPassword('');
+                                  setAuthConfirmPassword('');
+                                  setAuthName('');
+                                  setAuthPhone('');
+                                  setAuthGender('not_specified');
+                                  setAuthRegion('');
+                               } catch (err: any) {
+                                  alert(err?.message || 'حدث خطأ');
+                               } finally {
+                                  setAuthSubmitting(false);
+                               }
+                            }}
+                            className="space-y-2.5"
+                         >
+                            {/* Name & Phone - only for registration */}
+                            {inlineAuthMode === 'register' && (
+                               <div className="grid grid-cols-2 gap-2">
+                                  <div className="relative">
+                                     <UserIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                                     <input
+                                        type="text"
+                                        value={authName}
+                                        onChange={(e) => setAuthName(e.target.value)}
+                                        placeholder="الاسم"
+                                        required
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                                     />
+                                  </div>
+                                  <div className="relative">
+                                     <Phone className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                                     <input
+                                        type="tel"
+                                        value={authPhone}
+                                        onChange={(e) => setAuthPhone(e.target.value)}
+                                        placeholder="الهاتف (اختياري)"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                                     />
+                                  </div>
+                               </div>
+                            )}
+
+                            {/* Email field */}
+                            <div className="relative">
+                               <Mail className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                               <input
+                                  type="email"
+                                  value={authEmail}
+                                  onChange={(e) => setAuthEmail(e.target.value)}
+                                  placeholder="البريد الإلكتروني"
+                                  required
+                                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                               />
+                            </div>
+
+                            {/* Password & Confirm Password */}
+                            <div className={`grid ${inlineAuthMode === 'register' ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
+                               <div className="relative">
+                                  <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                                  <input
+                                     type={showPassword ? "text" : "password"}
+                                     value={authPassword}
+                                     onChange={(e) => setAuthPassword(e.target.value)}
+                                     placeholder="كلمة المرور"
+                                     required
+                                     className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                                  />
+                                  <button
+                                     type="button"
+                                     onClick={() => setShowPassword(!showPassword)}
+                                     className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                  >
+                                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                  </button>
+                               </div>
+                               {inlineAuthMode === 'register' && (
+                                  <div className="relative">
+                                     <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                                     <input
+                                        type={showConfirmPassword ? "text" : "password"}
+                                        value={authConfirmPassword}
+                                        onChange={(e) => setAuthConfirmPassword(e.target.value)}
+                                        placeholder="تأكيد"
+                                        required
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                                     />
+                                     <button
+                                        type="button"
+                                        onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                                     >
+                                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                                     </button>
+                                  </div>
+                               )}
+                            </div>
+
+                            {/* Gender & Region - only for registration */}
+                            {inlineAuthMode === 'register' && (
+                               <div className="grid grid-cols-2 gap-2">
+                                  <div className="flex gap-1.5">
+                                     <button
+                                        type="button"
+                                        onClick={() => setAuthGender('male')}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
+                                           authGender === 'male'
+                                              ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400'
+                                              : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                                        }`}
+                                     >
+                                        ذكر
+                                     </button>
+                                     <button
+                                        type="button"
+                                        onClick={() => setAuthGender('female')}
+                                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${
+                                           authGender === 'female'
+                                              ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400'
+                                              : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'
+                                        }`}
+                                     >
+                                        أنثى
+                                     </button>
+                                  </div>
+                                  <div className="relative">
+                                     <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                                     <input
+                                        type="text"
+                                        value={authRegion}
+                                        onChange={(e) => setAuthRegion(e.target.value)}
+                                        placeholder="المنطقة (اختياري)"
+                                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                                     />
+                                  </div>
+                               </div>
+                            )}
+
+                            {/* Role selection - only for registration */}
+                            {inlineAuthMode === 'register' && (
+                               <div className="grid grid-cols-2 gap-2">
+                                  <button
+                                     type="button"
+                                     onClick={() => setAuthRole('user')}
+                                     className={`p-2.5 rounded-lg border transition-all ${
+                                        authRole === 'user'
+                                           ? 'border-indigo-600 bg-indigo-600/10'
+                                           : 'border-zinc-700 hover:border-zinc-600'
+                                     }`}
+                                  >
+                                     <UserIcon className={`mx-auto mb-1 ${authRole === 'user' ? 'text-indigo-400' : 'text-zinc-500'}`} size={18} />
+                                     <div className={`text-xs font-medium ${authRole === 'user' ? 'text-white' : 'text-zinc-400'}`}>مستخدم</div>
+                                  </button>
+                                  <button
+                                     type="button"
+                                     onClick={() => setAuthRole('tailor')}
+                                     className={`p-2.5 rounded-lg border transition-all ${
+                                        authRole === 'tailor'
+                                           ? 'border-indigo-600 bg-indigo-600/10'
+                                           : 'border-zinc-700 hover:border-zinc-600'
+                                     }`}
+                                  >
+                                     <Sparkles className={`mx-auto mb-1 ${authRole === 'tailor' ? 'text-indigo-400' : 'text-zinc-500'}`} size={18} />
+                                     <div className={`text-xs font-medium ${authRole === 'tailor' ? 'text-white' : 'text-zinc-400'}`}>خياط</div>
+                                  </button>
+                               </div>
+                            )}
+
+                            {/* Submit button */}
+                            <button
+                               type="submit"
+                               disabled={authSubmitting}
+                               className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
+                            >
+                               {authSubmitting ? (
+                                  <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                               ) : (
+                                  <>
+                                     {inlineAuthMode === 'login' ? 'تسجيل الدخول' : 'إنشاء الحساب'}
+                                     <ArrowRight size={16} />
+                                  </>
+                               )}
+                            </button>
+                         </form>
+                      </div>
+                   )}
+                </div>
         </div>
       </div>
     );

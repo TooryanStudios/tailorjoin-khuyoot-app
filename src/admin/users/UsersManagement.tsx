@@ -3,8 +3,11 @@ import imageCompression from 'browser-image-compression';
 import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react';
 import { User, AgeGroup, PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
+import { ImagePrepModal } from '../../components/image/ImagePrepModal';
+import { useQueryClient } from '@tanstack/react-query';
 
 export const UsersManagement = () => {
+  const queryClient = useQueryClient();
   const [users, setUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -57,55 +60,45 @@ export const UsersManagement = () => {
     approvalStatus: 'pending' as string,
     isFeatured: false
   });
-  const [cropOpen, setCropOpen] = useState(false);
-  const [cropSrc, setCropSrc] = useState<string>('');
-  const [cropPreview, setCropPreview] = useState<string>('');
-  const cropCanvasRef = useRef<HTMLCanvasElement | null>(null);
-  const [crop, setCrop] = useState<{ x: number; y: number; size: number }>({ x: 0, y: 0, size: 200 });
-    // Simple square cropper for profile image
-    const openCropper = (src: string) => {
-      setCropSrc(src);
-      setCropOpen(true);
-      setCrop({ x: 0, y: 0, size: 200 });
-    };
+  const [imagePrepOpen, setImagePrepOpen] = useState(false);
+  const [imagePrepFile, setImagePrepFile] = useState<File | null>(null);
+  const [imagePrepType, setImagePrepType] = useState<'profile' | 'board'>('profile');
 
-    const applyCrop = async () => {
-      try {
-        const img = new Image();
-        img.crossOrigin = 'anonymous';
-        img.src = cropSrc;
-        await new Promise((res, rej) => {
-          img.onload = () => res(null);
-          img.onerror = rej;
-        });
-        const canvas = cropCanvasRef.current!;
-        const size = 256;
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d')!;
-        ctx.clearRect(0, 0, size, size);
-        // Draw selected square region to canvas
-        ctx.drawImage(
-          img,
-          crop.x,
-          crop.y,
-          crop.size,
-          crop.size,
-          0,
-          0,
-          size,
-          size
-        );
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.9);
-        setEditForm(prev => ({ ...prev, profileImage: dataUrl }));
-        setCropPreview(dataUrl);
-        setCropOpen(false);
-        showToast('✅ تم قص صورة البروفايل', 'success');
-      } catch (err) {
-        console.error('Crop error:', err);
-        showToast('❌ فشل قص الصورة', 'error');
+  // Handle image prep modal for profile/board images
+  const handleImagePrepApply = async (processedFile: File) => {
+    if (!selectedUser) return;
+    try {
+      if (typeof (firebaseService as any).uploadUserImage === 'function') {
+        const url = await (firebaseService as any).uploadUserImage(selectedUser.id, imagePrepType, processedFile);
+        if (imagePrepType === 'profile') {
+          setEditForm(prev => ({ ...prev, profileImage: url }));
+          showToast('✅ تم رفع صورة الملف الشخصي', 'success');
+        } else {
+          setEditForm(prev => ({ ...prev, boardImage: url }));
+          showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
+        }
+      } else {
+        const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+        const storage = getStorage();
+        const path = `users/${selectedUser.id}/${imagePrepType}_${Date.now()}`;
+        const storageRef = ref(storage, path);
+        await uploadBytes(storageRef, processedFile);
+        const url = await getDownloadURL(storageRef);
+        if (imagePrepType === 'profile') {
+          setEditForm(prev => ({ ...prev, profileImage: url }));
+          showToast('✅ تم رفع صورة الملف الشخصي', 'success');
+        } else {
+          setEditForm(prev => ({ ...prev, boardImage: url }));
+          showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
+        }
       }
-    };
+      setImagePrepOpen(false);
+      setImagePrepFile(null);
+    } catch (err) {
+      console.error('Upload error:', err);
+      showToast(`❌ فشل رفع ${imagePrepType === 'profile' ? 'صورة الملف الشخصي' : 'صورة الواجهة/اللوحة'}`, 'error');
+    }
+  };
   const [saving, setSaving] = useState(false);
 
   // Toast notifications (non-blocking)
@@ -287,23 +280,41 @@ export const UsersManagement = () => {
         lastForm: editForm
       }));
       
-      await firebaseService.updateUser(selectedUser.id, cleanedData);
+      // Optimistic update - update local state immediately
+      const optimisticUser = { ...selectedUser, ...cleanedData };
       
-      // Force refresh from Firestore to reflect persisted data
-      console.log('🔄 Reloading users from Firestore after update...');
-      await loadUsers();
+      // Update users array optimistically
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? optimisticUser : u));
+      setFilteredUsers(prev => prev.map(u => u.id === selectedUser.id ? optimisticUser : u));
       
-      // Check if the update persisted
-      const updatedUser = users.find(u => u.id === selectedUser.id);
-      console.log('✅ User after reload:', updatedUser);
-      setDebugInfo(prev => ({
+      // Update selectedUser immediately to prevent flickering
+      setSelectedUser(optimisticUser);
+      
+      // Update editForm with the optimistic data
+      setEditForm(prev => ({
         ...prev,
-        userAfterSave: updatedUser
+        profileImage: cleanedData.profileImage || prev.profileImage,
+        boardImage: cleanedData.boardImage || prev.boardImage,
       }));
       
-      setShowEditModal(false);
-      setSelectedUser(null);
       showToast('✅ تم تحديث البيانات بنجاح!', 'success');
+      
+      // Save to database in background
+      await firebaseService.updateUser(selectedUser.id, cleanedData);
+      
+      // Invalidate React Query caches for home page data
+      queryClient.invalidateQueries({ queryKey: ['home-popular-regions'] });
+      queryClient.invalidateQueries({ queryKey: ['home-tailors'] });
+      
+      // Silently reload in background without affecting UI
+      Promise.all([
+        loadUsers(),
+        loadRegions()
+      ]).then(() => {
+        console.log('🔄 Background refresh complete');
+      }).catch(err => {
+        console.error('Background refresh error:', err);
+      });
     } catch (error) {
       console.error('❌ Error updating user:', error);
       setDebugInfo(prev => ({
@@ -1351,21 +1362,68 @@ export const UsersManagement = () => {
             onClick={() => setShowEditModal(false)}
           />
           
-          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-4 animate-in fade-in zoom-in duration-200">
-            <div className="flex items-center justify-between mb-3">
-              <h3 className="text-lg font-bold text-slate-900 dark:text-white">
-                تعديل بيانات: {selectedUser.name}
-              </h3>
-              <button
-                onClick={() => setShowEditModal(false)}
-                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-              >
-                <X size={18} className="text-slate-600 dark:text-slate-400" />
-              </button>
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-5xl max-h-[90vh] overflow-y-auto rounded-2xl shadow-2xl p-0 animate-in fade-in zoom-in duration-200">
+            <div className="sticky top-0 z-10 bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border-b border-slate-200/80 dark:border-slate-700/80 px-4 py-3 flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-2">
+                <h3 className="text-base font-bold text-slate-900 dark:text-white">
+                  تعديل بيانات: {selectedUser.name}
+                </h3>
+              </div>
+              <div className="ml-auto flex items-center gap-2">
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  className="h-8 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-slate-100/80 dark:bg-slate-700/60 hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
+                >
+                  إغلاق
+                </button>
+                <button
+                  onClick={() => setShowEditModal(false)}
+                  disabled={saving}
+                  className="h-8 px-2 text-xs rounded-md border border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-200 bg-slate-50/80 dark:bg-slate-700/60 hover:bg-slate-100 dark:hover:bg-slate-600 transition-colors disabled:opacity-60"
+                >
+                  إلغاء
+                </button>
+                {selectedUser?.email && (
+                  <button
+                    onClick={() => selectedUser && handleSendPasswordReset(selectedUser)}
+                    disabled={saving}
+                    className="h-8 px-2 text-xs rounded-md border border-amber-300/70 bg-amber-50/80 text-amber-800 hover:bg-amber-100 transition-colors disabled:opacity-60"
+                    title="إرسال رابط إعادة تعيين كلمة المرور"
+                  >
+                    إعادة ضبط كلمة المرور
+                  </button>
+                )}
+                <button
+                  onClick={() => selectedUser && handleLoginAsUser(selectedUser)}
+                  disabled={saving}
+                  className="h-8 px-2 text-xs rounded-md border border-indigo-400/70 bg-indigo-50/80 text-indigo-800 hover:bg-indigo-100 transition-colors disabled:opacity-60"
+                  title="تسجيل الدخول بهذا الحساب"
+                >
+                  تسجيل دخول كمستخدم
+                </button>
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={saving || !editForm.name || !editForm.email}
+                  className="h-8 px-3 text-xs rounded-md bg-emerald-600 text-white hover:bg-emerald-700 transition-colors disabled:opacity-60 flex items-center gap-1"
+                >
+                  {saving ? (
+                    <>
+                      <RefreshCw size={14} className="animate-spin" />
+                      جاري الحفظ
+                    </>
+                  ) : (
+                    <>
+                      <CheckCircle2 size={14} />
+                      حفظ
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
-            <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
-              قم بتحديث معلومات المستخدم ({getRoleLabel(selectedUser.role)})
-            </p>
+            <div className="px-4 pt-3 pb-4">
+              <p className="text-xs text-slate-600 dark:text-slate-400 mb-3">
+                قم بتحديث معلومات المستخدم ({getRoleLabel(selectedUser.role)})
+              </p>
 
             <div className="space-y-3">
               {/* Shop Name (for tailor/shop only) */}
@@ -1447,32 +1505,14 @@ export const UsersManagement = () => {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (!file || !selectedUser) return;
-                          try {
-                            // Prefer service method if available
-                            if (typeof (firebaseService as any).uploadUserImage === 'function') {
-                              // compress before upload
-                              const compressed = await imageCompression(file, { maxSizeMB: 0.2, maxWidthOrHeight: 1024, useWebWorker: true });
-                              const url = await (firebaseService as any).uploadUserImage(selectedUser.id, 'profile', compressed);
-                              setEditForm(prev => ({ ...prev, profileImage: url }));
-                              showToast('✅ تم رفع صورة الملف الشخصي', 'success');
-                            } else {
-                              const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-                              const storage = getStorage();
-                              const path = `users/${selectedUser.id}/profile_${Date.now()}`;
-                              const storageRef = ref(storage, path);
-                              const compressed = await imageCompression(file, { maxSizeMB: 0.2, maxWidthOrHeight: 1024, useWebWorker: true });
-                              await uploadBytes(storageRef, compressed);
-                              const url = await getDownloadURL(storageRef);
-                              setEditForm(prev => ({ ...prev, profileImage: url }));
-                              showToast('✅ تم رفع صورة الملف الشخصي', 'success');
-                            }
-                          } catch (err) {
-                            console.error('Upload profile image error:', err);
-                            showToast('❌ فشل رفع صورة الملف الشخصي', 'error');
+                          if (file && selectedUser) {
+                            setImagePrepFile(file);
+                            setImagePrepType('profile');
+                            setImagePrepOpen(true);
                           }
+                          e.target.value = '';
                         }}
                       />
                     </label>
@@ -1480,13 +1520,6 @@ export const UsersManagement = () => {
                   {editForm.profileImage && (
                     <div className="mt-2 flex items-center gap-2">
                       <img src={editForm.profileImage} alt="صورة الملف الشخصي" className="h-16 w-16 rounded-lg object-cover border" />
-                      <button
-                        type="button"
-                        onClick={() => openCropper(editForm.profileImage)}
-                        className="px-3 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs"
-                      >
-                        قص
-                      </button>
                     </div>
                   )}
                 </div>
@@ -1509,30 +1542,14 @@ export const UsersManagement = () => {
                         type="file"
                         accept="image/*"
                         className="hidden"
-                        onChange={async (e) => {
+                        onChange={(e) => {
                           const file = e.target.files?.[0];
-                          if (!file || !selectedUser) return;
-                          try {
-                            if (typeof (firebaseService as any).uploadUserImage === 'function') {
-                              const compressed = await imageCompression(file, { maxSizeMB: 0.6, maxWidthOrHeight: 1920, useWebWorker: true });
-                              const url = await (firebaseService as any).uploadUserImage(selectedUser.id, 'board', compressed);
-                              setEditForm(prev => ({ ...prev, boardImage: url }));
-                              showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
-                            } else {
-                              const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
-                              const storage = getStorage();
-                              const path = `users/${selectedUser.id}/board_${Date.now()}`;
-                              const storageRef = ref(storage, path);
-                              const compressed = await imageCompression(file, { maxSizeMB: 0.6, maxWidthOrHeight: 1920, useWebWorker: true });
-                              await uploadBytes(storageRef, compressed);
-                              const url = await getDownloadURL(storageRef);
-                              setEditForm(prev => ({ ...prev, boardImage: url }));
-                              showToast('✅ تم رفع صورة الواجهة/اللوحة', 'success');
-                            }
-                          } catch (err) {
-                            console.error('Upload board image error:', err);
-                            showToast('❌ فشل رفع صورة الواجهة/اللوحة', 'error');
+                          if (file && selectedUser) {
+                            setImagePrepFile(file);
+                            setImagePrepType('board');
+                            setImagePrepOpen(true);
                           }
+                          e.target.value = '';
                         }}
                       />
                     </label>
@@ -2385,6 +2402,7 @@ export const UsersManagement = () => {
               </div>
               )}
             </div>
+            </div>
           </div>
         </div>
       )}
@@ -2443,6 +2461,18 @@ export const UsersManagement = () => {
           </div>
         </div>
       )}
+
+      {/* Image Prep Modal */}
+      <ImagePrepModal
+        isOpen={imagePrepOpen}
+        file={imagePrepFile}
+        onCancel={() => {
+          setImagePrepOpen(false);
+          setImagePrepFile(null);
+        }}
+        onApply={handleImagePrepApply}
+        mode="fabric"
+      />
     </div>
   );
 };

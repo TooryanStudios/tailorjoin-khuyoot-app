@@ -12,11 +12,11 @@ import { DemoShellPageADesktop } from './DemoShellPageA.Desktop';
 export function DemoShellPageA() {
   const isMobile = useMobileDetection();
   
-  if (isMobile) {
-    return <DemoShellPageAMobile />;
-  }
-  
-  return <DemoShellPageADesktop />;
+  return (
+    <>
+      {isMobile ? <DemoShellPageAMobile /> : <DemoShellPageADesktop />}
+    </>
+  );
 }
 
 // ========== SHARED COMPONENTS FOR BOTH VERSIONS ==========

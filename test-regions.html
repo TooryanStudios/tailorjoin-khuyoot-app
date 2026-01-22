@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Test Popular Regions</title>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore-compat.js"></script>
+</head>
+<body>
+  <h1>Testing Popular Regions Collection</h1>
+  <div id="output" style="font-family: monospace; white-space: pre-wrap; padding: 20px; background: #f5f5f5;"></div>
+
+  <script>
+    const output = document.getElementById('output');
+    
+    function log(message) {
+      const timestamp = new Date().toISOString();
+      output.textContent += `[${timestamp}] ${message}\n`;
+      console.log(message);
+    }
+
+    // Initialize Firebase (using your existing config)
+    const firebaseConfig = {
+      apiKey: "AIzaSyBkQA2VvqhvnkKztQH5HY4K5nQQGmNzqD0",
+      authDomain: "khuyoot-d7e85.firebaseapp.com",
+      projectId: "khuyoot-d7e85",
+      storageBucket: "khuyoot-d7e85.firebasestorage.app",
+      messagingSenderId: "346806334793",
+      appId: "1:346806334793:web:03b1e8a2a83c875e0fe2a4",
+      measurementId: "G-V0V56WZ9ZK"
+    };
+
+    log('Initializing Firebase...');
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    
+    log('Fetching popularRegions collection...');
+    
+    db.collection('popularRegions')
+      .get()
+      .then((snapshot) => {
+        log(`✅ Query successful! Documents found: ${snapshot.size}`);
+        
+        if (snapshot.empty) {
+          log('⚠️ Collection is EMPTY - no regions exist');
+        } else {
+          log('\n📍 Regions data:');
+          snapshot.forEach((doc) => {
+            const data = doc.data();
+            log(`  - ${doc.id}: ${JSON.stringify(data, null, 2)}`);
+          });
+        }
+      })
+      .catch((error) => {
+        log(`❌ Error fetching regions: ${error.message}`);
+        log(`   Code: ${error.code}`);
+        log(`   Full error: ${JSON.stringify(error, null, 2)}`);
+      });
+  </script>
+</body>
+</html>

@@ -248,6 +248,43 @@
         font-family: 'Cairo', sans-serif;
         color: #0f172a;
         transition: background-color 0.3s ease, color 0.3s ease;
+      }
+
+      /* Remove autofill blue/yellow background tint from all browsers - AGGRESSIVE */
+      input:-webkit-autofill,
+      input:-webkit-autofill:hover,
+      input:-webkit-autofill:focus,
+      input:-webkit-autofill:active {
+        -webkit-box-shadow: 0 0 0 1000px #27272a inset !important;
+        -webkit-text-fill-color: white !important;
+        box-shadow: 0 0 0 1000px #27272a inset !important;
+        background-color: #27272a !important;
+        background-image: none !important;
+        caret-color: white !important;
+        transition: background-color 0s 600000s, color 0s 600000s !important;
+      }
+      
+      /* Firefox autofill override */
+      input:-moz-autofill,
+      input:-moz-autofill-preview {
+        filter: none !important;
+        background-color: #27272a !important;
+        color: white !important;
+      }
+      
+      /* Ensure all input fields have consistent background */
+      input[type="text"],
+      input[type="email"],
+      input[type="password"],
+      input[type="tel"] {
+        background-color: #27272a !important;
+        color: white !important;
+      }
+      
+      /* Override any browser default styling */
+      input {
+        color-scheme: dark;
+      }
         overflow-x: hidden;
         width: 100%;
         overscroll-behavior-x: none; /* لتخفيف السحب الأفقي */
