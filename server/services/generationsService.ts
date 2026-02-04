@@ -433,13 +433,9 @@ export async function getUserGenerations(userId: string, limit: number = 12): Pr
   try {
     const app = getFirebaseAdminApp();
     const firestore = app.firestore();
-
     const snapshot = await firestore
       .collection('generations')
-      .where('userId', '==', userId)
-      .orderBy('createdAt', 'desc')
-      .limit(limit)
-      .get();
+      .where('userId', '==', userId).get();
 
     const generations: GenerationRecord[] = [];
     snapshot.forEach((doc) => {
@@ -449,29 +445,29 @@ export async function getUserGenerations(userId: string, limit: number = 12): Pr
         jobId: doc.id,
         createdAt: data.createdAt.toDate(),
         updatedAt: data.updatedAt ? data.updatedAt.toDate() : undefined,
-        
+
         // Image URLs
         templateUrl: data.templateUrl || undefined,
         fabricUrl: data.fabricUrl || undefined,
         fullImageUrl: data.fullImageUrl,
         thumbnailUrl: data.thumbnailUrl,
-        
+
         // References
         templateId: data.templateId || undefined,
         fabricId: data.fabricId || undefined,
-        
+
         // Settings
         settings: data.settings || { model: 'NanoBana', upscaleEnabled: false },
-        
+
         // File Metadata
         originalTemplateFilename: data.originalTemplateFilename || undefined,
         originalFabricFilename: data.originalFabricFilename || undefined,
         imageDimensions: data.imageDimensions || undefined,
-        
+
         // Performance & Billing
         processingTimeMs: data.processingTimeMs || undefined,
         creditsUsed: data.creditsUsed || undefined,
-        
+
         // Sharing
         isPublic: data.isPublic || false,
         shareableSlug: data.shareableSlug || undefined,
@@ -479,18 +475,18 @@ export async function getUserGenerations(userId: string, limit: number = 12): Pr
         sharedAt: data.sharedAt ? data.sharedAt.toDate() : undefined,
         viewCount: data.viewCount || 0,
         likeCount: data.likeCount || 0,
-        
+
         // User Organization
         isFavorite: data.isFavorite || false,
         tags: data.tags || [],
         notes: data.notes || undefined,
         folderPath: data.folderPath || undefined,
-        
+
         // Upscaling Chain
         wasUpscaled: data.wasUpscaled || false,
         upscaledJobId: data.upscaledJobId || undefined,
         parentJobId: data.parentJobId || undefined,
-        
+
         // System
         generationVersion: data.generationVersion || undefined,
         userAgent: data.userAgent || undefined,
@@ -500,9 +496,8 @@ export async function getUserGenerations(userId: string, limit: number = 12): Pr
       });
     });
 
-    return generations;
-  } catch (error) {
-    console.error('[GenerationsService] Failed to fetch user generations:', error);
+    // Sort in memory to avoid requiring a composite index in the Firestore emulator/local dev
+    generations.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)); return generations.slice(0, limit);  } catch (error) {    console.error('[GenerationsService] Failed to fetch user generations:', error);
     throw new Error('Failed to fetch generation history');
   }
 }

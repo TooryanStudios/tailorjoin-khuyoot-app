@@ -1,4 +1,5 @@
-import { firebaseService } from '../../services/firebase';
+import { apiFetch } from '../api/apiFetch';
+import { ApiError } from '../api/httpErrors';
 
 export type UpscaleMode = 'creative' | 'standard';
 
@@ -17,36 +18,19 @@ export type UpscaleResponse = {
 };
 
 export async function generateUpscale(payload: UpscaleRequest): Promise<UpscaleResponse> {
-  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-
   try {
-    const auth = firebaseService.auth;
-    const currentUser = auth?.currentUser;
-    if (currentUser) {
-      const token = await currentUser.getIdToken();
-      headers.Authorization = `Bearer ${token}`;
+    const res = await apiFetch('/api/upscale', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      requireAuth: true,
+    });
+
+    return (await res.json()) as UpscaleResponse;
+  } catch (e) {
+    if (e instanceof ApiError) {
+      throw new Error(e.message || 'Upscale request failed');
     }
-  } catch {
-    // Auth optional.
+    throw e;
   }
-
-  const res = await fetch('/api/upscale', {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(payload),
-  });
-
-  if (!res.ok) {
-    const contentType = res.headers.get('content-type') || '';
-    if (contentType.includes('application/json')) {
-      const data: any = await res.json().catch(() => null);
-      const message = data && (data.error || data.message) ? (data.error || data.message) : '';
-      throw new Error(message || `Upscale request failed (${res.status})`);
-    }
-
-    const text = await res.text().catch(() => '');
-    throw new Error(text || `Upscale request failed (${res.status})`);
-  }
-
-  return (await res.json()) as UpscaleResponse;
 }

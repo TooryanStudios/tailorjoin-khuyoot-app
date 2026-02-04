@@ -69,7 +69,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
 
         {/* Generate Button */}
         {generateAction && (
-          <div className="px-4 py-1">
+          <div className="px-4 py-0.5">
             <div className="flex items-stretch gap-1.5">
               <button
                 type="button"
@@ -82,7 +82,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     // ignore
                   }
                 }}
-                className="h-14 w-14 shrink-0 rounded-2xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600"
+                className="h-11 w-11 shrink-0 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600"
               >
                 {templateThumbUrl ? (
                   <img
@@ -144,12 +144,12 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     }
                   }}
                   className={
-                    "relative h-14 w-14 rounded-2xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600 " +
+                    "relative h-11 w-11 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600 " +
                     (shouldNudgeFabric ? "animate-bounce border-pink-500/60 shadow-pink-500/30" : "")
                   }
                 >
                   {shouldNudgeFabric && (
-                    <span className="pointer-events-none absolute inset-0 rounded-2xl ring-2 ring-pink-500/50 animate-ping opacity-40" />
+                    <span className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-pink-500/50 animate-ping opacity-40" />
                   )}
                   {fabricThumbUrl ? (
                     <img
@@ -180,7 +180,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                   type="button"
                   onClick={onClear}
                   aria-label="Clear selections"
-                  className="h-14 w-14 shrink-0 rounded-2xl bg-zinc-900 border-2 border-zinc-700 text-zinc-400 shadow-lg shadow-black/30 transition-all active:scale-[0.98] hover:bg-zinc-800 hover:border-red-500/60 hover:text-red-400 flex items-center justify-center"
+                  className="h-11 w-11 shrink-0 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-zinc-400 shadow-lg shadow-black/30 transition-all active:scale-[0.98] hover:bg-zinc-800 hover:border-red-500/60 hover:text-red-400 flex items-center justify-center"
                 >
                   <svg
                     width="20"
@@ -205,7 +205,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                 disabled={!generateAction.canGenerate || generateAction.isProcessing}
                 onClick={generateAction.onGenerate}
                 className={
-                  'flex-1 h-14 rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[13px] focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
+                  'flex-1 h-11 rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[12px] focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
                   (!generateAction.canGenerate || generateAction.isProcessing
                     ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20 opacity-50'
                     : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-[0.98] border-purple-500/40 hover:border-purple-400/60')

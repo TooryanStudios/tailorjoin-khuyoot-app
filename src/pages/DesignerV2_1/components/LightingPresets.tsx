@@ -34,8 +34,8 @@ export const LightingPresets = React.memo(function LightingPresets(props: Lighti
             className={
               'h-8 px-3 rounded-full border text-xs font-semibold transition-colors ' +
               (active
-                ? 'bg-zinc-900 border-purple-500/60 text-white'
-                : 'bg-zinc-950/40 border-zinc-800 text-zinc-300 hover:border-purple-500/40')
+                ? 'bg-zinc-900 border-theme-primary/60 text-white shadow-[0_0_15px_var(--theme-primary-glow)]'
+                : 'bg-zinc-950/40 border-zinc-800 text-zinc-300 hover:border-theme-primary/40')
             }
             title={o.descriptor}
           >

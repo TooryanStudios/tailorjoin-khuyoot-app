@@ -121,8 +121,8 @@ export const ComparisonPanel = React.memo(
               <div className="w-full h-full">
                 <ImageComparisonSlider
                   className="h-full w-full"
-                  beforeImage={comparisonBeforeImage || originalImageUrl || PLACEHOLDER_BEFORE}
-                  afterImage={comparisonAfterImage || effectiveResultImageSrc || PLACEHOLDER_AFTER}
+                  beforeImage={comparisonBeforeImage || originalImageUrl || (comparisonAfterImage || effectiveResultImageSrc ? '' : PLACEHOLDER_BEFORE)}
+                  afterImage={comparisonAfterImage || effectiveResultImageSrc || (comparisonBeforeImage || originalImageUrl ? '' : PLACEHOLDER_AFTER)}
                   beforeLabel={comparisonBeforeLabel || 'القماش'}
                   afterLabel={comparisonAfterLabel || 'النتيجة'}
                   heightScale={1}

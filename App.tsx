@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom';
 import { DemoShellLayout } from './src/pages/demoShell/DemoShellLayout';
 import { DemoShellPageA } from './src/pages/demoShell/DemoShellPageA';
 import { DemoShellPageB } from './src/pages/demoShell/DemoShellPageB';
+import { DemoShellTopTailors } from './src/pages/demoShell/DemoShellTopTailors';
 import { AppProvider, useApp } from './context/AppContext';
 import { MainLayout } from './src/components/MainLayout';
 import { ProductList } from './pages/ProductList';
@@ -38,6 +39,7 @@ import { Customization } from './pages/Customization';
 import { CustomizationPage } from './pages/CustomizationPage';
 const ClientMeasurements = React.lazy(() => import('./pages/ClientMeasurements').then(m => ({ default: m.ClientMeasurements })));
 import ClientMeasurementsV2 from './src/modules/measurements/ClientMeasurementsV2';
+import { StudioMeasurements } from './src/modules/measurements/StudioMeasurements';
 import { OrderSummary } from './src/modules/orders/OrderSummary';
 import { Checkout } from './pages/Checkout';
 import TailorJoinFlow from './src/features/tailor-join/TailorJoinFlow';
@@ -46,12 +48,18 @@ import { TestTemplatePickerPage } from './pages/TestTemplatePickerPage';
 import KlingEffectViewer from './src/pages/KlingEffectViewer';
 import { TryOnPage } from './pages/TryOnPage';
 import { JankSandbox } from './pages/JankSandbox';
+import { AuthTestPage } from './src/pages/AuthTestPage';
+import { CookieAuthTest } from './src/pages/CookieAuthTest';
 import Privacy from './pages/Privacy';
 import Terms from './pages/Terms';
 
 // DEV-ONLY: WhatsApp Sandbox Testing
 const WhatsAppSandboxPanel = React.lazy(() => 
   import('./src/devtools/whatsapp/WhatsAppSandboxPanel').then(m => ({ default: m.WhatsAppSandboxPanel }))
+);
+// DEV-ONLY: Firebase Auth diagnostic (React port of firebase-auth-diagnostic.html)
+const FirebaseAuthDiagnosticReactPage = React.lazy(() =>
+  import('./src/devtools/firebaseAuth/FirebaseAuthDiagnosticReactPage').then(m => ({ default: m.FirebaseAuthDiagnosticReactPage }))
 );
 import ReturnPolicy from './pages/ReturnPolicy';
 import { Settings } from './pages/Settings';
@@ -60,6 +68,8 @@ import { LoadingShell } from './src/components/LoadingShell';
 import { NewProductPage } from './src/modules/admin/features/product-creator-v2';
 import { AppInitializer } from './src/components/AppInitializer';
 import { DesignerV2_1 } from './src/pages/DesignerV2_1/DesignerV2_1';
+import { DesignerV2_1_NewShell } from './src/pages/DesignerV2_1/DesignerV2_1.NewShell';
+import { PaymentTestPage } from './src/pages/DesignerV2_1/pages/PaymentTestPage';
 import { useModalStore } from './src/store/useModalStore';
 import UpgradeModal from './src/components/DesignerV2_1/UpgradeModal';
 import { firebaseService } from './services/firebase';
@@ -69,13 +79,36 @@ import { AuthModal } from './components/AuthModal';
 import { PrivacyModal } from './components/PrivacyModal';
 import { TermsModal } from './components/TermsModal';
 import { ReturnPolicyModal } from './components/ReturnPolicyModal';
+import { ErrorModal } from './src/pages/DesignerV2_1/components/ErrorModal';
 import { PublicSurveyPreviewPage } from './src/features/survey/PublicSurveyPreviewPage';
 // Removed designs/drafts pages per request
 const DevVideoLabPage = React.lazy(() => import('./src/pages/DevVideoLab/DevVideoLabPage'));
 const VisualizerPage = React.lazy(() => import('./pages/VisualizerPage'));
 import { NavDebugA, NavDebugB, NavDebugC, NavDebugIndex, NavDebugLayout } from './src/pages/NavDebugPage';
 import { ClientNavDebugPage } from './src/pages/ClientNavDebugPage';
+import { TransactionHistory } from './src/pages/TransactionHistory';
+import PDFTestPage from './src/pages/PDFTest/PDFTestPage';
 // Ensure dev.khuyoot.app defaults to designer (not tailor join)
+const AUTH_OUTAGE_STORAGE_KEY = 'khuyoot:notice:auth-outage';
+
+const AuthOutageBanner: React.FC<{ onDismiss: () => void }> = React.memo(({ onDismiss }) => (
+  <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-600 text-white shadow-lg">
+    <div className="max-w-6xl mx-auto px-4 py-3 flex items-start gap-3">
+      <div className="flex-1 text-sm sm:text-base">
+        <strong className="font-bold">تنبيه مهم:</strong>{' '}
+        توجد مشكلة مؤقتة في تسجيل الدخول والخدمات التي تعتمد على Firebase. نعمل على الإصلاح حالياً. شكراً لصبركم.
+      </div>
+      <button
+        onClick={onDismiss}
+        className="text-white/90 hover:text-white text-sm font-bold px-2"
+        aria-label="إغلاق التنبيه"
+      >
+        ✕
+      </button>
+    </div>
+  </div>
+));
+
 const DevDefaultRoute: React.FC = () => {
   // Disabled: No longer redirecting dev.khuyoot.app to /designer
   // Users will land on homepage (/) by default
@@ -113,6 +146,31 @@ const HomeDisabled: React.FC = () => (
 const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
+
+  // DEV isolation: run the Firebase auth diagnostic page without the app bootstrap.
+  // This prevents AppInitializer/AdminConfig/CreditProvider/AuthModal/etc from running.
+  if (
+    import.meta.env.DEV &&
+    typeof window !== 'undefined' &&
+    window.location?.pathname?.startsWith('/__dev/firebase-auth-diagnostic')
+  ) {
+    return (
+      <HelmetProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route
+              path="/__dev/firebase-auth-diagnostic"
+              element={
+                <React.Suspense fallback={<LoadingShell />}>
+                  <FirebaseAuthDiagnosticReactPage />
+                </React.Suspense>
+              }
+            />
+          </Routes>
+        </BrowserRouter>
+      </HelmetProvider>
+    );
+  }
 
   // Failsafe: never get stuck on a blank LoadingShell if Zustand rehydration errors.
   // If storage is blocked/corrupt, allow the app to mount with default in-memory state.
@@ -182,6 +240,57 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const { user } = useApp();
   const isDev = import.meta.env.DEV;
+  const [showAuthNotice, setShowAuthNotice] = React.useState(() => {
+    try {
+      return localStorage.getItem(AUTH_OUTAGE_STORAGE_KEY) !== 'dismissed';
+    } catch {
+      return true;
+    }
+  });
+  const [globalErrorOpen, setGlobalErrorOpen] = React.useState(false);
+  const [globalErrorMessage, setGlobalErrorMessage] = React.useState('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.');
+  const [globalErrorTitle, setGlobalErrorTitle] = React.useState('خطأ');
+
+  const dismissAuthNotice = React.useCallback(() => {
+    try {
+      localStorage.setItem(AUTH_OUTAGE_STORAGE_KEY, 'dismissed');
+    } catch {
+      // ignore
+    }
+    setShowAuthNotice(false);
+  }, []);
+
+  React.useEffect(() => {
+    const handleError = (event: ErrorEvent) => {
+      const message = event?.message || 'حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.';
+      setGlobalErrorTitle('خطأ');
+      setGlobalErrorMessage(message);
+      setGlobalErrorOpen(true);
+    };
+
+    const handleRejection = (event: PromiseRejectionEvent) => {
+      const reason = (event?.reason && (event.reason.message || event.reason.toString())) || 'حدث خطأ غير متوقع.';
+      setGlobalErrorTitle('خطأ');
+      setGlobalErrorMessage(reason);
+      setGlobalErrorOpen(true);
+    };
+
+    const handleFirebaseCritical = (event: CustomEvent) => {
+      const detailMessage = (event?.detail && (event.detail.message || event.detail.toString())) || 'تعذر الاتصال بخدمات Firebase مؤقتاً.';
+      setGlobalErrorTitle('مشكلة في الاتصال');
+      setGlobalErrorMessage(detailMessage);
+      setGlobalErrorOpen(true);
+    };
+
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    window.addEventListener('firebase-critical-error' as any, handleFirebaseCritical as any);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+      window.removeEventListener('firebase-critical-error' as any, handleFirebaseCritical as any);
+    };
+  }, []);
 
   React.useEffect(() => {
     const onClick = (event: MouseEvent) => {
@@ -227,52 +336,11 @@ const AppContent: React.FC = () => {
   }, []);
 
   React.useEffect(() => {
-    // Aggressively remove any blocking overlays that might intercept clicks
+    // Only remove explicitly tagged cleanup overlays to avoid touching React-managed nodes
     const removeBlockingOverlays = () => {
-      // Don't remove if modal is intentionally open
       if (document.body.classList.contains('modal-open')) return;
-      
-      // Query ALL potentially blocking elements
-      const selectors = [
-        // Keep our protected modal overlays intact
-        '[data-overlay-owner]',
-        '.overlay',
-        '.backdrop',
-        '[role="dialog"]',
-        '[data-modal]',
-        '.modal-backdrop',
-        '.fixed.inset-0',
-      ];
-
-      let removed = false;
-      for (const selector of selectors) {
-        const overlays = document.querySelectorAll(selector);
-        overlays.forEach((overlay) => {
-          const style = window.getComputedStyle(overlay);
-          const isPositioned = style.position === 'fixed' || style.position === 'absolute' || style.position === 'sticky';
-          const rect = overlay.getBoundingClientRect();
-          const likelyCovers = 
-            rect.left <= 1 && 
-            rect.top <= 1 && 
-            rect.right >= window.innerWidth - 1 && 
-            rect.bottom >= window.innerHeight - 1;
-          
-          if (isPositioned && likelyCovers) {
-            // Only remove if it's not the main app container or html/body
-            // Skip protected modal overlays
-            const isProtectedModal = (overlay as HTMLElement).getAttribute('data-overlay') === 'khuyoot-modal';
-            if (isProtectedModal) return;
-
-            if (!overlay.classList.contains('app-container') && 
-                overlay.tagName !== 'HTML' && 
-                overlay.tagName !== 'BODY') {
-              overlay.remove();
-              removed = true;
-            }
-          }
-        });
-      }
-      return removed;
+      const overlays = document.querySelectorAll('[data-khuyoot-overlay="cleanup"]');
+      overlays.forEach((overlay) => overlay.remove());
     };
 
     const interval = window.setInterval(removeBlockingOverlays, 500);
@@ -281,6 +349,13 @@ const AppContent: React.FC = () => {
   
   return (
     <>
+      {showAuthNotice && <AuthOutageBanner onDismiss={dismissAuthNotice} />}
+      <ErrorModal
+        isOpen={globalErrorOpen}
+        onClose={() => setGlobalErrorOpen(false)}
+        title={globalErrorTitle}
+        message={globalErrorMessage}
+      />
       <BrowserRouter>
         <DevDefaultRoute />
         <TailorJoinRedirect />
@@ -294,6 +369,14 @@ const AppContent: React.FC = () => {
                      element={
                        <React.Suspense fallback={<LoadingShell />}>
                          <DevVideoLabPage />
+                       </React.Suspense>
+                     }
+                   />
+                   <Route
+                     path="/__dev/firebase-auth-diagnostic"
+                     element={
+                       <React.Suspense fallback={<LoadingShell />}>
+                         <FirebaseAuthDiagnosticReactPage />
                        </React.Suspense>
                      }
                    />
@@ -311,6 +394,8 @@ const AppContent: React.FC = () => {
                        </React.Suspense>
                      }
                    />
+                   <Route path="/__dev/cookie-test" element={<CookieAuthTest />} />
+                   <Route path="/__dev/payment-test" element={<PaymentTestPage />} />
                  </>
                )}
                {/* Standalone Admin Route (Separated from Client Layout) */}
@@ -321,46 +406,48 @@ const AppContent: React.FC = () => {
                
                {/* Store Admin Route (Separated Management) */}
                <Route path="/store-admin" element={<StoreAdmin />} />
-
-               {/* Test Routes */}
+{/* Test Routes */}
+               <Route path="/auth-test" element={<AuthTestPage />} />
+               
                <Route path="/test-template-picker" element={<TestTemplatePickerPage />} />
+                <Route path="/pdf-test" element={<PDFTestPage />} />
                {/* Jank sandbox without ClientLayout (no header/footer) */}
                <Route path="/jank-sandbox" element={<JankSandbox />} />
                  <Route path="/visualizer" element={<VisualizerPage />} />
-               <Route path="/designer-v2-1" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
-               <Route path="/designer-v2-1/:productId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
-               <Route path="/designer-v2-1/design/:taskId" element={<React.Suspense fallback={<LoadingShell />}><DesignerV2_1 /></React.Suspense>} />
+               <Route path="/transaction-history" element={<TransactionHistory />} />
 
-               {/* Block old demo shell routes */}
-               <Route path="/demo-shell/*" element={<Navigate to="/" replace />} />
+               {/* Homepage / Studio Shell (Standalone) */}
+               <Route path="/" element={<DemoShellLayout />}>
+                 <Route index element={<DemoShellPageA />} />
+                 <Route path="page-b" element={<DemoShellPageB />} />
+                 <Route path="tailors" element={<TailorList />} />
+                 <Route path="tailor/:id" element={<TailorProfile />} />
+                 <Route path="product/:id" element={<ProductDetails />} />
+                 <Route path="designer-v2-1" element={<DesignerV2_1 />} />
+                 <Route path="designer-v2-1/:productId" element={<DesignerV2_1 />} />
+                 <Route path="designer-v2-1/design/:taskId" element={<DesignerV2_1 />} />
+                 <Route path="designer-v2-1/new" element={<DesignerV2_1_NewShell />} />
+                  <Route path="order-summary/:orderId" element={<OrderSummary />} />
+                  <Route path="measurements" element={<ClientMeasurementsV2 />} />
+                  <Route path="measurements/:productId" element={<ClientMeasurementsV2 />} />
+                  <Route path="studio/measurements/:productId" element={<StudioMeasurements />} />
+                  <Route path="measurements-v2" element={<ClientMeasurementsV2 />} />
+                  <Route path="measurements-v2/:productId" element={<ClientMeasurementsV2 />} />
+               </Route>
 
-               {/* Public App Routes */}
                <Route element={<ClientLayout />}>
                  {isDev && <Route path="/__dev/client-nav-debug" element={<ClientNavDebugPage />} />}
-                 {/* Homepage */}
-                 <Route path="/" element={<DemoShellLayout />}>
-                   <Route index element={<DemoShellPageA />} />
-                   <Route path="page-b" element={<DemoShellPageB />} />
-                 </Route>
                  <Route path="/jackets" element={<ProductList />} />
                  <Route path="/tailor-account" element={<TailorAccount />} />
                  <Route path="/boutique-account" element={<BoutiqueAccount />} />
                  <Route path="/shop-account" element={<ShopAccount />} />
                  {/* Fabric store removed in new role model */}
                  <Route path="/account" element={<Account />} />
-                 <Route path="/measurements" element={<ClientMeasurementsV2 />} />
-                 <Route path="/measurements/:productId" element={<ClientMeasurementsV2 />} />
-                 <Route path="/measurements-v2" element={<ClientMeasurementsV2 />} />
-                 <Route path="/measurements-v2/:productId" element={<ClientMeasurementsV2 />} />
-                 <Route path="/order-summary/:orderId" element={<OrderSummary />} />
                  <Route path="/checkout" element={<Checkout />} />
                  <Route path="/measurements-old" element={<Measurements />} />
                  <Route path="/designer" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
                  <Route path="/designer/:id" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
-                 <Route path="/tailors" element={<TailorList />} />
-                 <Route path="/tailor/:id" element={<TailorProfile />} />
                  <Route path="/product" element={<Navigate to="/jackets" replace />} />
-                 <Route path="/product/:id" element={<ProductDetails />} />
                  <Route path="/customization" element={<CustomizationPage />} />
                  <Route path="/customization/:productId" element={<CustomizationPage />} />
                  <Route path="/tailor/collections" element={<TailorCollections />} />
@@ -410,46 +497,46 @@ const AppContent: React.FC = () => {
 // Separate component for root-level modals to prevent re-renders
 const RootModalPortal: React.FC = () => {
   const { isUpgradeModalOpen, setIsUpgradeModalOpen } = useModalStore();
-  const { isPrivacyModalOpen, togglePrivacyModal, isTermsModalOpen, toggleTermsModal, isReturnPolicyModalOpen, toggleReturnPolicyModal, appSettings } = useApp();
+  const { user, isPrivacyModalOpen, togglePrivacyModal, isTermsModalOpen, toggleTermsModal, isReturnPolicyModalOpen, toggleReturnPolicyModal, appSettings } = useApp();
 
   const privacyContent = (appSettings as any)?.pageTexts?.privacyPolicy || '';
   const termsContent = (appSettings as any)?.pageTexts?.termsAndConditions || '';
   const returnPolicyContent = (appSettings as any)?.pageTexts?.returnPolicy || '';
 
-  const handleUpgrade = async () => {
-    console.log('🚀 App - User clicked upgrade from root portal');
-    
-    const currentUser = firebaseService.auth?.currentUser;
-    if (!currentUser) {
-      console.error('❌ No user logged in');
+  const handleUpgrade = async (packageInfo: {
+    packageType: string;
+    packageName: string;
+    credits: number;
+    price: number;
+    isSubscription: boolean;
+  }) => {
+    const currentUserId = user?.id;
+    if (!currentUserId) {
       throw new Error('يجب تسجيل الدخول أولاً');
     }
-
-    console.log('🔵 User ID:', currentUser.uid);
     
     try {
-      console.log('🔵 Adding 200 credits...');
-      
-      console.log('💳 Purchasing credits for user:', currentUser.uid);
-      
-      // Use user-accessible purchase function
+      // Use user-accessible purchase function with full package details
       const result = await firebaseService.purchaseCredits({
-        userId: currentUser.uid,
-        amount: 200
+        userId: currentUserId,
+        amount: packageInfo.credits,
+        packageType: packageInfo.packageType,
+        packageName: packageInfo.packageName,
+        amountPaid: packageInfo.price,
+        paymentMethod: 'cash', // Default to cash, can be changed based on payment integration
+        isSubscription: packageInfo.isSubscription,
       });
       
       const newBalance = result.new_balance;
-      console.log('✅ Credits purchased! Transaction:', result.transaction_id, 'New balance:', newBalance);
       
       // Update localStorage for instant UI
-      window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(newBalance));
+      window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUserId}`, String(newBalance));
       
       // Trigger event to update all credit displays
       window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
         detail: { balance: newBalance } 
       }));
     } catch (error: any) {
-      console.error('❌ Failed to add credits:', error);
       throw new Error(error?.message || 'فشل في إضافة الرصيد');
     }
   };
@@ -485,3 +572,5 @@ const RootModalPortal: React.FC = () => {
 };
 
 export default App;
+
+

@@ -68,28 +68,25 @@ service firebase.storage {
     
     // ===========================================
     // الأفاتار (صور المستخدمين)
-    // ===========================================
     // المسار: avatars/{userId}.webp
-    
-    match /avatars/{userId} {
-      // السماح بالكتابة فقط لصاحب الحساب
+    match /avatars/{fileName} {
+      allow read: if true;
       allow write: if request.auth != null && 
-                     request.auth.uid == userId &&
+                     fileName.matches("^" + request.auth.uid + "(\\..*)?$") &&
                      isValidImage() &&
-                     request.resource.size < 2 * 1024 * 1024; // حد أقصى 2MB
+                     request.resource.size < 2 * 1024 * 1024; // 2MB max
     }
     
     // ===========================================
     // صور الغلاف (للخياطين)
     // ===========================================
     // المسار: covers/{tailorId}.webp
-    
-    match /covers/{tailorId} {
-      // السماح بالكتابة فقط للخياط
+    match /covers/{fileName} {
+      allow read: if true;
       allow write: if request.auth != null && 
-                     request.auth.uid == tailorId &&
+                     fileName.matches("^" + request.auth.uid + "(\\..*)?$") &&
                      isValidImage() &&
-                     request.resource.size < 5 * 1024 * 1024; // حد أقصى 5MB
+                     request.resource.size < 5 * 1024 * 1024; // 5MB max
     }
     
     // ===========================================

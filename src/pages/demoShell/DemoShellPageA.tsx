@@ -36,95 +36,53 @@ const PromoTileCard = React.memo(function PromoTileCard({ tile }: { tile: PromoT
     <button
       type="button"
       onClick={() => navigate(tile.href)}
-      className="group/promo relative snap-start overflow-hidden rounded-2xl border border-slate-200 bg-white text-left focus:outline-none focus:ring-2 focus:ring-purple-500/50 transition-shadow duration-200 ease-out hover:shadow-xl hover:border-purple-300/70 dark:border-white/10 dark:bg-zinc-900/60"
+      className="group/promo relative snap-start overflow-hidden rounded-2xl border border-[var(--studio-card-border)] bg-[var(--studio-card)] text-left studio-card-hover"
     >
-      <div className="relative h-[180px] w-[250px] sm:h-[210px] sm:w-[290px]">
+      <div className="relative h-[200px] w-[280px]">
         {displaySrc || tile.imageUrl ? (
           <img
             src={displaySrc || tile.imageUrl}
             alt={tile.title}
-            className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 ease-out group-hover/promo:scale-[1.05] group-hover/promo:-translate-y-0.5"
+            className="absolute inset-0 h-full w-full object-cover transition-transform duration-700 ease-out group-hover/promo:scale-110"
             loading="lazy"
             decoding="async"
           />
         ) : (
-          <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-purple-950/50" />
+          <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-indigo-950/40" />
         )}
 
-        <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 p-3">
-          <div className="text-sm font-bold text-white drop-shadow-sm line-clamp-1">{tile.title}</div>
+        <div className="absolute inset-x-0 bottom-0 p-4 bg-gradient-to-t from-black/80 via-black/20 to-transparent">
+          <div className="text-xs font-normal text-blue-400 uppercase tracking-widest mb-1 italic">Discover</div>
+          <div className="text-sm font-normal text-white line-clamp-1">{tile.title}</div>
         </div>
       </div>
-      <div className="absolute inset-0 ring-1 ring-transparent group-hover/promo:ring-white/10 transition" />
     </button>
   );
 });
 
 export const DiscoverDesignerPromo = React.memo(function DiscoverDesignerPromo({ tiles }: { tiles: PromoTile[] }) {
   const { t } = useTranslation(['home']);
-  const navigate = useNavigate();
   const scrollerRef = React.useRef<HTMLDivElement | null>(null);
 
-  const scrollByTiles = (dir: -1 | 1) => {
-    const el = scrollerRef.current;
-    if (!el) return;
-    el.scrollBy({ left: dir * 320, behavior: 'smooth' });
-  };
-
   return (
-    <section className="relative rounded-2xl border border-slate-200 bg-gradient-to-br from-white via-white to-purple-100 shadow-sm overflow-hidden group dark:border-zinc-800 dark:from-zinc-950 dark:via-zinc-950 dark:to-purple-950/35">
-      <div className="relative p-5 lg:pr-[400px]">
+    <section className="relative rounded-3xl border border-[var(--studio-card-border)] bg-[var(--studio-card)] overflow-hidden group">
+      <div className="p-8">
+        <div className="mb-6 flex flex-col gap-2">
+          <h3 className="text-2xl tracking-tight text-[var(--studio-text)]">Create Your Signature Look</h3>
+          <p className="text-sm text-[var(--studio-text-muted)] max-w-lg font-normal">Our interactive workshop allows you to bring your envision to life with our master tailors.</p>
+        </div>
+
         <div
           ref={scrollerRef}
-          className="flex gap-[4px] overflow-x-auto pb-2 snap-x scroll-smooth min-w-0"
-          style={{ scrollbarGutter: 'stable' }}
+          className="flex gap-6 overflow-x-auto pb-6 scrollbar-hide no-scrollbar -mx-2 px-2"
         >
           {tiles.map((t) => (
             <PromoTileCard key={t.id} tile={t} />
           ))}
         </div>
-
-        <button
-          type="button"
-          onClick={() => scrollByTiles(-1)}
-          className="hidden sm:flex absolute left-2 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/90 border border-slate-200 text-slate-600 hover:bg-slate-50 transition opacity-0 group-hover:opacity-100 dark:bg-zinc-900/90 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          aria-label={t('home:scrollLeft')}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
-        <button
-          type="button"
-          onClick={() => scrollByTiles(1)}
-          className="hidden sm:flex absolute right-2 top-1/2 -translate-y-1/2 h-10 w-10 items-center justify-center rounded-full bg-white/90 border border-slate-200 text-slate-600 hover:bg-slate-50 transition lg:right-[400px] opacity-0 group-hover:opacity-100 dark:bg-zinc-900/90 dark:border-zinc-700 dark:text-zinc-300 dark:hover:bg-zinc-800"
-          aria-label={t('home:scrollRight')}
-        >
-          <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-          </svg>
-        </button>
       </div>
-
-      <div className="p-5 pt-0 lg:pt-5 lg:absolute lg:inset-y-0 lg:right-0 lg:w-[400px] lg:bg-black/5 dark:lg:bg-black/20">
-        <div className="h-full flex flex-col justify-center">
-          <h2 className="text-2xl sm:text-3xl font-extrabold leading-tight text-slate-900 dark:text-white">
-            {t('home:discoverDesignersTitle')}
-            <span className="block text-purple-700 dark:text-purple-300 text-sm sm:text-base font-semibold">{t('home:discoverDesignersSubtitle')}</span>
-          </h2>
-
-          <div className="mt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/designer-v2-1')}
-              className="inline-flex items-center justify-center h-11 px-5 rounded-xl bg-purple-600 text-white font-bold hover:bg-purple-500 transition shadow-lg shadow-purple-600/20"
-            >
-              {t('home:exploreMore')}
-            </button>
-          </div>
-        </div>
-      </div>
+      
+      <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[120px] pointer-events-none" />
     </section>
   );
 });
@@ -136,8 +94,8 @@ const LatestFabricTile = React.memo(function LatestFabricTile({ material }: { ma
 
   return (
     <article className="snap-start w-[220px] sm:w-[240px]">
-      <div className="rounded-xl overflow-hidden border border-zinc-800 bg-zinc-900/50">
-        <div className="relative w-full aspect-[16/9] bg-zinc-900">
+      <div className="rounded-xl overflow-hidden border border-[var(--studio-card-border)] bg-[var(--studio-card)]">
+        <div className="relative w-full aspect-[16/9] bg-[var(--studio-card)]">
           {displaySrc ? (
             <img
               src={displaySrc}
@@ -147,14 +105,14 @@ const LatestFabricTile = React.memo(function LatestFabricTile({ material }: { ma
               decoding="async"
             />
           ) : (
-            <div className="absolute inset-0 bg-gradient-to-br from-zinc-800 via-zinc-900 to-purple-950/30" />
+            <div className="absolute inset-0 bg-blue-600/10" />
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-black/10 to-transparent" />
         </div>
 
         <div className="px-3 py-2">
-          <div className="text-xs font-bold text-zinc-100 truncate">{material.name}</div>
-          <div className="mt-0.5 text-[11px] text-zinc-400 truncate">
+          <div className="text-xs text-[var(--studio-text)] truncate">{material.name}</div>
+          <div className="mt-0.5 text-[11px] text-[var(--studio-text-muted)] truncate">
             {priceLabel ? priceLabel : t('home:fabricLabel')}
           </div>
         </div>
@@ -235,7 +193,7 @@ export const LatestFabricsRail = React.memo(function LatestFabricsRail({ fabrics
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-zinc-100 text-right">
           <Sparkles className="h-4 w-4 text-purple-300" />
-          <h2 className="text-sm sm:text-base font-extrabold">{t('home:latestFabrics')}</h2>
+          <h2 className="text-sm sm:text-base">{t('home:latestFabrics')}</h2>
         </div>
 
         <button
@@ -310,8 +268,8 @@ export const HomeAdsRow = React.memo(function HomeAdsRow() {
   return (
     <section className="rounded-2xl border border-zinc-950 bg-gradient-to-br from-zinc-950/50 via-zinc-950/30 to-transparent p-5 shadow-sm">
       <div className="text-center space-y-2">
-        <h2 className="text-lg font-bold text-zinc-100">{t('home:inAppOffersTitle')}</h2>
-        <p className="text-sm text-zinc-400">{t('home:inAppOffersDesc')}</p>
+        <h2 className="text-lg text-zinc-100">{t('home:inAppOffersTitle')}</h2>
+        <p className="text-sm text-zinc-400 font-normal">{t('home:inAppOffersDesc')}</p>
       </div>
     </section>
   );

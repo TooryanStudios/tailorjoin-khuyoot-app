@@ -3,6 +3,7 @@ import { Home, User, BarChart3, Settings, PenTool } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
+import { requestLoginPrompt } from '../../auth/authEvents';
 import { useDesignerStore } from '../../store/useDesignerStore';
 
 function roleBadge(role: string | undefined, t: (key: string) => string) {
@@ -65,16 +66,20 @@ const FooterNavItem = React.memo(function FooterNavItem({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center justify-center transition-all duration-200 active:scale-95 w-12 h-12"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95"
     >
-      <div className={`relative transition-all duration-300 ${active ? 'scale-110' : 'scale-100'}`}>
+      <div className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${
+        active 
+          ? 'border-emerald-400 bg-emerald-400/15 scale-105' 
+          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+      }`}>
         <Icon
           size={20}
-          strokeWidth={active ? 2.5 : 2}
+          strokeWidth={active ? 2.6 : 2.2}
           className={`transition-colors duration-300 ${
             active 
-              ? 'text-white' 
-              : 'text-slate-400 group-hover:text-slate-300'
+              ? 'text-emerald-100' 
+              : 'text-slate-200 group-hover:text-white'
           }`}
         />
       </div>
@@ -99,21 +104,23 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center justify-center transition-all duration-200 active:scale-95 w-12 h-12"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95"
     >
-      <div
-        className={`relative transition-all duration-300 ${active ? 'scale-110' : 'scale-100'}`}
-      >
+      <div className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${
+        active 
+          ? 'border-emerald-400 bg-emerald-400/15 scale-105' 
+          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+      }`}>
         {user?.profileImage ? (
-          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-5 w-5 rounded-full object-cover" />
+          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-6 w-6 rounded-full object-cover" />
         ) : (
           <User
             size={20}
-            strokeWidth={active ? 2.5 : 2}
+            strokeWidth={active ? 2.6 : 2.2}
             className={`transition-colors duration-300 ${
               active 
-                ? 'text-white' 
-                : 'text-slate-400 group-hover:text-slate-300'
+                ? 'text-emerald-100' 
+                : 'text-slate-200 group-hover:text-white'
             }`}
           />
         )}
@@ -227,7 +234,7 @@ export function Footer() {
       style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
     >
       {/* Rounded pill container with stronger blur */}
-      <div className="flex items-center gap-3 px-5 h-16 bg-slate-900/70 dark:bg-black/70 backdrop-blur-3xl rounded-full shadow-2xl shadow-black/40 border border-white/10">
+      <div className="flex items-center gap-3 px-5 h-16 bg-slate-900/70 dark:bg-black/70 backdrop-blur-[24px] rounded-full shadow-2xl shadow-black/40 border border-white/10">
 
         {/* Guest layout: Home / Account / Designer */}
         {!user && (
@@ -245,9 +252,7 @@ export function Footer() {
 
             <button
               onClick={() => {
-                // Open auth modal for guests
-                const event = new CustomEvent('openAuthModal');
-                window.dispatchEvent(event);
+                requestLoginPrompt('user_action');
               }}
               className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
                 isActive('/account')
@@ -285,17 +290,16 @@ export function Footer() {
               label={t('navAccount')}
               user={user}
               active={
-                isActive(
-                  user?.role === 'tailor'
-                    ? '/tailor-account'
-                    : user?.role === 'boutique'
-                      ? '/boutique-account'
-                      : user?.role === 'shop'
-                        ? '/shop-account'
-                        : user?.role === 'admin'
-                          ? '/admin'
-                          : '/account'
-                )
+                location.pathname === '/tailor-account' ||
+                location.pathname === '/boutique-account' ||
+                location.pathname === '/shop-account' ||
+                location.pathname === '/admin' ||
+                location.pathname === '/account' ||
+                location.pathname.startsWith('/tailor-account/') ||
+                location.pathname.startsWith('/boutique-account/') ||
+                location.pathname.startsWith('/shop-account/') ||
+                location.pathname.startsWith('/admin/') ||
+                location.pathname.startsWith('/account/')
               }
               onClick={() => {
                 navigate(
@@ -310,6 +314,13 @@ export function Footer() {
                           : '/account'
                 );
               }}
+            />
+
+            <FooterNavItem 
+              icon={PenTool} 
+              label={t('navDesigner') || 'Designer'} 
+              active={isInDesigner} 
+              onClick={() => navigate('/designer-v2-1')} 
             />
 
             <FooterNavItem 

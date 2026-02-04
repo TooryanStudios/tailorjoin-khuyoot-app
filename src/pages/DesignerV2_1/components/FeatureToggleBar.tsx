@@ -87,7 +87,7 @@ export const FeatureToggleBar: React.FC<FeatureToggleBarProps> = ({
       {/* Toggle Button */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="p-3 rounded-xl bg-purple-600 hover:bg-purple-700 text-white shadow-lg transition-all active:scale-95"
+        className="p-3 rounded-xl bg-theme-primary hover:bg-theme-primary-dark text-white shadow-lg shadow-theme-primary/20 transition-all active:scale-95"
         title="Designer V2.1 Feature Toggles"
       >
         <Settings size={20} />
@@ -148,7 +148,7 @@ export const FeatureToggleBar: React.FC<FeatureToggleBarProps> = ({
                           onChange={() => toggleFeature(key)}
                           className="sr-only peer"
                         />
-                        <div className="w-9 h-5 bg-zinc-600 peer-focus:ring-2 peer-focus:ring-purple-500 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-purple-600"></div>
+                        <div className="w-9 h-5 bg-zinc-600 peer-focus:ring-2 peer-focus:ring-theme-primary rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-theme-primary"></div>
                       </div>
                     </label>
                   ))}

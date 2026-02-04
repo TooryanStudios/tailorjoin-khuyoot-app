@@ -4,7 +4,7 @@ import { Eye, Pencil, Trash2 } from 'lucide-react';
 import { Button } from '../../../components/Button';
 import { Modal } from '../../../components/Modal';
 import { firebaseService, db, storage } from '../../../services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { useAuth } from '../../auth/useAuth';
 import imageCompression from 'browser-image-compression';
 import {
    addDoc,
@@ -334,22 +334,8 @@ export const FabricLibrary: React.FC<FabricLibraryProps> = () => {
       }
    };
 
-   const [isFirebaseAuthed, setIsFirebaseAuthed] = useState<boolean>(() => {
-      try {
-         return !!firebaseService?.auth?.currentUser;
-      } catch {
-         return false;
-      }
-   });
-
-   useEffect(() => {
-      try {
-         const unsub = onAuthStateChanged(firebaseService.auth, (u) => setIsFirebaseAuthed(!!u));
-         return () => unsub();
-      } catch {
-         return;
-      }
-   }, []);
+   const { status: authStatus } = useAuth();
+   const isFirebaseAuthed = authStatus === 'authenticated';
 
    const loadCategories = async () => {
       setLoading(true);

@@ -1,11 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { fetchGenerationHistory, type GenerationRecord } from '../../../services/fabricSwapService';
-import { firebaseService } from '../../../services/firebase';
+import { apiFetch } from '../../../api/apiFetch';
+import { ApiUnauthorizedError, AuthRequiredError } from '../../../api/httpErrors';
+import { requestLoginPrompt } from '../../../auth/authEvents';
 
 export type PendingGeneration = {
   clientId: string;
   jobId?: string;
   isPending: true;
+  isError?: boolean;
+  error?: string;
   createdAt: string;
 };
 
@@ -46,23 +50,28 @@ function safeLocalStorageSet(key: string, value: unknown) {
   }
 }
 
-export const useGenerationHistory = (userId: string | undefined, limit: number = 20) => {
+import { type AuthStatus } from '../../../auth/authTypes';
+
+export const useGenerationHistory = (userId: string | undefined, status: AuthStatus = 'loading', limit: number = 20) => {
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [activeId, setActiveId] = useState<string | null>(null);
   const hasHydratedRef = useRef(false);
+  const sessionExpiredNotifiedRef = useRef(false);
 
   const cacheKey = userId ? `khuyoot:designerV2_1:history:v1:${userId}` : null;
 
   // Hydrate history immediately from cache (so refresh doesn't blank the strip)
   useEffect(() => {
-    if (!cacheKey) return;
+    if (!cacheKey) {
+      return;
+    }
     const cached = safeLocalStorageGet<HistoryCacheV1>(cacheKey);
     if (!cached || cached.v !== 1) return;
-    if (cached.items?.length) {
-      setHistory(cached.items);
-      hasHydratedRef.current = true;
-    }
+
+    
+    setHistory(cached.items);
+    hasHydratedRef.current = true;
     setActiveId((prev) => prev ?? cached.activeId ?? null);
   }, [cacheKey]);
 
@@ -113,45 +122,75 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
     setActiveId((prev) => (prev === clientId ? null : prev));
   }, []);
 
+  const markGenerationAsError = useCallback((clientId: string, error?: string) => {
+    setHistory((prev) =>
+      prev.map((item) => {
+        if ('isPending' in item && item.isPending && item.clientId === clientId) {
+          return {
+            ...item,
+            isError: true,
+            error: error || 'Generation failed',
+          };
+        }
+        return item;
+      })
+    );
+  }, []);
+
   const refreshHistory = useCallback(async () => {
-    if (!userId) {
-      return;
-    }
-    
-    // Check if Firebase user is actually authenticated
-    if (!firebaseService.auth?.currentUser) {
-      console.log('[History Hook] Skipping fetch - user not authenticated yet');
-      return;
-    }
-    
+    // If no userId, we can still try if status is authenticated, but for now we follow the hook's userId
+    if (!userId) return;
+
     try {
       setIsLoading(true);
       const data = await fetchGenerationHistory(limit);
+      
       setHistory((prev) => {
-        const realJobIds = new Set(data.map((d) => d.jobId));
-
+        // Collect all jobIds from incoming data
+        const incomingJobIds = new Set(data.map((g) => g.jobId).filter(Boolean));
+        
+        // 1. Keep pending generations that haven't been finalized yet (no jobId, or jobId not in incoming)
         const pending = prev.filter((item): item is PendingGeneration => 'isPending' in item && item.isPending);
-        const stillPending = pending.filter((p) => !p.jobId || !realJobIds.has(p.jobId));
+        const stillPending = pending.filter(p => !p.jobId || !incomingJobIds.has(p.jobId));
 
+        // 2. Map incoming data to CompleteHistoryItem, preserving existing clientIds if possible
         const existingClientIdByJobId = new Map<string, string>();
         for (const item of prev) {
-          if (!('isPending' in item) && item.jobId) {
-            existingClientIdByJobId.set(item.jobId, item.clientId);
-          }
-          if ('isPending' in item && item.jobId) {
-            existingClientIdByJobId.set(item.jobId, item.clientId);
+          const jobId = (item as any).jobId;
+          if (jobId) {
+            existingClientIdByJobId.set(jobId, item.clientId);
           }
         }
 
         const mapped: CompleteHistoryItem[] = data.map((g) => ({
           ...g,
-          clientId: existingClientIdByJobId.get(g.jobId) ?? g.jobId,
+          clientId: existingClientIdByJobId.get(g.jobId) ?? g.jobId ?? `hist-${g.createdAt}-${Math.random().toString(16).slice(2)}`,
         }));
 
-        return [...stillPending, ...mapped];
+        // 3. Keep recently finalized items that might not have appeared in the API yet
+        // Only keep if NOT in incomingJobIds AND younger than 2 minutes
+        const mappedJobIds = new Set(mapped.map(m => m.jobId));
+        const recentlyFinalized = prev.filter((item): item is CompleteHistoryItem => {
+          if ('isPending' in item) return false;
+          const jobId = (item as any).jobId;
+          if (!jobId || mappedJobIds.has(jobId)) return false;
+          
+          const createdAt = new Date(item.createdAt).getTime();
+          const now = Date.now();
+          return (now - createdAt) < 120000; 
+        });
+
+        // Combine: Pending first, then Recently Finalized, then fresh API data
+        // API data usually comes ordered by date, so we trust its order
+        return [...stillPending, ...recentlyFinalized, ...mapped];
       });
     } catch (error) {
-      console.error('[History Hook] Failed to fetch:', error);
+      console.error('[useGenerationHistory] Refresh failed:', error);
+      if (error instanceof AuthRequiredError || error instanceof ApiUnauthorizedError) {
+        if (!sessionExpiredNotifiedRef.current) {
+          sessionExpiredNotifiedRef.current = true;
+        }
+      }
     } finally {
       setIsLoading(false);
     }
@@ -161,35 +200,33 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
     if (!window.confirm('Are you sure you want to clear this design slot?')) return;
 
     try {
-      const token = await firebaseService.auth.currentUser?.getIdToken();
-
-      const response = await fetch(`/api/designer-v2-1/history/${jobId}`, {
+      await apiFetch(`/api/designer-v2-1/history/${jobId}`, {
         method: 'DELETE',
-        headers: {
-          Authorization: token ? `Bearer ${token}` : '',
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
       });
-
-      if (!response.ok) throw new Error('Failed to delete');
 
       setHistory((prev) => prev.filter((item) => item.jobId !== jobId));
       if (activeId === jobId) {
         setActiveId(null);
       }
     } catch (error) {
-      console.error('[History] Delete failed:', error);
+      if (error instanceof AuthRequiredError || error instanceof ApiUnauthorizedError) {
+        requestLoginPrompt('unauthorized');
+        return;
+      }
       alert('Could not delete the design. Please try again.');
     }
   }, [activeId]);
 
   useEffect(() => {
-    // Skip initial network fetch if we already hydrated from cache
-    if (hasHydratedRef.current && history.length > 0) {
+    if (!userId || status !== 'authenticated') {
       return;
     }
+
+    // Just call refreshHistory immediately.
     refreshHistory();
-  }, [refreshHistory, history.length]);
+  }, [userId, status, refreshHistory]);
 
   return {
     history,
@@ -201,5 +238,6 @@ export const useGenerationHistory = (userId: string | undefined, limit: number =
     addPendingGeneration,
     finalizePendingGeneration,
     removePendingGeneration,
+    markGenerationAsError,
   };
 };

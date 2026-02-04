@@ -1,0 +1,17 @@
+﻿
+--- Testing: https://uatcheckout.thawani.om/api/v1/checkout/sessions ---
+Status: 404 Not Found
+Body length: 0
+
+--- Testing: https://uatcheckout.thawani.om/api/v1/checkout/session ---
+Status: 200 OK
+Body length: 649
+Body snippet: {"success":true,"code":2004,"description":"Session generated successfully","data":{"mode":"payment",
+
+--- Testing: https://uatcheckout.thawani.om/checkout/session ---
+Status: 500 Internal Server Error
+Body length: 0
+
+--- Testing: https://uatcheckout.thawani.om/api/v1/sessions ---
+Status: 404 Not Found
+Body length: 0

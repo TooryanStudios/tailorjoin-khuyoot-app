@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { History, Clock, Loader2 } from 'lucide-react';
+import { History as HistoryIcon, Clock, Loader2 } from 'lucide-react';
 
 export type GenerationHistoryProps = {
   items?: any[];
@@ -61,7 +61,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-zinc-500/5 to-transparent flex items-center justify-center">
-                  <History size={18} className="text-zinc-800" />
+                  <HistoryIcon size={18} className="text-zinc-800" />
                 </div>
               )}
 

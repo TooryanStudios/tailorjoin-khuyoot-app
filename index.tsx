@@ -4,6 +4,7 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import 'react-image-crop/dist/ReactCrop.css';
 import App from './App';
 import { queryClient } from './src/lib/queryClient';
+import { AuthProvider } from './src/auth/AuthProvider';
 
 // i18n (language + RTL/LTR) must initialize before React renders
 import './src/i18n/i18n';
@@ -48,8 +49,47 @@ try {
 
 // Unregister Service Worker and clear cache in development (FORCE)
 if (import.meta.env.DEV && 'serviceWorker' in navigator) {
-  // Logic removed: Don't force clear caches on every refresh in dev.
-  // This allows us to test "Zero-Lag" performance patterns.
+  // DEV safety: if a Service Worker from a previous build is still controlling the page,
+  // it can serve stale JS and cause confusing runtime errors.
+  // Unregister + clear caches ONCE per browser profile.
+  try {
+    const key = 'khuyoot:dev:sw-cleaned-once';
+    if (!localStorage.getItem(key)) {
+      navigator.serviceWorker
+        .getRegistrations()
+        .then(async (regs) => {
+          if (!regs || regs.length === 0) {
+            localStorage.setItem(key, '1');
+            return;
+          }
+
+          await Promise.all(
+            regs.map((r) =>
+              r
+                .unregister()
+                .catch(() => false)
+            )
+          );
+
+          try {
+            if ('caches' in window) {
+              const names = await caches.keys();
+              await Promise.all(names.map((n) => caches.delete(n)));
+            }
+          } catch {
+            // ignore
+          }
+
+          localStorage.setItem(key, '1');
+          window.location.reload();
+        })
+        .catch(() => {
+          localStorage.setItem(key, '1');
+        });
+    }
+  } catch {
+    // ignore
+  }
 }
 
 // Disable zooming and panning globally (mobile browsers)
@@ -102,7 +142,9 @@ const root = ReactDOM.createRoot(rootElement);
 root.render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      <App />
+      <AuthProvider>
+        <App />
+      </AuthProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );

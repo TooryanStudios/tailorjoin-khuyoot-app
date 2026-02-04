@@ -253,28 +253,7 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
           </div>
         ) : null}
         
-        {!after && !afterImageError && (
-          <div 
-            className="absolute top-0 left-0 bottom-0 overflow-hidden pointer-events-none"
-            style={{ width: `${sliderPos}%` }}
-          >
-            <div
-              className="absolute top-0 left-0 bottom-0 flex items-center justify-center bg-zinc-900/30"
-              style={
-                containerSize
-                  ? { width: `${containerSize.width}px` }
-                  : { width: '100%' }
-              }
-            >
-              <img
-                src="/logo_big.png?v=4"
-                alt="Khuyoot Logo"
-                className="w-1/3 max-w-xs opacity-100 select-none pointer-events-none"
-                draggable={false}
-              />
-            </div>
-          </div>
-        )}
+
         
         {after && afterImageError && (
           <div 
@@ -302,15 +281,15 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
 
       {/* Slider Handle Line */}
       <div
-        className="absolute top-0 bottom-0 w-px bg-white/80 dark:bg-white/70 flex items-center justify-center cursor-col-resize pointer-events-auto z-50"
+        className="absolute top-0 bottom-0 w-1 bg-white/90 shadow-[0_0_15px_rgba(255,255,255,0.4)] flex items-center justify-center cursor-col-resize pointer-events-auto z-50"
         style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)', willChange: 'left' }}
         onPointerDown={onStartDrag}
         ref={handleLineRef}
       >
         <div 
-          className="w-12 h-12 bg-white rounded-full flex items-center justify-center shadow-sm ring-1 ring-black/10 dark:ring-white/15 cursor-col-resize pointer-events-auto touch-none z-50"
+          className="w-10 h-10 bg-white border-2 border-theme-primary/10 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] cursor-col-resize pointer-events-auto touch-none z-50 transition-transform active:scale-90"
         >
-          <span className="text-zinc-900 text-base font-semibold">↔</span>
+          <span className="text-theme-primary text-base font-black">↔</span>
         </div>
       </div>
     </div>

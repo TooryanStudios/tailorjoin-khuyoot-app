@@ -44,8 +44,13 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<{ uid: str
   try {
     const app = getFirebaseAdminApp();
     const decoded = await app.auth().verifyIdToken(idToken);
-    return { uid: decoded.uid };
-  } catch {
+    return decoded;
+  } catch (e: any) {
+    if (e.code === 'auth/id-token-expired') {
+      console.warn('[FirebaseAdmin] Token expired');
+    } else {
+      console.error('[FirebaseAdmin] Token verification failed:', e.message);
+    }
     return null;
   }
 }
@@ -59,4 +64,9 @@ export function getStorageBucket() {
   const app = getFirebaseAdminApp();
   const bucket = app.storage().bucket();
   return bucket;
+}
+
+export async function createCustomTokenForUid(uid: string): Promise<string> {
+  const app = getFirebaseAdminApp();
+  return app.auth().createCustomToken(uid);
 }

@@ -1,4 +1,6 @@
 import * as React from 'react';
+import { useApp } from '../../../../context/AppContext';
+import { User } from 'lucide-react';
 import { CreditBadge } from '../../CreditManager';
 import { MobileControlDrawer, type MobileDrawerModel, type MobileDrawerTab } from '../components/MobileControlDrawer';
 import type { LightingPreset } from '../../generator/hooks/useLightingGenerator';
@@ -84,6 +86,8 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
     onSelectLightingPreset,
     onRefillCredits,
   } = props;
+
+  const { user } = useApp();
 
   const viewportH = useViewportHeight();
 
@@ -171,9 +175,21 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
       {/* Studio Canvas */}
       <div className="absolute inset-0 bg-gradient-to-br from-[#050817] via-[#0b0515] to-[#120821]" />
 
-      {/* Floating Credit Badge */}
-      <div className="absolute top-3 right-3 z-30 scale-[0.92] origin-top-right">
+            {/* Floating Header Actions */}
+      <div className="absolute top-3 right-3 z-30 flex items-center gap-2 scale-[0.92] origin-top-right">
         <CreditBadge onRefill={onRefillCredits} />
+        {user && (
+          <button 
+            className="w-8 h-8 rounded-full overflow-hidden border border-white/10 bg-black/20 backdrop-blur-sm flex items-center justify-center"
+            onClick={() => window.location.href = '/account'}
+          >
+            {user.profileImage ? (
+              <img src={user.profileImage} className="w-full h-full object-cover" alt="User" />
+            ) : (
+              <User size={16} className="text-white/70" />
+            )}
+          </button>
+        )}
       </div>
 
       {/* Main Canvas Area */}

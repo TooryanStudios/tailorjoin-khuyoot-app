@@ -1,7 +1,7 @@
 import React from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { LoadingShell } from './LoadingShell';
-import { ADMIN_CONFIG_QUERY_KEY, fetchAdminConfig } from '../lib/adminConfig';
+import { ADMIN_CONFIG_QUERY_KEY, fetchAdminConfig, getCachedAdminConfig } from '../lib/adminConfig';
 import type { AppSettings } from '../../types';
 
 type AppInitializerProps = {
@@ -28,6 +28,7 @@ export function AppInitializer({ children }: AppInitializerProps) {
   const { data } = useQuery({
     queryKey: ADMIN_CONFIG_QUERY_KEY,
     queryFn: fetchAdminConfig,
+    initialData: getCachedAdminConfig,
     staleTime: Infinity,
     gcTime: Infinity,
     retry: 1,
@@ -37,6 +38,7 @@ export function AppInitializer({ children }: AppInitializerProps) {
   const [isAppVisible, setIsAppVisible] = React.useState(true); // START VISIBLE to prevent black screen
   // Failsafe: If config takes too long, just use fallback
   const [useFallback, setUseFallback] = React.useState(false);
+  const warnedRef = React.useRef(false);
 
   React.useEffect(() => {
     if (data || useFallback) {
@@ -44,16 +46,31 @@ export function AppInitializer({ children }: AppInitializerProps) {
       setIsAppVisible(true);
     }
 
-    // If data doesn't load within 2 seconds, force fallback to prevent blank screen
-    // REDUCED from 5s to 2s - users shouldn't wait longer than this
-    const timer = setTimeout(() => {
-       console.warn('[AppInitializer] Config load timeout after 2s - forcing app render with defaults');
-       console.warn('[AppInitializer] This usually means Firebase connection is slow or blocked');
-       console.warn('[AppInitializer] Try clearing cache: localStorage.clear(); location.reload();');
-       setUseFallback(true);
-    }, 2000);
-    return () => clearTimeout(timer);
+    // If config doesn't load in time, fall back to defaults (avoid blank screens).
+    // Keep this less aggressive to reduce noisy warnings on slower connections.
+    if (data || useFallback) return;
+    const timeoutMs = 6000;
+    const timer = window.setTimeout(() => {
+      if (warnedRef.current) return;
+      warnedRef.current = true;
+      console.warn(`[AppInitializer] Config load timeout after ${timeoutMs}ms - using defaults`);
+      setUseFallback(true);
+    }, timeoutMs);
+    return () => window.clearTimeout(timer);
   }, [Boolean(data), useFallback]);
+
+  // Cache fallback settings if we are forced to use them, 
+  // ensuring the NEXT load is instant.
+  React.useEffect(() => {
+    if (useFallback && !data) {
+      try {
+        localStorage.setItem('khuyoot:admin-config:cache:v1', JSON.stringify({
+          data: FALLBACK_SETTINGS,
+          timestamp: Date.now()
+        }));
+      } catch {}
+    }
+  }, [useFallback, data]);
 
   // Zero-flash strategy: do not mount the app shell
   // until we know whether header/footer should exist.

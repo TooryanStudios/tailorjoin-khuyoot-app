@@ -10,6 +10,7 @@ import { useApp } from '../context/AppContext';
 import { UserRole, ShopType, Gender, AgeGroup, PopularRegion } from '../types';
 import { tailorGenderToSpecialization } from '../utils/specializationHelper';
 import { firebaseService } from '../services/firebase';
+import { getAuthPromptEventName } from '../src/auth/authEvents';
 
 const ageGroupOptions: { value: AgeGroup; label: string }[] = [
   { value: 'not_specified', label: 'أفضل عدم التحديد' },
@@ -90,31 +91,17 @@ export const AuthModal = () => {
   const [showForm, setShowForm] = useState(false);
   // Quick access developer accounts menu removed
   const [submitting, setSubmitting] = useState(false);
-  const [wasOpen, setWasOpen] = useState(false);
-  
-  // Navigate after successful login/registration
+  const openedFromAuthRecoveryRef = React.useRef(false);
+  const isAuthModalOpenRef = React.useRef(false);
+
+  // Keep a ref in sync to avoid re-attaching event listeners on every render.
   useEffect(() => {
-    // Track if modal was open
-    if (isAuthModalOpen) {
-      setWasOpen(true);
-    }
-    
-    // If modal just closed and we have a user (login success)
-    if (!isAuthModalOpen && wasOpen && user) {
-      console.log('✅ Login successful, navigating to account...', { userId: user.id, role: user.role });
-      setWasOpen(false);
-      
-      // Small delay to ensure state propagates
-      setTimeout(() => {
-        navigate('/account', { replace: true });
-      }, 150);
-    }
-  }, [isAuthModalOpen, user, wasOpen, navigate]);
+    isAuthModalOpenRef.current = isAuthModalOpen;
+  }, [isAuthModalOpen]);
   
-  // Debug logging to track modal state
-  useEffect(() => {
-    console.log('🔍 AuthModal state:', { isAuthModalOpen, isLogin, submitting });
-  }, [isAuthModalOpen, isLogin, submitting]);
+  // IMPORTANT: do NOT auto-navigate on close.
+  // The modal is also opened programmatically (e.g., session-expired prompts).
+  // Auto-navigation was causing DesignerV2_1 to lose state in a loop.
   
   // Fail-safe: if submitting gets stuck, clear after 12s
   useEffect(() => {
@@ -203,36 +190,103 @@ export const AuthModal = () => {
 
   // Listen for 'openAuthModal' event from Footer
   useEffect(() => {
-    const handleOpenAuthModal = () => {
-      console.log('🎯 openAuthModal event received, current state:', isAuthModalOpen);
-      if (!isAuthModalOpen) {
-        console.log('📖 Opening auth modal...');
-        toggleAuthModal(true); // Pass true to open the modal
+    const handleOpenAuthModal = (e: Event) => {
+      const detail = (e as CustomEvent)?.detail as any;
+      const reason = String(detail?.reason || '').toLowerCase();
+      openedFromAuthRecoveryRef.current =
+        reason === 'sessionexpired' ||
+        reason === 'session_expired' ||
+        reason === 'session-expired' ||
+        reason === 'signedout' ||
+        reason === 'signed_out' ||
+        reason === 'signed-out';
+
+      console.log('🎯 openAuthModal event received, current state:', isAuthModalOpenRef.current, { reason });
+      const isUserAction = reason === 'user_action' || reason === 'user-action';
+      if (!isUserAction) {
+        return;
+      }
+      if (!isAuthModalOpenRef.current) {
+        console.log('📖 Opening auth modal for user action...');
+        toggleAuthModal(true);
       } else {
         console.log('⚠️ Modal already open, skipping');
       }
     };
 
     window.addEventListener('openAuthModal', handleOpenAuthModal);
-    console.log('✅ Event listener attached for openAuthModal');
+    window.addEventListener(getAuthPromptEventName(), handleOpenAuthModal);
     
     return () => {
       window.removeEventListener('openAuthModal', handleOpenAuthModal);
-      console.log('🗑️ Event listener removed for openAuthModal');
+      window.removeEventListener(getAuthPromptEventName(), handleOpenAuthModal);
     };
-  }, [isAuthModalOpen, toggleAuthModal]);
+  }, [toggleAuthModal]);
+
+  // If this modal was opened because the session looked expired, auto-close it once Firebase Auth is restored.
+  useEffect(() => {
+    if (!isAuthModalOpen) return;
+    if (!openedFromAuthRecoveryRef.current) return;
+    if (submitting) return;
+
+    const fbUid = (firebaseService as any)?.auth?.currentUser?.uid;
+    if (!fbUid) return;
+
+    console.log('✅ Firebase Auth restored while modal open; closing auth modal', { fbUid });
+    openedFromAuthRecoveryRef.current = false;
+    toggleAuthModal(false);
+  }, [isAuthModalOpen, submitting, toggleAuthModal, user]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    setStatusText('جاري فحص الاتصال بخوادم تسجيل الدخول...');
     
     try {
       if (isLogin) {
+        const diag = await firebaseService.diagnoseAuthConnectivity();
+        console.log('[AuthModal] Auth diagnostics:', diag);
+
+        const identityV1 = (diag as any).identityToolkitV1 ?? (diag as any).identityToolkit;
+        const identityV3 = (diag as any).identityToolkitV3;
+
+        if (!diag.online) {
+          setStatusText('لا يوجد اتصال بالإنترنت. تأكد من الشبكة ثم أعد المحاولة.');
+          setSubmitting(false);
+          return;
+        }
+
+        if (!identityV1?.ok) {
+          setStatusText('تعذر الوصول إلى خادم تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
+          setSubmitting(false);
+          return;
+        }
+
+        const identityBlocked =
+          (identityV1?.ok && identityV1?.status === 403) ||
+          (identityV3?.ok && identityV3?.status === 403);
+
+        if (identityBlocked) {
+          setStatusText(
+            'تم حظر طلبات تسجيل الدخول (403) من Google Identity Toolkit. هذا غالباً بسبب قيود API key (API restrictions) في Google Cloud.\n' +
+              'الحل: من Google Cloud Console → APIs & Services → Credentials → API key: فعّل/اسمح بـ Identity Toolkit API (أو Firebase Authentication API) أو أزل قيود API مؤقتاً للتأكد.'
+          );
+          setSubmitting(false);
+          return;
+        }
+
+        if (!diag.secureToken.ok) {
+          setStatusText('تحذير: خادم الجلسة غير متاح حالياً. قد يفشل تجديد الجلسة لاحقاً.');
+        } else {
+          setStatusText('جاري تسجيل الدخول...');
+        }
+
         await login(email, password);
       } else {
         // Validate passwords match
         if (password !== confirmPassword) {
           alert('كلمات المرور غير متطابقة');
+          setStatusText('');
           setSubmitting(false);
           return;
         }
@@ -240,6 +294,7 @@ export const AuthModal = () => {
         // التحقق من اختيار جنس الخياط (إلزامي)
         if (role === 'tailor' && !tailorGender) {
           alert('يرجى اختيار تخصص الخياط (رجالي أو نسائي)');
+          setStatusText('');
           setSubmitting(false);
           return;
         }
@@ -270,8 +325,42 @@ export const AuthModal = () => {
         
         await register(email, password, name, actualRole, merchantInfo);
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('Auth error:', error);
+      const rawMessage = String(error?.originalMessage || error?.message || '');
+      const isTimeout = rawMessage.toLowerCase().includes('timeout');
+      const isNetwork = error?.code === 'auth/network-request-failed';
+
+      if (isTimeout || isNetwork) {
+        setStatusText('تعذر الاتصال بخوادم تسجيل الدخول. جاري فحص الاتصال...');
+        const diag = await firebaseService.diagnoseAuthConnectivity();
+        console.log('[AuthModal] Auth diagnostics after failure:', diag);
+
+        const identityV1 = (diag as any).identityToolkitV1 ?? (diag as any).identityToolkit;
+        const identityV3 = (diag as any).identityToolkitV3;
+
+        const identityBlocked =
+          (identityV1?.ok && identityV1?.status === 403) ||
+          (identityV3?.ok && identityV3?.status === 403);
+
+        if (!diag.online) {
+          setStatusText('لا يوجد اتصال بالإنترنت. تأكد من الشبكة ثم أعد المحاولة.');
+        } else if (!identityV1?.ok) {
+          setStatusText('تعذر الوصول إلى خادم تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
+        } else if (identityBlocked) {
+          setStatusText(
+            'تم حظر تسجيل الدخول من Google (403). هذا يشير غالباً إلى أن API key عليه قيود API تمنع Identity Toolkit / Firebase Auth.\n' +
+              'اذهب إلى Google Cloud Console → Credentials → API key ثم اسمح بـ Identity Toolkit API (أو Firebase Authentication API) أو أزل قيود API مؤقتاً، ثم أعد المحاولة.'
+          );
+        } else if (identityV3 && !identityV3.ok) {
+          // Common case: www.googleapis.com blocked or returning non-CORS error pages, which the SDK can surface as network-request-failed.
+          setStatusText('يبدو أن الشبكة تمنع www.googleapis.com (خدمة تسجيل الدخول). جرّب تعطيل مانع الإعلانات/الجدار الناري أو أضف http://localhost/* إلى قيود API key ثم أعد المحاولة.');
+        } else {
+          setStatusText('خادم تسجيل الدخول متاح لكن الاتصال عبر SDK معلّق. جرّب إعادة التحميل أو تعطيل مانع الإعلانات.');
+        }
+      } else {
+        setStatusText('فشل تسجيل الدخول. تحقق من البريد/كلمة المرور.');
+      }
     } finally {
       setSubmitting(false);
     }

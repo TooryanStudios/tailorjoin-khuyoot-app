@@ -49,7 +49,7 @@ export const TailorPill = React.memo(function TailorPill({
       </div>
       
       <div className="flex-1 min-w-0">
-        <h3 className="text-sm font-semibold text-slate-900 dark:text-white truncate">
+        <h3 className="text-sm font-normal text-slate-900 dark:text-white truncate">
           {tailor.name}
         </h3>
         
@@ -60,7 +60,7 @@ export const TailorPill = React.memo(function TailorPill({
         )}
         
         <div className="mt-2 flex items-center gap-2 text-[10px] text-slate-600 dark:text-slate-300">
-          <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 font-semibold">
+          <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-0.5 font-normal">
             <Star className="h-2.5 w-2.5" style={{ color: '#469788' }} />
             {tailor.rating?.toFixed(1) || '—'}
           </span>
@@ -97,7 +97,7 @@ export const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: T
         
         <div className="flex-1 min-w-0">
           <div className="flex items-center justify-between gap-2">
-            <h3 className="text-base font-semibold text-slate-900 dark:text-white truncate">{tailor.name}</h3>
+            <h3 className="text-base font-normal text-slate-900 dark:text-white truncate">{tailor.name}</h3>
           </div>
           
           {tailor.specialization && (
@@ -113,12 +113,12 @@ export const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: T
           )}
 
           <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-slate-600 dark:text-slate-300">
-            <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-semibold">
+            <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-normal">
               <Star className="h-3 w-3" style={{ color: '#469788' }} />
               {tailor.rating?.toFixed(1) || '—'}
             </span>
             {tailor.location && (
-              <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-semibold">
+              <span className="flex items-center gap-1 rounded-full bg-slate-100 dark:bg-slate-800 px-2.5 py-1 font-normal">
                 <MapPin className="h-3 w-3 text-slate-500 shrink-0" />
                 <span className="truncate">{tailor.location}</span>
               </span>

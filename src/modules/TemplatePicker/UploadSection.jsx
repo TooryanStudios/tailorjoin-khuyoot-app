@@ -40,6 +40,7 @@ export const UploadSection = React.memo(function UploadSection({ onSelect, curre
   return (
     <div className="col-span-2 grid grid-cols-2 gap-3">
       <ImagePrepModal
+        theme="designer"
         mode="template"
         isOpen={prepOpen}
         file={prepFile}
@@ -129,7 +130,7 @@ export const UploadSection = React.memo(function UploadSection({ onSelect, curre
           <div className="text-xs font-semibold text-zinc-200 truncate">آخر رفع</div>
           <div className="text-[10px] text-zinc-500 truncate">{lastUpload?.name || '—'}</div>
           {currentId && lastUpload?.id === currentId && (
-            <div className="mt-1 text-[10px] font-semibold text-purple-300">نشط</div>
+            <div className="mt-1 text-[10px] font-semibold text-theme-primary">نشط</div>
           )}
         </div>
       </div>

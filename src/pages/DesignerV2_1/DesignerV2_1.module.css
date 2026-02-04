@@ -2,9 +2,10 @@
 
 :global(.premium-slider) {
   -webkit-appearance: none;
+  appearance: none;
   width: 100%;
   height: 4px;
-  background: #27272a; /* zinc-800 */
+  background: #09090b; /* zinc-800 */
   border-radius: 2px;
   outline: none;
 }
@@ -14,20 +15,20 @@
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #a855f7; /* purple-500 */
+  background: #2563eb; /* theme-primary */
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid #ffffff;
-  box-shadow: 0 0 10px rgba(168, 85, 247, 0.5);
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
 }
 
 :global(.premium-slider::-moz-range-thumb) {
   width: 16px;
   height: 16px;
-  background: #a855f7;
+  background: #2563eb;
   border-radius: 50%;
   cursor: pointer;
-  border: 2px solid #ffffff;
+  border: 2px solid white;
 }
 
 :global(.hide-scrollbar) {
@@ -65,7 +66,7 @@
 /* Make sure the scrollbar is thin and matches your dark theme */
 :global(.custom-scrollbar) {
   scrollbar-width: thin;
-  scrollbar-color: #3f3f46 transparent; /* zinc-700 */
+  scrollbar-color: #3f3f46 transparent;
 }
 
 :global(.custom-scrollbar::-webkit-scrollbar) {
@@ -77,7 +78,7 @@
 }
 
 :global(.custom-scrollbar::-webkit-scrollbar-thumb) {
-  background: #3f3f46; /* zinc-700 */
+  background: #3f3f46;
   border-radius: 10px;
 }
 
@@ -101,4 +102,31 @@
 
 .generateButtonShine:hover::after {
   left: 120%;
+}
+
+@keyframes border-pulse {
+  0% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  50% { border-color: rgba(37, 99, 235, 0.6); box-shadow: 0 0 15px 0 rgba(37, 99, 235, 0.2); }
+  100% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+}
+
+.premium-border-pulse {
+  animation: border-pulse 3s infinite ease-in-out;
+}
+
+@keyframes scanning {
+  0% { top: 0%; }
+  100% { top: 100%; }
+}
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #2563eb, transparent);
+  box-shadow: 0 0 15px #2563eb;
+  z-index: 50;
+  animation: scanning 2s linear infinite;
+  opacity: 0.8;
 }

@@ -69,8 +69,8 @@
           }
 
           // Apply theme colors early to avoid flash
-          let primary = '#CFFF04';
-          let secondary = '#D4AF37';
+          let primary = '#2563eb';
+          let secondary = '#0ea5e9';
           if (appSettings) {
             try {
               const settings = JSON.parse(appSettings);
@@ -198,9 +198,15 @@
             colors: {
               brand: {
                 dark: '#050817',
-                primary: '#3b82f6',
+                primary: 'var(--theme-primary)',
+                secondary: 'var(--theme-secondary)',
                 accent: '#fbbf24',
                 surface: '#1e293b'
+              },
+              theme: {
+                primary: 'var(--theme-primary)',
+                secondary: 'var(--theme-secondary)',
+                master: 'var(--theme-master)',
               },
               boutique: {
                 dark: '#0F051D',
@@ -220,8 +226,8 @@
 
     <style>
       :root {
-        --theme-primary: #CFFF04;
-        --theme-secondary: #D4AF37;
+        --theme-primary: #2563eb;
+        --theme-secondary: #0ea5e9;
       }
 
       /* Khiyoot Glass Surface helpers */
@@ -285,6 +291,8 @@
       input {
         color-scheme: dark;
       }
+      
+      body {
         overflow-x: hidden;
         width: 100%;
         overscroll-behavior-x: none; /* لتخفيف السحب الأفقي */
@@ -432,7 +440,7 @@
       }
 
       /* Better mobile scrolling */
-      @media (max-width: 768px) {
+      @media (max-width: 640px) {
         * {
           -webkit-tap-highlight-color: transparent;
         }
@@ -472,9 +480,9 @@
   </head>
 
   <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
-    <div id="root" style="background: #0a0a0a; color: white; min-height: 100vh;">
+    <div id="root" class="min-height-screen bg-inherit text-inherit">
       <!-- Inline splash screen before React loads -->
-      <div data-splash-screen style="position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #0a0a0a; z-index: 9999; transition: opacity 0.3s ease-out;">
+      <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a] z-[9999] transition-opacity duration-300">
         <div style="text-align: center;">
           <img src="/logo_big.png?v=4" alt="خيوط" style="width: 200px; height: 200px; margin: 0 auto; object-fit: contain;">
         </div>

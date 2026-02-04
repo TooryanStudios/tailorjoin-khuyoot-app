@@ -1,5 +1,7 @@
 import React, { useMemo, useRef, useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useNavigate } from 'react-router-dom';
+import { ArrowLeft, Save, FolderOpen, Settings } from 'lucide-react';
 
 type Field = { key: string; label: string };
 
@@ -18,8 +20,8 @@ export const BoutiqueInput: React.FC<{
   unit?: 'CM' | 'IN';
   onClick?: () => void;
 }> = ({ label, value, onChange, unit = 'CM', onClick }) => (
-  <div className="group relative bg-[#252525] border border-white/5 rounded-lg p-3 hover:border-[color:var(--theme-primary)]/30 transition-all" onClick={onClick}>
-    <label className="text-[10px] font-semibold text-white/50 mb-1 block">{label}</label>
+  <div className="group relative bg-[#252525] border border-white/5 rounded-lg p-3 hover:bg-[#2a2a2a] hover:border-[color:var(--theme-primary)]/40 hover:scale-[1.02] transition-all cursor-pointer" onClick={onClick}>
+    <label className="text-[10px] font-semibold text-white/50 mb-1 block group-hover:text-[color:var(--theme-primary)]/70 transition-colors uppercase tracking-wider">{label}</label>
     <div className="flex items-center gap-2">
       <input
         type="number"
@@ -28,7 +30,7 @@ export const BoutiqueInput: React.FC<{
         onChange={(e) => onChange(e.target.value)}
         placeholder="0"
       />
-      <span className="text-[10px] text-white/40 font-semibold">{unit}</span>
+      <span className="text-[10px] text-white/40 font-semibold group-hover:text-white/60 transition-colors">{unit}</span>
     </div>
   </div>
 );
@@ -45,6 +47,9 @@ interface MeasurementStudioCanvasProps {
   pointScale?: number;
   onPointScaleChange?: (value: number) => void;
   children?: React.ReactNode;
+  onSaveClick?: () => void;
+  onLoadClick?: () => void;
+  canSave?: boolean;
 }
 
 export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = ({
@@ -58,14 +63,17 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
   onLineThicknessChange,
   pointScale = 1,
   onPointScaleChange,
-  children
+  children,
+  onSaveClick,
+  onLoadClick,
+  canSave = false
 }) => {
-  const { t, i18n } = useTranslation();
+  const { t, i18n } = useTranslation(['measurements', 'common']);
   const isAr = i18n.language === 'ar';
+  const navigate = useNavigate();
   const [unit, setUnit] = useState<'CM' | 'IN'>('CM');
   const [values, setValues] = useState<Record<string, string>>(measurements);
   const inputsRef = useRef<Record<string, HTMLInputElement | null>>({});
-  const [isClearing, setIsClearing] = useState(false);
 
   // Sync measurements from parent (points)
   useEffect(() => {
@@ -100,102 +108,160 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
     });
   }, [mappedFields, values]);
 
-  const handleClearAll = () => {
-    setIsClearing(true);
-    const cleared: Record<string, string> = {};
-    mappedFields.forEach((f) => { cleared[f.key] = ''; });
-    setValues(cleared);
-    onMeasurementsChange?.(cleared);
-    setTimeout(() => setIsClearing(false), 150);
-  };
-
   return (
-    <div className="space-y-3">
-      <style>{`
-        @keyframes shine-sweep {
-          0% { transform: translateX(-150%) skewX(-45deg); }
-          20% { transform: translateX(150%) skewX(-45deg); }
-          100% { transform: translateX(150%) skewX(-45deg); }
-        }
-        @keyframes play-pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.15); }
-        }
-      `}</style>
-      {/* Row: Help Card + Product Thumbnail (separate blocks) - Desktop Only */}
-      <div className="hidden sm:grid grid-cols-[77%_23%] gap-2">
-        <div className="bg-[#252525] border border-white/5 rounded-lg p-4">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* Top Navigation Bar */}
+      <div className="flex-shrink-0 bg-[#1a1a1a] px-4 pt-4 pb-3 border-b border-white/5">
+        <div className="flex items-center justify-between gap-3 mb-4">
+          {/* Left: Back Button */}
           <button
-            type="button"
-            onClick={onVideoClick}
-            className="w-full flex items-center gap-4 text-left hover:opacity-80 transition-all group"
+            onClick={() => navigate(-1)}
+            className="flex-shrink-0 w-12 h-12 rounded-xl bg-[#252525] border border-white/10 flex items-center justify-center hover:bg-[#323232] hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
+            title={isAr ? 'العودة' : 'Go Back'}
           >
-            {isAr ? (
-              <>
-                <div className="flex-1 text-right">
-                  <p className="text-sm font-semibold text-white">
-                    {t('measurements.howToTakeMeasurements')}
-                  </p>
-                  <p className="text-xs text-white/50">
-                    {t('common.watchVideo')}
-                  </p>
-                </div>
-                <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
-                  {/* Shine Effect */}
-                  <div 
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
-                    style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
-                  />
-                  
-                  {/* Play Arrow */}
-                  <svg 
-                    className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10" 
-                    fill="currentColor" 
-                    viewBox="0 0 24 24"
-                    style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
-                  {/* Shine Effect */}
-                  <div 
-                    className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
-                    style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
-                  />
-                  
-                  {/* Play Arrow */}
-                  <svg 
-                    className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10" 
-                    fill="currentColor" 
-                    viewBox="0 0 24 24"
-                    style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
-                  >
-                    <path d="M8 5v14l11-7z" />
-                  </svg>
-                </div>
-                <div className="flex-1">
-                  <p className="text-sm font-semibold text-white">
-                    {t('measurements.howToTakeMeasurements')}
-                  </p>
-                  <p className="text-xs text-white/50">
-                    {t('common.watchVideo')}
-                  </p>
-                </div>
-              </>
-            )}
-            <svg className="w-5 h-5 text-white/30 group-hover:text-white/50 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d={isAr ? "M15 19l-7-7 7-7" : "M9 5l7 7-7 7"} />
-            </svg>
+            <ArrowLeft size={20} className={`text-white/70 ${isAr ? 'rotate-180' : ''}`} />
           </button>
+
+          {/* Center: Title */}
+          <div className="flex-1 text-center">
+            <h2 className="text-lg font-bold text-white">
+              {t('measurements:enterYourMeasurements')}
+            </h2>
+            <p className="text-xs text-white/50">عباية</p>
+          </div>
         </div>
 
-        {coverImageUrl && (
-          <div className="bg-[#252525] border border-white/5 rounded-lg p-2 flex items-center justify-center">
-            <div className="w-full aspect-square rounded-md overflow-hidden border border-white/10">
+        {/* Action Row: Save, Load, Unit Toggle */}
+        <div className="flex items-center gap-2">
+          {/* Save Button */}
+          <button
+            onClick={onSaveClick}
+            disabled={!canSave}
+            className="flex-shrink-0 w-11 h-9 rounded-xl bg-[#252525] border border-white/10 flex items-center justify-center hover:bg-[#323232] hover:border-white/20 hover:scale-105 active:scale-95 disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-200"
+            title={t('measurements:saveMeasurements')}
+          >
+            <Save size={16} className="text-white/70" />
+          </button>
+
+          {/* Load Button */}
+          <button
+            onClick={onLoadClick}
+            className="flex-shrink-0 w-11 h-9 rounded-xl bg-[#252525] border border-white/10 flex items-center justify-center hover:bg-[#323232] hover:border-white/20 hover:scale-105 active:scale-95 transition-all duration-200"
+            title={t('measurements:loadSavedMeasurements')}
+          >
+            <FolderOpen size={16} className="text-white/70" />
+          </button>
+
+          {/* Unit Toggle */}
+          <div className="flex-1 flex gap-1 rounded-xl bg-[#252525] border border-white/5 p-1">
+            <button
+              onClick={() => setUnit('IN')}
+              className={`flex-1 h-7 rounded-lg text-xs font-bold transition-all ${
+                unit === 'IN'
+                  ? 'bg-[#1a1a1a] text-white/50'
+                  : 'bg-transparent text-white/50 hover:text-white'
+              }`}
+            >
+              IN
+            </button>
+            <button
+              onClick={() => setUnit('CM')}
+              className={`flex-1 h-7 rounded-lg text-xs font-bold transition-all ${
+                unit === 'CM'
+                  ? 'bg-[#0a0a0a] text-white'
+                  : 'bg-transparent text-white/50 hover:text-white'
+              }`}
+            >
+              CM
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar px-4 py-4 space-y-4">
+        <style>{`
+          @keyframes shine-sweep {
+            0% { transform: translateX(-150%) skewX(-45deg); }
+            20% { transform: translateX(150%) skewX(-45deg); }
+            100% { transform: translateX(150%) skewX(-45deg); }
+          }
+          @keyframes play-pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.15); }
+          }
+        `}</style>
+        
+        {/* Row: Help Card + Product Thumbnail (separate blocks) - Desktop Only */}
+        <div className="hidden sm:grid grid-cols-[77%_23%] gap-2">
+          <div className="bg-[#252525] border border-white/5 rounded-lg p-4">
+            <button
+              type="button"
+              onClick={onVideoClick}
+              className="w-full flex items-center gap-4 text-left hover:opacity-80 transition-all group"
+            >
+              {isAr ? (
+                <>
+                  <div className="flex-1 text-right">
+                    <p className="text-sm font-semibold text-white">
+                      {t('measurements:howToTakeMeasurements')}
+                    </p>
+                    <p className="text-xs text-white/50">
+                      {t('common:watchVideo')}
+                    </p>
+                  </div>
+                  <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
+                    {/* Shine Effect */}
+                    <div 
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
+                      style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                    />
+                    
+                    {/* Play Arrow */}
+                    <svg 
+                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5" 
+                      fill="currentColor" 
+                      viewBox="0 0 24 24"
+                      style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
+                    >
+                      <path d="M7 5l12 7-12 7V5z" />
+                    </svg>
+                  </div>
+                </>
+              ) : (
+                <>
+                  <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
+                    {/* Shine Effect */}
+                    <div 
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
+                      style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                    />
+                    
+                    {/* Play Arrow */}
+                    <svg 
+                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5" 
+                      fill="currentColor" 
+                      viewBox="0 0 24 24"
+                      style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
+                    >
+                      <path d="M7 5l12 7-12 7V5z" />
+                    </svg>
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-semibold text-white">
+                      {t('measurements:howToTakeMeasurements')}
+                    </p>
+                    <p className="text-xs text-white/50">
+                      {t('common:watchVideo')}
+                    </p>
+                  </div>
+                </>
+              )}
+            </button>
+          </div>
+
+          {coverImageUrl && (
+            <div className="bg-[#252525] border border-white/5 rounded-lg overflow-hidden flex">
               <img
                 src={coverImageUrl}
                 alt="Product cover"
@@ -203,115 +269,47 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
                 draggable={false}
               />
             </div>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
 
-      {children}
+        {children}
 
-      {/* Header */}
-      <div className="space-y-0.5">
-        <h2 className="text-base font-bold text-white">
-          {t('measurements.enterYourMeasurements')}
-        </h2>
-      </div>
-
-      {/* Unit Toggle */}
-      <div>
-        <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
-          {t('common.unit')}
-        </label>
-        <div className="flex gap-1 rounded-lg bg-[#252525] border border-white/5 p-0.5">
-          {['CM', 'IN'].map((u) => (
-            <button
-              key={u}
-              onClick={() => setUnit(u as 'CM' | 'IN')}
-              className={`flex-1 px-2 py-1 rounded-md text-[10px] font-bold transition-all ${
-                unit === u
-                  ? 'bg-[color:var(--theme-primary)] text-white'
-                  : 'text-white/50 hover:text-white'
-              }`}
-            >
-              {u}
-            </button>
+        {/* Input Fields Grid - Compact Cards */}
+        <div className="grid grid-cols-2 gap-2">
+          {mappedFields.map((field) => (
+            <BoutiqueInput
+              key={field.key}
+              label={field.label}
+              value={values[field.key] || ''}
+              onChange={(v) => handleValueChange(field.key, v)}
+              unit={unit}
+              onClick={() => handleFocus(field.key)}
+            />
           ))}
         </div>
-      </div>
 
-      {/* Line Thickness & Point Scale Sliders */}
-      <div className="grid grid-cols-2 gap-2">
-        <div>
-          <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
-            Line Thickness: {lineThickness}
-          </label>
-          <div className="rounded-lg bg-[#252525] border border-white/5 p-2">
-            <input
-              type="range"
-              min="0.5"
-              max="1.5"
-              step="0.1"
-              value={lineThickness}
-              onChange={(e) => onLineThicknessChange?.(parseFloat(e.target.value))}
-              className="w-full h-1 rounded-lg appearance-none cursor-pointer"
-              dir="ltr"
-              style={{
-                background: `linear-gradient(to right, var(--theme-primary) ${((lineThickness - 0.5) / 1.0) * 100}%, rgba(255,255,255,0.1) ${((lineThickness - 0.5) / 1.0) * 100}%)`
-              }}
+        {/* Generate Button */}
+        <button
+          disabled={!isComplete}
+          onClick={() => isComplete && onGenerate?.(values)}
+          className={`group relative overflow-hidden w-full border rounded-lg p-4 transition-all flex items-center justify-center gap-3 ${
+            isComplete
+              ? 'bg-[color:var(--theme-primary)] hover:bg-[color:var(--theme-primary)]/90 border-[color:var(--theme-primary)] cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
+              : 'bg-[#1a1a1a] border-white/10 text-white/40 cursor-not-allowed'
+          }`}
+          aria-disabled={!isComplete}
+          title={isComplete ? t('measurements:startStitching') : t('measurements:fillAllMeasurements')}
+        >
+          {isComplete && (
+            <div 
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full opacity-0 group-hover:opacity-100 transition-opacity" 
+              style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
             />
-          </div>
-        </div>
-
-        <div>
-          <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
-            Point Scale: {pointScale.toFixed(1)}
-          </label>
-          <div className="rounded-lg bg-[#252525] border border-white/5 p-2">
-            <input
-              type="range"
-              min="0.5"
-              max="1.5"
-              step="0.1"
-              value={pointScale}
-              onChange={(e) => onPointScaleChange?.(parseFloat(e.target.value))}
-              className="w-full h-1 rounded-lg appearance-none cursor-pointer"
-              dir="ltr"
-              style={{
-                background: `linear-gradient(to right, var(--theme-primary) ${((pointScale - 0.5) / 1.0) * 100}%, rgba(255,255,255,0.1) ${((pointScale - 0.5) / 1.0) * 100}%)`
-              }}
-            />
-          </div>
-        </div>
+          )}
+          <span className={`text-sm font-bold relative z-10 ${isComplete ? 'text-white' : 'text-white/40'}`}>{t('measurements:startStitching')}</span>
+          <span className={`text-lg relative z-10 ${isComplete ? '' : 'opacity-40'}`}>✨</span>
+        </button>
       </div>
-
-      {/* Input Fields Grid - Compact Cards */}
-      <div className="grid grid-cols-4 sm:grid-cols-2 gap-2">
-        {mappedFields.map((field) => (
-          <BoutiqueInput
-            key={field.key}
-            label={field.label}
-            value={values[field.key] || ''}
-            onChange={(v) => handleValueChange(field.key, v)}
-            unit={unit}
-            onClick={() => handleFocus(field.key)}
-          />
-        ))}
-      </div>
-
-      {/* Generate Button */}
-      <button
-        disabled={!isComplete}
-        onClick={() => isComplete && onGenerate?.(values)}
-        className={`w-full border rounded-lg p-4 transition-all flex items-center justify-center gap-3 ${
-          isComplete
-            ? 'bg-[color:var(--theme-primary)] hover:bg-[color:var(--theme-primary)]/90 border-[color:var(--theme-primary)] cursor-pointer'
-            : 'bg-[#1a1a1a] border-white/10 text-white/40 cursor-not-allowed'
-        }`}
-        aria-disabled={!isComplete}
-        title={isComplete ? t('measurements.startStitching') : t('measurements.fillAllMeasurements')}
-      >
-        <span className={`text-sm font-bold ${isComplete ? 'text-white' : 'text-white/40'}`}>{t('measurements.startStitching')}</span>
-        <span className={`text-lg ${isComplete ? '' : 'opacity-40'}`}>✨</span>
-      </button>
     </div>
   );
 };

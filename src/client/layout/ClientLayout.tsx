@@ -1,9 +1,9 @@
-﻿import React from 'react';
+import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { Header } from '../components/Header';
 import { Footer } from '../components/Footer';
 
-function useIsMobile(maxWidthPx = 768) {
+function useIsMobile(maxWidthPx = 640) {
   const [isMobile, setIsMobile] = React.useState(() => {
     if (typeof window === 'undefined') return false;
     return window.matchMedia?.(`(max-width: ${maxWidthPx}px)`)?.matches ?? false;
@@ -46,8 +46,8 @@ export const ClientLayout: React.FC = () => {
   // For mobile: hide header on designer, tailor profile, and product details pages
   // For mobile tailor profile and product details, hide only the header but keep the footer
   // UPDATED: Hide header on ALL mobile pages
-  const hideHeader = isMobile;
-  const hideChrome = isMobile && pathname.startsWith('/designer-v2-1');
+  const hideHeader = isMobile || isDesignerRoute;
+  const hideChrome = pathname.startsWith('/designer-v2-1');
 
   React.useLayoutEffect(() => {
     if (hideHeader) {

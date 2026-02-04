@@ -168,44 +168,17 @@ export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
     placeholderCount = 10,
   }) => {
   const [menuKey, setMenuKey] = React.useState<string | null>(null);
-  const [visibleRange, setVisibleRange] = React.useState({ start: 0, end: 15 });
   const containerRef = React.useRef<HTMLDivElement>(null);
-  
-  const ITEM_HEIGHT = 96; // Height of each generation item (w-[92px] aspect-[3/4] = ~123px actual)
-  const BUFFER = 5; // Number of items to render above/below visible area
 
-  // Update visible range based on scroll position for virtual scrolling
-  React.useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleScroll = () => {
-      const scrollTop = container.scrollTop;
-      const containerHeight = container.clientHeight;
-      
-      const startIndex = Math.max(0, Math.floor(scrollTop / ITEM_HEIGHT) - BUFFER);
-      const endIndex = Math.min(
-        generations.length,
-        Math.ceil((scrollTop + containerHeight) / ITEM_HEIGHT) + BUFFER
-      );
-      
-      setVisibleRange({ start: startIndex, end: endIndex });
-    };
-
-    container.addEventListener('scroll', handleScroll);
-    handleScroll(); // Initial calculation
-    
-    return () => container.removeEventListener('scroll', handleScroll);
-  }, [generations.length]);
-
-  // Auto-scroll to top when a new generation is added
+  // Scroll to top/start when a new generation is added (first item changes)
   React.useEffect(() => {
     const container = containerRef.current;
     if (!container || generations.length === 0) return;
     
-    // Scroll to top to show the latest generation
+    // Reset scroll position cleanly
     container.scrollTop = 0;
-  }, [generations[0]?.jobId]); // Only trigger when the first (latest) generation changes
+    container.scrollLeft = 0;
+  }, [generations[0]?.jobId]);
 
   const formatTime = React.useCallback((ts: number) => {
     try {
@@ -237,19 +210,16 @@ export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
         className="flex flex-row sm:flex-col items-center gap-1 flex-1 overflow-x-auto sm:overflow-y-auto overflow-y-hidden pb-2 sm:pb-0" 
         style={{ scrollbarGutter: 'stable' }}
       >
-        {/* Spacer for items above visible range */}
-        {visibleRange.start > 0 && (
-          <div style={{ height: `${visibleRange.start * ITEM_HEIGHT}px`, flexShrink: 0 }} />
-        )}
-        
-        {/* Only render visible items */}
-        {generations.slice(visibleRange.start, visibleRange.end).map((g) => {
-          const key = `${g.jobId}:${g.url}`;
+        {generations.map((g) => {
+          // Use jobId as primary key for stability
+          const key = g.jobId || `${g.url}`; 
+          const stableKey = `${g.jobId}:${g.url}`; // Used for menu state toggle
+          
           return (
             <GenerationCard
               key={key}
               generation={g}
-              menuOpen={menuKey === key}
+              menuOpen={menuKey === stableKey}
               onToggleMenu={handleToggleMenu}
               onOpenImage={onOpenImage}
               onSetBefore={onSetBefore}
@@ -259,16 +229,11 @@ export const GenerationsRail: React.FC<GenerationsRailProps> = React.memo(
             />
           );
         })}
-        
-        {/* Spacer for items below visible range */}
-        {visibleRange.end < generations.length && (
-          <div style={{ height: `${(generations.length - visibleRange.end) * ITEM_HEIGHT}px`, flexShrink: 0 }} />
-        )}
 
         {Array.from({ length: Math.max(0, 8 - generations.length) }).map((_, idx) => (
           <div
             key={`gen-placeholder-${idx}`}
-            className="w-[92px] aspect-[3/4] flex-shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 animate-pulse"
+            className="w-[92px] sm:w-[92px] aspect-[3/4] flex-shrink-0 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 animate-pulse"
             aria-hidden="true"
           />
         ))}

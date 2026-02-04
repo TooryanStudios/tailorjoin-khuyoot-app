@@ -48,7 +48,7 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
     const mainImage = tailor.image || tailor.coverImage || (products.length > 0 ? products[0].image : null);
 
     return (
-        <div className="min-h-screen bg-white dark:bg-[#0B0A13] pb-20 relative scrollbar-hide">
+        <div className="min-h-screen bg-[var(--studio-bg)] pb-20 relative scrollbar-hide">
             {/* Immersive Hero Section */}
             <div className="relative w-full h-[55vh]">
                 {/* Hero Background Image */}
@@ -61,13 +61,13 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
                         imgClassName="w-full h-full object-cover"
                     />
                 ) : (
-                    <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                        <ShoppingBag size={48} className="text-slate-400" />
+                    <div className="w-full h-full bg-[var(--studio-surface)] flex items-center justify-center">
+                        <ShoppingBag size={48} className="text-[var(--studio-text-muted)]" />
                     </div>
                 )}
                 
                 {/* Gradient Overlay - Starts transparent, goes via colored/transparent to solid page color */}
-                <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-white via-white/80 to-transparent dark:from-[#0B0A13] dark:via-[#0B0A13]/90 dark:to-transparent pointer-events-none" />
+                <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-[var(--studio-bg)] via-[var(--studio-bg)]/80 to-transparent pointer-events-none" />
 
                 {/* Hero Content - Sitting on the gradient */}
                 <div className="absolute bottom-0 left-0 right-0 px-6 pb-8 flex flex-col items-center text-center z-10 animate-in slide-in-from-bottom-6 duration-700 delay-100">
@@ -79,16 +79,16 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
                                 <CheckCircle2 size={20} className="fill-blue-500/10" />
                             </div>
                         )}
-                        <h1 className="text-6xl font-serif font-black text-slate-900 dark:text-white leading-[0.85] drop-shadow-lg tracking-tighter max-w-[10ch] mx-auto text-center mt-2">
-                            {tailor.name}
+                        <h1 className="text-6xl font-serif font-black text-[var(--studio-text)] leading-[0.85] drop-shadow-lg tracking-tighter max-w-[10ch] mx-auto text-center mt-2">
+                           {tailor.name}
                         </h1>
-                    </div>
-                    
-                    {/* Tags Row - Reverted Font, No Italic */}
-                    <div className="flex flex-wrap justify-center items-center gap-3 mb-2 text-slate-700 dark:text-slate-300 text-sm font-medium tracking-wide">
+                     </div>
+                     
+                     {/* Tags Row - Reverted Font, No Italic */}
+                     <div className="flex flex-wrap justify-center items-center gap-3 mb-2 text-[var(--studio-text-muted)] text-sm font-medium tracking-wide">
                         {/* Tiny Avatar integrated as a visual anchor */}
                         {mainImage && (
-                            <div className="w-6 h-6 rounded-full overflow-hidden border border-slate-200 dark:border-white/20 shadow-sm opacity-90">
+                            <div className="w-6 h-6 rounded-full overflow-hidden border border-[var(--studio-card-border)] shadow-sm opacity-90">
                                 <StableImage 
                                     src={mainImage} 
                                     alt={tailor.name} 
@@ -104,61 +104,61 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
                         <span className="opacity-40">•</span>
                         
                         <span>{tailor.location || 'مسقط'}</span>
-                    </div>
+                     </div>
                 </div>
             </div>
 
             <div className="relative px-6 flex flex-col items-center">
                 {/* Stats Info Bar - Minimal Capsul, Outlined Icons, Less Rounded, Smaller, No Border */}
-                <div className="w-full max-w-sm bg-slate-900/5 dark:bg-white/5 backdrop-blur-md rounded-lg px-4 py-2 shadow-sm flex justify-between items-center mb-6 -mt-4 relative z-20">
+                <div className="w-full max-w-sm bg-[var(--studio-surface)] backdrop-blur-md rounded-lg px-4 py-2 shadow-sm flex justify-between items-center mb-6 -mt-4 relative z-20">
                     
                     {/* Item 1: Models */}
-                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
                         <ShoppingBag size={14} className="stroke-1" />
                         <span className="text-xs font-medium">{products.length} موديل</span>
                     </div>
 
                     {/* Separator */}
-                    <div className="w-px h-3 bg-slate-400/30" />
+                    <div className="w-px h-3 bg-[var(--studio-card-border)]" />
 
                     {/* Item 2: Rating */}
-                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
                          <Star size={14} className="stroke-1" />
                          <span className="text-xs font-medium">{tailor.rating} تقييم</span>
                     </div>
 
                     {/* Separator */}
-                    <div className="w-px h-3 bg-slate-400/30" />
+                    <div className="w-px h-3 bg-[var(--studio-card-border)]" />
 
                     {/* Item 3: Followers */}
-                    <div className="flex items-center gap-1.5 text-slate-700 dark:text-slate-300">
+                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
                          <Heart size={14} className="stroke-1" />
                          <span className="text-xs font-medium">{tailor.followers || 0} متابع</span>
                     </div>
                 </div>
 
                 {/* Tabs */}
-                <div className="flex w-full border-b border-slate-200 dark:border-white/10 mb-2">
+                <div className="flex w-full border-b border-[var(--studio-card-border)] mb-2">
                     <button 
                         onClick={() => setActiveTab('products')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'products' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`}
+                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'products' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
                     >
                         الموديلات
-                        {activeTab === 'products' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600 dark:bg-purple-400 rounded-t-full" />}
+                        {activeTab === 'products' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
                     </button>
                     <button 
                         onClick={() => setActiveTab('portfolio')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'portfolio' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`}
+                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'portfolio' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
                     >
                          نبذة
-                        {activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600 dark:bg-purple-400 rounded-t-full" />}
+                        {activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
                     </button>
                      <button 
                         onClick={() => setActiveTab('reviews')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'reviews' ? 'text-purple-600 dark:text-purple-400' : 'text-slate-400'}`}
+                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'reviews' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
                     >
                         التقييمات
-                        {activeTab === 'reviews' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-purple-600 dark:bg-purple-400 rounded-t-full" />}
+                        {activeTab === 'reviews' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
                     </button>
                 </div>
 

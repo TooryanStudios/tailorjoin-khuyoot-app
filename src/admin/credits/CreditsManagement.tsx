@@ -1,5 +1,6 @@
 import React from 'react';
-import { Search, Save } from 'lucide-react';
+import { Search, Save, Receipt } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useApp } from '../../../context/AppContext';
 import { firebaseService } from '../../../services/firebase';
 
@@ -13,6 +14,7 @@ const DEFAULT_ROWS: PricingRow[] = [
 
 export const CreditsManagement: React.FC = () => {
   const { user } = useApp();
+  const navigate = useNavigate();
 
   const [rows, setRows] = React.useState<PricingRow[]>(DEFAULT_ROWS);
   const [isLoading, setIsLoading] = React.useState(false);
@@ -165,6 +167,21 @@ export const CreditsManagement: React.FC = () => {
 
   return (
     <div className="p-6 space-y-8 w-full max-w-none min-w-0">
+      {/* Header with Quick Actions */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 dark:text-white">إدارة الرصيد</h1>
+          <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">إدارة الأسعار والمحافظ</p>
+        </div>
+        <button
+          onClick={() => navigate('/transaction-history')}
+          className="inline-flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-500 transition-colors"
+        >
+          <Receipt className="w-4 h-4" />
+          سجل المعاملات
+        </button>
+      </div>
+
       <div>
         <h2 className="text-xl font-bold text-slate-800 dark:text-white">Credit Pricing Table</h2>
         <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">Update costs dynamically without code changes.</p>

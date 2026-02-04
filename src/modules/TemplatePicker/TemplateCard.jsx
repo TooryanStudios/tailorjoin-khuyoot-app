@@ -64,9 +64,9 @@ export const TemplateCard = React.memo(function TemplateCard({
       onMouseEnter={() => onHover?.(template)}
       className={`group relative w-full overflow-hidden rounded-xl border text-left transition-colors ${
         isActive && !isLocked
-          ? 'border-purple-500/70 bg-purple-500/10'
+          ? 'border-theme-primary bg-theme-primary/10'
           : 'border-zinc-800 bg-zinc-950 hover:border-zinc-700'
-      } ${isLocked ? 'hover:border-purple-500/40' : ''}`}
+      } ${isLocked ? 'hover:border-theme-primary/40' : ''}`}
     >
       <div className="relative w-full aspect-[3/4] bg-zinc-900">
         {previewSrc ? (
@@ -88,8 +88,8 @@ export const TemplateCard = React.memo(function TemplateCard({
         {isLoading && (
           <div className="absolute inset-0 bg-zinc-950/70 backdrop-blur-sm flex items-center justify-center z-10">
             <div className="flex flex-col items-center gap-2">
-              <div className="w-8 h-8 border-3 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-              <span className="text-[10px] text-purple-300 font-medium">Loading...</span>
+              <div className="w-8 h-8 border-3 border-theme-primary/30 border-t-theme-primary rounded-full animate-spin" />
+              <span className="text-[10px] text-theme-primary font-medium">Loading...</span>
             </div>
           </div>
         )}
@@ -97,7 +97,7 @@ export const TemplateCard = React.memo(function TemplateCard({
         {isLocked && (
           <>
             <div className="absolute inset-0 bg-zinc-950/55" />
-            <div className="absolute left-2 top-2 rounded-md border border-purple-500/50 bg-purple-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-purple-100">
+            <div className="absolute left-2 top-2 rounded-md border border-theme-primary/50 bg-theme-primary/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white">
               Premium
             </div>
             <div className="absolute inset-0 flex items-center justify-center">
@@ -118,7 +118,7 @@ export const TemplateCard = React.memo(function TemplateCard({
       </div>
 
       {isActive && (
-        <div className="absolute top-2 right-2 rounded-md border border-purple-500/60 bg-purple-500/20 px-2 py-0.5 text-[10px] font-semibold text-purple-200">
+        <div className="absolute top-2 right-2 rounded-md border border-theme-primary/60 bg-theme-primary/20 px-2 py-0.5 text-[10px] font-semibold text-white">
           Active
         </div>
       )}

@@ -1,10 +1,12 @@
-import 'dotenv/config';
+﻿import 'dotenv/config';
 import http from 'node:http';
 import { handleTryOnFabric } from './tryon/tryonHandler';
 import { handleUpscale } from './upscale/upscaleHandler';
 import { handleFabricSwap } from './fabricSwap/fabricSwapHandler';
-import { getFirestore, verifyFirebaseIdToken } from './tryon/firebaseAdmin';
+import { getUserGenerations, deleteUserGeneration } from './services/generationsService';
+import { createCustomTokenForUid, getFirestore, verifyFirebaseIdToken } from './tryon/firebaseAdmin';
 import { generateVisualizerImage, saveVisualizerGeneration } from './visualizer/visualizerHandler';
+import { createThawaniSession, handleThawaniWebhook } from './payments/thawaniHandler';
 
 console.log('Starting Try-On API dev server...');
 console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
@@ -35,19 +37,36 @@ async function readJsonBody(req: http.IncomingMessage, maxBytes = 6 * 1024 * 102
   }
   const raw = Buffer.concat(chunks).toString('utf8');
   if (!raw) return {};
-  return JSON.parse(raw);
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return {};
+  }
 }
 
-function setCors(res: http.ServerResponse) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+function setCors(res: http.ServerResponse, req?: http.IncomingMessage) {
+  const origin = req?.headers.origin || '*';
+  res.setHeader('Access-Control-Allow-Origin', origin);
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,POST,OPTIONS,PUT,DELETE');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With');
+}
+
+function parseCookies(cookieHeader?: string) {
+  const cookies: Record<string, string> = {};
+  if (!cookieHeader) return cookies;
+  cookieHeader.split(';').forEach(cookie => {
+    const parts = cookie.split('=');
+    if (parts.length === 2) {
+      cookies[parts[0].trim()] = parts[1].trim();
+    }
+  });
+  return cookies;
 }
 
 function isPrivateHost(hostname: string): boolean {
   const h = hostname.toLowerCase();
   if (h === 'localhost' || h === '127.0.0.1' || h === '0.0.0.0') return true;
-  // basic private IPv4 ranges
   if (/^10\./.test(h)) return true;
   if (/^192\.168\./.test(h)) return true;
   if (/^172\.(1[6-9]|2\d|3[0-1])\./.test(h)) return true;
@@ -60,29 +79,26 @@ const ALLOWED_PROXY_HOSTS = new Set([
   'images.unsplash.com',
 ]);
 
-async function proxyRemoteImage(urlStr: string, res: http.ServerResponse) {
+async function proxyRemoteImage(urlStr: string, res: http.ServerResponse, req: http.IncomingMessage) {
   let u: URL;
   try {
     u = new URL(urlStr);
   } catch {
+    setCors(res, req);
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Invalid url' }));
     return;
   }
 
   if (u.protocol !== 'https:' && u.protocol !== 'http:') {
+    setCors(res, req);
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Unsupported protocol' }));
     return;
   }
 
-  if (isPrivateHost(u.hostname)) {
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Host not allowed' }));
-    return;
-  }
-
-  if (!ALLOWED_PROXY_HOSTS.has(u.hostname)) {
+  if (isPrivateHost(u.hostname) || !ALLOWED_PROXY_HOSTS.has(u.hostname)) {
+    setCors(res, req);
     res.writeHead(403, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Host not allowed' }));
     return;
@@ -90,48 +106,27 @@ async function proxyRemoteImage(urlStr: string, res: http.ServerResponse) {
 
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 15_000);
-
   try {
     const upstream = await fetch(u.toString(), {
       signal: controller.signal,
       redirect: 'follow',
-      headers: {
-        // Some CDNs behave better with a UA
-        'User-Agent': 'Khuyoot-DevApiServer/1.0',
-      },
+      headers: { 'User-Agent': 'Khuyoot-DevApiServer/1.0' },
     });
 
     if (!upstream.ok) {
+      setCors(res, req);
       res.writeHead(upstream.status, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ error: `Upstream error: ${upstream.status}` }));
       return;
     }
 
     const contentType = upstream.headers.get('content-type') || 'application/octet-stream';
-    const contentLength = upstream.headers.get('content-length');
-
-    // Safety limit
-    const maxBytes = 12 * 1024 * 1024;
-    if (contentLength && Number(contentLength) > maxBytes) {
-      res.writeHead(413, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Image too large' }));
-      return;
-    }
-
     const buf = Buffer.from(await upstream.arrayBuffer());
-    if (buf.length > maxBytes) {
-      res.writeHead(413, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Image too large' }));
-      return;
-    }
-
-    setCors(res);
-    res.writeHead(200, {
-      'Content-Type': contentType,
-      'Cache-Control': 'no-store',
-    });
+    setCors(res, req);
+    res.writeHead(200, { 'Content-Type': contentType, 'Cache-Control': 'no-store' });
     res.end(buf);
   } catch (e: any) {
+    setCors(res, req);
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: e?.message || 'Proxy failed' }));
   } finally {
@@ -139,79 +134,28 @@ async function proxyRemoteImage(urlStr: string, res: http.ServerResponse) {
   }
 }
 
-async function proxyRemoteImageInfo(urlStr: string, res: http.ServerResponse) {
+async function proxyRemoteImageInfo(urlStr: string, res: http.ServerResponse, req: http.IncomingMessage) {
   let u: URL;
   try {
     u = new URL(urlStr);
   } catch {
-    setCors(res);
+    setCors(res, req);
     res.writeHead(400, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: 'Invalid url' }));
     return;
   }
-
-  if (u.protocol !== 'https:' && u.protocol !== 'http:') {
-    setCors(res);
-    res.writeHead(400, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Unsupported protocol' }));
-    return;
-  }
-
-  if (isPrivateHost(u.hostname) || !ALLOWED_PROXY_HOSTS.has(u.hostname)) {
-    setCors(res);
-    res.writeHead(403, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ error: 'Host not allowed' }));
-    return;
-  }
-
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 12_000);
-
   try {
-    let upstream: Response | null = null;
-
-    // Try HEAD first to avoid downloading the image.
-    try {
-      upstream = await fetch(u.toString(), {
-        method: 'HEAD',
-        signal: controller.signal,
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Khuyoot-DevApiServer/1.0',
-        },
-      });
-    } catch {
-      upstream = null;
-    }
-
-    // Some hosts don't support HEAD; fallback to a regular GET.
-    if (!upstream || (!upstream.ok && upstream.status !== 405)) {
-      upstream = await fetch(u.toString(), {
-        method: 'GET',
-        signal: controller.signal,
-        redirect: 'follow',
-        headers: {
-          'User-Agent': 'Khuyoot-DevApiServer/1.0',
-        },
-      });
-    }
-
-    if (!upstream.ok) {
-      setCors(res);
-      res.writeHead(upstream.status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: `Upstream error: ${upstream.status}` }));
-      return;
-    }
-
-    const contentType = upstream.headers.get('content-type') || null;
-    const contentLengthStr = upstream.headers.get('content-length');
-    const contentLength = contentLengthStr ? Number(contentLengthStr) : null;
-
-    setCors(res);
-    res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-    res.end(JSON.stringify({ contentType, contentLength }));
+    const upstream = await fetch(u.toString(), { method: 'HEAD', signal: controller.signal });
+    setCors(res, req);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ 
+      contentType: upstream.headers.get('content-type'), 
+      contentLength: upstream.headers.get('content-length') 
+    }));
   } catch (e: any) {
-    setCors(res);
+    setCors(res, req);
     res.writeHead(502, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ error: e?.message || 'Proxy failed' }));
   } finally {
@@ -222,316 +166,50 @@ async function proxyRemoteImageInfo(urlStr: string, res: http.ServerResponse) {
 const port = Number(process.env.TRYON_API_PORT || 8788);
 
 const server = http.createServer(async (req, res) => {
-  if (!req.url) {
-    res.writeHead(404);
-    res.end();
-    return;
-  }
+  if (!req.url) return;
 
   if (req.method === 'OPTIONS') {
-    setCors(res);
+    setCors(res, req);
     res.writeHead(204);
     res.end();
     return;
   }
 
-  if (req.url.startsWith('/api/proxy-image')) {
-    if (req.method !== 'GET') {
-      setCors(res);
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
-    const parsed = new URL(req.url, 'http://localhost');
-    const url = parsed.searchParams.get('url');
-    if (!url) {
-      setCors(res);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Missing url' }));
-      return;
-    }
-
-    await proxyRemoteImage(url, res);
-    return;
-  }
-
-  if (req.url.startsWith('/api/proxy-image-info')) {
-    if (req.method !== 'GET') {
-      setCors(res);
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
-    const parsed = new URL(req.url, 'http://localhost');
-    const url = parsed.searchParams.get('url');
-    if (!url) {
-      setCors(res);
-      res.writeHead(400, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Missing url' }));
-      return;
-    }
-
-    await proxyRemoteImageInfo(url, res);
-    return;
-  }
-
-  if (req.url.startsWith('/api/tryon/fabric')) {
-    if (req.method !== 'POST') {
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
+  // COOKIE LOGIN
+  if (req.url.startsWith('/api/auth/login-cookie') && req.method === 'POST') {
+    setCors(res, req);
     try {
       const body = await readJsonBody(req);
-      const ip =
-        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-        (req.socket?.remoteAddress || 'unknown');
-
-      const { status, json } = await handleTryOnFabric(body, {
-        ip,
-        headers: (req.headers as any) || {},
-      });
-
-      res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(json));
-    } catch (e: any) {
-      res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ jobId: 'n/a', status: 'failed', error: e?.message || 'Server error' }));
-    }
-    return;
-  }
-
-  if (req.url.startsWith('/api/visualizer/generate')) {
-    if (req.method !== 'POST') {
-      setCors(res);
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
-    try {
-      const authHeader = String(req.headers.authorization || '');
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+      const token = body.token;
       if (!token) {
-        setCors(res);
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
-        return;
-      }
-
-      const decoded = await verifyFirebaseIdToken(token);
-      if (!decoded?.uid) {
-        setCors(res);
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid token' }));
-        return;
-      }
-
-      const body = await readJsonBody(req);
-      const imageBase64 = body?.imageBase64;
-      const imageMimeType = body?.imageMimeType || 'image/png';
-      const promptText = body?.promptText || '';
-      const model = body?.model || 'gemini-1.5-flash';
-      const aspectLabel = body?.aspectLabel || null;
-      const cameraInfo = body?.cameraInfo || null;
-      const dofEnabled = body?.dofEnabled ?? false;
-      const dofFocusDistance = body?.dofFocusDistance;
-      const dofAperture = body?.dofAperture;
-      const dofFocalLength = body?.dofFocalLength;
-
-      if (!imageBase64 || typeof imageBase64 !== 'string') {
-        setCors(res);
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing imageBase64' }));
+        res.end(JSON.stringify({ error: 'Missing token' }));
         return;
       }
-
-      const ip =
-        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-        (req.socket?.remoteAddress || 'unknown');
-
-      const { imageBase64: outBase64, mimeType } = await generateVisualizerImage({
-        imageBase64,
-        imageMimeType,
-        promptText,
-        model,
-        ip,
-      });
-
-      if (!outBase64) {
-        setCors(res);
-        res.writeHead(502, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'No image returned' }));
-        return;
-      }
-
-      const saved = await saveVisualizerGeneration({
-        userId: decoded.uid,
-        imageBase64: outBase64,
-        mimeType: mimeType || 'image/png',
-        promptText,
-        model,
-        aspectLabel,
-        cameraInfo,
-        dofEnabled,
-        dofFocusDistance,
-        dofAperture,
-        dofFocalLength,
-      });
-
-      setCors(res);
+      console.log('[API] Setting auth cookie...');
+      const isProd = process.env.NODE_ENV === 'production';
+      // SameSite=Lax is usually fine for localhost:3000 -> localhost:8788
+      res.setHeader('Set-Cookie', [
+        `khuyoot_auth=${token}; HttpOnly; ${isProd ? 'Secure; ' : ''}SameSite=Lax; Path=/; Max-Age=31536000`
+      ]);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({
-        imageBase64: outBase64,
-        mimeType,
-        storedImageUrl: saved.imageUrl,
-        recordId: saved.recordId,
-      }));
+      res.end(JSON.stringify({ success: true }));
     } catch (e: any) {
-      setCors(res);
-      res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e?.message || 'Server error' }));
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message }));
     }
     return;
   }
 
-  if (req.url.startsWith('/api/visualizer/presets/delete')) {
-    if (req.method !== 'POST') {
-      setCors(res);
-      res.writeHead(405, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
-      return;
-    }
-
+  // EXCHANGE ID TOKEN FOR FIREBASE CUSTOM TOKEN (SDK SIGN-IN)
+  if (req.url.startsWith('/api/auth/custom-token') && req.method === 'POST') {                   setCors(res, req);
     try {
-      const authHeader = String(req.headers.authorization || '');
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
+      const body = await readJsonBody(req);
+      const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      const token = bearer || body.token || body.idToken;
       if (!token) {
-        setCors(res);
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
-        return;
-      }
-
-      const decoded = await verifyFirebaseIdToken(token);
-      if (!decoded?.uid) {
-        setCors(res);
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Invalid token' }));
-        return;
-      }
-
-      const body = await readJsonBody(req, 64 * 1024);
-      const presetId = String(body?.presetId || '').trim();
-      if (!presetId) {
-        setCors(res);
         res.writeHead(400, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing presetId' }));
-        return;
-      }
-
-      const db = getFirestore();
-      const docRef = db.collection('visualizer_camera_presets').doc(presetId);
-      const snap = await docRef.get();
-      if (!snap.exists) {
-        setCors(res);
-        res.writeHead(404, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Preset not found' }));
-        return;
-      }
-
-      const data = snap.data() as any;
-      if (!data || data.userId !== decoded.uid) {
-        setCors(res);
-        res.writeHead(403, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Not allowed' }));
-        return;
-      }
-
-      await docRef.delete();
-      setCors(res);
-      res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true }));
-    } catch (e: any) {
-      setCors(res);
-      res.writeHead(e?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e?.message || 'Server error' }));
-    }
-    return;
-  }
-  
-  // Upscale endpoint
-  if (req.url.startsWith('/api/upscale') && req.method === 'POST') {
-    try {
-      const body = await readJsonBody(req);
-      const ip =
-        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-        (req.socket?.remoteAddress || 'unknown');
-
-      const { status, json } = await handleUpscale(body, { ip, headers: req.headers as any });
-      res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(json));
-    } catch (err: any) {
-      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
-    }
-    return;
-  }
-
-  // Designer V2.1 Fabric Swap endpoint
-  if (req.url.startsWith('/api/designer-v2-1/swap') && req.method === 'POST') {
-    try {
-      const body = await readJsonBody(req);
-      const ip =
-        (typeof req.headers['x-forwarded-for'] === 'string' && req.headers['x-forwarded-for'].split(',')[0].trim()) ||
-        (req.socket?.remoteAddress || 'unknown');
-
-      const { status, json } = await handleFabricSwap(body, { ip, headers: req.headers as any });
-      res.writeHead(status, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify(json));
-    } catch (err: any) {
-      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
-    }
-    return;
-  }
-
-  // Designer V2.1 History endpoint
-  if (req.url.startsWith('/api/designer-v2-1/history') && (req.method === 'GET' || req.method === 'DELETE')) {
-    try {
-      const historyHandler = await import('../api/designer-v2-1/history.js');
-      await historyHandler.default(req as any, res);
-    } catch (err: any) {
-      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
-    }
-    return;
-  }
-
-  // Designer V2.1 Upscale endpoint
-  if (req.url.startsWith('/api/designer-v2-1/upscale') && req.method === 'POST') {
-    try {
-      const upscaleHandler = await import('../api/designer-v2-1/upscale.js');
-      await upscaleHandler.default(req as any, res);
-    } catch (err: any) {
-      res.writeHead(err?.statusCode || 500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
-    }
-    return;
-  }
-
-  // Credits: Upgrade bonus (adds 200 credits to the authenticated user)
-  if (req.url.startsWith('/api/credits/upgrade-bonus') && req.method === 'POST') {
-    setCors(res);
-    try {
-      const authHeader = String(req.headers.authorization || '');
-      const token = authHeader.startsWith('Bearer ') ? authHeader.slice('Bearer '.length).trim() : '';
-      if (!token) {
-        res.writeHead(401, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({ error: 'Missing Authorization bearer token' }));
+        res.end(JSON.stringify({ error: 'Missing token' }));
         return;
       }
 
@@ -542,85 +220,342 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // Body is optional; allow overriding amount for dev, default 200.
-      let body: any = {};
+      const customToken = await createCustomTokenForUid(decoded.uid);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ customToken }));
+    } catch (e: any) {
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e?.message || 'Failed to create custom token' }));
+    }
+    return;
+  }
+
+  // GET ME (Cookie Auth)      
+    if (req.url.startsWith('/api/auth/me') && req.method === 'GET') {
+      setCors(res, req);
+      
+      let token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      if (!token) {
+        const cookies = parseCookies(req.headers.cookie);
+        token = cookies['khuyoot_auth'];
+      }
+      
+      console.log('[API] /me called. Token present:', !!token);
+
+      if (!token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'No token found' }));
+        return;
+      }
+
       try {
-        body = await readJsonBody(req, 64 * 1024);
-      } catch {
-        body = {};
+        const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded) {
+        console.warn('[API] Token verification failed (returned null)');
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired session' }));
+        return;
       }
 
-      const uid = decoded.uid;
-      const amountRaw = typeof body?.amount === 'number' ? body.amount : 200;
-      const amount = Math.max(1, Math.floor(amountRaw));
-      const reason = typeof body?.reason === 'string' && body.reason.trim() ? body.reason.trim() : 'Upgrade bonus';
-
-      const db = getFirestore();
-      const profileRef = db.collection('user_profiles').doc(uid);
-      const txRef = db.collection('credit_transactions').doc();
-
-      const result = await db.runTransaction(async (tx) => {
-        const snap = await tx.get(profileRef);
-        const current = snap.exists ? (snap.data() as any) : null;
-        const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
-        const newBalance = Math.max(0, currentBalance + amount);
-
-        if (snap.exists) {
-          tx.set(
-            profileRef,
-            {
-              user_id: uid,
-              credit_balance: newBalance,
-              updatedAt: new Date(),
-            },
-            { merge: true }
-          );
-        } else {
-          tx.set(profileRef, {
-            user_id: uid,
-            credit_balance: newBalance,
-            tier: 'Free',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          });
+      // Fetch additional profile data (Credits) from Firestore
+              let profile: any = {};
+        try {
+          const db = getFirestore();
+          // Fetch from both 'users' and 'user_profiles'
+          const [userDoc, profileDoc] = await Promise.all([
+            db.collection('users').doc(decoded.uid).get(),
+            db.collection('user_profiles').doc(decoded.uid).get()
+          ]);
+          
+          if (userDoc.exists) {
+            profile = { ...profile, ...userDoc.data() };
+          }
+          if (profileDoc.exists) {
+            profile = { ...profile, ...profileDoc.data() };
+          }
+        } catch (dbErr) {
+          console.warn('[API] Failed to fetch profile from Firestore:', dbErr);
         }
 
-        tx.set(txRef, {
-          transaction_id: txRef.id,
-          user_id: uid,
-          amount,
-          action_type: 'UPGRADE_BONUS',
-          status: 'completed',
-          meta: {
-            reason,
-            source: 'upgrade_modal',
-          },
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
-
-        return { new_balance: newBalance, transaction_id: txRef.id };
-      });
-
+      console.log('[API] Session verified for:', (decoded as any).email || decoded.uid);
+      console.log('[API] Decoded Token Claims:', JSON.stringify(decoded));
+      console.log('[API] Firestore Profile:', JSON.stringify(profile));
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, ...result }));
-    } catch (err: any) {
-      res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: err?.message || 'Server error' }));
+      const role = profile.role || (decoded as any).role || 'customer';
+      res.end(JSON.stringify({
+        uid: decoded.uid,
+        email: (decoded as any).email,
+        displayName: profile.name || profile.displayName || (decoded as any).name || (decoded as any).displayName || 'User',
+        photoURL: profile.profileImage || profile.photoURL || profile.avatar || (decoded as any).picture || (decoded as any).photoURL || null,
+        role: role,
+        billing: {
+          credits: profile.credit_balance ?? profile.credits ?? 0,
+          tier: (profile.tier || 'free').toLowerCase(),
+          subscriptionStatus: profile.subscriptionStatus || 'none'
+        },
+        metadata: {
+          completedOrders: profile.completedOrdersCount || profile.ordersCount || 0,
+          joinDate: profile.createdAt || profile.joinDate || null
+        }
+      }));
+    } catch (e: any) {
+      console.error('[API] /me error:', e.message);
+      res.writeHead(401, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Auth failed' }));
     }
     return;
   }
 
-  res.writeHead(404, { 'Content-Type': 'application/json' });
+  // LOGOUT
+  if (req.url.startsWith('/api/auth/logout') && req.method === 'POST') {
+    setCors(res, req);
+    res.setHeader('Set-Cookie', [`khuyoot_auth=; HttpOnly; Path=/; Max-Age=0`]);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ success: true }));
+    return;
+  }
+
+  if (req.url.startsWith('/api/health')) {
+    setCors(res, req);
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok' }));
+    return;
+  }
+
+  // PROXY IMAGE
+  if (req.url.startsWith('/api/proxy-image')) {
+    const u = new URL(req.url, `http://localhost:${port}`).searchParams.get('url');
+    if (!u) { res.writeHead(400); res.end(); return; }
+    if (req.url.includes('info')) await proxyRemoteImageInfo(u, res, req);
+    else await proxyRemoteImage(u, res, req);
+    return;
+  }
+
+  // TRYON
+  if (req.url.startsWith('/api/tryon/fabric')) {
+    setCors(res, req);
+    try {
+      const body = await readJsonBody(req);
+      const { status, json } = await handleTryOnFabric(body, { ip: 'dev', headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (e: any) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // VISUALIZER
+  if (req.url.startsWith('/api/visualizer/generate')) {
+    setCors(res, req);
+    try {
+      // Allow both Bearer and Cookie for generate
+      let token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      if (!token) token = parseCookies(req.headers.cookie)['khuyoot_auth'];
+      
+      if (!token) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+      const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded) { res.writeHead(401); res.end(JSON.stringify({ error: 'Invalid token' })); return; }
+      
+      const body = await readJsonBody(req);
+      const { imageBase64: outBase64, mimeType } = await generateVisualizerImage({ ...body, ip: 'dev' });
+      const saved = await saveVisualizerGeneration({ userId: decoded.uid, imageBase64: outBase64, mimeType: mimeType || 'image/png', ...body });
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ imageBase64: outBase64, mimeType, storedImageUrl: saved.imageUrl, recordId: saved.recordId }));
+    } catch (e: any) {
+      res.writeHead(500); res.end(JSON.stringify({ error: e.message }));
+    }
+    return;
+  }
+
+  // UPSCALE / FABRIC SWAP / HISTORY (Abbreviated for clarity, using existing handlers)
+  if (req.url.startsWith('/api/upscale')) {
+    setCors(res, req);
+    try {
+      const body = await readJsonBody(req);
+      const { status, json } = await handleUpscale(body, { ip: 'dev', headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (e: any) { res.writeHead(500); res.end(); }
+    return;
+  }
+
+  if (req.url.startsWith('/api/designer-v2-1/swap')) {
+    setCors(res, req);
+    try {
+      const body = await readJsonBody(req);
+      const { status, json } = await handleFabricSwap(body, { ip: 'dev', headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (e: any) { res.writeHead(500); res.end(); }
+    return;
+  }
+
+  // DESIGNER V2.1 HISTORY
+  if (req.url.startsWith('/api/designer-v2-1/history')) {
+    setCors(res, req);
+    try {
+      // 1. Authenticate
+      let token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+      if (!token) token = parseCookies(req.headers.cookie)['khuyoot_auth'];
+      
+      if (!token) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Unauthorized' }));
+        return;
+      }
+
+      const decoded = await verifyFirebaseIdToken(token);
+      if (!decoded) {
+        res.writeHead(401, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+        return;
+      }
+
+      const url = new URL(req.url, `http://localhost:${port}`);
+      const pathSegments = url.pathname.split('/').filter(Boolean);
+      const jobId = pathSegments[pathSegments.length - 1] !== 'history' ? pathSegments[pathSegments.length - 1] : undefined;
+
+      // GET LIST
+      if (req.method === 'GET') {
+        const limitSetting = parseInt(url.searchParams.get('limit') || '12');
+        const limit = Math.min(100, Math.max(1, isNaN(limitSetting) ? 12 : limitSetting));
+        
+        console.log(`[API] Fetching history for ${decoded.uid}, limit: ${limit}`);
+        const generations = await getUserGenerations(decoded.uid, limit);
+        
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          success: true,
+          count: generations.length,
+          generations: generations.map((g) => ({
+            jobId: g.jobId,
+            fullImageUrl: g.fullImageUrl,
+            thumbnailUrl: g.thumbnailUrl,
+            templateUrl: g.templateUrl,
+            fabricUrl: g.fabricUrl,
+            templateId: g.templateId,
+            fabricId: g.fabricId,
+            settings: g.settings,
+            createdAt: g.createdAt.toISOString(),
+          }))
+        }));
+        return;
+      }
+
+      // DELETE
+      if (req.method === 'DELETE' && jobId) {
+        console.log(`[API] Deleting history item ${jobId} for ${decoded.uid}`);
+        await deleteUserGeneration(decoded.uid, jobId);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, message: 'Slot cleared successfully' }));
+        return;
+      }
+
+      res.writeHead(405, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'Method Not Allowed' }));
+    } catch (e: any) {
+      console.error('[API] History error:', e.message);
+      res.writeHead(500, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: e.message || 'Server error' }));
+    }
+    return;
+  }
+
+  // THAWANI PAYMENTS
+  if (req.url.startsWith('/api/payments/thawani/create-session')) {
+    setCors(res, req);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (req.method === 'POST') {
+      console.log('[API] Thawani create-session POST request received');
+      try {
+        // 1. Authenticate
+        console.log('[API] Checking authorization...');
+        let token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '').trim();
+        if (!token) token = parseCookies(req.headers.cookie)['khuyoot_auth'];
+        
+        if (!token) {
+          console.log('[API] No token found');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Unauthorized' }));
+          return;
+        }
+
+        console.log('[API] Verifying token...');
+        const decoded = await verifyFirebaseIdToken(token);
+        if (!decoded) {
+          console.log('[API] Token verification failed');
+          res.writeHead(401, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: 'Invalid or expired token' }));
+          return;
+        }
+
+        console.log('[API] Token verified for user:', decoded.uid);
+        console.log('[API] Reading request body...');
+        const body = await readJsonBody(req);
+        console.log('[API] Body received:', JSON.stringify(body, null, 2));
+        
+        console.log('[API] Creating Thawani session...');
+        let result;
+        try {
+          result = await createThawaniSession({ ...body, userId: decoded.uid });
+        } catch (sessionError: any) {
+          console.error('[API] createThawaniSession threw error:', sessionError);
+          console.error('[API] Session error message:', sessionError.message);
+          console.error('[API] Session error stack:', sessionError.stack);
+          throw sessionError;
+        }
+        
+        console.log('[API] Thawani session created successfully');
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (e: any) {
+        console.error('[API] Thawani Session Error:', e);
+        console.error('[API] Error stack:', e.stack);
+        try {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: e.message || 'Server error' }));
+        } catch (writeError) {
+          console.error('[API] Failed to write error response:', writeError);
+        }
+      }
+      return;
+    }
+  }
+
+  if (req.url.startsWith('/api/payments/thawani/webhook')) {
+    setCors(res, req);
+    if (req.method === 'OPTIONS') {
+      res.writeHead(204);
+      res.end();
+      return;
+    }
+    if (req.method === 'POST') {
+      try {
+        const body = await readJsonBody(req);
+        const result = await handleThawaniWebhook(body);
+        res.writeHead(result.ok ? 200 : 400, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(result));
+      } catch (e: any) {
+        console.error('[API] Thawani Webhook Error:', e.message);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'Internal Error' }));
+      }
+      return;
+    }
+  }
+
+  // Default
+  res.writeHead(404);
   res.end(JSON.stringify({ error: 'Not Found' }));
 });
 
-server.on('error', (err: any) => {
-  console.error('Server error:', err);
+server.listen(port, '0.0.0.0', () => {
+  console.log(`Try-On API dev server listening on http://localhost:${port}`);
 });
 
-server.listen(port, '0.0.0.0', () => {
-  // eslint-disable-next-line no-console
-  console.log(`Try-On API dev server listening on http://localhost:${port}`);
-  console.log('Server is ready to accept connections.');
-});
+

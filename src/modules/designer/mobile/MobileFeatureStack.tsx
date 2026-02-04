@@ -189,6 +189,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
   return (
     <>
       <ImagePrepModal
+        theme="designer"
         mode="template"
         isOpen={prepOpen}
         file={prepFile}

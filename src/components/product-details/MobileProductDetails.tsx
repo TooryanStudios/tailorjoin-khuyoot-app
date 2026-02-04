@@ -15,6 +15,7 @@ interface MobileProductDetailsProps {
     onBack: () => void;
     onStartTailoring: () => void;
     onAddToCart: () => void;
+    template?: any;
 }
 
 export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
@@ -27,7 +28,8 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     onLikeToggle,
     onBack,
     onStartTailoring,
-    onAddToCart
+    onAddToCart,
+    template
 }) => {
     const navigate = useNavigate();
 
@@ -280,6 +282,64 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                                 </span>
                             </div>
                         </div>
+                        
+                        {/* Measurement Template Preview */}
+                        {template && template.points?.length > 0 && (
+                            <div className="w-full bg-[#1A1A1A] dark:bg-white/5 rounded-2xl p-4 mt-2" dir="rtl">
+                                <div className="flex items-center justify-between mb-4">
+                                    <h3 className="font-bold text-white text-base">توجيهات القياس</h3>
+                                    <div className="flex items-center gap-2">
+                                        <Ruler size={14} className="text-purple-400" />
+                                        <span className="text-[10px] font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">{template.name}</span>
+                                    </div>
+                                </div>
+                                
+                                <div className="relative w-full aspect-[3/4] bg-white dark:bg-black rounded-2xl border border-white/5 shadow-inner overflow-hidden mb-4">
+                                    {template.baseImageUrl ? (
+                                        <img 
+                                            src={template.baseImageUrl} 
+                                            alt={template.name}
+                                            className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90"
+                                            loading="lazy"
+                                        />
+                                    ) : (
+                                        <div className="absolute inset-0 flex items-center justify-center opacity-5">
+                                            <img src="/logo_big.png?v=4" alt="" className="w-24 h-auto grayscale" />
+                                        </div>
+                                    )}
+                                    
+                                    {/* Point Overlays */}
+                                    {template.points.map((point: any, idx: number) => {
+                                        const order = point.order || idx + 1;
+                                        return (
+                                            <div 
+                                                key={point.id}
+                                                className="absolute w-5 h-5 -ml-2.5 -mt-2.5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold shadow-[0_0_8px_rgba(147,51,234,0.4)] ring-1 ring-white/50 z-10"
+                                                style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
+                                            >
+                                                {order}
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                
+                                <div className="grid grid-cols-2 gap-2">
+                                    {template.points.slice(0, 6).map((point: any, idx: number) => (
+                                        <div key={point.id} className="flex items-center gap-2 text-[10px] text-white/60 bg-white/5 p-2 rounded-lg border border-transparent">
+                                            <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-[8px] shrink-0">
+                                                {point.order || idx + 1}
+                                            </span>
+                                            <span className="truncate">{point.label || point.name}</span>
+                                        </div>
+                                    ))}
+                                    {template.points.length > 6 && (
+                                        <div className="col-span-2 text-center text-[10px] text-white/40 pt-1">
+                                            + {template.points.length - 6} قياسات أخرى
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
 
                         {/* Description */}
                         {product.description && (

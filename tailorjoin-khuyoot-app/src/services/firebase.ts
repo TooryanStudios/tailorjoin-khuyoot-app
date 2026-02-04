@@ -1,5 +1,16 @@
 import * as firebaseApp from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
+import {
+  getAuth,
+  initializeAuth,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  User as FirebaseUser,
+} from 'firebase/auth';
 import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp, documentId } from 'firebase/firestore';
 import { getStorage } from 'firebase/storage';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
@@ -24,6 +35,34 @@ console.log('🔥 Firebase Config:', {
   apiKey: firebaseConfig.apiKey?.substring(0, 20) + '...',
   projectId: firebaseConfig.projectId
 });
+
+// DEV-only: Avoid IndexedDB persistence to prevent auth init hanging when IDB is blocked.
+// Overrides (DEV only): ?authp=local|session|memory
+const DIAG_AUTH_PERSISTENCE_KEY = 'khuyoot:diag:authPersistence';
+
+function getAuthPersistenceMode(): 'local' | 'session' | 'memory' {
+  try {
+    if (import.meta.env.PROD) return 'local';
+    if (typeof window === 'undefined') return 'local';
+    const params = new URLSearchParams(window.location?.search ?? '');
+    const fromQuery = (params.get('authp') || params.get('authPersistence') || '').toLowerCase();
+    if (fromQuery === 'local' || fromQuery === 'session' || fromQuery === 'memory') return fromQuery;
+    try {
+      const fromStorage = String(localStorage.getItem(DIAG_AUTH_PERSISTENCE_KEY) || '').toLowerCase();
+      if (fromStorage === 'local' || fromStorage === 'session' || fromStorage === 'memory') return fromStorage;
+    } catch {}
+    return 'local';
+  } catch {
+    return 'local';
+  }
+}
+
+function getAuthPersistence() {
+  const mode = getAuthPersistenceMode();
+  if (mode === 'memory') return inMemoryPersistence;
+  if (mode === 'session') return browserSessionPersistence;
+  return browserLocalPersistence;
+}
 
 // Initialize Firebase
 let app;
@@ -79,7 +118,14 @@ const persistLocalMeasurementTemplates = (templates: MeasurementTemplate[]) => {
 
 try {
   app = firebaseApp.initializeApp(firebaseConfig);
-  auth = getAuth(app);
+
+  try {
+    const persistence = getAuthPersistence();
+    auth = initializeAuth(app, { persistence });
+  } catch (e) {
+    auth = getAuth(app);
+  }
+
   db = getFirestore(app);
   // Reduce Firestore log noise (especially offline warnings) to errors only
   try { setLogLevel('error'); } catch {}

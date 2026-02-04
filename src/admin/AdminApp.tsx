@@ -36,6 +36,7 @@ import { TryOnTemplates } from './tryon/TryOnTemplates';
 import { CreditsManagement } from './credits/CreditsManagement';
 import { AdminDevTools } from '../components/AdminDevTools';
 import { SurveyResponsesPage } from '../features/admin/surveys/SurveyResponsesPage';
+import { DebugToolsHub } from './settings/DebugToolsHub';
 
 type AdminSection = 
   | 'dashboard' 
@@ -59,14 +60,15 @@ type AdminSection =
   | 'regions'
   | 'financial'
   | 'credits'
+  | 'debug-tools'
   | 'config' 
   | 'logs';
 
 type ConfigSection = 'general' | 'homepage' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
 
-type ExtendedConfigSection = ConfigSection | 'designer';
+type ExtendedConfigSection = ConfigSection | 'designer' | 'debug-tools';
 
-const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page'];
+const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page', 'debug-tools'];
 
 function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
   // Supported:
@@ -113,6 +115,7 @@ export const AdminApp = () => {
   // استخرج القسم النشط من URL بدلاً من state
   const getActiveSectionFromPath = () => {
     const raw = String(location.pathname || '');
+    if (raw.startsWith('/admin/config/debug-tools')) return 'debug-tools' as AdminSection;
     const remainder = raw.replace(/^\/admin\/?/, '');
     const first = (remainder.split('/')[0] || 'dashboard').trim();
     return (first || 'dashboard') as AdminSection;
@@ -297,25 +300,14 @@ export const AdminApp = () => {
     }
   };
 
-  // Defensive: remove any stray full-screen overlays left by previous routes/modals
+  // Defensive: cleanup only explicitly tagged overlays to avoid removing React-managed nodes
   useEffect(() => {
     try {
-      const candidates = Array.from(document.querySelectorAll('div')) as HTMLElement[];
-      const overlays = candidates.filter((el) => {
-        const style = window.getComputedStyle(el);
-        const cls = String(el.className || '');
-        return (
-          style.position === 'fixed' &&
-          (cls.includes('inset-0') || (style.top === '0px' && style.left === '0px' && style.right === '0px' && style.bottom === '0px')) &&
-          (cls.includes('bg-black') || cls.includes('bg-slate-900') || cls.includes('backdrop-blur'))
-        );
-      });
+      const overlays = Array.from(
+        document.querySelectorAll('[data-khuyoot-overlay="cleanup"]')
+      ) as HTMLElement[];
       overlays.forEach((el) => {
-        // Skip our own sidebar veil which only appears when open
-        const isSidebarVeil = el.getAttribute('aria-hidden') === 'true' && clsIncludes(el, 'bg-slate-900/40');
-        if (!isSidebarVeil) {
-          el.parentElement?.removeChild(el);
-        }
+        el.parentElement?.removeChild(el);
       });
       // Also reset any body styles a modal might have set
       document.body.style.position = '';
@@ -323,10 +315,6 @@ export const AdminApp = () => {
       document.body.style.width = '';
       document.body.style.overflow = '';
     } catch {}
-
-    function clsIncludes(el: Element, token: string) {
-      try { return String((el as HTMLElement).className || '').includes(token); } catch { return false; }
-    }
   }, [location.pathname]);
 
   const PlaceholderView = ({ title, icon: Icon }: any) => (
@@ -448,9 +436,22 @@ export const AdminApp = () => {
           >
             إعدادات متقدمة
           </button>
+
+          <button
+            onClick={() => navigate('/admin/config/debug-tools')}
+            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+              configSection === 'debug-tools'
+                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
+                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+            }`}
+          >
+            أدوات التشخيص
+          </button>
         </div>
 
-        {configSection === 'homepage' ? (
+        {configSection === 'debug-tools' ? (
+          <DebugToolsHub />
+        ) : configSection === 'homepage' ? (
           <HomePageSettings />
           ) : configSection === 'designer' ? (
             <DesignerSettings />
@@ -789,6 +790,7 @@ export const AdminApp = () => {
       case 'regions': return <RegionsManagement />;
       case 'financial': return <FinancialManagement />;
       case 'credits': return <CreditsManagement />;
+      case 'debug-tools': return <ConfigView />;
       case 'config': return <ConfigView />;
       case 'logs': return <PlaceholderView title="سجلات النظام" icon={FileText} />;
       default: return <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />;
@@ -962,7 +964,11 @@ export const AdminApp = () => {
              </button>
              <div className="flex items-center gap-3">
                <h2 className="text-lg font-bold text-slate-700 dark:text-zinc-200 capitalize">
-                 {activeSection === 'ai' ? 'AI Configuration' : activeSection}
+                 {activeSection === 'ai'
+                   ? 'AI Configuration'
+                   : activeSection === 'debug-tools'
+                     ? 'Debug Tools'
+                     : activeSection}
                </h2>
                <DevSectionAnchor sectionId={activeSection} />
              </div>

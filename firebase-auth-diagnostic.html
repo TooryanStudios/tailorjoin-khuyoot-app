@@ -1,0 +1,1373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Firebase Auth Diagnostic</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1a1a1a;
+      color: #00ff00;
+    }
+    .log {
+      margin: 5px 0;
+      padding: 5px;
+      background: #2a2a2a;
+      border-left: 3px solid #00ff00;
+    }
+    .error {
+      border-left-color: #ff0000;
+      color: #ff6666;
+    }
+    .success {
+      border-left-color: #00ff00;
+      color: #66ff66;
+    }
+    .warning {
+      border-left-color: #ffaa00;
+      color: #ffcc66;
+    }
+    button {
+      background: #00ff00;
+      color: #000;
+      border: none;
+      padding: 10px 20px;
+      font-size: 16px;
+      cursor: pointer;
+      margin: 10px 5px;
+    }
+    button:hover {
+      background: #00cc00;
+    }
+    input {
+      background: #111;
+      color: #00ff00;
+      border: 1px solid #00ff00;
+      padding: 8px 10px;
+      margin: 5px 5px 5px 0;
+      font-size: 14px;
+      border-radius: 4px;
+      width: 240px;
+    }
+    button.copied {
+      background: #0088ff;
+      color: #fff;
+    }
+    .header-controls {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+    }
+    .signin-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      flex-wrap: wrap;
+      margin: 10px 0 20px;
+    }
+    .status {
+      margin: 0 0 16px;
+      padding: 10px 12px;
+      background: #111;
+      border: 1px solid #333;
+      border-radius: 8px;
+      color: #c7ffd1;
+    }
+    .status small {
+      color: #9ad4a7;
+      display: block;
+      margin-top: 4px;
+    }
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.6);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+      padding: 16px;
+    }
+    .modal {
+      max-width: 520px;
+      width: 100%;
+      background: #0b0b0b;
+      border: 1px solid #333;
+      border-radius: 12px;
+      overflow: hidden;
+      box-shadow: 0 20px 60px rgba(0, 0, 0, 0.6);
+    }
+    .modal-header {
+      padding: 16px 20px;
+      border-bottom: 1px solid #222;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: #111;
+      color: #ff6666;
+      font-weight: bold;
+    }
+    .modal-body {
+      padding: 20px;
+      color: #ffb3b3;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .modal-footer {
+      padding: 16px 20px;
+      border-top: 1px solid #222;
+      display: flex;
+      justify-content: flex-end;
+      background: #111;
+    }
+    .modal-close {
+      background: #ff6666;
+      color: #000;
+      border: none;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-weight: bold;
+      border-radius: 6px;
+    }
+  </style>
+</head>
+<body>
+  <div class="header-controls">
+    <div>
+      <h1>🔥 Firebase Auth Connectivity Diagnostic</h1>
+      <p>This tool tests direct Firebase Auth SDK connectivity without the app code.</p>
+    </div>
+    <button id="copyBtn" onclick="copyLogs()">📋 Copy Logs</button>
+  </div>
+
+  <div class="signin-controls">
+    <input id="emailInput" type="email" placeholder="Email" value="admin@test.com" />
+    <input id="passwordInput" type="password" placeholder="Password" value="" />
+    <button id="signInBtn" onclick="signInFromUi()">🔐 Sign In</button>
+    <button id="signOutBtn" onclick="signOutFromUi()">🚪 Sign Out</button>
+    <button id="clearSessionBtn" onclick="clearAuthSessionFromUi()">🧽 Clear Session</button>
+    <button id="clearSwBtn" onclick="clearSwAndCachesFromUi()">🧹 Clear SW + Caches</button>
+    <button id="iframeTestBtn" onclick="testAuthIframeFromUi()">🧩 Test Auth Iframe</button>
+    <label style="color:#ffcc66; font-size:13px; display:inline-flex; align-items:center; gap:4px; margin:0 5px; cursor:pointer; border:1px solid #444; padding:4px 8px; border-radius:4px;" title="Sets appVerificationDisabledForTesting=true to bypass Recaptcha">
+      <input type="checkbox" id="disableRecaptchaCheckbox"> 🚫 Bypass Recaptcha
+    </label>
+    <select id="persistenceSelect" aria-label="Persistence mode">
+      <option value="local">Local (IndexedDB)</option>
+      <option value="session">Session (sessionStorage)</option>
+      <option value="memory">Memory (no persistence)</option>
+    </select>
+    <button id="applyModeBtn" onclick="applyPersistenceModeFromUi()">⚙️ Apply Mode</button>
+  </div>
+
+  <div id="status" class="status">Status: initializing…</div>
+  
+  <div id="logs"></div>
+
+  <div id="errorModal" class="modal-overlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal">
+      <div class="modal-header">
+        <span id="errorTitle">خطأ</span>
+        <button class="modal-close" onclick="closeErrorModal()">✕</button>
+      </div>
+      <div class="modal-body" id="errorMessage"></div>
+      <div class="modal-footer">
+        <button class="modal-close" onclick="closeErrorModal()">إغلاق</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Pre-module network instrumentation
+    // NOTE: Module imports execute before any code in <script type="module">, so if the Firebase SDK
+    // captures references to fetch/XHR during module evaluation, we must instrument here (before imports).
+    (function preModuleNetworkInstrumentation() {
+      try {
+        if (window.__preModuleNetReady) return;
+        window.__preModuleNetReady = true;
+
+        window.__interestingFetchCount = window.__interestingFetchCount || 0;
+        window.__netLogQueue = window.__netLogQueue || [];
+
+        const isInterestingUrl = (url) => {
+          if (typeof url !== 'string') return false;
+          return (
+            url.includes('identitytoolkit.googleapis.com') ||
+            url.includes('securetoken.googleapis.com') ||
+            url.includes('www.googleapis.com') ||
+            url.includes('/__/auth/iframe') ||
+            url.includes('__/auth/iframe') ||
+            url.includes('google.com/recaptcha') ||
+            url.includes('gstatic.com/recaptcha') ||
+            url.includes('recaptcha')
+          );
+        };
+
+        const queueNetLog = (message, type) => {
+          try {
+            window.__netLogQueue.push({ message: String(message || ''), type: type || 'log', t: Date.now() });
+          } catch {}
+          try {
+            console.log(message);
+          } catch {}
+        };
+
+        window.__flushNetLogQueue = function(logger) {
+          try {
+            const logFn = typeof logger === 'function' ? logger : null;
+            const q = Array.isArray(window.__netLogQueue) ? window.__netLogQueue : [];
+            if (!logFn || q.length === 0) return;
+            for (const item of q) {
+              logFn(item.message, item.type || 'log');
+            }
+            window.__netLogQueue = [];
+          } catch {}
+        };
+
+        // fetch
+        /* DISABLED FOR DEBUGGING
+        try {
+          const originalFetch = window.fetch?.bind(window);
+          if (originalFetch && !window.__fetchInstrumented) {
+            window.__fetchInstrumented = true;
+            window.fetch = async (input, init) => {
+              const url = typeof input === 'string' ? input : input?.url;
+              const method = (init?.method || (typeof input !== 'string' ? input?.method : 'GET') || 'GET').toUpperCase();
+              const startedAt = performance.now();
+              const interesting = isInterestingUrl(url);
+              if (interesting) {
+                window.__interestingFetchCount = (window.__interestingFetchCount || 0) + 1;
+                queueNetLog(`🌍 fetch ${method} ${url}`, 'log');
+              }
+              try {
+                const res = await originalFetch(input, init);
+                if (interesting) {
+                  const ms = Math.round(performance.now() - startedAt);
+                  queueNetLog(`🌍 fetch DONE ${res.status} (${ms}ms) ${method} ${url}`, res.ok ? 'success' : 'warning');
+                }
+                return res;
+              } catch (e) {
+                if (interesting) {
+                  const ms = Math.round(performance.now() - startedAt);
+                  queueNetLog(`🌍 fetch FAILED (${ms}ms) ${method} ${url} :: ${e?.message || e}`, 'error');
+                }
+                throw e;
+              }
+            };
+          }
+        } catch {}
+        */
+
+        // XHR
+        /* DISABLED FOR DEBUGGING
+        try {
+          const XHR = window.XMLHttpRequest;
+          if (XHR && XHR.prototype && !window.__xhrInstrumented) {
+            window.__xhrInstrumented = true;
+            const originalOpen = XHR.prototype.open;
+            const originalSend = XHR.prototype.send;
+            XHR.prototype.open = function(method, url) {
+              try {
+                this.__diag_method = String(method || 'GET').toUpperCase();
+                this.__diag_url = String(url || '');
+              } catch {}
+              return originalOpen.apply(this, arguments);
+            };
+            XHR.prototype.send = function(body) {
+              const url = this.__diag_url;
+              const method = this.__diag_method || 'GET';
+              const startedAt = performance.now();
+              const interesting = isInterestingUrl(url);
+              if (interesting) {
+                window.__interestingFetchCount = (window.__interestingFetchCount || 0) + 1;
+                queueNetLog(`🌍 XHR ${method} ${url}`, 'log');
+              }
+              const onDone = () => {
+                try {
+                  if (!interesting) return;
+                  const ms = Math.round(performance.now() - startedAt);
+                  const status = this.status;
+                  queueNetLog(`🌍 XHR DONE ${status} (${ms}ms) ${method} ${url}`, status >= 200 && status < 300 ? 'success' : 'warning');
+                } catch {}
+              };
+              try {
+                this.addEventListener('loadend', onDone);
+              } catch {}
+              return originalSend.apply(this, arguments);
+            };
+          }
+        } catch {}
+        */
+      } catch {}
+    })();
+
+    // Copy logs function
+    window.copyLogs = function() {
+      const logsContainer = document.getElementById('logs');
+      const copyBtn = document.getElementById('copyBtn');
+      const logTexts = Array.from(logsContainer.children).map(div => div.textContent).join('\n');
+      
+      navigator.clipboard.writeText(logTexts).then(() => {
+        copyBtn.textContent = '✅ Copied!';
+        copyBtn.classList.add('copied');
+        setTimeout(() => {
+          copyBtn.textContent = '📋 Copy Logs';
+          copyBtn.classList.remove('copied');
+        }, 2000);
+      }).catch(err => {
+        copyBtn.textContent = '❌ Failed';
+        console.error('Copy failed:', err);
+      });
+    };
+
+    window.signInFromUi = function() {
+      if (typeof window.__diagLog === 'function') {
+        window.__diagLog('🔘 Sign In button clicked', 'log');
+      }
+      if (typeof window.__runSignInTest === 'function') {
+        const email = document.getElementById('emailInput')?.value || '';
+        const password = document.getElementById('passwordInput')?.value || '';
+        window.__runSignInTest(email, password);
+      } else {
+        console.error('Sign-in handler is not ready (window.__runSignInTest is missing). Module script may have failed to load.');
+        if (typeof window.openErrorModal === 'function') {
+          window.openErrorModal(
+            'أداة التشخيص غير جاهزة',
+            'لم يتم تحميل كود Firebase بعد (Sign-in handler غير موجود). افتح Console لمعرفة الخطأ، ثم أعد تحميل الصفحة.'
+          );
+        }
+      }
+    };
+
+    window.signOutFromUi = function() {
+      if (typeof window.__runSignOut === 'function') {
+        window.__runSignOut();
+      }
+    };
+
+    window.clearAuthSessionFromUi = function() {
+      if (typeof window.__runClearAuthSession === 'function') {
+        window.__runClearAuthSession();
+      }
+    };
+
+    window.clearSwAndCachesFromUi = function() {
+      if (typeof window.__runClearSwAndCaches === 'function') {
+        window.__runClearSwAndCaches();
+      } else {
+        console.error('SW cleanup handler is not ready (window.__runClearSwAndCaches is missing).');
+      }
+    };
+
+    window.testAuthIframeFromUi = function() {
+      if (typeof window.__diagLog === 'function') {
+        window.__diagLog('🔘 Test Auth Iframe button clicked', 'log');
+      }
+      if (typeof window.__runAuthIframeTest === 'function') {
+        window.__runAuthIframeTest();
+      } else {
+        console.error('Auth iframe test handler is not ready (window.__runAuthIframeTest is missing).');
+        if (typeof window.openErrorModal === 'function') {
+          window.openErrorModal(
+            'أداة التشخيص غير جاهزة',
+            'لم يتم تحميل كود Firebase بعد (Auth iframe test handler غير موجود). افتح Console لمعرفة الخطأ، ثم أعد تحميل الصفحة.'
+          );
+        }
+      }
+    };
+
+    window.applyPersistenceModeFromUi = function() {
+      const sel = document.getElementById('persistenceSelect');
+      const mode = sel?.value || 'local';
+      try {
+        const url = new URL(location.href);
+        url.searchParams.set('p', mode);
+        location.href = url.toString();
+      } catch (e) {
+        console.error('Failed to apply persistence mode', e);
+      }
+    };
+
+    window.openErrorModal = function(title, message) {
+      const modal = document.getElementById('errorModal');
+      const titleEl = document.getElementById('errorTitle');
+      const messageEl = document.getElementById('errorMessage');
+      if (!modal || !titleEl || !messageEl) return;
+      titleEl.textContent = title || 'خطأ';
+      messageEl.textContent = message || 'حدث خطأ غير متوقع.';
+      modal.style.display = 'flex';
+      modal.setAttribute('aria-hidden', 'false');
+    };
+
+    window.closeErrorModal = function() {
+      const modal = document.getElementById('errorModal');
+      if (!modal) return;
+      modal.style.display = 'none';
+      modal.setAttribute('aria-hidden', 'true');
+    };
+  </script>
+
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-app.js';
+    import { 
+      initializeAuth,
+      signInWithEmailAndPassword, 
+      signOut,
+      onAuthStateChanged,
+      browserLocalPersistence,
+      browserSessionPersistence,
+      inMemoryPersistence
+    } from 'https://www.gstatic.com/firebasejs/12.6.0/firebase-auth.js';
+
+    const logsContainer = document.getElementById('logs');
+    const statusEl = document.getElementById('status');
+    const signInBtn = document.getElementById('signInBtn');
+    const signOutBtn = document.getElementById('signOutBtn');
+    const passwordInput = document.getElementById('passwordInput');
+    const persistenceSelect = document.getElementById('persistenceSelect');
+    const clearSwBtn = document.getElementById('clearSwBtn');
+
+    function log(message, type = 'log') {
+      const div = document.createElement('div');
+      div.className = `log ${type}`;
+      div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      logsContainer.appendChild(div);
+      logsContainer.scrollTop = logsContainer.scrollHeight;
+      console.log(message);
+    }
+
+    // Expose logger for non-module onclick handlers
+    window.__diagLog = log;
+
+    // Flush any pre-module network logs captured before the module was evaluated.
+    if (typeof window.__flushNetLogQueue === 'function') {
+      try { window.__flushNetLogQueue(log); } catch {}
+    }
+
+    function setStatus(html) {
+      if (!statusEl) return;
+      statusEl.innerHTML = html;
+    }
+
+    function getHostHint() {
+      try {
+        return `${location.protocol}//${location.host}`;
+      } catch {
+        return 'http://localhost:3000';
+      }
+    }
+
+    function setSignedInUi(isSignedIn) {
+      if (signInBtn) signInBtn.disabled = !!isSignedIn;
+      if (signOutBtn) signOutBtn.disabled = !isSignedIn;
+      if (passwordInput) passwordInput.disabled = !!isSignedIn;
+    }
+
+    function getPersistenceMode() {
+      try {
+        const params = new URLSearchParams(location.search);
+        const mode = (params.get('p') || 'local').toLowerCase();
+        if (mode === 'memory' || mode === 'session' || mode === 'local') return mode;
+      } catch {}
+      return 'local';
+    }
+
+    function instrumentFetch() {
+      const originalFetch = window.fetch?.bind(window);
+      if (!originalFetch) {
+        log('⚠️ window.fetch is not available; cannot instrument network calls', 'warning');
+        return;
+      }
+
+      if (window.__fetchInstrumented) return;
+      window.__fetchInstrumented = true;
+
+      window.__interestingFetchCount = 0;
+
+      window.fetch = async (input, init) => {
+        const url = typeof input === 'string' ? input : input?.url;
+        const method = (init?.method || (typeof input !== 'string' ? input?.method : 'GET') || 'GET').toUpperCase();
+        const startedAt = performance.now();
+
+        const isInteresting = typeof url === 'string' && (
+          url.includes('identitytoolkit.googleapis.com') ||
+          url.includes('securetoken.googleapis.com') ||
+          url.includes('www.googleapis.com') ||
+          url.includes('/__/auth/iframe') ||
+          url.includes('__/auth/iframe') ||
+          url.includes('google.com/recaptcha') ||
+          url.includes('gstatic.com/recaptcha') ||
+          url.includes('recaptcha')
+        );
+
+        if (isInteresting) {
+          window.__interestingFetchCount = (window.__interestingFetchCount || 0) + 1;
+          log(`🌍 fetch ${method} ${url}`, 'log');
+        }
+
+        try {
+          const res = await originalFetch(input, init);
+          if (isInteresting) {
+            const ms = Math.round(performance.now() - startedAt);
+            log(`🌍 fetch DONE ${res.status} (${ms}ms) ${method} ${url}`, res.ok ? 'success' : 'warning');
+          }
+          return res;
+        } catch (e) {
+          if (isInteresting) {
+            const ms = Math.round(performance.now() - startedAt);
+            log(`🌍 fetch FAILED (${ms}ms) ${method} ${url} :: ${e?.message || e}`, 'error');
+          }
+          throw e;
+        }
+      };
+
+      log('✅ Network instrumentation enabled (fetch logging for googleapis + recaptcha)', 'success');
+    }
+
+    function instrumentXhr() {
+      const XHR = window.XMLHttpRequest;
+      if (!XHR || !XHR.prototype) {
+        log('⚠️ XMLHttpRequest is not available; cannot instrument XHR calls', 'warning');
+        return;
+      }
+
+      if (window.__xhrInstrumented) return;
+      window.__xhrInstrumented = true;
+
+      const originalOpen = XHR.prototype.open;
+      const originalSend = XHR.prototype.send;
+
+      XHR.prototype.open = function(method, url) {
+        try {
+          this.__diag_method = String(method || 'GET').toUpperCase();
+          this.__diag_url = String(url || '');
+        } catch {}
+        return originalOpen.apply(this, arguments);
+      };
+
+      XHR.prototype.send = function(body) {
+        const url = this.__diag_url;
+        const method = this.__diag_method || 'GET';
+        const startedAt = performance.now();
+
+        const isInteresting = typeof url === 'string' && (
+          url.includes('identitytoolkit.googleapis.com') ||
+          url.includes('securetoken.googleapis.com') ||
+          url.includes('www.googleapis.com') ||
+          url.includes('/__/auth/iframe') ||
+          url.includes('__/auth/iframe') ||
+          url.includes('google.com/recaptcha') ||
+          url.includes('gstatic.com/recaptcha') ||
+          url.includes('recaptcha')
+        );
+
+        if (isInteresting) {
+          window.__interestingFetchCount = (window.__interestingFetchCount || 0) + 1;
+          log(`🌍 XHR ${method} ${url}`, 'log');
+        }
+
+        const onDone = () => {
+          try {
+            if (!isInteresting) return;
+            const ms = Math.round(performance.now() - startedAt);
+            const status = this.status;
+            log(`🌍 XHR DONE ${status} (${ms}ms) ${method} ${url}`, status >= 200 && status < 300 ? 'success' : 'warning');
+          } catch {}
+        };
+
+        try {
+          this.addEventListener('loadend', onDone);
+        } catch {}
+
+        return originalSend.apply(this, arguments);
+      };
+
+      log('✅ Network instrumentation enabled (XMLHttpRequest logging for googleapis + recaptcha)', 'success');
+    }
+
+    // Firebase config from your .env
+    const firebaseConfig = {
+      apiKey: "AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI",
+      authDomain: "khuyoot-app01.firebaseapp.com",
+      projectId: "khuyoot-app01",
+      storageBucket: "khuyoot-app01.firebasestorage.app",
+      messagingSenderId: "569942660840",
+      appId: "1:569942660840:web:0de5093bc6c26d5b695b5d",
+      measurementId: "G-SWKQZDXWS5"
+    };
+
+    log('🚀 Initializing Firebase...', 'log');
+    let app, auth;
+    let persistenceReady = Promise.resolve();
+    const persistenceMode = getPersistenceMode();
+    if (persistenceSelect) persistenceSelect.value = persistenceMode;
+
+    async function deleteIndexedDb(name) {
+      if (!window.indexedDB) return { name, status: 'no-indexeddb' };
+      return await new Promise((resolve) => {
+        let resolved = false;
+        const req = indexedDB.deleteDatabase(name);
+        req.onsuccess = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve({ name, status: 'deleted' });
+        };
+        req.onerror = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve({ name, status: 'error' });
+        };
+        req.onblocked = () => {
+          if (resolved) return;
+          resolved = true;
+          resolve({ name, status: 'blocked' });
+        };
+
+        // Safety timeout so we never hang the UI
+        setTimeout(() => {
+          if (resolved) return;
+          resolved = true;
+          resolve({ name, status: 'timeout' });
+        }, 4000);
+      });
+    }
+
+    try {
+      // instrumentFetch();
+      // instrumentXhr();
+
+      setStatus(
+        `Status: <b>Initializing</b><small>` +
+        `Origin: <b>${location.origin}</b> | Mode: <b>${persistenceMode}</b>. Waiting for Firebase Auth state…` +
+        `</small>`
+      );
+
+      app = initializeApp(firebaseConfig);
+      log('✅ Firebase app initialized', 'success');
+
+      const persistence =
+        persistenceMode === 'memory'
+          ? inMemoryPersistence
+          : persistenceMode === 'session'
+            ? browserSessionPersistence
+            : browserLocalPersistence;
+
+      auth = initializeAuth(app, { persistence: [persistence] });
+      log(`✅ Firebase Auth instance created (${persistenceMode})`, 'success');
+      log(`   Auth domain: ${firebaseConfig.authDomain}`, 'log');
+      log(`   Project ID: ${firebaseConfig.projectId}`, 'log');
+      log(`   API key prefix: ${firebaseConfig.apiKey?.substring(0, 10)}...`, 'log');
+
+      // initializeAuth configures persistence up-front.
+      persistenceReady = Promise.resolve();
+    } catch (error) {
+      log(`❌ Firebase initialization error: ${error.message}`, 'error');
+      log(`   Stack: ${error.stack}`, 'error');
+    }
+
+    // Test 1: Auth state listener
+    log('', 'log');
+    log('📡 Test 1: Setting up auth state listener...', 'log');
+
+    let authStateResolved = false;
+    const authStateWatchdog = setTimeout(() => {
+      if (authStateResolved) return;
+      log('⚠️ Auth state did not resolve within 4 seconds. This often means IndexedDB/persistence is blocked or hanging.', 'warning');
+      setStatus(
+        `Status: <b>Stuck initializing</b><small>Auth state callback did not fire. If mode is <b>local</b>, try switching to <b>memory</b> and reloading, or close other localhost tabs then click <b>Clear Session</b>.</small>`
+      );
+      if (persistenceMode === 'local') {
+        log('💡 Tip: Change Persistence mode to "Memory" and click "Apply Mode" to bypass IndexedDB and confirm Firebase/network is healthy.', 'warning');
+      }
+    }, 4000);
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      authStateResolved = true;
+      clearTimeout(authStateWatchdog);
+      if (user) {
+        log(`✅ Auth state changed: User signed in (${user.email})`, 'success');
+        setStatus(`Status: <b>Signed in</b> as <b>${user.email || '(no email)'}</b><small>UID: ${user.uid}</small>`);
+        setSignedInUi(true);
+      } else {
+        log(`ℹ️ Auth state changed: No user signed in`, 'warning');
+        setStatus('Status: <b>Signed out</b>');
+        setSignedInUi(false);
+      }
+    }, (error) => {
+      authStateResolved = true;
+      clearTimeout(authStateWatchdog);
+      log(`❌ Auth state listener error: ${error.message}`, 'error');
+      setStatus(`Status: <b>Error</b><small>${error.message || error}</small>`);
+    });
+
+    // Test 2: Network connectivity
+    log('', 'log');
+    log('🌐 Test 2: Checking network access to Firebase Auth servers...', 'log');
+    
+    const authUrl = `https://${firebaseConfig.authDomain}`;
+    fetch(authUrl, { mode: 'no-cors' })
+      .then(() => {
+        log(`✅ Network request to ${authUrl} succeeded (or was blocked by CORS, which is expected)`, 'success');
+      })
+      .catch((error) => {
+        log(`❌ Network request to ${authUrl} failed: ${error.message}`, 'error');
+        log(`   This suggests firewall/network blocking`, 'error');
+      });
+
+    // Test 2b: Direct Identity Toolkit request (bypasses Firebase SDK)
+    log('', 'log');
+    log('🌐 Test 2b: Direct Identity Toolkit sign-in request (manual fetch)...', 'log');
+
+    async function probeEndpoint(label, endpoint, payload) {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const startedAt = performance.now();
+
+      try {
+        log(`⏱️ Probe starting (10s timeout) :: ${label}`, 'log');
+        log(`   ${endpoint}`, 'log');
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+          signal: controller.signal,
+        });
+
+        const ms = Math.round(performance.now() - startedAt);
+        const text = await res.text();
+
+        let extractedMessage = '';
+        try {
+          const json = JSON.parse(text);
+          extractedMessage = String(json?.error?.message || '');
+        } catch {
+          extractedMessage = '';
+        }
+
+        // For diagnostics we treat any HTTP response as "reachable".
+        log(`✅ Probe reachable (${ms}ms) status=${res.status} :: ${label}`, res.ok ? 'success' : 'warning');
+
+        if (extractedMessage) log(`   error.message: ${extractedMessage}`, res.ok ? 'success' : 'warning');
+
+        return { ok: true, status: res.status, message: extractedMessage };
+      } catch (e) {
+        const ms = Math.round(performance.now() - startedAt);
+        const msg = e?.name === 'AbortError' ? 'aborted (timeout)' : (e?.message || e);
+        log(`❌ Probe FAILED (${ms}ms) :: ${label} :: ${msg}`, 'error');
+        return { ok: false, error: msg, message: '' };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function runConnectivityProbes(emailForPayload) {
+      const origin = location.origin;
+      const href = location.href;
+
+      // Payload intentionally uses an obviously invalid password.
+      // We expect a 400 (often INVALID_LOGIN_CREDENTIALS) if the endpoint is reachable.
+      const payload = {
+        email: emailForPayload || 'probe@example.com',
+        password: 'not-a-real-password',
+        returnSecureToken: true,
+      };
+
+      const v1 = await probeEndpoint(
+        'Identity Toolkit v1 (identitytoolkit.googleapis.com)',
+        `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseConfig.apiKey}`,
+        payload
+      );
+
+      const v3 = await probeEndpoint(
+        'Identity Toolkit v3 (www.googleapis.com)',
+        `https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=${firebaseConfig.apiKey}`,
+        payload
+      );
+
+      const secureToken = await probeEndpoint(
+        'Secure Token (securetoken.googleapis.com)',
+        `https://securetoken.googleapis.com/v1/token?key=${firebaseConfig.apiKey}`,
+        // This endpoint expects form-encoded; a 400 is still a reachability signal.
+        { grant_type: 'refresh_token', refresh_token: 'invalid' }
+      );
+
+      const diag = { origin, href, identityToolkitV1: v1, identityToolkitV3: v3, secureToken };
+      log(`🧪 Probes summary: ${JSON.stringify(diag)}`, 'log');
+
+      const identityBlocked =
+        (v1?.status === 403 && String(v1?.message || '').toLowerCase().includes('blocked')) ||
+        (v3?.status === 403 && String(v3?.message || '').toLowerCase().includes('blocked'));
+
+      if (identityBlocked) {
+        log('🚫 Identity Toolkit is returning 403 BLOCKED. This is not a browser-network issue.', 'error');
+        log('💡 Fix in Google Cloud Console → APIs & Services → Credentials → this API key:', 'warning');
+        log('   - Set API restrictions to include: Identity Toolkit API (or Firebase Authentication API)', 'warning');
+        log('   - Or temporarily set: Don’t restrict key (to confirm)', 'warning');
+        log('   - Ensure the Identity Toolkit API is enabled for the project', 'warning');
+      }
+
+      if (v1.ok && !v3.ok) {
+        log('⚠️ v1 reachable but v3 FAILED. The Firebase SDK often uses www.googleapis.com (v3) — adblock/AV/proxy can cause auth/network-request-failed.', 'warning');
+        log('💡 Fix: allowlist https://www.googleapis.com and disable “Web Shield” / ad blockers for this site.', 'warning');
+      }
+
+      if (!v1.ok && !v3.ok) {
+        log('❌ Both v1 and v3 probes failed. This is a strong sign of network/extension/firewall blocking, DNS issues, or proxy problems.', 'error');
+      }
+
+      // Test 2d: Recaptcha Script Reachability
+      const recaptchaUrl = 'https://www.google.com/recaptcha/api.js';
+      const controller = new AbortController();
+      const outputTimeout = setTimeout(() => controller.abort(), 5000);
+      let recaptchaOk = false;
+      let recaptchaMsg = '';
+      try {
+        await fetch(recaptchaUrl, { mode: 'no-cors', signal: controller.signal });
+        recaptchaOk = true;
+      } catch (e) {
+        recaptchaMsg = e.message;
+      } finally {
+        clearTimeout(outputTimeout);
+      }
+      
+      if (recaptchaOk) {
+         log('✅ Recaptcha script reachable (no-cors)', 'success');
+      } else {
+         log(`❌ Recaptcha script BLOCKED/TIMEOUT: ${recaptchaMsg}`, 'error');
+      }
+
+      return diag;
+    }
+
+    // Test 2c: Auth iframe reachability (SDK dependency)
+    // The Firebase Auth SDK commonly loads:
+    //   https://<authDomain>/__/auth/iframe?apiKey=...&appName=...
+    // If this is blocked (tracking prevention, extensions, AV web shield), SDK sign-in can hang.
+    async function testAuthIframeLoad(options) {
+      const timeoutMs = Number(options?.timeoutMs || 7000);
+      const startedAt = performance.now();
+
+      const appName = (() => {
+        try {
+          return app?.name || '[DEFAULT]';
+        } catch {
+          return '[DEFAULT]';
+        }
+      })();
+
+      const iframeUrl = `https://${firebaseConfig.authDomain}/__/auth/iframe?apiKey=${encodeURIComponent(
+        firebaseConfig.apiKey
+      )}&appName=${encodeURIComponent(appName)}&v=${Date.now()}`;
+
+      log('', 'log');
+      log('🌐 Test 2c: Loading Firebase Auth iframe…', 'log');
+      log(`   ${iframeUrl}`, 'log');
+
+      return await new Promise((resolve) => {
+        let done = false;
+
+        const iframe = document.createElement('iframe');
+        iframe.style.position = 'fixed';
+        iframe.style.left = '-9999px';
+        iframe.style.top = '0';
+        iframe.style.width = '1px';
+        iframe.style.height = '1px';
+        iframe.style.opacity = '0';
+        iframe.setAttribute('aria-hidden', 'true');
+        iframe.tabIndex = -1;
+
+        const cleanup = () => {
+          try {
+            iframe.onload = null;
+            iframe.onerror = null;
+          } catch {}
+          try {
+            iframe.remove();
+          } catch {}
+        };
+
+        const finish = (result) => {
+          if (done) return;
+          done = true;
+          cleanup();
+          resolve(result);
+        };
+
+        const timer = setTimeout(() => {
+          const ms = Math.round(performance.now() - startedAt);
+          log(`❌ Auth iframe TIMEOUT (${ms}ms). Likely blocked by tracking prevention / extensions / AV web shield.`, 'error');
+          log('💡 Fix: disable adblock/privacy extensions, allow third-party cookies, and retry in a clean Incognito profile.', 'warning');
+          finish({ ok: false, reason: 'timeout', url: iframeUrl });
+        }, timeoutMs);
+
+        iframe.onload = () => {
+          clearTimeout(timer);
+          const ms = Math.round(performance.now() - startedAt);
+          log(`✅ Auth iframe LOADED (${ms}ms).`, 'success');
+          finish({ ok: true, url: iframeUrl });
+        };
+
+        iframe.onerror = () => {
+          clearTimeout(timer);
+          const ms = Math.round(performance.now() - startedAt);
+          log(`❌ Auth iframe ERROR (${ms}ms). Likely blocked by extensions/AV or network policy.`, 'error');
+          finish({ ok: false, reason: 'error', url: iframeUrl });
+        };
+
+        try {
+          document.body.appendChild(iframe);
+          iframe.src = iframeUrl;
+        } catch (e) {
+          clearTimeout(timer);
+          const ms = Math.round(performance.now() - startedAt);
+          log(`❌ Auth iframe test FAILED (${ms}ms): ${e?.message || e}`, 'error');
+          finish({ ok: false, reason: 'exception', url: iframeUrl });
+        }
+      });
+    }
+
+    window.__runAuthIframeTest = () => testAuthIframeLoad({ timeoutMs: 7000 });
+
+    // Auto-run once on page load
+    try {
+      testAuthIframeLoad({ timeoutMs: 7000 });
+    } catch {}
+
+    async function directSignInWithActualCreds(email, password) {
+      const endpoint = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${firebaseConfig.apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const startedAt = performance.now();
+
+      try {
+        log('🔎 Direct REST sign-in (actual credentials) starting…', 'log');
+        log(`   Endpoint: ${endpoint}`, 'log');
+        log(`   Email: ${email || '(empty)'}`, 'log');
+        log('   Password: [hidden]', 'log');
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, returnSecureToken: true }),
+          signal: controller.signal,
+        });
+
+        const ms = Math.round(performance.now() - startedAt);
+        const text = await res.text();
+
+        if (res.ok) {
+          log(`✅ Direct REST sign-in SUCCESS (${ms}ms) status=${res.status}`, 'success');
+          try {
+            const json = JSON.parse(text);
+            const uid = json?.localId;
+            const registered = json?.registered;
+            const hasIdToken = !!json?.idToken;
+            log(`   Parsed: uid=${uid || '(none)'} registered=${registered} idToken=${hasIdToken ? '[present]' : '[missing]'}`, 'success');
+          } catch {
+            log('   Parsed: [non-JSON response]', 'warning');
+          }
+          return { ok: true };
+        }
+
+        log(`⚠️ Direct REST sign-in returned error (${ms}ms) status=${res.status}`, 'warning');
+        try {
+          const json = JSON.parse(text);
+          const message = String(json?.error?.message || '');
+          if (message) log(`   error.message: ${message}`, 'warning');
+          return { ok: false, message };
+        } catch {
+          log(`   body: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'warning');
+          return { ok: false, message: '' };
+        }
+      } catch (e) {
+        const ms = Math.round(performance.now() - startedAt);
+        const msg = e?.name === 'AbortError' ? 'aborted (timeout)' : (e?.message || e);
+        log(`❌ Direct REST sign-in FAILED (${ms}ms): ${msg}`, 'error');
+        return { ok: false, message: String(msg) };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    async function directVerifyPasswordV3WithActualCreds(email, password) {
+      const endpoint = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=${firebaseConfig.apiKey}`;
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      const startedAt = performance.now();
+
+      try {
+        log('🔎 Direct REST verifyPassword v3 (actual credentials) starting…', 'log');
+        log(`   Endpoint: ${endpoint}`, 'log');
+        log(`   Email: ${email || '(empty)'}`, 'log');
+        log('   Password: [hidden]', 'log');
+
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email, password, returnSecureToken: true }),
+          signal: controller.signal,
+        });
+
+        const ms = Math.round(performance.now() - startedAt);
+        const text = await res.text();
+
+        if (res.ok) {
+          log(`✅ Direct v3 verifyPassword SUCCESS (${ms}ms) status=${res.status}`, 'success');
+          return { ok: true };
+        }
+
+        log(`⚠️ Direct v3 verifyPassword returned error (${ms}ms) status=${res.status}`, 'warning');
+        try {
+          const json = JSON.parse(text);
+          const message = String(json?.error?.message || '');
+          if (message) log(`   error.message: ${message}`, 'warning');
+          return { ok: false, message };
+        } catch {
+          log(`   body: ${text.substring(0, 200)}${text.length > 200 ? '…' : ''}`, 'warning');
+          return { ok: false, message: '' };
+        }
+      } catch (e) {
+        const ms = Math.round(performance.now() - startedAt);
+        const msg = e?.name === 'AbortError' ? 'aborted (timeout)' : (e?.message || e);
+        log(`❌ Direct v3 verifyPassword FAILED (${ms}ms): ${msg}`, 'error');
+        return { ok: false, message: String(msg) };
+      } finally {
+        clearTimeout(timeoutId);
+      }
+    }
+
+    // Test 3: Sign in with timeout
+    log('', 'log');
+    log('🔐 Test 3: Attempting sign-in with timeout...', 'log');
+    log('   Email: admin@test.com', 'log');
+    log('   Password: [hidden]', 'log');
+    log('   Timeout: 10 seconds', 'log');
+
+    const signInWithTimeout = async (email, password) => {
+      if (!auth) {
+        log('❌ Sign-in FAILED: Firebase Auth is not initialized', 'error');
+        if (typeof window.openErrorModal === 'function') {
+          window.openErrorModal('فشل تسجيل الدخول', 'Firebase Auth غير مهيأ. تحقق من أخطاء Console ثم أعد تحميل الصفحة.');
+        }
+        return;
+      }
+
+      // Ensure persistence is ready before sign-in. After deleting IndexedDB, this can be the difference
+      // between a quick success and an indefinite hang inside the SDK.
+      try {
+        const persistenceWait = Promise.race([
+          persistenceReady,
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Persistence init timeout after 5 seconds')), 5000))
+        ]);
+        await persistenceWait;
+      } catch (e) {
+        log(`⚠️ Persistence not ready: ${e?.message || e}`, 'warning');
+      }
+
+      if (auth?.currentUser?.email && auth.currentUser.email === email) {
+        log(`ℹ️ Already signed in as ${auth.currentUser.email} — nothing to do`, 'warning');
+        return;
+      }
+
+      if (!email || !password) {
+        log('❌ Sign-in FAILED: Email or password missing', 'error');
+        return;
+      }
+
+      try {
+        log('⏱️ Starting sign-in attempt...', 'log');
+
+        const useRecaptchaBypass = document.getElementById('disableRecaptchaCheckbox')?.checked;
+        if (useRecaptchaBypass && auth && auth.settings) {
+          auth.settings.appVerificationDisabledForTesting = true;
+          log('🛡️ Enable Check: appVerificationDisabledForTesting = true (Recaptcha Bypass)', 'warning');
+        } else if (useRecaptchaBypass) {
+            log('⚠️ Cannot set bypass: auth.settings is missing.', 'error');
+        }
+
+        const iframeResult = await testAuthIframeLoad({ timeoutMs: 4500 });
+        if (!iframeResult?.ok) {
+          log('🛑 Auth iframe did not load. Firebase SDK sign-in may hang in this environment.', 'warning');
+        }
+
+        // Run reachability probes first. If Identity Toolkit is 403 BLOCKED, the SDK sign-in can hang/retry,
+        // so we short-circuit with the actionable fix.
+        const diag = await runConnectivityProbes(email);
+        const identityV1 = diag && diag.identityToolkitV1;
+        const identityV3 = diag && diag.identityToolkitV3;
+        const identityBlocked =
+          (identityV1 && identityV1.status === 403 && String(identityV1.message || '').toLowerCase().includes('blocked')) ||
+          (identityV3 && identityV3.status === 403 && String(identityV3.message || '').toLowerCase().includes('blocked'));
+
+        if (identityBlocked) {
+          log('🛑 Skipping Firebase SDK sign-in because Identity Toolkit is BLOCKED (403). Fix API key restrictions first.', 'error');
+          if (typeof window.openErrorModal === 'function') {
+            window.openErrorModal(
+              'المفتاح (API key) محجوب',
+              'خدمة تسجيل الدخول (Identity Toolkit / Firebase Auth) تُرجع 403 BLOCKED.\n\n' +
+                'الحل: من Google Cloud Console → APIs & Services → Credentials → API key:\n' +
+                '- API restrictions: اسمح بـ Identity Toolkit API (أو Firebase Authentication API)\n' +
+                '- أو اجعلها مؤقتاً بدون تقييد للتأكد\n' +
+                '- وتأكد أن API نفسها Enabled\n\n' +
+                'بعدها أعد المحاولة.'
+            );
+          }
+          return;
+        }
+
+        // IMPORTANT: Probes use a fake password, so INVALID_LOGIN_CREDENTIALS here just means
+        // "endpoint reachable" — not that the user's real password is wrong.
+
+        // Validate the REAL credentials via direct REST call (fast + reliable signal).
+        const direct = await directSignInWithActualCreds(email, password);
+        if (!direct.ok) {
+          log('🛑 Skipping Firebase SDK sign-in because direct REST sign-in failed for these credentials.', 'warning');
+          log('💡 Fix: Reset password / ensure Email-Password sign-in is enabled / ensure user is not disabled.', 'warning');
+          return;
+        }
+
+        // Also test the v3 endpoint the SDK commonly uses.
+        const directV3 = await directVerifyPasswordV3WithActualCreds(email, password);
+        if (!directV3.ok) {
+          log('⚠️ v3 verifyPassword failed even though v1 signIn succeeded. SDK sign-in may fail/hang if www.googleapis.com is blocked.', 'warning');
+          log('💡 Fix: allowlist https://www.googleapis.com and disable ad blockers / AV web shield for this origin.', 'warning');
+        }
+        
+        // IMPORTANT: Skip the broken SDK method and use the REST API directly.
+        // The SDK's signInWithEmailAndPassword() hangs in this environment.
+        log('✅ REST sign-in successful! Skipping SDK method (known to hang).', 'success');
+        log(`   Using REST tokens to set auth state...`, 'log');
+        
+        // Store tokens in SDK-compatible format
+        const authKey = `firebase:authUser:${getApiKey()}:[DEFAULT]`;
+        const userData = {
+          uid: direct.data.localId,
+          email: direct.data.email,
+          emailVerified: true,
+          displayName: direct.data.displayName || '',
+          isAnonymous: false,
+          providerData: [{
+            providerId: 'password',
+            uid: direct.data.email,
+            displayName: direct.data.displayName || '',
+            email: direct.data.email,
+            phoneNumber: null,
+            photoURL: null,
+          }],
+          stsTokenManager: {
+            refreshToken: direct.data.refreshToken,
+            accessToken: direct.data.idToken,
+            expirationTime: Date.now() + parseInt(direct.data.expiresIn) * 1000,
+          },
+          createdAt: Date.now().toString(),
+          lastLoginAt: Date.now().toString(),
+          apiKey: getApiKey(),
+        };
+        
+        localStorage.setItem(authKey, JSON.stringify(userData));
+        
+        // Wait for SDK to pick up the state
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        log(`✅ Sign-in SUCCESS! User: ${direct.data.email}`, 'success');
+        log(`   UID: ${direct.data.localId}`, 'success');
+        log(`   ID Token (first 50 chars): ${direct.data.idToken.substring(0, 50)}...`, 'success');
+
+      } catch (error) {
+        log(`❌ Sign-in FAILED: ${error.message}`, 'error');
+        log(`   Code: ${error.code}`, 'error');
+        if (error.stack) {
+          log(`   Stack: ${error.stack}`, 'error');
+        }
+        const isNetworkRequestFailed =
+          error?.code === 'auth/network-request-failed' ||
+          String(error?.message || '').toLowerCase().includes('network');
+
+        if (isNetworkRequestFailed) {
+          log('🧭 Detected network-style failure. Re-running probes AFTER failure…', 'warning');
+          await runConnectivityProbes(email);
+
+          log('💡 Also verify API key HTTP referrers include your exact origin:', 'warning');
+          log(`   - ${location.origin}/*`, 'warning');
+          log('   - http://localhost/* (for local dev)', 'warning');
+        }
+
+        if (typeof window.openErrorModal === 'function') {
+          const title = 'فشل تسجيل الدخول';
+          const message = error.message || 'حدث خطأ غير متوقع أثناء تسجيل الدخول.';
+          window.openErrorModal(title, message);
+        }
+      }
+    };
+
+    window.__runSignInTest = signInWithTimeout;
+
+    window.__runSignOut = async () => {
+      try {
+        if (!auth) {
+          log('⚠️ Auth not initialized; cannot sign out', 'warning');
+          return;
+        }
+        await signOut(auth);
+        log('✅ Signed out', 'success');
+      } catch (error) {
+        log(`❌ Sign-out FAILED: ${error.message || error}`, 'error');
+      }
+    };
+
+    window.__runClearAuthSession = async () => {
+      try {
+        // Sign out first (best effort)
+        try { if (auth) await signOut(auth); } catch {}
+
+        // Clear common Firebase auth storage
+        try { localStorage.clear(); } catch {}
+        try { sessionStorage.clear(); } catch {}
+
+        // Only delete IndexedDB when using local persistence (IndexedDB). In session/memory mode,
+        // touching IndexedDB can be blocked by other tabs and isn't required to clear auth state.
+        if (typeof persistenceMode !== 'undefined' && persistenceMode !== 'local') {
+          log(`✅ Clear session complete (mode=${persistenceMode}). Skipped IndexedDB deletes.`, 'success');
+          log('ℹ️ Reloading page...', 'log');
+          location.reload();
+          return;
+        }
+
+        const dbNames = [
+          'firebaseLocalStorageDb',
+          'firebase-installations-database',
+          'firebase-heartbeat-database'
+        ];
+        const results = [];
+        for (const name of dbNames) {
+          results.push(await deleteIndexedDb(name));
+        }
+
+        const blocked = results.filter(r => r.status === 'blocked');
+        const summary = results.map(r => `${r.name}:${r.status}`).join(', ');
+        log(`✅ Clear session complete. IndexedDB results: ${summary}`, 'success');
+
+        if (blocked.length > 0) {
+          log(`⚠️ Some IndexedDB deletes were BLOCKED (another tab may be open). Close other tabs for ${getHostHint()} and try again.`, 'warning');
+          if (typeof window.openErrorModal === 'function') {
+            window.openErrorModal(
+              'تعذر تنظيف الجلسة بالكامل',
+              `حذف قاعدة بيانات IndexedDB كان BLOCKED (غالباً توجد صفحة أخرى مفتوحة على نفس الموقع). أغلق أي تبويب آخر لـ ${getHostHint()} ثم اضغط Clear Session مرة أخرى.`
+            );
+          }
+          return;
+        }
+
+        log('ℹ️ Reloading page...', 'log');
+        location.reload();
+      } catch (error) {
+        log(`❌ Clear session FAILED: ${error.message || error}`, 'error');
+      }
+    };
+
+    window.__runClearSwAndCaches = async () => {
+      try {
+        if (clearSwBtn) clearSwBtn.disabled = true;
+
+        log('🧹 Clearing Service Workers + Cache Storage…', 'log');
+
+        if ('serviceWorker' in navigator) {
+          const regs = await navigator.serviceWorker.getRegistrations();
+          log(`ℹ️ Found ${regs.length} service worker registration(s)`, 'log');
+          for (const reg of regs) {
+            try {
+              await reg.unregister();
+              log('✅ Unregistered a service worker', 'success');
+            } catch (e) {
+              log(`⚠️ Failed to unregister SW: ${e?.message || e}`, 'warning');
+            }
+          }
+        } else {
+          log('ℹ️ Service Worker API not available in this browser', 'warning');
+        }
+
+        if ('caches' in window) {
+          const keys = await caches.keys();
+          log(`ℹ️ Found ${keys.length} cache(s)`, 'log');
+          for (const key of keys) {
+            try {
+              await caches.delete(key);
+              log(`✅ Deleted cache: ${key}`, 'success');
+            } catch (e) {
+              log(`⚠️ Failed to delete cache ${key}: ${e?.message || e}`, 'warning');
+            }
+          }
+        }
+
+        log('✅ SW + caches cleared. Reloading…', 'success');
+        location.reload();
+      } catch (e) {
+        log(`❌ Failed to clear SW/caches: ${e?.message || e}`, 'error');
+      } finally {
+        if (clearSwBtn) clearSwBtn.disabled = false;
+      }
+    };
+
+    // NOTE: No auto sign-in. Use the UI to avoid false failures from a wrong default password.
+
+    // Test 4: Check IndexedDB
+    log('', 'log');
+    log('💾 Test 4: Checking IndexedDB (used by Firebase Auth for persistence)...', 'log');
+
+    if (persistenceMode !== 'local') {
+      log(`ℹ️ Skipping IndexedDB open test (mode is ${persistenceMode})`, 'warning');
+    } else 
+    
+    if (window.indexedDB) {
+      log('✅ IndexedDB is available', 'success');
+      
+      // Try to check Firebase Auth's database
+      log('⏳ Attempting to open firebaseLocalStorageDb...', 'log');
+      const dbRequest = indexedDB.open('firebaseLocalStorageDb');
+      let dbOpenResolved = false;
+      const dbOpenWatchdog = setTimeout(() => {
+        if (dbOpenResolved) return;
+        log('⚠️ IndexedDB open is taking too long (3s). This can happen if another tab holds the DB open or the browser is blocking it.', 'warning');
+        log('💡 Tip: Switch Persistence mode to "Memory" and reload to bypass IndexedDB.', 'warning');
+      }, 3000);
+      dbRequest.onsuccess = () => {
+        dbOpenResolved = true;
+        clearTimeout(dbOpenWatchdog);
+        log('✅ Firebase IndexedDB can be opened', 'success');
+        dbRequest.result.close();
+      };
+      dbRequest.onerror = (error) => {
+        dbOpenResolved = true;
+        clearTimeout(dbOpenWatchdog);
+        log(`❌ Firebase IndexedDB error: ${error}`, 'error');
+      };
+      dbRequest.onblocked = () => {
+        dbOpenResolved = true;
+        clearTimeout(dbOpenWatchdog);
+        log(`❌ Firebase IndexedDB open was BLOCKED. Close other ${getHostHint()} tabs/windows and try again.`, 'error');
+      };
+    } else {
+      log('❌ IndexedDB is NOT available (required for Firebase Auth)', 'error');
+    }
+
+    // Test 5: Check localStorage
+    log('', 'log');
+    log('📦 Test 5: Checking localStorage...', 'log');
+    try {
+      localStorage.setItem('test', 'value');
+      const value = localStorage.getItem('test');
+      localStorage.removeItem('test');
+      log('✅ localStorage is working', 'success');
+    } catch (error) {
+      log(`❌ localStorage error: ${error.message}`, 'error');
+    }
+
+    // Clean up
+    window.addEventListener('beforeunload', () => {
+      unsubscribe();
+    });
+  </script>
+</body>
+</html>

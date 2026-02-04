@@ -3,6 +3,12 @@
  * Controls visibility and enabled state of all UI components
  */
 export interface DesignerV2Features {
+  // Sidebar Visibility
+  showSidebar: boolean;
+
+  // Lighting Controls
+  showLighting: boolean;
+
   // Sidebar - Upload Section
   showTemplateUpload: boolean;
   showFabricUpload: boolean;
@@ -28,6 +34,12 @@ export interface DesignerV2Features {
   // Sidebar - Action Button
   showGenerateButton: boolean;
   
+  // Sidebar - Privacy Shield
+  showPrivacySettings: boolean;
+  
+  // Sidebar - Tiling Controls
+  showTilingControls: boolean;
+  
   // Main Area - Top Bar
   showTopBar: boolean;
   
@@ -46,45 +58,28 @@ export interface DesignerV2Features {
 }
 
 export const DEFAULT_FEATURES: DesignerV2Features = {
-  // Sidebar - Upload Section
+  showSidebar: true,
+  showLighting: true,
   showTemplateUpload: true,
   showFabricUpload: true,
-  
-  // Sidebar - Configuration Section
   showModelSelection: true,
   showRefinementPrompt: true,
-  
-  // Sidebar - Output Quality Section
   showOutputQuality: true,
   showUpscaleEngine: true,
   showOutputFit: true,
   showUpscaleButton: true,
-  
-  // Sidebar - Export Settings Section
   showExportSettings: true,
   showWatermarkToggle: true,
   showSubscriptionControls: true,
-  
-  // Sidebar - Debug Section
   showDebugSection: true,
-  
-  // Sidebar - Action Button
   showGenerateButton: true,
-  
-  // Main Area - Top Bar
+  showPrivacySettings: true,
+  showTilingControls: true,
   showTopBar: true,
-  
-  // Main Area - Comparison Viewer
   showComparisonSlider: true,
   showFloatingToolbar: true,
-  
-  // Main Area - History Filmstrip
   showHistoryFilmstrip: true,
-  
-  // Main Area - Full Comparison Section
   showFullComparison: true,
-  
-  // Modals
   showUpgradeModal: true,
 };
 

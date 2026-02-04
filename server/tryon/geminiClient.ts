@@ -44,7 +44,19 @@ function isQuotaOrRateLimitError(err: unknown): boolean {
 function isRetryableGeminiError(err: unknown): boolean {
   const msg = (err as any)?.message ? String((err as any).message) : String(err);
   // Best-effort: treat rate-limit/quota and transient upstream errors as retryable.
-  return isQuotaOrRateLimitError(err) || msg.includes('503') || msg.includes('UNAVAILABLE');
+  return isQuotaOrRateLimitError(err) || msg.includes('503') || msg.includes('UNAVAILABLE') || msg.includes('timeout') || msg.includes('ETIMEDOUT') || msg.includes('ECONNRESET');
+}
+
+// Timeout wrapper for Gemini API calls
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, operationName: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => {
+      setTimeout(() => {
+        reject(new Error(`${operationName} timed out after ${timeoutMs}ms`));
+      }, timeoutMs);
+    }),
+  ]);
 }
 
 async function sleep(ms: number) {
@@ -205,7 +217,7 @@ export async function generateFabricSwap(input: {
       // 🎯 CRITICAL: Order matters for aspect ratio!
       // Gemini uses the LAST image as the dimensional reference.
       // Send fabric first, template LAST to force portrait ratio.
-      const interaction = await ai.interactions.create({
+      const apiCall = ai.interactions.create({
         model,
         input: [
           { type: 'image', data: input.fabricBase64, mime_type: input.fabricMimeType },
@@ -214,6 +226,9 @@ export async function generateFabricSwap(input: {
         ],
         response_modalities: ['image', 'text'],
       });
+      
+      // Add 60-second timeout to prevent hanging forever
+      const interaction = await withTimeout(apiCall, 60000, 'Gemini Fabric Swap API');
 
       console.log('[Gemini] Fabric Swap API Response received');
       console.log('[Gemini] Response type:', typeof interaction);

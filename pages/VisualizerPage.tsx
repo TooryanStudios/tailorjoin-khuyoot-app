@@ -4,6 +4,10 @@ import { Grid, OrbitControls, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { firebaseService } from '../services/firebase';
 import { Mannequin } from '../src/components/Mannequin';
+import { apiFetch } from '../src/api/apiFetch';
+import { ApiError, ApiUnauthorizedError, AuthRequiredError } from '../src/api/httpErrors';
+import { requestLoginPrompt } from '../src/auth/authEvents';
+import { useAuth } from '../src/auth/useAuth';
 
 const DEFAULT_PROMPT = 'A photorealistic studio fashion shoot with a neutral background, realistic fabric drape, and soft cinematic lighting.';
 
@@ -227,6 +231,7 @@ function downloadDataUrl(dataUrl: string, fileName: string) {
 }
 
 const VisualizerPage = () => {
+  const { status: authStatus } = useAuth();
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [capturePreview, setCapturePreview] = useState<string | null>(null);
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT);
@@ -304,38 +309,31 @@ const VisualizerPage = () => {
   }, [history]);
 
   useEffect(() => {
-    const auth = firebaseService.auth;
-    if (!auth?.onAuthStateChanged) return undefined;
-    const unsub = auth.onAuthStateChanged((user: any) => {
-      if (!user) return;
-      firebaseService.getVisualizerCameraPresets()
-        .then(setCameraPresets)
-        .catch((e) => console.warn('Failed to load camera presets', e));
-      firebaseService.getVisualizerGenerations(20)
-        .then((items) => {
-          if (!items.length) return;
-          setHistory((prev) => {
-            const merged = [...items.map((item) => ({
-              id: item.id,
-              dataUrl: item.imageUrl,
-              prompt: item.promptText || 'Saved generation',
-              createdAt: item.createdAt,
-              aspectLabel: item.aspectLabel || 'Saved',
-            })), ...prev];
-            const seen = new Set<string>();
-            return merged.filter((item) => {
-              if (seen.has(item.id)) return false;
-              seen.add(item.id);
-              return true;
-            }).slice(0, 20);
-          });
-        })
-        .catch((e) => console.warn('Failed to load generations', e));
-    });
-    return () => {
-      if (typeof unsub === 'function') unsub();
-    };
-  }, []);
+    if (authStatus !== 'authenticated') return;
+    firebaseService.getVisualizerCameraPresets()
+      .then(setCameraPresets)
+      .catch((e) => console.warn('Failed to load camera presets', e));
+    firebaseService.getVisualizerGenerations(20)
+      .then((items) => {
+        if (!items.length) return;
+        setHistory((prev) => {
+          const merged = [...items.map((item) => ({
+            id: item.id,
+            dataUrl: item.imageUrl,
+            prompt: item.promptText || 'Saved generation',
+            createdAt: item.createdAt,
+            aspectLabel: item.aspectLabel || 'Saved',
+          })), ...prev];
+          const seen = new Set<string>();
+          return merged.filter((item) => {
+            if (seen.has(item.id)) return false;
+            seen.add(item.id);
+            return true;
+          }).slice(0, 20);
+        });
+      })
+      .catch((e) => console.warn('Failed to load generations', e));
+  }, [authStatus]);
 
   const handleCapture = async () => {
     const canvas = canvasRef.current;
@@ -361,12 +359,6 @@ const VisualizerPage = () => {
       setLoading(true);
       setErrorMessage(null);
 
-      const token = await firebaseService.auth?.currentUser?.getIdToken();
-      if (!token) {
-        setErrorMessage('Please sign in to save generated images.');
-        return;
-      }
-
       const dataUrl = await handleCapture();
       if (!dataUrl) return;
       const base64Image = dataUrl.split(',')[1];
@@ -383,16 +375,10 @@ const VisualizerPage = () => {
         : 'Depth of field disabled.';
       const systemPrompt = `You are a professional fashion photographer. Use the provided 3D screenshot as a strict spatial reference for composition and perspective. Generate a photorealistic image that transforms the 3D shapes into high-quality fabric and human models based on this prompt: ${effectivePrompt}. ${stylePreset ? stylePreset.prompt : ''} Camera details: position [${cameraPosition.map((v) => v.toFixed(2)).join(', ')}], target [${cameraTarget.map((v) => v.toFixed(2)).join(', ')}], FOV ${cameraFov}°, yaw ${cameraInfo.yaw.toFixed(1)}°, pitch ${cameraInfo.pitch.toFixed(1)}°, distance ${cameraInfo.distance.toFixed(2)}. ${dofText} Match the camera lens and angle perfectly.`;
 
-      const apiBase = window.location.hostname === 'localhost'
-        ? 'http://localhost:8788'
-        : '';
-
-      const res = await fetch(`${apiBase}/api/visualizer/generate`, {
+      const res = await apiFetch('/api/visualizer/generate', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { 'Content-Type': 'application/json' },
+        requireAuth: true,
         body: JSON.stringify({
           imageBase64: base64Image,
           imageMimeType: 'image/png',
@@ -406,12 +392,6 @@ const VisualizerPage = () => {
           dofFocalLength,
         }),
       });
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({}));
-        setErrorMessage(err?.error || 'Generation failed.');
-        return;
-      }
 
       const data = await res.json();
       if (data?.imageBase64) {
@@ -434,6 +414,15 @@ const VisualizerPage = () => {
         setErrorMessage('No image returned from Gemini.');
       }
     } catch (error) {
+      if (error instanceof AuthRequiredError || error instanceof ApiUnauthorizedError) {
+        setErrorMessage('Please sign in to generate and save images.');
+        requestLoginPrompt('generation');
+        return;
+      }
+      if (error instanceof ApiError) {
+        setErrorMessage(error.message || 'Generation failed.');
+        return;
+      }
       console.error('Generation failed', error);
       setErrorMessage('Generation failed. Check console for details.');
     } finally {
@@ -547,25 +536,23 @@ const VisualizerPage = () => {
   const handleDeletePreset = async (id: string) => {
     try {
       setDeletingPresetId(id);
-      const token = await firebaseService.auth?.currentUser?.getIdToken();
-      const apiBase = window.location.hostname === 'localhost'
-        ? 'http://localhost:8788'
-        : '';
-      if (token) {
-        const res = await fetch(`${apiBase}/api/visualizer/presets/delete`, {
+
+      try {
+        await apiFetch('/api/visualizer/presets/delete', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { 'Content-Type': 'application/json' },
+          requireAuth: true,
           body: JSON.stringify({ presetId: id }),
         });
-        if (!res.ok) {
-          throw new Error((await res.json().catch(() => ({})))?.error || 'Delete failed');
+      } catch (e) {
+        // Preserve old behavior: allow local Firestore-based deletion when not authenticated for server API.
+        if (e instanceof AuthRequiredError || e instanceof ApiUnauthorizedError) {
+          await firebaseService.deleteVisualizerCameraPreset(id);
+        } else {
+          throw e;
         }
-      } else {
-        await firebaseService.deleteVisualizerCameraPreset(id);
       }
+
       const list = await firebaseService.getVisualizerCameraPresets();
       setCameraPresets(list);
       setDeletingPresetId(null);

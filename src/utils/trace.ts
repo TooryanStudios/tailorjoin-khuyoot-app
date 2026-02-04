@@ -69,7 +69,7 @@ export function traceStart(label: string, data?: Record<string, unknown>): strin
   return id;
 }
 
-export function traceStep(idOrName: string, nameMaybe?: string, data?: Record<string, unknown>): void {
+export function traceStep(idOrName: string, nameMaybe?: string | Record<string, unknown>, data?: Record<string, unknown>): void {
   if (!isEnabled()) return;
 
   const store = getStore();

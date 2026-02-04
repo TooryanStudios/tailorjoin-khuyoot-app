@@ -47,7 +47,7 @@
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   .container {
     top: 0;
     left: 0;

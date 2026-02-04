@@ -1,0 +1,628 @@
+﻿
+import React, { createContext, useContext, useState, ReactNode, PropsWithChildren, useEffect } from 'react';
+import { User, Product, UserRole, AppSettings } from '../types';
+import { firebaseService } from '../services/firebase';
+import { useOnlineStatus } from '../utils/useOnlineStatus';
+import { useAuth } from '../src/auth/useAuth';
+
+
+type Theme = 'light' | 'dark';
+
+export interface MerchantInfo {
+  phone?: string;
+  gender?: string; // Ø§Ù„Ø¬Ù†Ø³
+  tailorGender?: 'male' | 'female'; // ØªØ®ØµØµ Ø§Ù„Ø®ÙŠØ§Ø·: Ø±Ø¬Ø§Ù„ÙŠ Ø£Ùˆ Ù†Ø³Ø§Ø¦ÙŠ
+  location?: string;
+  specialization?: string;
+  experience?: string;
+}
+
+interface AppContextType {
+  user: User | null;
+  loading: boolean;
+  settingsLoaded: boolean;
+  cart: Product[];
+  cartCount?: number;
+  ordersCount?: number;
+  isAuthModalOpen: boolean;
+  authModalMode: 'login' | 'register';
+  isPrivacyModalOpen: boolean;
+  isTermsModalOpen: boolean;
+  isReturnPolicyModalOpen: boolean;
+  theme: Theme;
+  appSettings: AppSettings;
+  togglePrivacyModal: (isOpen: boolean) => void;
+  toggleTermsModal: (isOpen: boolean) => void;
+  toggleReturnPolicyModal: (isOpen: boolean) => void;
+  login: (email: string, password: string) => Promise<void>;
+  register: (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => Promise<void>;
+  logout: () => Promise<void>;
+  refreshUser: () => Promise<void>;
+  addToCart: (product: Product) => void;
+  clearCart: () => void;
+  toggleAuthModal: (isOpen: boolean, mode?: 'login' | 'register') => void;
+  toggleTheme: () => void;
+  updateAppSettings: (newSettings: Partial<AppSettings>) => void; // Local update
+  saveAppSettings: (newSettings: AppSettings, options?: { silent?: boolean; optimistic?: boolean }) => Promise<void>; // Persist to DB
+  debugSetRole: (role: UserRole) => void; // For dev tool
+}
+
+const AppContext = createContext<AppContextType | undefined>(undefined);
+
+// Helper to translate Firebase errors to Arabic
+const getFirebaseErrorMessage = (error: any) => {
+  const code = error.code;
+  const message = error.message || '';
+  
+  // Check for timeout errors
+  if (message.includes('timeout') || message.includes('Timeout')) {
+    return 'Ø§Ù†ØªÙ‡Øª Ù…Ù‡Ù„Ø© Ø§Ù„Ø§ØªØµØ§Ù„. ÙŠØ±Ø¬Ù‰ Ø§Ù„ØªØ­Ù‚Ù‚ Ù…Ù† Ø§ØªØµØ§Ù„Ùƒ Ø¨Ø§Ù„Ø¥Ù†ØªØ±Ù†Øª ÙˆØ§Ù„Ù…Ø­Ø§ÙˆÙ„Ø© Ù…Ø±Ø© Ø£Ø®Ø±Ù‰.';
+  }
+  
+  switch (code) {
+    case 'auth/email-already-in-use':
+      return 'Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ù…Ø³ØªØ®Ø¯Ù… Ø¨Ø§Ù„ÙØ¹Ù„ Ø¨Ø­Ø³Ø§Ø¨ Ø¢Ø®Ø±.';
+    case 'auth/invalid-email':
+      return 'ØµÙŠØºØ© Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ ØºÙŠØ± ØµØ­ÙŠØ­Ø©.';
+    case 'auth/operation-not-allowed':
+      return 'ØªØ³Ø¬ÙŠÙ„ Ø§Ù„Ø¯Ø®ÙˆÙ„ ØºÙŠØ± Ù…ÙØ¹Ù„ ÙÙŠ Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø§Ù„Ù†Ø¸Ø§Ù… (Firebase). ÙŠØ±Ø¬Ù‰ ØªÙØ¹ÙŠÙ„ Email/Password.';
+    case 'auth/weak-password':
+      return 'ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± Ø¶Ø¹ÙŠÙØ© Ø¬Ø¯Ø§Ù‹. ÙŠØ¬Ø¨ Ø£Ù† ØªÙƒÙˆÙ† 6 Ø£Ø­Ø±Ù Ø¹Ù„Ù‰ Ø§Ù„Ø£Ù‚Ù„.';
+    case 'auth/user-disabled':
+      return 'ØªÙ… ØªØ¹Ø·ÙŠÙ„ Ù‡Ø°Ø§ Ø§Ù„Ø­Ø³Ø§Ø¨ Ù…Ù† Ù‚Ø¨Ù„ Ø§Ù„Ø¥Ø¯Ø§Ø±Ø©.';
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+    case 'auth/invalid-credential':
+      return 'Ø§Ù„Ø¨Ø±ÙŠØ¯ Ø§Ù„Ø¥Ù„ÙƒØªØ±ÙˆÙ†ÙŠ Ø£Ùˆ ÙƒÙ„Ù…Ø© Ø§Ù„Ù…Ø±ÙˆØ± ØºÙŠØ± ØµØ­ÙŠØ­Ø©.';
+    case 'auth/network-request-failed':
+      return 'ÙØ´Ù„ Ø§Ù„Ø§ØªØµØ§Ù„ Ø¨Ø§Ù„Ø´Ø¨ÙƒØ©. ØªØ­Ù‚Ù‚ Ù…Ù† Ø§ØªØµØ§Ù„ Ø§Ù„Ø¥Ù†ØªØ±Ù†Øª.';
+    default:
+      return 'Ø­Ø¯Ø« Ø®Ø·Ø£ ØºÙŠØ± Ù…ØªÙˆÙ‚Ø¹: ' + (error.message || 'Unknown error');
+  }
+};
+
+export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppSettings }>> = ({
+  children,
+  initialAppSettings,
+}) => {
+  // Normalize user payloads (Firebase profile + legacy fields) - defined BEFORE use
+  const normalizeUser = (u: any): any => {
+    if (!u) return u;
+    let role = typeof u.role === 'string' ? u.role.toLowerCase() : u.role;
+    const shopType = (u as any).shopType ? String((u as any).shopType).toLowerCase() : null;
+
+    // Map shopType-based roles if they exist as primary role
+    if (shopType === 'boutique' || shopType === 'Ø¨ÙˆØªÙŠÙƒ') role = 'boutique';
+    else if (shopType === 'tailor' || shopType === 'Ø®ÙŠØ§Ø·') role = 'tailor';
+
+    // Default guest when missing
+    if (!role) role = 'guest';
+    const { shopType: _, ...rest } = u;
+    return { ...rest, role };
+  };
+
+  const [user, setUser] = useState<User | null>(null);
+  const [authActionLoading, setAuthActionLoading] = useState(false);
+  const [profileLoading, setProfileLoading] = useState(false);
+  const [cart, setCart] = useState<Product[]>([]);
+  const [ordersCount, setOrdersCount] = useState<number>(0);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'login' | 'register'>('login');
+  const [isPrivacyModalOpen, setIsPrivacyModalOpen] = useState(false);
+  const [isTermsModalOpen, setIsTermsModalOpen] = useState(false);
+  const [isReturnPolicyModalOpen, setIsReturnPolicyModalOpen] = useState(false);
+  // Initialize theme synchronously from localStorage/app_settings to match the inline script in index.html
+  const getInitialTheme = (): Theme => {
+    try {
+      const stored = localStorage.getItem('theme') as Theme | null;
+      if (stored === 'dark' || stored === 'light') return stored;
+      const cachedSettings = localStorage.getItem('app_settings');
+      if (cachedSettings) {
+        const parsed = JSON.parse(cachedSettings);
+        if (parsed?.defaultTheme === 'dark' || parsed?.defaultTheme === 'light') {
+          return parsed.defaultTheme as Theme;
+        }
+      }
+    } catch (e) {
+      // fall through to default
+    }
+    return 'dark';
+  };
+
+  const [theme, setTheme] = useState<Theme>(() => getInitialTheme());
+  const isOnline = useOnlineStatus();
+
+  const { status: authStatus, user: authUser } = useAuth();
+  const loading = authStatus === 'loading' || authActionLoading || profileLoading;
+
+  const CART_STORAGE_KEY = 'khuyoot.cart.v1';
+
+  const loadFromStorage = React.useCallback(<T,>(key: string, validate?: (value: unknown) => value is T): T | null => {
+    try {
+      const raw = localStorage.getItem(key);
+      if (!raw) return null;
+      const parsed: unknown = JSON.parse(raw);
+      if (validate && !validate(parsed)) return null;
+      return parsed as T;
+    } catch {
+      return null;
+    }
+  }, []);
+
+  const validateCart = (value: unknown): value is Product[] => {
+    if (!Array.isArray(value)) return false;
+    return value.every((item) => {
+      if (!item || typeof item !== 'object') return false;
+      const anyItem = item as any;
+      return (
+        typeof anyItem.id === 'string' &&
+        typeof anyItem.name === 'string' &&
+        typeof anyItem.price === 'number' &&
+        typeof anyItem.image === 'string' &&
+        typeof anyItem.category === 'string'
+      );
+    });
+  };
+
+  // Hydrate cart once
+  useEffect(() => {
+    try {
+      const hydrated = loadFromStorage<Product[]>(CART_STORAGE_KEY, validateCart);
+      if (hydrated) setCart(hydrated);
+    } catch (e) {
+      console.warn('Failed to hydrate cart', e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Persist cart to localStorage directly (simplified)
+  React.useEffect(() => {
+    if (cart && cart.length > 0) {
+      const timer = setTimeout(() => {
+        try {
+          const cartData = cart.map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            price: p.price,
+            image: p.image,
+            category: p.category,
+            categoryId: p.categoryId ?? undefined,
+            images: p.images ?? undefined,
+            coverImageIndex: p.coverImageIndex ?? undefined,
+            tailorId: p.tailorId ?? undefined,
+            tailorName: p.tailorName ?? undefined,
+            location: p.location ?? undefined,
+            rating: p.rating ?? undefined,
+            duration: p.duration ?? undefined,
+          }));
+          localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(cartData));
+        } catch (e) {
+          console.error('[AppContext] Cart persist error:', e);
+        }
+      }, 400);
+      return () => clearTimeout(timer);
+    }
+  }, [cart]);
+  
+  // App Control Settings
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => ({
+    storiesEnabled: true,
+    maintenanceMode: false,
+    allowNewRegistrations: true,
+    designerEnabled: true,
+    cartEnabled: true,
+    showHeader: true,
+    showFooter: true,
+    defaultTheme: 'dark', // Default theme is dark
+    storeEnabled: false, // Ù…ØªØ¬Ø± Ø®ÙŠÙˆØ· ØªØ¬Ø±ÙŠØ¨ÙŠ Ù…Ø¨Ø¯Ø¦ÙŠØ§Ù‹
+    themeColors: {
+      primary: '#CFFF04',
+      secondary: '#D4AF37',
+    },
+    aiTryOn: {
+      limits: {
+        free: {
+          maxPremiumTemplatesBrowse: 4,
+          maxRecents: 3,
+          maxGenerationsStored: 4,
+        },
+        subscribed: {
+          maxPremiumTemplatesBrowse: 999999,
+          maxRecents: 9,
+          maxGenerationsStored: 50,
+        },
+      },
+      premiumFeatures: {
+        watermarkRemoval: true,
+        hdExport: true,
+        priorityQueue: true,
+        batchGeneration: true,
+        presets: true,
+      },
+    },
+    measurementTemplateWidth: 460, // Ø¹Ø±Ø¶ ØµÙˆØ±Ø© Ù‚Ø§Ù„Ø¨ Ø§Ù„Ù…Ù‚Ø§Ø³Ø§Øª
+    measurementTemplateHeight: 690, // Ø§Ø±ØªÙØ§Ø¹ ØµÙˆØ±Ø© Ù‚Ø§Ù„Ø¨ Ø§Ù„Ù…Ù‚Ø§Ø³Ø§Øª
+    matchingMeasurementsVideoUrl: '',
+    helpVideo: {
+      enabled: true,
+      url: 'https://www.youtube.com/watch?v=6eZtn5Du8O4',
+      buttonText: 'Ø´Ø§Ù‡Ø¯'
+    },
+    ...((initialAppSettings || {}) as AppSettings),
+  }));
+
+  // AppInitializer already blocked until the config is available.
+  // Keeping this true prevents any "default settings" paint.
+  const settingsLoaded = true;
+
+  // Cache settings to localStorage for immediate theme application on next load
+  useEffect(() => {
+    try {
+      localStorage.setItem('app_settings', JSON.stringify(appSettings));
+    } catch {
+      // ignore
+    }
+  }, [appSettings]);
+
+  // Apply Theme to DOM
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === 'dark') {
+      root.classList.add('dark');
+    } else {
+      root.classList.remove('dark');
+    }
+    localStorage.setItem('theme', theme);
+  }, [theme]);
+
+  useEffect(() => {
+    try {
+      const root = window.document.documentElement;
+      const primary = appSettings?.themeColors?.primary || '#CFFF04';
+      const secondary = appSettings?.themeColors?.secondary || '#D4AF37';
+      root.style.setProperty('--theme-primary', primary);
+      root.style.setProperty('--theme-secondary', secondary);
+    } catch {
+      // ignore
+    }
+  }, [appSettings?.themeColors?.primary, appSettings?.themeColors?.secondary]);
+
+
+  // Sync extended user profile from Firestore based on AuthProvider state.
+  // This eliminates duplicated auth listeners and prevents cache-driven mismatches.
+  useEffect(() => {
+    let cancelled = false;
+
+    const syncProfile = async () => {
+      if (!firebaseService?.isInitialized?.()) {
+        setUser(null);
+        return;
+      }
+
+      if (authStatus === 'unauthenticated') {
+        setUser(null);
+        return;
+      }
+
+      if (authStatus !== 'authenticated' || !authUser?.uid) {
+        return;
+      }
+
+      setProfileLoading(true);
+      try {
+        const extendedUser = isOnline ? await firebaseService.getUserProfile(authUser.uid) : null;
+        if (cancelled) return;
+
+        if (extendedUser) {
+          setUser(normalizeUser(extendedUser));
+          return;
+        }
+
+        const minimal: any = {
+          id: authUser.uid,
+          uid: authUser.uid,
+          name: authUser.displayName || authUser.email || 'User',
+          email: authUser.email || undefined,
+          role: 'user',
+          isGuest: false,
+          joinDate: new Date().toISOString(),
+        };
+        setUser(normalizeUser(minimal));
+      } catch (e) {
+        if (cancelled) return;
+        console.warn('[AppContext] Failed to load user profile', e);
+      } finally {
+        if (!cancelled) setProfileLoading(false);
+      }
+    };
+
+    syncProfile();
+    return () => {
+      cancelled = true;
+    };
+  }, [authStatus, authUser?.uid, authUser?.email, authUser?.displayName, isOnline]);
+
+  const toggleTheme = () => {
+    setTheme(prev => prev === 'light' ? 'dark' : 'light');
+  };
+
+  const login = async (email: string, password: string) => {
+    setAuthActionLoading(true);
+    try {
+      if (!firebaseService.isInitialized()) throw new Error('Firebase not configured');
+      await firebaseService.login(email, password);
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      const userMessage = getFirebaseErrorMessage(error);
+      try {
+        (error as any).originalMessage = error?.message;
+      } catch {}
+      try {
+        error.message = userMessage;
+      } catch {}
+      console.error('Login failed', { code: error?.code, message: error?.message, error });
+      throw error;
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const register = async (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => {
+    if (!appSettings.allowNewRegistrations) {
+      alert("Ø§Ù„ØªØ³Ø¬ÙŠÙ„ Ù…ØºÙ„Ù‚ Ø­Ø§Ù„ÙŠØ§Ù‹ Ù„Ù„ØµÙŠØ§Ù†Ø©");
+      return;
+    }
+    setAuthActionLoading(true);
+    try {
+      if (!firebaseService.isInitialized()) throw new Error('Firebase not configured');
+      await firebaseService.register(email, password, name, role, merchantInfo);
+      setIsAuthModalOpen(false);
+    } catch (error: any) {
+      const userMessage = getFirebaseErrorMessage(error);
+      try {
+        (error as any).originalMessage = error?.message;
+      } catch {}
+      try {
+        error.message = userMessage;
+      } catch {}
+      console.error('Registration failed', { code: error?.code, message: error?.message, error });
+      throw error;
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const refreshUser = async () => {
+    try {
+      if (!firebaseService.isInitialized()) return;
+      if (authStatus !== 'authenticated' || !authUser?.uid) return;
+      if (!isOnline) {
+        // When offline, best we can do is keep current context user.
+        return;
+      }
+      const profile = await firebaseService.getUserProfile(authUser.uid);
+      if (profile) {
+        setUser(normalizeUser(profile));
+      }
+    } catch (e) {
+      console.warn('refreshUser failed', e);
+    }
+  };
+
+  const logout = async () => {
+    try {
+      if (firebaseService.isInitialized()) {
+        setAuthActionLoading(true);
+        await firebaseService.logout();
+      }
+      
+      // Ù…Ø³Ø­ Ø¬Ù…ÙŠØ¹ Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø³ØªØ®Ø¯Ù… Ù…Ù† localStorage
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && (
+          key.startsWith('order_') || 
+          key.startsWith('orders_') || 
+          key.startsWith('notifications_') ||
+          key.startsWith('measurements_') ||
+          key === 'currentUser'
+        )) {
+          keysToRemove.push(key);
+        }
+      }
+      keysToRemove.forEach(key => localStorage.removeItem(key));
+      
+      // Ù…Ø³Ø­ Ø£ÙŠ Ø¬Ù„Ø³Ø§Øª Ù…ØªØ¨Ù‚ÙŠØ©
+      try {
+        sessionStorage.clear();
+      } catch {}
+      
+      // ØªØ¬Ù†Ø¨ Ø­Ø°Ù IndexedDB ÙÙŠ ÙˆØ¶Ø¹ Ø§Ù„ØªØ·ÙˆÙŠØ± Ù„ØªÙØ§Ø¯ÙŠ ØªØ¹Ù„ÙŠÙ‚ Ø§Ù„Ù…ØµØ§Ø¯Ù‚Ø©
+      if (import.meta.env.PROD) {
+        try {
+          const dbs: any = (indexedDB as any).databases ? await (indexedDB as any).databases() : [];
+          const names = ['firebaseLocalStorageDb', 'firebase-auth', 'firebaseInstallations'];
+          names.forEach(name => {
+            try { indexedDB.deleteDatabase(name); } catch {}
+          });
+          if (Array.isArray(dbs)) {
+            dbs.forEach((db: any) => {
+              if (db?.name && String(db.name).toLowerCase().includes('firebase')) {
+                try { indexedDB.deleteDatabase(db.name); } catch {}
+              }
+            });
+          }
+        } catch {}
+      }
+      
+      // Ø¥Ø¹Ø§Ø¯Ø© ØªØ¹ÙŠÙŠÙ† Ø§Ù„Ø­Ø§Ù„Ø©
+      setUser(null);
+      setCart([]);
+    } catch (error) {
+      console.error("Logout failed", error);
+      // Ø­ØªÙ‰ Ù„Ùˆ Ø­Ø¯Ø« Ø®Ø·Ø£ØŒ Ù†Ù‚ÙˆÙ… Ø¨Ù…Ø³Ø­ Ø§Ù„Ø¨ÙŠØ§Ù†Ø§Øª Ø§Ù„Ù…Ø­Ù„ÙŠØ©
+      setUser(null);
+      setCart([]);
+    } finally {
+      setAuthActionLoading(false);
+    }
+  };
+
+  const addToCart = (product: Product) => {
+    setCart((prev) => [...prev, product]);
+  };
+
+  const clearCart = () => {
+    setCart([]);
+    try {
+      localStorage.removeItem(CART_STORAGE_KEY);
+    } catch {}
+  };
+
+  // Derive cart count from cart array
+  const cartCount = cart.length;
+
+  // Compute orders count for current user from localStorage or service when available
+  useEffect(() => {
+    let cancelled = false;
+    const loadOrdersCount = async () => {
+      try {
+        // If you have a firebaseService for orders, replace this with a real fetch
+        const key = user ? `orders_${user.id}` : null;
+        if (!key) { setOrdersCount(0); return; }
+        const raw = localStorage.getItem(key);
+        const arr = raw ? JSON.parse(raw) : [];
+        if (!cancelled) setOrdersCount(Array.isArray(arr) ? arr.length : 0);
+      } catch (e) {
+        if (!cancelled) setOrdersCount(0);
+      }
+    };
+    loadOrdersCount();
+    return () => { cancelled = true; };
+  }, [user]);
+
+  const toggleAuthModal = (isOpen: boolean, mode?: 'login' | 'register') => {
+    if (typeof mode !== 'undefined') {
+      setAuthModalMode(mode);
+    }
+    setIsAuthModalOpen(isOpen);
+
+    // Defensive cleanup: never leave global scroll-lock behind
+    if (!isOpen) {
+      try {
+        if (typeof document !== 'undefined') {
+          document.body.classList.remove('modal-open');
+          document.body.style.overflow = '';
+          document.body.style.position = '';
+        }
+      } catch {
+        // ignore
+      }
+    }
+  };
+
+  const togglePrivacyModal = (isOpen: boolean) => {
+    setIsPrivacyModalOpen(isOpen);
+  };
+
+  const toggleTermsModal = (isOpen: boolean) => {
+    setIsTermsModalOpen(isOpen);
+  };
+
+  const toggleReturnPolicyModal = (isOpen: boolean) => {
+    setIsReturnPolicyModalOpen(isOpen);
+  };
+
+  const updateAppSettings = (newSettings: Partial<AppSettings>) => {
+    setAppSettings(prev => ({ ...prev, ...newSettings }));
+  };
+
+  const saveAppSettings = async (newSettings: AppSettings, options?: { silent?: boolean; optimistic?: boolean }) => {
+    const silent = options?.silent === true;
+    const optimistic = options?.optimistic === true;
+    const prevSettings = appSettings;
+
+    try {
+      if (optimistic) setAppSettings(newSettings);
+      if (firebaseService.isInitialized()) {
+        await firebaseService.saveGlobalSettings(newSettings);
+      }
+      if (!optimistic) setAppSettings(newSettings);
+      if (!silent) alert('ØªÙ… Ø­ÙØ¸ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª Ø¨Ù†Ø¬Ø§Ø­ ÙˆØªØ·Ø¨ÙŠÙ‚Ù‡Ø§ Ø¹Ù„Ù‰ Ø§Ù„ØªØ·Ø¨ÙŠÙ‚.');
+    } catch (error) {
+      console.error("Failed to save settings", error);
+      const anyErr = error as any;
+      const code = String(anyErr?.code || '');
+      if (optimistic) setAppSettings(prevSettings);
+      if (code.includes('permission-denied') || code.includes('insufficient-permission')) {
+        if (!silent) alert('Ù„ÙŠØ³ Ù„Ø¯ÙŠÙƒ ØµÙ„Ø§Ø­ÙŠØ© Ù„Ø­ÙØ¸ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª. ØªØ£ÙƒØ¯ Ø£Ù† Ø­Ø³Ø§Ø¨Ùƒ "admin" ÙˆØ£Ù† Ù‚ÙˆØ§Ø¹Ø¯ Firestore ØªØ³Ù…Ø­ Ø¨Ø§Ù„ØªØ¹Ø¯ÙŠÙ„.');
+      } else {
+        if (!silent) alert('Ø­Ø¯Ø« Ø®Ø·Ø£ Ø£Ø«Ù†Ø§Ø¡ Ø­ÙØ¸ Ø§Ù„Ø¥Ø¹Ø¯Ø§Ø¯Ø§Øª');
+      }
+
+      // Let callers (Admin UI) handle error states without forcing a hard UI reset.
+      throw error;
+    }
+  };
+
+  // DEBUG ONLY: Quickly switch roles without auth
+  const debugSetRole = (role: UserRole) => {
+    if (!user) {
+      // Create fake user if not logged in
+      setUser({
+        id: 'debug_user',
+        name: role === 'admin' ? 'Ù…Ø¯ÙŠØ± Ø§Ù„Ù†Ø¸Ø§Ù…' : (role === 'tailor' ? 'Ø®ÙŠØ§Ø· ØªØ¬Ø±ÙŠØ¨ÙŠ' : 'Ù…Ø³ØªØ®Ø¯Ù… ØªØ¬Ø±ÙŠØ¨ÙŠ'),
+        email: 'debug@khuyoot.com',
+        isGuest: false,
+        joinDate: new Date().toLocaleDateString('ar-OM'),
+        role: role,
+        avatar: role === 'tailor' ? 'https://picsum.photos/200/200?random=tailor' : undefined
+      });
+    } else {
+      // Update existing user role
+      setUser({ ...user, role: role });
+    }
+  };
+
+  return (
+    <AppContext.Provider value={{
+      user,
+      loading,
+      settingsLoaded,
+      cart,
+      cartCount,
+      ordersCount,
+      isAuthModalOpen,
+      authModalMode,
+      isPrivacyModalOpen,
+      isTermsModalOpen,
+      isReturnPolicyModalOpen,
+      theme,
+      appSettings,
+      login,
+      register,
+      logout,
+      refreshUser,
+      addToCart,
+      clearCart,
+      toggleAuthModal,
+      togglePrivacyModal,
+      toggleTermsModal,
+      toggleReturnPolicyModal,
+      toggleTheme,
+      updateAppSettings,
+      saveAppSettings,
+      debugSetRole,
+    }}>
+      {children}
+    </AppContext.Provider>
+  );
+};
+
+export const useApp = () => {
+  const context = useContext(AppContext);
+  if (context === undefined) {
+    throw new Error('useApp must be used within an AppProvider');
+  }
+  return context;
+};

@@ -1,18 +1,47 @@
-import * as React from 'react';
-import { Home } from 'lucide-react';
+﻿import * as React from 'react';
+import { Home, User, LogOut } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { setLanguage } from '../../i18n/i18n';
+import { useAuth } from '../../auth/useAuth';
+import { requestLoginPrompt } from '../../auth/authEvents';
+import { motion, AnimatePresence } from 'framer-motion';
 
 export type DesignerHeaderProps = {
+  hideUserSection?: boolean;
   onHome: () => void;
   title?: string;
   rightSlot?: React.ReactNode;
+  hideLogo?: boolean;
+  credits?: number | string;
+  tier?: string;
+  userName?: string;
+  profileImage?: string;
 };
 
 export function DesignerHeader(props: DesignerHeaderProps) {
-  const { onHome, title, rightSlot } = props;
+  const { onHome, title, rightSlot, hideLogo = false, hideUserSection = false, credits, tier, userName, profileImage } = props;
   const { t, i18n } = useTranslation(['common']);
+  const { user: authUser, status: authStatus, logout: authLogout } = useAuth();
+
+  // Use authUser as the primary source of user data
+  const user = authUser;
+  const authLoading = authStatus === 'loading' && !user;
   const [langMenuOpen, setLangMenuOpen] = React.useState(false);
+
+  // Close language menu on click outside - ref for menu container
+  const langMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (langMenuRef.current && !langMenuRef.current.contains(event.target as Node)) {
+        setLangMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
 
   const activeLang = React.useMemo(() => {
     const lower = (i18n.language || 'ar').toLowerCase();
@@ -23,22 +52,29 @@ export function DesignerHeader(props: DesignerHeaderProps) {
 
   const handleLanguageChange = React.useCallback((code: 'ar' | 'en' | 'fr') => {
     setLanguage(code);
+    setLangMenuOpen(false);
   }, []);
+
+  const handleLogout = () => {
+    if (confirm(t('confirmLogout') || 'Log out?')) {
+      authLogout();
+    }
+  };
 
   const languageOptions = React.useMemo(() => [
     {
       code: 'ar' as const,
-      label: t('arabic'),
-      icon: <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full border text-[10px] font-extrabold leading-none bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-800/60">ع</span>
+      label: 'AR',
+      icon: <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full border text-[10px] font-extrabold leading-none bg-blue-50 text-blue-700 border-blue-200 dark:bg-theme-primary/30 dark:text-theme-primary dark:border-theme-primary/60">Ø¹</span>
     },
     {
       code: 'en' as const,
-      label: t('english'),
+      label: 'EN',
       icon: <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full border text-[10px] font-extrabold leading-none bg-slate-50 text-slate-700 border-slate-200 dark:bg-slate-900/30 dark:text-slate-200 dark:border-slate-700">EN</span>
     },
     {
       code: 'fr' as const,
-      label: t('french'),
+      label: 'FR',
       icon: <span className="inline-flex items-center justify-center h-5 min-w-5 px-1 rounded-full border text-[10px] font-extrabold leading-none bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/30 dark:text-blue-200 dark:border-blue-800/60">FR</span>
     }
   ], [t]);
@@ -46,81 +82,76 @@ export function DesignerHeader(props: DesignerHeaderProps) {
   const activeLangOption = languageOptions.find(o => o.code === activeLang);
 
   return (
-    <div className="h-14 border-b border-zinc-800 px-6 flex items-center justify-between bg-zinc-950">
-      <button
-        onClick={onHome}
-        className="flex items-center gap-3 hover:opacity-90 transition-opacity"
-        title={t('backToHome')}
-        aria-label={t('backToHome')}
-      >
-        <img 
-          src="/logo_big.png" 
-          alt="خيوط" 
-          className="h-12 w-auto object-contain"
-        />
-        {title && (
-          <span className="text-sm font-bold text-white whitespace-nowrap">
-            {title}
-          </span>
-        )}
-      </button>
-
-      <div className="flex items-center gap-4">
-        {/* Language Selector */}
-        <div className="relative" onClick={(e) => e.stopPropagation()}>
-          <button
-            type="button"
-            onClick={() => setLangMenuOpen(v => !v)}
-            className="h-8 px-3 rounded-full border border-zinc-700 text-zinc-200 hover:bg-zinc-800 transition-colors text-xs font-bold inline-flex items-center gap-2"
-            aria-label={t('language')}
-            aria-haspopup="menu"
-            aria-expanded={langMenuOpen}
-          >
-            {activeLangOption?.icon}
-            <span className="truncate max-w-[92px]">{activeLangOption?.label}</span>
-            <span aria-hidden className="text-[10px] opacity-70">▾</span>
-          </button>
-
-          {langMenuOpen && (
-            <div
-              role="menu"
-              aria-label={t('language')}
-              className="absolute right-0 z-[1100] mt-2 w-32 rounded-xl border border-zinc-700 bg-zinc-900 shadow-xl overflow-hidden"
-              onMouseLeave={() => setLangMenuOpen(false)}
-            >
-                {languageOptions.map((opt) => {
-                  const isActive = opt.code === activeLang;
-                  return (
-                    <button
-                      key={opt.code}
-                      type="button"
-                      role="menuitem"
-                      onClick={() => {
-                        handleLanguageChange(opt.code);
-                        setLangMenuOpen(false);
-                      }}
-                      className={`w-full px-3 py-2 text-xs font-semibold text-right transition-colors ${
-                        isActive
-                          ? 'bg-purple-900/30 text-purple-200'
-                          : 'text-zinc-200 hover:bg-zinc-800'
-                      }`}
-                    >
-                      <span className="flex items-center justify-between gap-3">
-                        <span className="flex items-center gap-2 min-w-0">
-                          {opt.icon}
-                          <span className="truncate">{opt.label}</span>
-                        </span>
-                        {isActive && <span aria-hidden className="text-[10px]">✓</span>}
-                      </span>
-                    </button>
-                  );
-                })}
+    <div className="h-[72px] border-b border-white/10 px-6 flex items-center justify-between bg-black text-zinc-200">
+      {/* Left Section: Branding only */}
+      <div className="flex items-center gap-6">
+        <button
+          onClick={onHome}
+          className="flex items-center gap-4 hover:scale-105 transition-transform active:scale-95"
+        >
+          {!hideLogo && (
+            <img
+              src="/logo_big.png"
+              alt="Khuyoot"
+              className="h-9 w-auto object-contain brightness-110"
+            />
+          )}
+          {title && (
+            <div className="flex flex-col">
+              <span className="text-[13px] font-black text-white uppercase tracking-[0.2em] opacity-90">
+                {title}
+              </span>
+              <div className="h-0.5 w-full bg-theme-primary/50 rounded-full mt-0.5" />
             </div>
           )}
+        </button>
+      </div>
+
+      {/* Right Section: Optional Slot */}
+      <div className="flex items-center gap-4">
+
+        {/* Global Controls */}
+        <div className="flex items-center gap-2 ml-2">
+          {/* Language Menu */}
+          <div className="relative" ref={langMenuRef}>
+            <button
+              onClick={() => setLangMenuOpen(!langMenuOpen)}
+              className="h-10 px-3 flex items-center gap-2 rounded-xl bg-zinc-900 border border-white/5 hover:bg-zinc-850 hover:border-zinc-700 transition-all"
+            >
+              {activeLangOption?.icon}
+              <span className="text-xs font-bold">{activeLangOption?.label}</span>
+            </button>
+
+            <AnimatePresence>
+              {langMenuOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  className="absolute top-full right-0 mt-2 w-32 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[100] backdrop-blur-xl"
+                >
+                  {languageOptions.map((opt) => (
+                    <button
+                      key={opt.code}
+                      onClick={() => handleLanguageChange(opt.code)}
+                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-xs font-bold ${
+                        activeLang === opt.code ? 'text-theme-primary bg-theme-primary/5' : 'text-zinc-400'
+                      }`}
+                    >
+                      {opt.icon}
+                      {opt.code.toUpperCase()}
+                    </button>
+                  ))}
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
+
         </div>
-        
+
         {rightSlot}
       </div>
     </div>
   );
 }
+

@@ -8,6 +8,7 @@
     "dev:lan": "vite --host 0.0.0.0 --port 3000",
     "dev:api": "tsx watch server/devApiServer.ts",
     "dev:all": "concurrently -k -n api,web -c magenta,cyan \"npm run dev:api\" \"npm run dev\"",
+    "admin:reset-password": "tsx scripts/resetPasswordByEmail.ts",
     "verify:routing": "node scripts/verify-routing.mjs",
     "build": "npm run verify:routing && vite build",
     "preview": "vite preview",

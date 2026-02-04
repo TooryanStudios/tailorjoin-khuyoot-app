@@ -35,7 +35,7 @@ export default defineConfig(({ mode }) => {
       hmr: hmrHost ? { host: hmrHost, protocol: 'ws' } : undefined,
       // If hot reload doesn't trigger on Windows, enable polling:
       // set VITE_USE_POLLING=1
-      watch: env.VITE_USE_POLLING === '1' ? { usePolling: true, interval: 150 } : undefined,
+      watch: env.VITE_USE_POLLING === '1' ? { usePolling: true, interval: 500 } : undefined,
       proxy: {
         '/api': {
           target: `http://localhost:${tryOnApiPort}`,

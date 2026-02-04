@@ -230,7 +230,7 @@ const ImageComparisonSliderBase = React.forwardRef<HTMLDivElement, ImageComparis
         transform: 'translateZ(0)'
       };
     }
-    const baseAspect = window.innerWidth < 768 ? (600 / 960) : aspectRatio;
+    const baseAspect = window.innerWidth <= 640 ? (600 / 960) : aspectRatio;
     // To make height shorter by heightScale, multiply aspect by (1/heightScale).
     // E.g., heightScale=0.9 means height should be 90%, so aspect *= 1.111 to compensate.
     const scaledAspect = baseAspect * (1 / Math.max(0.5, Math.min(2, heightScale || 1)));

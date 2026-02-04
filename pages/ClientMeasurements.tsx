@@ -1652,7 +1652,7 @@ export const ClientMeasurements = () => {
                           <div className="flex flex-wrap gap-2 justify-end text-xs text-slate-500 dark:text-slate-400 max-w-xs">
                             {metricEntries.slice(0, 6).map(([key, value]) => (
                               <span
-                                key={key}
+                                key={`${profile.id}-${key}`}
                                 className="rounded-full bg-slate-100 dark:bg-slate-800 px-2 py-1"
                               >
                                 {key}: {value}

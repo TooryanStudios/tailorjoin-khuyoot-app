@@ -1,0 +1,55 @@
+﻿=== Testing Thawani API ===
+Payload: {
+  "client_reference_id": "test-user-123",
+  "products": [
+    {
+      "name": "Test Pack",
+      "unit_amount": 100,
+      "quantity": 1
+    }
+  ],
+  "success_url": "http://localhost:3000/success",
+  "cancel_url": "http://localhost:3000/cancel",
+  "metadata": {
+    "userId": "test-user-123",
+    "packageName": "Test"
+  }
+}
+
+Response status: 404
+Response statusText: Not Found
+Response headers: {
+  'cf-cache-status': 'DYNAMIC',
+  'cf-ray': '9c6213abafcbf9db-MCT',
+  connection: 'keep-alive',
+  date: 'Fri, 30 Jan 2026 15:42:01 GMT',
+  server: 'cloudflare',
+  'strict-transport-security': 'max-age=31536000; includeSubDomains; preload',
+  'transfer-encoding': 'chunked',
+  'x-powered-by': 'ASP.NET',
+  'x-xss-protection': '1; mode=block'
+}
+
+Raw response body:
+---START---
+
+---END---
+
+Response length: 0
+First 500 chars: 
+node : 
+At line:1 char:1
++ node 
+test-thawani-direct.mjs > 
+thawani-output.txt 2>&1; 
+Get-Content t ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          
+    : NotSpecified: (:Stri  
+  ng) [], RemoteException
+    + FullyQualifiedErrorId 
+    : NativeCommandError
+ 
+Failed to parse as JSON: 
+Unexpected end of JSON input

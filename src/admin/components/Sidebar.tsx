@@ -83,7 +83,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const onAfterNavigate = () => {
     // Keep the sidebar open on desktop so the user always sees the menu.
     try {
-      const isSmallScreen = window.matchMedia('(max-width: 767px)').matches;
+      const isSmallScreen = window.matchMedia('(max-width: 640px)').matches;
       if (isSmallScreen) setIsOpen(false);
     } catch {
       setIsOpen(false);
@@ -147,6 +147,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <SidebarItem id="credits" icon={DollarSign} label="إدارة الرصيد" to="/admin/credits" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="settings" icon={FileText} label="إدارة الاستبيان" to="/admin/settings/surveys/khuyoot-validation" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" to="/admin/config/general" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <SidebarItem id="debug-tools" icon={Activity} label="أدوات التشخيص" to="/admin/config/debug-tools" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="logs" icon={FileText} label="System Logs" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
         </div>
 

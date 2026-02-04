@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download, User, ChevronDown } from 'lucide-react';
+import { LogIn, LogOut, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download, User, ChevronDown, SquareSplitHorizontal } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
 import { designService } from '../../../services/designService';
@@ -269,7 +269,7 @@ const HeaderComponent = () => {
   const roleLinks = useMemo(() => {
     return {
       guest: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'collections', labelKey: 'navCollections', path: '/collections', icon: Package },
         { id: 'shops', labelKey: 'navShops', path: '/shops', icon: null },
@@ -277,7 +277,7 @@ const HeaderComponent = () => {
         
       ],
       user: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'collections', labelKey: 'navCollections', path: '/collections', icon: Package },
         { id: 'shops', labelKey: 'navShops', path: '/shops', icon: null },
@@ -285,7 +285,7 @@ const HeaderComponent = () => {
         
       ],
       tailor: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'myProducts', labelKey: 'navMyProducts', path: '/tailor/collections', icon: Scissors },
         { id: 'orders', labelKey: 'orders', path: '/tailor/orders', icon: ClipboardList, badge: () => (ordersCount ?? 0) },
@@ -294,7 +294,7 @@ const HeaderComponent = () => {
         
       ],
       boutique: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'orders', labelKey: 'orders', path: '/boutique/orders', icon: PackageOpen, badge: () => (ordersCount ?? 0) },
         { id: 'products', labelKey: 'navProducts', path: '/boutique-account', icon: null },
@@ -302,7 +302,7 @@ const HeaderComponent = () => {
         
       ],
       shop: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'orders', labelKey: 'orders', path: '/shop/orders', icon: Store, badge: () => (ordersCount ?? 0) },
         { id: 'inventory', labelKey: 'navInventory', path: '/shop/inventory', icon: Box },
@@ -311,7 +311,7 @@ const HeaderComponent = () => {
         
       ],
       admin: [
-        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: null },
+        { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
         { id: 'adminDashboard', labelKey: 'navAdminDashboard', path: '/admin', icon: null },
         { id: 'adminUsers', labelKey: 'navAdminUsers', path: '/admin', icon: null },
         { id: 'adminOrders', labelKey: 'navAdminOrders', path: '/admin', icon: null },

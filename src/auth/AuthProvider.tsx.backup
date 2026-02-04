@@ -1,0 +1,272 @@
+import * as React from 'react';
+import { onIdTokenChanged } from 'firebase/auth';
+import type { AuthState, AuthUser } from './authTypes';
+import { AuthContext } from './useAuth';
+import { setAuthStateSnapshot } from './authTokenStore';
+import { AuthRequiredError } from '../api/httpErrors';
+import { firebaseService } from '../../services/firebase';
+
+const initialState: AuthState = {
+  status: 'loading',
+  user: null,
+  idToken: null,
+};
+
+// Read auth state from localStorage immediately (for REST bypass compatibility)
+function getInitialAuthState(): AuthState {
+  try {
+    // Check custom cache first
+    const UI_CACHE_KEY = 'khuyoot:ui:auth_cache';
+    const cached = localStorage.getItem(UI_CACHE_KEY);
+    if (cached) {
+      try {
+        const parsed = JSON.parse(cached);
+        if (parsed && parsed.user) {
+          console.log('[AuthProvider] UI Cache Hit:', parsed.user.email);
+          return { status: 'authenticated', user: parsed.user, idToken: parsed.idToken || null };
+        }
+      } catch {}
+    }
+
+    const API_KEY = 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
+    const authKey = `firebase:authUser:${API_KEY}:[DEFAULT]`;
+    const stored = localStorage.getItem(authKey);
+    
+    if (stored) {
+      const userData = JSON.parse(stored);
+      const user: AuthUser = {
+        uid: userData.uid,
+        email: userData.email,
+        displayName: userData.displayName || null,
+        photoURL: userData.photoURL || null,
+      };
+      
+      console.log('🚀 [AuthProvider] Loaded user from localStorage:', user.email);
+      
+      return {
+        status: 'authenticated',
+        user,
+        idToken: userData.stsTokenManager?.accessToken || null,
+      };
+    }
+  } catch (e) {
+    console.warn('[AuthProvider] Failed to read initial auth state from localStorage:', e);
+  }
+  
+  return initialState;
+}
+
+export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
+  const [state, setState] = React.useState<AuthState>(getInitialAuthState());
+
+  // Listen for custom login/logout events from REST bypass
+  React.useEffect(() => {
+    const handleBypassLogin = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const userInfo = customEvent.detail;
+      
+      console.log('🔔 [AuthProvider] Received auth-bypass-login event:', userInfo.email);
+      
+      // Read the full auth data from localStorage
+      const authState = getInitialAuthState();
+      setState(authState);
+      setAuthStateSnapshot(authState);
+    };
+    
+    const handleBypassLogout = () => {
+      console.log('🔔 [AuthProvider] Received auth-bypass-logout event');
+      const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+      localStorage.removeItem('khuyoot:ui:auth_cache');
+      setState(unauthenticated);
+      setAuthStateSnapshot(unauthenticated);
+    };
+
+    window.addEventListener('auth-bypass-login', handleBypassLogin);
+    window.addEventListener('auth-bypass-logout', handleBypassLogout);
+    
+    return () => {
+      window.removeEventListener('auth-bypass-login', handleBypassLogin);
+      window.removeEventListener('auth-bypass-logout', handleBypassLogout);
+    };
+  }, []);
+
+  React.useEffect(() => {
+    const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+
+    let didReceiveInitial = false;
+    // DISABLED: Fallback timeout interferes with REST bypass which stores tokens in localStorage.
+    // The SDK will eventually fire onIdTokenChanged once it processes the stored tokens,
+    // but this can take 5-10 seconds due to network verification calls.
+    // const fallbackTimer = window.setTimeout(() => {
+    //   if (didReceiveInitial) return;
+    //   if (!import.meta.env.PROD) {
+    //     console.warn('[AuthProvider] onIdTokenChanged did not fire; falling back to unauthenticated');
+    //   }
+    //   setState(unauthenticated);
+    //   setAuthStateSnapshot(unauthenticated);
+    // }, 5000);
+
+    let unsubscribe: (() => void) | null = null;
+    let started = false;
+
+    const startListener = () => {
+      if (started) return;
+      if (!firebaseService?.isInitialized?.()) return;
+      started = true;
+
+      try {
+        const auth = firebaseService.auth;
+        if (!auth) {
+          setState(unauthenticated);
+          setAuthStateSnapshot(unauthenticated);
+          return;
+        }
+
+        unsubscribe = onIdTokenChanged(auth, async (fbUser) => {
+        didReceiveInitial = true;
+
+        try {
+          if (fbUser) {
+            const user: AuthUser = {
+              uid: fbUser.uid,
+              email: fbUser.email,
+              displayName: fbUser.displayName,
+              photoURL: fbUser.photoURL,
+            };
+
+            // getIdToken() may throw if Secure Token API is blocked.
+            // That should keep us authenticated (user exists) but without a token.
+            let idToken: string | null = null;
+            try {
+              idToken = await fbUser.getIdToken(true); // force refresh to unblock Firestore
+            } catch {
+              idToken = null;
+            }
+
+            const next: AuthState = {
+              status: 'authenticated',
+              user,
+              idToken,
+            };
+            try { localStorage.setItem('khuyoot:ui:auth_cache', JSON.stringify({ user, idToken })); } catch {}
+            setState(next);
+            setAuthStateSnapshot(next);
+            return;
+          }
+
+          // SDK reports null, but check UI cache and restore if present
+          const UI_CACHE_KEY = 'khuyoot:ui:auth_cache';
+          const cachedData = localStorage.getItem(UI_CACHE_KEY);
+          
+          if (cachedData) {
+            try {
+              const parsed = JSON.parse(cachedData);
+              if (parsed && parsed.user) {
+                console.log('[AuthProvider] SDK null but restoring from UI cache:', parsed.user.email);
+                const restored: AuthState = {
+                  status: 'authenticated',
+                  user: parsed.user,
+                  idToken: parsed.idToken || null,
+                };
+                setState(restored);
+                setAuthStateSnapshot(restored);
+                return; // Don't set unauthenticated
+              }
+            } catch (e) {
+              console.warn('[AuthProvider] Failed to parse UI cache:', e);
+            }
+          }
+          
+          console.log('[AuthProvider] SDK null and no valid cache - setting unauthenticated');
+          setState(unauthenticated);
+          setAuthStateSnapshot(unauthenticated);
+        } catch {
+          // On error, try to restore from cache
+          const UI_CACHE_KEY = 'khuyoot:ui:auth_cache';
+          const cachedData = localStorage.getItem(UI_CACHE_KEY);
+          if (cachedData) {
+            try {
+              const parsed = JSON.parse(cachedData);
+              if (parsed && parsed.user) {
+                const restored: AuthState = {
+                  status: 'authenticated',
+                  user: parsed.user,
+                  idToken: parsed.idToken || null,
+                };
+                setState(restored);
+                setAuthStateSnapshot(restored);
+                return;
+              }
+            } catch {}
+          }
+          setState(unauthenticated);
+          setAuthStateSnapshot(unauthenticated);
+        }
+        });
+      } catch (e) {
+        if (!import.meta.env.PROD) {
+          console.warn('[AuthProvider] Failed to subscribe to onIdTokenChanged', e);
+        }
+        setState(unauthenticated);
+        setAuthStateSnapshot(unauthenticated);
+        return;
+      }
+    };
+
+    startListener();
+    const initInterval = window.setInterval(startListener, 250);
+
+    return () => {
+      window.clearInterval(initInterval);
+      try {
+        unsubscribe?.();
+      } catch {
+        // ignore
+      }
+    };
+  }, []);
+
+  const login = React.useCallback(async (email: string, password: string) => {
+    const u = await firebaseService.login(email, password);
+    const user = {
+      uid: (u as any).uid ?? (u as any).id,
+      email: (u as any).email ?? null,
+      displayName: (u as any).displayName ?? (u as any).name ?? null,
+      photoURL: (u as any).photoURL ?? (u as any).avatar ?? (u as any).profileImage ?? null,
+    } as AuthUser;
+    
+    // Explicitly write to UI cache immediately on login to ensure refresh persistence
+    try { 
+      const token = (u as any).accessToken || (u as any).stsTokenManager?.accessToken;
+      localStorage.setItem('khuyoot:ui:auth_cache', JSON.stringify({ user, idToken: token }));
+      console.log('✅ [AuthProvider] Login success -> Wrote to UI cache');
+    } catch (e) {
+      console.warn('[AuthProvider] Failed to write UI cache on login:', e);
+    }
+
+    return user;
+  }, []);
+
+  const logout = React.useCallback(async () => {
+    try { localStorage.removeItem('khuyoot:ui:auth_cache'); } catch {}
+    await firebaseService.logout();
+  }, []);
+
+  const requireAuth = React.useCallback((): AuthUser => {
+    if (state.status === 'authenticated' && state.user) return state.user;
+    throw new AuthRequiredError(state.status === 'loading' ? 'Auth loading' : 'Auth required');
+  }, [state.status, state.user]);
+
+  const value = React.useMemo(
+    () => ({
+      ...state,
+      login,
+      logout,
+      requireAuth,
+    }),
+    [state, login, logout, requireAuth]
+  );
+
+  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+};
+

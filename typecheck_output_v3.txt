@@ -1,0 +1,126 @@
+
+> khuyoot---خيوط@0.0.0 typecheck
+> tsc --noEmit
+
+components/AuthModal.tsx(33,33): error TS2339: Property 'type' does not exist on type '{}'.
+components/AuthModal.tsx(34,74): error TS2339: Property 'type' does not exist on type '{}'.
+components/ErrorBoundary.tsx(36,10): error TS2339: Property 'setState' does not exist on type 'ErrorBoundary'.
+context/AppContext.tsx(288,113): error TS2339: Property 'name' does not exist on type 'AuthUser'.
+context/AppContext.tsx(289,123): error TS2339: Property 'profileImage' does not exist on type 'AuthUser'.
+context/AppContext.tsx(315,64): error TS2339: Property 'name' does not exist on type 'AuthUser'.
+context/AppContext.tsx(316,69): error TS2339: Property 'profileImage' does not exist on type 'AuthUser'.
+context/AppContext.tsx(366,67): error TS2345: Argument of type 'import("C:/Projects/Khuyoot App/Code/khuyoot/context/AppContext").UserRole' is not assignable to parameter of type 'import("C:/Projects/Khuyoot App/Code/khuyoot/types").UserRole'.
+  Type '"customer"' is not assignable to type 'UserRole'.
+pages/designerV2/sections/TryOnSection.tsx(47,16): error TS2304: Cannot find name 'GenerationItem'.
+pages/TailorCollections.tsx(137,5): error TS2769: No overload matches this call.
+  Overload 1 of 3, '(options: DefinedInitialDataOptions<unknown, Error, unknown, any[]>, queryClient?: QueryClient): DefinedUseQueryResult<unknown, Error>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'DefinedInitialDataOptions<unknown, Error, unknown, any[]>'.
+  Overload 2 of 3, '(options: UndefinedInitialDataOptions<Product[], Error, Product[], any[]>, queryClient?: QueryClient): UseQueryResult<...>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'UndefinedInitialDataOptions<Product[], Error, Product[], any[]>'.
+  Overload 3 of 3, '(options: UseQueryOptions<Product[], Error, Product[], any[]>, queryClient?: QueryClient): UseQueryResult<Product[], Error>', gave the following error.
+    Object literal may only specify known properties, and 'onSuccess' does not exist in type 'UseQueryOptions<Product[], Error, Product[], any[]>'.
+pages/TailorCollections.tsx(144,25): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'Product[]'.
+  Type '{}' is missing the following properties from type 'Product[]': length, pop, push, concat, and 35 more.
+pages/TailorCollections.tsx(164,25): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'Product[]'.
+  Type '{}' is missing the following properties from type 'Product[]': length, pop, push, concat, and 35 more.
+pages/TailorCollections.tsx(985,46): error TS2345: Argument of type '{ tags?: any; image: any; images: any; coverImageIndex: any; tailorId: any; tailorName: any; tailorLocation: any; tailorImage: any; likes: number; isDraft: boolean; rating: number; reviews: number; createdAt: string; ... 5 more ...; categoryId: any; }' is not assignable to parameter of type 'Product'.
+  Property 'id' is missing in type '{ tags?: any; image: any; images: any; coverImageIndex: any; tailorId: any; tailorName: any; tailorLocation: any; tailorImage: any; likes: number; isDraft: boolean; rating: number; reviews: number; createdAt: string; ... 5 more ...; categoryId: any; }' but required in type 'Product'.
+pages/TestTemplatePickerPage.tsx(22,13): error TS2322: Type '{ selectedTemplateId: any; onSelectTemplate: any; }' is not assignable to type '{ items: TemplatePickerItem[]; selectedId: string; onSelect: (item: TemplatePickerItem) => void; onConfirm?: (item: TemplatePickerItem) => void; aspect?: "square" | "portrait"; maxItemWidthPx?: number; preferThumbnailOnly?: boolean; showEndPlaceholders?: boolean; }'.
+  Property 'selectedTemplateId' does not exist on type '{ items: TemplatePickerItem[]; selectedId: string; onSelect: (item: TemplatePickerItem) => void; onConfirm?: (item: TemplatePickerItem) => void; aspect?: "square" | "portrait"; maxItemWidthPx?: number; preferThumbnailOnly?: boolean; showEndPlaceholders?: boolean; }'.
+pages/VisualizerPage.tsx(137,12): error TS2339: Property 'fov' does not exist on type 'Camera'.
+  Property 'fov' does not exist on type 'OrthographicCamera & { manual?: boolean; }'.
+pages/VisualizerPage.tsx(201,13): error TS2322: Type '{ key: string; url: string; scale: number; position: [number, number, number]; rotation: [number, number, number]; }' is not assignable to type 'SceneModelProps'.
+  Property 'key' does not exist on type 'SceneModelProps'.
+pages/VisualizerPage.tsx(953,19): error TS2322: Type '{ children: any; gl: { preserveDrawingBuffer: true; }; camera: { position: any; fov: any; }; className: string; onCreated: ({ gl }: RootState) => void; }' is not assignable to type 'CanvasProps'.
+  Property 'className' does not exist on type 'CanvasProps'.
+server/tryon/tryonHandler.ts(646,11): error TS2322: Type 'Buffer<ArrayBufferLike>' is not assignable to type 'Buffer<ArrayBuffer>'.
+  Type 'ArrayBufferLike' is not assignable to type 'ArrayBuffer'.
+    Type 'SharedArrayBuffer' is missing the following properties from type 'ArrayBuffer': resizable, resize, detached, transfer, transferToFixedLength
+server/utils/watermark.ts(87,13): error TS2353: Object literal may only specify known properties, and 'offset' does not exist in type 'OverlayOptions'.
+services/mockService.ts(654,43): error TS2339: Property 'getStories' does not exist on type '{ isInitialized: () => boolean; readonly auth: any; waitForAuth(maxWaitMs?: number): Promise<any>; getCreditPricing(): Promise<Record<string, { credit_cost: number; is_active: boolean; }>>; ... 79 more ...; deleteUserTemplate(templateId: string): Promise<...>; }'.
+src/admin/fabrics/FabricLibrary.tsx(456,42): error TS2339: Property 'name' does not exist on type 'unknown'.
+src/admin/fabrics/FabricLibrary.tsx(460,34): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'ArrayBuffer | Uint8Array<ArrayBufferLike> | Blob'.
+src/admin/fabrics/FabricLibrary.tsx(473,57): error TS2345: Argument of type 'unknown' is not assignable to parameter of type 'File'.
+  Type '{}' is missing the following properties from type 'File': lastModified, name, webkitRelativePath, size, and 6 more.
+src/admin/users/UsersManagement.tsx(2127,98): error TS2339: Property 'type' does not exist on type 'unknown'.
+src/admin/users/UsersManagement.tsx(2129,76): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'File[]'.
+  Type '{}' is missing the following properties from type 'File': lastModified, name, webkitRelativePath, size, and 6 more.
+src/admin/users/UsersManagement.tsx(2141,78): error TS2345: Argument of type 'unknown[]' is not assignable to parameter of type 'File[]'.
+  Type '{}' is missing the following properties from type 'File': lastModified, name, webkitRelativePath, size, and 6 more.
+src/components/Mannequin.tsx(2,10): error TS2305: Module '"@react-three/fiber"' has no exported member 'GroupProps'.
+src/components/PageTransition.tsx(12,30): error TS2503: Cannot find namespace 'React'.
+src/components/PageTransition.tsx(32,30): error TS2503: Cannot find namespace 'React'.
+src/components/PageTransition.tsx(48,33): error TS2503: Cannot find namespace 'React'.
+src/designer/components/tryFabricPanel/TryOnFabricPickerModal.tsx(30,8): error TS2740: Type '{ onClose: () => void; }' is missing the following properties from type '{ onClose: () => void; onGoToPortfolio: () => void; onFabricChangeAndClose: (file: File) => void; khuyootFabricCategories: FabricCategory[]; khuyootSelectedCategoryId: string; ... 7 more ...; onSelectFabricItem: (payload: { ...; }) => void; }': onGoToPortfolio, onFabricChangeAndClose, khuyootFabricCategories, khuyootSelectedCategoryId, and 8 more.
+src/designer/components/tryFabricPanel/TryOnTemplatePickerModal.tsx(34,8): error TS2740: Type '{ onClose: () => void; }' is missing the following properties from type '{ open?: boolean; onClose: () => void; templatePickerLeftScrollRef: React.RefObject<HTMLDivElement>; templateUploadInputRef: React.RefObject<HTMLInputElement>; handleTemplateDrop: (e: React.DragEvent) => void; ... 35 more ...; onDeleteUserTemplate?: (templateId: string) => Promise<...>; }': templatePickerLeftScrollRef, templateUploadInputRef, handleTemplateDrop, handleTemplateDragOver, and 34 more.
+src/devtools/firebaseAuth/FirebaseAuthDiagnosticReactPage.tsx(285,16): error TS2739: Type '{ onSelect: any; onTabChange: (tab: any) => void; currentId: any; shopItems: undefined; closetItems: undefined; enableUpload: true; isSubscribed: any; onPremiumClick: () => any; defaultTab: string; loadingTemplateId: any; }' is missing the following properties from type '{ onSelect: any; currentId: any; studioItems: any; shopItems: any; closetItems: any; enableUpload?: boolean; isSubscribed?: boolean; onPremiumClick: any; closetExtra?: any; defaultTab: any; forcedTab: any; onTabChange: any; loadingTemplateId?: any; }': studioItems, forcedTab
+src/features/admin/surveys/SurveyResponsesPage.tsx(140,49): error TS2345: Argument of type 'QueryStartAtConstraint' is not assignable to parameter of type 'QueryOrderByConstraint | QueryLimitConstraint | QueryFieldFilterConstraint'.
+  Type 'QueryStartAtConstraint' is not assignable to type 'QueryFieldFilterConstraint'.
+    Types of property 'type' are incompatible.
+      Type '"startAt" | "startAfter"' is not assignable to type '"where"'.
+        Type '"startAt"' is not assignable to type '"where"'.
+src/features/admin/surveys/SurveyResponsesPage.tsx(162,61): error TS2345: Argument of type 'QueryStartAtConstraint' is not assignable to parameter of type 'QueryOrderByConstraint | QueryLimitConstraint'.
+  Type 'QueryStartAtConstraint' is not assignable to type 'QueryLimitConstraint'.
+    Types of property 'type' are incompatible.
+      Type '"startAt" | "startAfter"' is not assignable to type '"limit" | "limitToLast"'.
+        Type '"startAt"' is not assignable to type '"limit" | "limitToLast"'.
+src/features/survey/SurveyModal.tsx(904,130): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(913,152): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(917,157): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(921,148): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(925,153): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(967,150): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(971,155): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(976,146): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/features/survey/SurveyModal.tsx(980,151): error TS2345: Argument of type 'string' is not assignable to parameter of type '"default" | "designerV2_1"'.
+src/hooks/useScrollRestoration.ts(42,25): error TS2551: Property 'scrollLeft' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+  Property 'scrollLeft' does not exist on type 'Window'.
+src/hooks/useScrollRestoration.ts(42,50): error TS2551: Property 'scrollTop' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+  Property 'scrollTop' does not exist on type 'Window'.
+src/hooks/useScrollRestoration.ts(50,13): error TS2551: Property 'scrollLeft' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+  Property 'scrollLeft' does not exist on type 'Window'.
+src/hooks/useScrollRestoration.ts(51,13): error TS2551: Property 'scrollTop' does not exist on type 'Window | HTMLElement'. Did you mean 'scrollTo'?
+  Property 'scrollTop' does not exist on type 'Window'.
+src/modules/measurements/ClientMeasurementsV2.tsx(93,68): error TS2339: Property 'name' does not exist on type 'unknown'.
+src/modules/measurements/ClientMeasurementsV2.tsx(1113,81): error TS2339: Property 'name' does not exist on type 'unknown'.
+src/modules/measurements/ClientMeasurementsV2.tsx(1114,84): error TS2339: Property 'measurements' does not exist on type 'unknown'.
+src/modules/navigation/DesignerHeader.tsx(170,37): error TS2339: Property 'name' does not exist on type 'AuthUser'.
+src/modules/navigation/DesignerHeader.tsx(185,21): error TS2339: Property 'profileImage' does not exist on type 'AuthUser'.
+src/modules/navigation/DesignerHeader.tsx(187,29): error TS2339: Property 'profileImage' does not exist on type 'AuthUser'.
+src/modules/navigation/DesignerHeader.tsx(188,29): error TS2339: Property 'name' does not exist on type 'AuthUser'.
+src/modules/orders/OrderSummary.tsx(199,49): error TS2339: Property 'getOrder' does not exist on type '{ isInitialized: () => boolean; readonly auth: any; waitForAuth(maxWaitMs?: number): Promise<any>; getCreditPricing(): Promise<Record<string, { credit_cost: number; is_active: boolean; }>>; ... 79 more ...; deleteUserTemplate(templateId: string): Promise<...>; }'.
+src/modules/orders/OrderSummary.tsx(323,29): error TS2339: Property 'updateOrder' does not exist on type '{ isInitialized: () => boolean; readonly auth: any; waitForAuth(maxWaitMs?: number): Promise<any>; getCreditPricing(): Promise<Record<string, { credit_cost: number; is_active: boolean; }>>; ... 79 more ...; deleteUserTemplate(templateId: string): Promise<...>; }'.
+src/modules/studio/components/SelectionPanel.tsx(192,14): error TS2741: Property 'defaultTab' is missing in type '{ onSelect: any; currentId: any; studioItems: undefined; shopItems: undefined; closetItems: undefined; enableUpload: boolean; isSubscribed: boolean; onPremiumClick: any; forcedTab: any; onTabChange: any; closetExtra: any; }' but required in type '{ onSelect: any; currentId: any; studioItems: any; shopItems: any; closetItems: any; enableUpload?: boolean; isSubscribed?: boolean; onPremiumClick: any; closetExtra?: any; defaultTab: any; forcedTab: any; onTabChange: any; loadingTemplateId?: any; }'.
+src/modules/studio/hooks/useThumbnailCache.ts(6,31): error TS2304: Cannot find name 'useThumbnailCache'.
+src/pages/demoShell/DemoShellPageA.Desktop.tsx(47,18): error TS2339: Property 'isNew' does not exist on type 'Product'.
+src/pages/demoShell/DemoShellPageA.Desktop.tsx(79,42): error TS2339: Property 'profileImage' does not exist on type 'Tailor'.
+src/pages/demoShell/DemoShellPageA.Mobile.tsx(40,18): error TS2339: Property 'isNew' does not exist on type 'Product'.
+src/pages/demoShell/DemoShellPageA.Mobile.tsx(72,42): error TS2339: Property 'profileImage' does not exist on type 'Tailor'.
+src/pages/demoShell/DemoShellTopTailors.Desktop.tsx(8,11): error TS2339: Property 'tailors' does not exist on type 'DemoShellOutletContext'.
+src/pages/demoShell/DemoShellTopTailors.Desktop.tsx(8,36): error TS2339: Property 'regions' does not exist on type 'DemoShellOutletContext'.
+src/pages/demoShell/DemoShellTopTailors.Desktop.tsx(51,17): error TS2322: Type '{ key: any; regionId: any; regionName: any; tailors: any; }' is not assignable to type 'RegionWithTailors'.
+  Property 'key' does not exist on type 'RegionWithTailors'.
+src/pages/DesignerV2_1/DesignerV2_1.backup-20260125-014344.tsx(2908,20): error TS2739: Type '{ onSelect: any; onTabChange: (tab: any) => void; currentId: any; shopItems: undefined; closetItems: undefined; enableUpload: true; isSubscribed: any; onPremiumClick: () => any; defaultTab: string; loadingTemplateId: any; }' is missing the following properties from type '{ onSelect: any; currentId: any; studioItems: any; shopItems: any; closetItems: any; enableUpload?: boolean; isSubscribed?: boolean; onPremiumClick: any; closetExtra?: any; defaultTab: any; forcedTab: any; onTabChange: any; loadingTemplateId?: any; }': studioItems, forcedTab
+src/pages/DesignerV2_1/sections/ComparisonPanel.tsx(2,25): error TS2307: Cannot find module '../../components/DesignerV2_1/ImageSlider' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/ComparisonPanel.tsx(3,35): error TS2307: Cannot find module '../../modules/canvas/components/ProcessingOverlay' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/ComparisonPanel.tsx(4,34): error TS2307: Cannot find module '../../modules/results/FabricSourceTile' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/LeftSidebar.tsx(3,38): error TS2307: Cannot find module '../../modules/TemplatePicker' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/LeftSidebar.tsx(484,49): error TS2554: Expected 1 arguments, but got 2.
+src/pages/DesignerV2_1/sections/TopBar.tsx(4,32): error TS2307: Cannot find module '../../modules/navigation/DesignerHeader' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/TopBar.tsx(5,29): error TS2307: Cannot find module '../../modules/CreditManager' or its corresponding type declarations.
+src/pages/DesignerV2_1/sections/TopBar.tsx(6,27): error TS2307: Cannot find module '../../../types' or its corresponding type declarations.
+src/pwa/registerProd.ts(1,28): error TS2307: Cannot find module 'virtual:pwa-register' or its corresponding type declarations.
+src/store/useModalStore.ts(10,3): error TS2345: Argument of type 'StateCreator<ModalState, [], [["zustand/persist", ModalState]]>' is not assignable to parameter of type 'StateCreator<ModalState, [], []>'.
+  Type 'StateCreator<ModalState, [], [["zustand/persist", ModalState]]>' is not assignable to type '{ $$storeMutators?: []; }'.
+    Types of property '$$storeMutators' are incompatible.
+      Type '[["zustand/persist", ModalState]]' is not assignable to type '[]'.
+        Source has 1 element(s) but target allows only 0.
+src/utils/imageResize.ts(7,35): error TS2694: Namespace 'imageCompression' has no exported member 'Options'.
+tailorjoin-khuyoot-app/src/context/AppContext.tsx(185,32): error TS2304: Cannot find name 'mockLogin'.
+tailorjoin-khuyoot-app/src/context/AppContext.tsx(211,32): error TS2304: Cannot find name 'mockLogin'.
+tailorjoin-khuyoot-app/src/utils/defaultImages.ts(4,41): error TS2307: Cannot find module '../services/imageLibraryService' or its corresponding type declarations.
+tailorjoin-khuyoot-app/src/utils/userDefaults.ts(8,76): error TS2307: Cannot find module '../types/user-schema' or its corresponding type declarations.
+temp-template-picker-with-button.tsx(2,35): error TS2307: Cannot find module '../utils/imagePreloader' or its corresponding type declarations.
+temp-template-picker.tsx(2,35): error TS2307: Cannot find module '../../types/tryon' or its corresponding type declarations.
+temp-template-picker.tsx(3,37): error TS2307: Cannot find module '../../../pages/designerV2/components/GenerationsRail' or its corresponding type declarations.
+temp-template-picker.tsx(4,67): error TS2307: Cannot find module './TryFabricPanelBase' or its corresponding type declarations.

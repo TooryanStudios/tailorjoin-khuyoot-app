@@ -486,12 +486,13 @@ service cloud.firestore {
       allow read: if isAdminUser() || isOwnerUid(uid);
       allow delete: if isAdminUser();
 
-      // Users may create their own empty wallet (0 credits). Admins can manage any.
+      // Users may create their own wallet with initial credits (up to 200). Admins can manage any.
       allow create: if isAdminUser() || (
         isOwnerUid(uid)
         && request.resource.data.user_id == uid
         && request.resource.data.credit_balance is number
-        && request.resource.data.credit_balance == 0
+        && request.resource.data.credit_balance >= 0
+        && request.resource.data.credit_balance <= 200
         && request.resource.data.tier == 'Free'
       );
 
@@ -546,6 +547,7 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount is number
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount > 0
             && request.resource.data.credit_balance == resource.data.credit_balance + getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount
+            && (!('last_purchase_id' in request.resource.data) || request.resource.data.last_purchase_id is string)
           )
         )
       );
@@ -588,6 +590,34 @@ service cloud.firestore {
         && request.resource.data.amount == resource.data.amount
         && (request.resource.data.status == 'completed' || request.resource.data.status == 'failed')
       );
+    }
+
+    // ============================================================
+    // PURCHASE HISTORY - Track all credit purchases
+    // ============================================================
+    match /purchase_history/{purchaseId} {
+      // Users can read their own purchase history
+      allow read: if isAdminUser() || (isSignedIn() && request.auth.uid == resource.data.user_id);
+      allow delete: if isAdminUser();
+      
+      // Users can create purchase records for themselves
+      allow create: if isAdminUser() || (
+        isSignedIn()
+        && request.resource.data.user_id == request.auth.uid
+        && request.resource.data.purchase_id == purchaseId
+        && request.resource.data.transaction_id is string
+        && request.resource.data.status == 'completed'
+        && request.resource.data.credits_purchased is number
+        && request.resource.data.credits_purchased > 0
+        && request.resource.data.amount_paid is number
+        && request.resource.data.amount_paid >= 0
+        && request.resource.data.balance_before is number
+        && request.resource.data.balance_after is number
+        && request.resource.data.balance_after == request.resource.data.balance_before + request.resource.data.credits_purchased
+      );
+      
+      // Only admins can update purchase history
+      allow update: if isAdminUser();
     }
     
     // ============================================================

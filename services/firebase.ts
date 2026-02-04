@@ -1,6 +1,48 @@
 import * as firebaseApp from 'firebase/app';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, updateProfile, User as FirebaseUser } from 'firebase/auth';
-import { getFirestore, collection, getDocs, query, where, doc, setDoc, getDoc, addDoc, deleteDoc, orderBy, limit, updateDoc, deleteField, setLogLevel, collectionGroup, serverTimestamp, runTransaction } from 'firebase/firestore';
+console.log('🔥 [Firebase Service] Initializing root service...');
+import {
+  getAuth,
+  initializeAuth,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  inMemoryPersistence,
+  setPersistence,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  updateProfile,
+  updatePassword,
+  reauthenticateWithCredential,
+  EmailAuthProvider,
+  onAuthStateChanged,
+  User as FirebaseUser,
+  deleteUser,
+} from 'firebase/auth';
+import {
+  getFirestore,
+  initializeFirestore,
+  persistentLocalCache,
+  persistentMultipleTabManager,
+  collection,
+  getDocs,
+  query,
+  where,
+  doc,
+  setDoc,
+  getDoc,
+  getDocFromCache,
+  getDocFromServer,
+  addDoc,
+  deleteDoc,
+  orderBy,
+  limit,
+  updateDoc, 
+  deleteField,
+  setLogLevel,
+  collectionGroup,
+  serverTimestamp,
+  runTransaction
+} from 'firebase/firestore';
 import { getStorage, ref as storageRef, deleteObject, listAll, getDownloadURL, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { urlCache } from '../src/utils/urlCache';
 import { User, Product, UserRole, AppSettings, MeasurementTemplate } from '../types';
@@ -38,6 +80,71 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 
+function isPersistenceDisabledByQuery(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const params = new URLSearchParams(window.location?.search ?? '');
+    return params.get('persistence') === '0' || params.get('offline') === '0';
+  } catch {
+    return false;
+  }
+}
+
+const PERSISTENCE_DISABLED = isPersistenceDisabledByQuery();
+
+function getTestMode(): string | null {
+  try {
+    if (typeof window === 'undefined') return null;
+    const params = new URLSearchParams(window.location.search);
+    return params.get('testMode');
+  } catch {
+    return null;
+  }
+}
+
+const TEST_MODE = getTestMode();
+
+// DEV-only: Avoid IndexedDB persistence to prevent auth init hanging when IDB is blocked.
+// Defaults:
+// - PROD: local persistence (IndexedDB)
+// - DEV: local persistence (IndexedDB) to share auth across tabs
+// Overrides (DEV only):
+// - ?authp=local|session|memory
+// - localStorage khuyoot:diag:authPersistence = local|session|memory
+const DIAG_AUTH_PERSISTENCE_KEY = 'khuyoot:diag:authPersistence';
+
+function getAuthPersistenceMode(): 'local' | 'session' | 'memory' {
+  try {
+    if (typeof window === 'undefined') return import.meta.env.PROD ? 'local' : 'session';
+
+    const host = window.location?.hostname || '';
+    const isLocalHost = host === 'localhost' || host === '127.0.0.1';
+    // Allow diagnostics and safer defaults on localhost even for PROD builds (e.g., preview/SPA deployments).
+    const allowDiagnostics = !import.meta.env.PROD || isLocalHost;
+    if (!allowDiagnostics) return 'local';
+
+    const params = new URLSearchParams(window.location?.search ?? '');
+    const fromQuery = (params.get('authp') || params.get('authPersistence') || '').toLowerCase();
+    if (fromQuery === 'local' || fromQuery === 'session' || fromQuery === 'memory') return fromQuery;
+    try {
+      const fromStorage = String(localStorage.getItem(DIAG_AUTH_PERSISTENCE_KEY) || '').toLowerCase();
+      // Avoid accidental "memory" persistence sticking across refreshes; only allow memory via query param.
+      if (fromStorage === 'local' || fromStorage === 'session') return fromStorage;
+    } catch {}
+    // Default: on localhost use local to share auth across tabs; override via ?authp=session if needed.
+    return isLocalHost ? 'local' : (import.meta.env.PROD ? 'local' : 'local');
+  } catch {
+    return import.meta.env.PROD ? 'local' : 'local';
+  }
+}
+
+function getAuthPersistence() {
+  const mode = getAuthPersistenceMode();
+  if (mode === 'memory') return inMemoryPersistence;
+  if (mode === 'session') return browserSessionPersistence;
+  return browserLocalPersistence;
+}
+
 // Initialize Firebase
 let app;
 let auth: any;
@@ -61,6 +168,27 @@ function inferImageExtensionFromContentType(contentType: string | undefined | nu
   if (ct.includes('image/jpeg') || ct.includes('image/jpg')) return 'jpg';
   return 'jpg';
 }
+
+type AuthProbeResult = {
+  ok: boolean;
+  status?: number;
+  timedOut?: boolean;
+  error?: string;
+};
+
+const probeEndpoint = async (url: string, init: RequestInit, timeoutMs = 8000): Promise<AuthProbeResult> => {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+    const resp = await fetch(url, { ...init, signal: controller.signal });
+    clearTimeout(timeoutId);
+    // Any response means network path is reachable (even 400/401/403)
+    return { ok: true, status: resp.status };
+  } catch (e: any) {
+    const timedOut = e?.name === 'AbortError';
+    return { ok: false, timedOut, error: e?.message || String(e) };
+  }
+};
 
 function sanitizeStoragePathSegment(value: string): string {
   return String(value || '')
@@ -143,9 +271,64 @@ try {
     console.warn('[Firebase] Disabled by diagnostics (skip initializeApp)');
     isFirebaseInitialized = false;
   } else {
-    app = firebaseApp.initializeApp(firebaseConfig);
-    auth = getAuth(app);
-    db = getFirestore(app);
+    // Make initialization idempotent (important for Vite HMR and multi-entry bundles).
+    app = firebaseApp.getApps().length ? firebaseApp.getApp() : firebaseApp.initializeApp(firebaseConfig);
+
+    // Critical: use initializeAuth so we can select persistence before the auth instance
+    // decides to open IndexedDB. This prevents "stuck initializing" in DEV.
+    try {
+      const persistence = getAuthPersistence();
+      // IMPORTANT: pass as array to avoid SDK defaulting to IndexedDB persistence.
+      auth = initializeAuth(app, { persistence: [persistence] }); 
+      if (!import.meta.env.PROD) {
+        console.log('[Firebase] Auth persistence:', getAuthPersistenceMode());
+      }
+    } catch (e) {
+      // Fallback for HMR / already-initialized cases.
+      auth = getAuth(app); 
+      if (!import.meta.env.PROD) {
+        console.warn('[Firebase] initializeAuth failed; using getAuth fallback', e);
+      }
+
+      // Best-effort: ensure persistence matches our desired mode even in fallback.
+      try {
+        const persistence = getAuthPersistence();
+        setPersistence(auth, persistence).catch((err) => {
+          if (!import.meta.env.PROD) {
+            console.warn('[Firebase] setPersistence failed in fallback', err);
+          }
+        });
+      } catch {
+        // ignore
+      }
+    }
+
+    // Initialize Firestore with Persistent Local Cache (IndexedDB)
+    // This allows getDocFromCache to work and avoids the 25s "Offline Sync" hang on refresh.
+    try {
+      if (PERSISTENCE_DISABLED || TEST_MODE === 'D') {
+        db = getFirestore(app);
+        console.warn('[Firebase] Firestore persistence disabled (Test Mode D or persistence=0)');
+      } else {
+        db = initializeFirestore(app, {
+          localCache: persistentLocalCache({
+            tabManager: persistentMultipleTabManager()
+          })
+        });
+        console.log('[Firebase] Firestore initialized with Multi-Tab Persistence');
+      }
+    } catch (e: any) {
+      if (e.code === 'failed-precondition') {
+        // Multiple tabs open, persistence can only be enabled in one tab at a time with older settings,
+        // but persistentMultipleTabManager should handle it. Fallback just in case.
+        db = getFirestore(app);
+        console.warn('[Firebase] Firestore persistence fallback', e);
+      } else {
+        db = getFirestore(app);
+        console.error('[Firebase] Firestore initialization failed, using default', e);
+      }
+    }
+
     // Reduce Firestore log noise (especially offline warnings) to errors only
     try { setLogLevel('error'); } catch {}
     storage = getStorage(app);
@@ -210,7 +393,175 @@ function normalizeProductForSave(payload: any): any {
 
 export const firebaseService = {
   isInitialized: () => isFirebaseInitialized,
-  auth: auth,
+  // Use getter to always return current auth instance (fixes race condition)
+  get auth() { return auth; },
+
+  // --- Order Management ---
+
+  async getOrder(orderId: string): Promise<any | null> {
+    if (!isFirebaseInitialized) return null;
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      const snap = await getDoc(orderRef);
+      if (!snap.exists()) return null;
+      return { id: snap.id, ...snap.data() };
+    } catch (e) {
+      console.error('firebaseService.getOrder error', e);
+      return null;
+    }
+  },
+
+  async updateOrder(orderId: string, updates: any): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not initialized');
+    try {
+      const orderRef = doc(db, 'orders', orderId);
+      await updateDoc(orderRef, {
+        ...updates,
+        updatedAt: serverTimestamp()
+      });
+    } catch (e) {
+      console.error('firebaseService.updateOrder error', e);
+      throw e;
+    }
+  },
+
+  async permanentlyDeleteAccount(userId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== userId) {
+      throw new Error('Not authenticated or user mismatch');
+    }
+
+    const uid = sanitizeFirestoreDocId(userId);
+
+    // 1. Storage Cleanup - Handle what we can
+    try {
+      // Delete avatar
+      const avatarRef = storageRef(storage, `avatars/${uid}.webp`);
+      await deleteObject(avatarRef).catch(() => {});
+
+      // Delete user product folders if any (listing usually requires specific rules, but we'll try)
+      // Products usually under products/{tailorId}/...
+      // Portraits/Generations might be elsewhere.
+    } catch (e) {
+      console.warn('[Cleanup] Storage cleanup partially skipped or failed', e);
+    }
+
+    // 2. Firestore Cleanup - Delete associated documents
+    const collectionsToCleanup = [
+      { name: 'orders', field: 'userId' },
+      { name: 'visualizer_generations', field: 'userId' },
+      { name: 'visualizer_camera_presets', field: 'userId' },
+      { name: 'credit_transactions', field: 'user_id' },
+      { name: 'measurement_profiles', field: 'userId' },
+      { name: 'wishlist', field: 'userId' },
+      { name: 'product_likes', field: 'userId' },
+      { name: 'design_analytics', field: 'userId' },
+      { name: 'notifications', field: 'userId' },
+      { name: 'family_profiles', field: 'headUserId' }
+    ];
+
+    for (const collInfo of collectionsToCleanup) {
+      try {
+        const q = query(collection(db, collInfo.name), where(collInfo.field, '==', uid));
+        const snap = await getDocs(q);
+        const batch = snap.docs.map(d => deleteDoc(d.ref));
+        await Promise.all(batch);
+      } catch (e) {
+        console.warn(`[Cleanup] Failed to clean up collection: ${collInfo.name}`, e);
+      }
+    }
+
+    // Special case: subcollections (users/{userId}/designs)
+    try {
+      const designColl = collection(db, `users/${uid}/designs`);
+      const designSnap = await getDocs(designColl);
+      const designBatch = designSnap.docs.map(d => deleteDoc(d.ref));
+      await Promise.all(designBatch);
+    } catch (e) {
+      console.warn('[Cleanup] Failed to clean up designs subcollection', e);
+    }
+
+    // Delete user profile
+    try {
+      await deleteDoc(doc(db, 'user_profiles', uid));
+    } catch (e) {
+      console.warn('[Cleanup] Failed to delete user_profile document', e);
+    }
+
+    // 3. Final Step: Delete the Auth user
+    // Note: Re-authentication may be required if the session is old.
+    try {
+      await deleteUser(currentUser);
+    } catch (e: any) {
+      console.error('Final deleteUser failed', e);
+      if (e.code === 'auth/requires-recent-login') {
+        throw new Error('REAUTHENTICATION_REQUIRED');
+      }
+      throw e;
+    }
+  },
+
+  async deleteUserAIHistory(userId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+    const uid = sanitizeFirestoreDocId(userId);
+
+    // AI/Designer related collections
+    const collections = [
+      { name: 'visualizer_generations', field: 'userId' },
+      { name: 'visualizer_camera_presets', field: 'userId' },
+      { name: 'design_analytics', field: 'userId' }
+    ];
+
+    for (const collInfo of collections) {
+      try {
+        const q = query(collection(db, collInfo.name), where(collInfo.field, '==', uid));
+        const snap = await getDocs(q);
+        await Promise.all(snap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+      } catch (e) {
+        console.warn(`[AI Cleanup] ${collInfo.name} failed`, e);
+      }
+    }
+
+    // Subcollection: users/{id}/designs
+    try {
+      const designColl = collection(db, `users/${uid}/designs`);
+      const designSnap = await getDocs(designColl);
+      await Promise.all(designSnap.docs.map(d => deleteDoc(d.ref).catch(() => {})));
+    } catch (e) {
+      console.warn('[AI Cleanup] designs failed', e);
+    }
+  },
+
+    async waitForAuth(maxWaitMs = 1500): Promise<any> {
+      if (!isFirebaseInitialized) return null;
+      if (auth.currentUser) return auth.currentUser;
+      return new Promise((resolve) => {
+        const timeout = setTimeout(() => {
+          unsub();
+          resolve(auth.currentUser);
+        }, maxWaitMs);
+        const unsub = onAuthStateChanged(auth, (user) => {
+          clearTimeout(timeout);
+          unsub();
+          resolve(user);
+        });
+      });
+    },
+
+  async changePassword(newPassword: string): Promise<void> {
+    if (!isFirebaseInitialized || !auth.currentUser) {
+      throw new Error('User not authenticated');
+    }
+    
+    try {
+      const user = auth.currentUser;
+      await updatePassword(user, newPassword);
+    } catch (error: any) {
+      console.error('Error changing password:', error);
+      throw error;
+    }
+  },
 
   // ============================================================
   // CREDIT SYSTEM (global_settings, user_profiles, credit_transactions)
@@ -357,6 +708,8 @@ export const firebaseService = {
     if (!isFirebaseInitialized) return null;
     const uid = sanitizeFirestoreDocId(userId);
     if (!uid) return null;
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) return null;
     try {
       const refDoc = doc(db, 'user_profiles', uid);
       const snap = await getDoc(refDoc);
@@ -380,11 +733,15 @@ export const firebaseService = {
     const refDoc = doc(db, 'user_profiles', uid);
     const snap = await getDoc(refDoc);
     if (snap.exists()) return;
+    
+    // Grant initial credits to new users (100 credits = ~3 generations or 10 upscales)
+    const INITIAL_CREDITS = 100;
+    
     await setDoc(
       refDoc,
       {
         user_id: uid,
-        credit_balance: 0,
+        credit_balance: INITIAL_CREDITS,
         tier: 'Free',
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
@@ -537,6 +894,10 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error('Firebase not configured');
     const uid = sanitizeFirestoreDocId(params.userId);
     if (!uid) throw new Error('userId is required');
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) {
+      throw new Error('AUTH_REQUIRED');
+    }
     const amount = Math.floor(Number(params.amount || 0));
     if (!Number.isFinite(amount) || amount === 0) throw new Error('amount must be a non-zero integer');
 
@@ -586,12 +947,19 @@ export const firebaseService = {
 
   /**
    * Purchase credits for a user (user-accessible)
-   * Creates a completed purchase transaction and updates credit balance
+   * Creates a completed purchase transaction, updates credit balance, and tracks purchase history
    */
   async purchaseCredits(params: {
     userId: string;
     amount: number;
-  }): Promise<{ new_balance: number; transaction_id: string }>
+    packageType?: string;
+    packageName?: string;
+    amountPaid?: number;
+    paymentMethod?: string;
+    paymentReference?: string;
+    isSubscription?: boolean;
+    subscriptionPeriod?: { start: string; end: string };
+  }): Promise<{ new_balance: number; transaction_id: string; purchase_id: string }>
   {
     if (!isFirebaseInitialized) throw new Error('Firebase not configured');
     const uid = sanitizeFirestoreDocId(params.userId);
@@ -601,6 +969,7 @@ export const firebaseService = {
 
     const profileRef = doc(db, 'user_profiles', uid);
     const txRef = doc(collection(db, 'credit_transactions'));
+    const purchaseRef = doc(collection(db, 'purchase_history'));
 
     const result = await runTransaction(db, async (tx) => {
       const profileSnap = await tx.get(profileRef);
@@ -608,20 +977,68 @@ export const firebaseService = {
       const currentBalance = current && typeof current.credit_balance === 'number' ? current.credit_balance : 0;
       const newBalance = currentBalance + amount;
 
-      // Create the purchase transaction first
-      tx.set(txRef, {
+      // Create the purchase transaction (omit undefined fields)
+      const txData: any = {
         transaction_id: txRef.id,
         user_id: uid,
         amount,
         action_type: 'purchase',
         status: 'completed',
         meta: {
-          purchase_type: 'credit_package',
+          purchase_type: params.packageType || 'credit_package',
+          package_name: params.packageName || 'Custom Package',
+          amount_paid: params.amountPaid || 0,
+          is_subscription: params.isSubscription || false,
           timestamp: Date.now(),
         },
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
-      });
+      };
+      
+      // Add optional meta fields only if defined
+      if (params.paymentMethod) txData.meta.payment_method = params.paymentMethod;
+      if (params.paymentReference) txData.meta.payment_reference = params.paymentReference;
+      
+      tx.set(txRef, txData);
+
+      // Create detailed purchase history record (omit undefined fields)
+      const purchaseData: any = {
+        purchase_id: purchaseRef.id,
+        transaction_id: txRef.id,
+        user_id: uid,
+        
+        // Package details
+        package_type: params.packageType || 'custom',
+        package_name: params.packageName || 'Custom Package',
+        
+        // Financial info
+        amount_paid: params.amountPaid || 0,
+        currency: 'OMR',
+        credits_purchased: amount,
+        
+        // Balance tracking
+        balance_before: currentBalance,
+        balance_after: newBalance,
+        
+        // Status and payment
+        status: 'completed',
+        payment_method: params.paymentMethod || 'other',
+        
+        // Timestamps
+        purchase_date: new Date().toISOString(),
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+        
+        // Subscription info
+        is_subscription: params.isSubscription || false,
+      };
+      
+      // Add optional fields only if defined
+      if (params.paymentReference) purchaseData.payment_reference = params.paymentReference;
+      if (params.subscriptionPeriod?.start) purchaseData.subscription_period_start = params.subscriptionPeriod.start;
+      if (params.subscriptionPeriod?.end) purchaseData.subscription_period_end = params.subscriptionPeriod.end;
+      
+      tx.set(purchaseRef, purchaseData);
 
       // Update user profile with PURCHASE operation
       if (profileSnap.exists()) {
@@ -629,6 +1046,7 @@ export const firebaseService = {
           credit_balance: newBalance, 
           last_credit_op: 'purchase',
           last_credit_tx: txRef.id,
+          last_purchase_id: purchaseRef.id,
           updatedAt: serverTimestamp() 
         });
       } else {
@@ -637,16 +1055,77 @@ export const firebaseService = {
           credit_balance: newBalance,
           last_credit_op: 'purchase',
           last_credit_tx: txRef.id,
+          last_purchase_id: purchaseRef.id,
           tier: 'Free',
           createdAt: serverTimestamp(),
           updatedAt: serverTimestamp(),
         });
       }
 
-      return { new_balance: newBalance, transaction_id: txRef.id };
+      return { new_balance: newBalance, transaction_id: txRef.id, purchase_id: purchaseRef.id };
     });
 
     return result;
+  },
+
+  /**
+   * Get purchase history for a user
+   */
+  async getPurchaseHistory(params: {
+    userId: string;
+    limit?: number;
+  }): Promise<any[]> {
+    if (!isFirebaseInitialized) return [];
+    const uid = sanitizeFirestoreDocId(params.userId);
+    if (!uid) return [];
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) return [];
+
+    try {
+      const historyRef = collection(db, 'purchase_history');
+      const q = query(
+        historyRef,
+        where('user_id', '==', uid),
+        orderBy('createdAt', 'desc'),
+        limit(params.limit || 50)
+      );
+      const snapshot = await getDocs(q);
+      console.log('📦 getPurchaseHistory: Found', snapshot.docs.length, 'records for user:', uid);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('❌ getPurchaseHistory error:', error);
+      return [];
+    }
+  },
+
+  /**
+   * Get credit transactions for a user (fallback for legacy purchases)
+   */
+  async getCreditTransactions(params: {
+    userId: string;
+    limit?: number;
+  }): Promise<any[]> {
+    if (!isFirebaseInitialized) return [];
+    const uid = sanitizeFirestoreDocId(params.userId);
+    if (!uid) return [];
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) return [];
+
+    try {
+      const txRef = collection(db, 'credit_transactions');
+      const q = query(
+        txRef,
+        where('user_id', '==', uid),
+        orderBy('createdAt', 'desc'),
+        limit(params.limit || 50)
+      );
+      const snapshot = await getDocs(q);
+      console.log('📝 getCreditTransactions: Found', snapshot.docs.length, 'records for user:', uid);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+      console.error('❌ getCreditTransactions error:', error);
+      return [];
+    }
   },
   
   async findUserByLoginId(loginId: string): Promise<{ uid: string; email: string | '' } | null> {
@@ -715,40 +1194,107 @@ export const firebaseService = {
     const digits = (phoneDigits || '').replace(/[^0-9]/g, '');
     return `${digits}@khuyoot.app`;
   },
+
+  async diagnoseAuthConnectivity(): Promise<{
+    online: boolean;
+    apiKeyPrefix: string;
+    projectId: string;
+    authDomain: string;
+    origin: string;
+    href: string;
+    identityToolkitV1: AuthProbeResult;
+    identityToolkitV3: AuthProbeResult;
+    secureToken: AuthProbeResult;
+    persistenceMode: string;
+  }> {
+    const apiKey = firebaseConfig.apiKey || '';
+    const apiKeyPrefix = apiKey ? apiKey.slice(0, 8) : 'missing';
+    const online = typeof navigator !== 'undefined' ? navigator.onLine : true;
+    const origin = typeof window !== 'undefined' ? (window.location?.origin || '') : '';
+    const href = typeof window !== 'undefined' ? (window.location?.href || '') : '';
+
+    // Firebase Auth has historically used the v1 endpoint below.
+    // Some networks/extensions will allow identitytoolkit.googleapis.com but block www.googleapis.com,
+    // and some API-key restriction errors return non-CORS responses that surface as "network-request-failed".
+    const identityEndpointV1 = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${apiKey}`;
+    const identityEndpointV3 = `https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key=${apiKey}`;
+    const secureTokenEndpoint = `https://securetoken.googleapis.com/v1/token?key=${apiKey}`;
+
+    const identityToolkitV1 = await probeEndpoint(
+      identityEndpointV1,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Use a dummy payload; a 400 response still indicates reachability.
+        body: JSON.stringify({ email: 'probe@khuyoot.app', password: 'invalid', returnSecureToken: true }),
+      },
+      8000
+    );
+
+    const identityToolkitV3 = await probeEndpoint(
+      identityEndpointV3,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        // Dummy payload; endpoint should respond with JSON error if reachable.
+        body: JSON.stringify({ email: 'probe@khuyoot.app', password: 'invalid', returnSecureToken: true }),
+      },
+      8000
+    );
+
+    const secureToken = await probeEndpoint(
+      secureTokenEndpoint,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        // Dummy payload to check reachability.
+        body: 'grant_type=refresh_token&refresh_token=invalid',
+      },
+      8000
+    );
+
+    return {
+      online,
+      apiKeyPrefix,
+      projectId: firebaseConfig.projectId || 'missing',
+      authDomain: firebaseConfig.authDomain || 'missing',
+      origin,
+      href,
+      identityToolkitV1,
+      identityToolkitV3,
+      secureToken,
+      persistenceMode: getAuthPersistenceMode(),
+    };
+  },
   
   async login(email: string, pass: string): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
-    
-    // Retry logic for network issues
-    const maxRetries = 2;
-    let lastError: any = null;
-    
-    for (let attempt = 0; attempt <= maxRetries; attempt++) {
-      try {
-        // Add timeout to prevent hanging indefinitely
-        const loginPromise = signInWithEmailAndPassword(auth, email, pass);
-        const timeoutPromise = new Promise<never>((_, reject) => 
-          setTimeout(() => reject(new Error('Login timeout - Firebase is not responding')), 15000)
-        );
-        
-        const credential = await Promise.race([loginPromise, timeoutPromise]);
-        return mapFirebaseUser(credential.user);
-      } catch (error: any) {
-        lastError = error;
-        
-        // Retry on network errors or timeouts
-        if ((error.code === 'auth/network-request-failed' || error.message?.includes('timeout')) && attempt < maxRetries) {
-          console.warn(`🔄 Login attempt ${attempt + 1} failed (${error.message}), retrying...`);
-          await new Promise(resolve => setTimeout(resolve, 1000 * (attempt + 1)));
-          continue;
-        }
-        
-        // Don't retry for other errors
-        throw error;
-      }
+
+    // NOTE: Using REST API bypass because signInWithEmailAndPassword hangs in some environments.
+    // See: src/services/authBypass.ts for detailed explanation.
+    try {
+      const { signInWithEmailPasswordBypass } = await import('../src/services/authBypass');
+      const result = await signInWithEmailPasswordBypass(email, pass);
+      
+      // Return immediately with user data from REST API response
+      // The SDK's onAuthStateChanged will fire asynchronously when it picks up the stored tokens
+      const user: User = {
+        id: result.user?.uid || result.idToken.split('.')[0], // Use uid from token if user not available
+        name: email.split('@')[0], // Will be updated by Firestore fetch
+        email: email,
+        avatar: undefined,
+        isGuest: false,
+        joinDate: new Date().toLocaleDateString('ar-OM'),
+        role: 'user' // Will be updated by Firestore fetch
+      };
+      
+      return user;
+    } catch (error) {
+      console.error('[Firebase] REST bypass failed, falling back to SDK:', error);
+      // Fallback to SDK method (though it may hang)
+      const credential = await signInWithEmailAndPassword(auth, email, pass);
+      return mapFirebaseUser(credential.user);
     }
-    
-    throw lastError;
   },
 
   async register(email: string, pass: string, name: string, role: UserRole, merchantInfo?: any): Promise<User> {
@@ -814,14 +1360,58 @@ export const firebaseService = {
 
   async getUserProfile(uid: string): Promise<User | null> {
     if (!isFirebaseInitialized) return null;
+
+    const LS_KEY = `khuyoot:user-profile:${uid}`;
+
+    // SOLUTION C: LocalStorage Mirror (Immediate return)
+    if (TEST_MODE === 'C') {
+      try {
+        const cached = localStorage.getItem(LS_KEY);
+        if (cached) {
+          console.log(`[FirebaseService] [Test C] Returning identity from LocalStorage mirror`);
+          return JSON.parse(cached);
+        }
+      } catch (e) { /* ignore */ }
+    }
+
     try {
-      const docRef = doc(db, 'users', uid);
-      const docSnap = await getDoc(docRef);
+      // SOLUTION B: Strictly Cache-First
+      // (Default behavior now also includes this optimization)
+      const userRef = doc(db, 'users', uid);
+      const profileRef = doc(db, 'user_profiles', uid);
       
-      if (docSnap.exists()) {
-        const rawData = docSnap.data();
+      let userSnap;
+      let profileSnap;
+
+      try {
+        [userSnap, profileSnap] = await Promise.all([
+          getDocFromCache(userRef),
+          getDocFromCache(profileRef)
+        ]);
+        console.log(`[FirebaseService] User profile loaded from cache for ${uid}`);
+      } catch (cacheError) {
+        // Fallback to server if cache miss
+        [userSnap, profileSnap] = await Promise.all([
+          getDoc(userRef),
+          getDoc(profileRef)
+        ]);
+      }
+
+      if (userSnap.exists() || profileSnap.exists()) {
+        const userData = userSnap.exists() ? userSnap.data() : {};
+        const profileData = profileSnap.exists() ? profileSnap.data() : {};
+        
+        // Merge them - profileData (user_profiles) usually has more specific info like credits
+        const merged = { ...userData, ...profileData };
+        
         // Apply defaults to ensure all fields exist
-        const normalizedUser = applyUserDefaults(rawData, uid);
+        const normalizedUser = applyUserDefaults(merged, uid);
+
+        // PERSIST Mirror for Solution C
+        try {
+          localStorage.setItem(LS_KEY, JSON.stringify(normalizedUser));
+        } catch (e) {}
+
         return normalizedUser as any;
       }
       return null;
@@ -852,7 +1442,19 @@ export const firebaseService = {
 
   async logout(): Promise<void> {
     if (!isFirebaseInitialized) return;
-    await signOut(auth);
+    
+    // Clear localStorage auth data
+    const API_KEY = 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
+    const authKey = `firebase:authUser:${API_KEY}:[DEFAULT]`;
+    localStorage.removeItem(authKey);
+    
+    console.log('🚪 Logout: localStorage cleared');
+    
+    // Trigger custom event to notify AuthProvider immediately
+    window.dispatchEvent(new Event('auth-bypass-logout'));
+    
+    // Also call SDK signOut (will run in background)
+    signOut(auth).catch(console.warn);
   },
 
   async getProducts(category?: string): Promise<Product[]> {
@@ -962,7 +1564,7 @@ export const firebaseService = {
         
         const aTime = getTime(aData);
         const bTime = getTime(bData);
-        return aTime - bTime; // oldest first
+        return bTime - aTime; // Newest first
       });
       
       try { console.log(`✅ Firebase products fetched: ${products.length} (from ${approvedUserIds.size} approved users)`); } catch {}
@@ -1276,6 +1878,16 @@ export const firebaseService = {
       };
 
       const fetchSettings = (async () => {
+        // OPTIMIZATION: Try cache first to avoid waiting for sync block
+        try {
+          const cachedSnap = await getDocFromCache(settingsRef);
+          if (cachedSnap.exists()) {
+            return { ...defaultSettings, ...cachedSnap.data() } as AppSettings;
+          }
+        } catch (e) {
+          // ignore cache errors/misses
+        }
+
         const docSnap = await getDoc(settingsRef);
         if (docSnap.exists()) {
           const loadedSettings = { ...defaultSettings, ...docSnap.data() } as AppSettings;
@@ -1360,6 +1972,17 @@ export const firebaseService = {
 
     const settingsRef = doc(db, 'system', 'settings');
     const fetchSettings = (async () => {
+      // OPTIMIZATION: Try cache first to avoid waiting for sync engine
+      try {
+        const cachedSnap = await getDocFromCache(settingsRef);
+        if (cachedSnap.exists()) {
+          console.log('[FirebaseService] Global settings (strict) loaded from cache');
+          return { ...defaultSettings, ...cachedSnap.data() } as AppSettings;
+        }
+      } catch (e) {
+        // ignore cache miss
+      }
+
       const docSnap = await getDoc(settingsRef);
       if (docSnap.exists()) {
         return { ...defaultSettings, ...docSnap.data() } as AppSettings;
@@ -1384,6 +2007,40 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     const settingsRef = doc(db, 'system', 'settings');
     await setDoc(settingsRef, settings, { merge: true });
+  },
+
+  async getProductCategories(level?: number): Promise<any[]> {
+    if (!isFirebaseInitialized) {
+      // Fallback to defaults from global settings
+      return [
+        { id: 'dishdasha', name: 'الدشاديش', nameEn: 'Dishdasha' },
+        { id: 'jacket', name: 'الجاكيت', nameEn: 'Jacket' },
+        { id: 'abaya', name: 'العبايات', nameEn: 'Abaya' },
+        { id: 'kids', name: 'الأطفال', nameEn: 'Kids' },
+        { id: 'shoes', name: 'الأحذية', nameEn: 'Shoes' },
+      ];
+    }
+
+    try {
+      const collRef = collection(db, 'productCategories');
+      let q;
+      if (level !== undefined) {
+        q = query(collRef, where('level', '==', level), where('isActive', '==', true));
+      } else {
+        q = query(collRef, where('isActive', '==', true));
+      }
+      
+      const snapshot = await getDocs(q);
+      const categories: any[] = [];
+      snapshot.forEach(docSnap => {
+        categories.push({ id: docSnap.id, ...docSnap.data() });
+      });
+      
+      return categories.sort((a, b) => (a.order || 0) - (b.order || 0));
+    } catch (error) {
+      console.error("Error fetching product categories:", error);
+      return [];
+    }
   },
 
   // --- Measurements Management ---
@@ -2752,5 +3409,8 @@ export const firebaseService = {
       console.error('Error deleting user template:', error);
       throw error;
     }
-  }
+  },
 };
+
+
+

@@ -34,10 +34,11 @@ export type ImagePrepModalProps = {
   mode?: 'template' | 'fabric'; // template = show privacy controls, fabric = hide privacy controls
   fabricMaterial?: 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null;
   onFabricMaterialChange?: (next: 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null) => void;
+  theme?: 'default' | 'designer';
 };
 
 export function ImagePrepModal(props: ImagePrepModalProps) {
-  const { t, i18n } = useTranslation(undefined, { keyPrefix: 'designer' });
+  const { t, i18n } = useTranslation('designer');
   const {
     isOpen,
     file,
@@ -47,8 +48,10 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
     mode = 'template',
     fabricMaterial: fabricMaterialValue,
     onFabricMaterialChange,
+    theme = 'default',
   } = props;
   const isTemplateMode = mode === 'template';
+  const isDesignerTheme = theme === 'designer';
 
   const rebrowseInputRef = React.useRef<HTMLInputElement | null>(null);
 
@@ -450,108 +453,108 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       }}
       title={t('imagePrepTitle')}
       maxWidth="max-w-[540px]"
-      containerClassName="rounded-xl mx-auto"
+      containerClassName={`rounded-xl mx-auto max-h-[85vh] ${isDesignerTheme ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : ''}`}
+      headerClassName={isDesignerTheme ? 'border-zinc-800 bg-zinc-950/95 py-2' : 'py-2'}
+      titleClassName={isDesignerTheme ? 'text-zinc-100 text-base' : 'text-base'}
+      contentClassName={isDesignerTheme ? 'bg-zinc-950 text-zinc-200' : undefined}
+      footerClassName={isDesignerTheme ? 'border-zinc-800 bg-zinc-950' : undefined}
+      closeButtonClassName={isDesignerTheme ? 'hidden' : undefined}
       showFooter={false}
       debugId="IMAGE-PREP"
       footer={
-        <div className={`flex items-center justify-center gap-2 ${i18n.language === 'ar' ? 'flex-row-reverse' : ''}`}>
+        <div className={`flex items-center justify-between gap-2 ${i18n.language === 'ar' ? 'flex-row-reverse' : ''}`}>
+          {/* Left side: Privacy controls (template mode only) */}
+          {isTemplateMode ? (
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => {
+                  const next = !isPrivacyMode;
+                  setPrivacyMode(next);
+                  if (next) {
+                    const originalUrl = originalImgUrlRef.current;
+                    if (originalUrl) setImgSrc(originalUrl);
+                    requestMaskRefresh();
+                  } else {
+                    maskJobIdRef.current += 1;
+                    setIsMaskingForDisplay(false);
+                    setProgressText(null);
+                    const originalUrl = originalImgUrlRef.current;
+                    if (originalUrl) setImgSrc(originalUrl);
+                    setShowAdvancedSettings(false);
+                  }
+                }}
+                disabled={isApplying || isMaskingForDisplay}
+                className={`h-11 w-11 rounded-lg transition-all border flex items-center justify-center ${
+                  isPrivacyMode
+                    ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                    : isDesignerTheme
+                      ? 'bg-zinc-900/70 border-zinc-700 text-zinc-200 hover:bg-zinc-900'
+                      : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
+                } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
+                title={isPrivacyMode ? t('imagePrepDisableFaceHide') : t('imagePrepEnableFaceHide')}
+                aria-pressed={isPrivacyMode}
+              >
+                <span className={`text-lg ${isPrivacyMode ? '' : 'opacity-90'}`}>🎭</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+                disabled={!isPrivacyMode || isApplying || isMaskingForDisplay}
+                className={`h-11 w-11 rounded-lg transition-all flex items-center justify-center ${
+                  !isPrivacyMode || isApplying || isMaskingForDisplay
+                    ? isDesignerTheme
+                      ? 'text-zinc-600 cursor-not-allowed'
+                      : 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
+                    : showAdvancedSettings
+                      ? isDesignerTheme
+                        ? 'bg-zinc-900 text-zinc-100 border border-zinc-700'
+                        : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
+                      : isDesignerTheme
+                        ? 'text-zinc-400 hover:bg-zinc-900 border border-zinc-800'
+                        : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
+                }`}
+                title={isPrivacyMode ? t('imagePrepAdvancedSettings') : t('imagePrepEnableFaceHideToShow')}
+              >
+                <Settings size={18} />
+              </button>
+            </div>
+          ) : <div />}
+          
+          {/* Right side: Action buttons */}
+          <div className="flex items-center gap-2">
           <button
             type="button"
-            className="h-11 w-11 sm:h-10 sm:w-auto sm:flex-1 sm:px-3 sm:py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center gap-2"
+            className="h-11 w-11 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center"
             disabled={isApplying}
             onClick={() => void handleApply()}
+            title={isApplying ? t('imagePrepProcessing') : t('imagePrepApply')}
+            aria-label={isApplying ? t('imagePrepProcessing') : t('imagePrepApply')}
           >
-            {isApplying ? (
-              <>
-                <span className="sm:hidden">
-                  <Check size={16} />
-                </span>
-                <span className="hidden sm:inline">{t('imagePrepProcessing')}</span>
-              </>
-            ) : (
-              <>
-                <span className="sm:hidden">
-                  <Check size={16} />
-                </span>
-                <span className="hidden sm:inline">{t('imagePrepApply')}</span>
-              </>
-            )}
+            <Check size={16} />
           </button>
           <button
             type="button"
-            className="h-11 w-11 sm:h-10 sm:w-auto sm:px-3 sm:py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            className="h-11 w-11 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center"
             disabled={isApplying || !onReplaceFile}
             onClick={() => rebrowseInputRef.current?.click()}
             title={!onReplaceFile ? t('imagePrepNotAvailableHere') : t('imagePrepChooseOther')}
+            aria-label={!onReplaceFile ? t('imagePrepNotAvailableHere') : t('imagePrepChooseOther')}
           >
-            <span className="sm:hidden">
-              <ImagePlus size={16} />
-            </span>
-            <span className="hidden sm:inline">{t('imagePrepChange')}</span>
+            <ImagePlus size={16} />
           </button>
           <button
             type="button"
-            className="h-11 w-11 sm:h-10 sm:w-auto sm:px-3 sm:py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+            className="h-11 w-11 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-[0.98] flex items-center justify-center"
             disabled={isApplying}
             onClick={onCancel}
+            title={t('imagePrepCancel')}
+            aria-label={t('imagePrepCancel')}
           >
-            <span className="sm:hidden">
-              <X size={16} />
-            </span>
-            <span className="hidden sm:inline">{t('imagePrepCancel')}</span>
+            <X size={16} />
           </button>
-        </div>
-      }
-      headerActions={
-        isTemplateMode ? (
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => {
-                const next = !isPrivacyMode;
-                setPrivacyMode(next);
-                if (next) {
-                  // Force a fresh mask preview.
-                  const originalUrl = originalImgUrlRef.current;
-                  if (originalUrl) setImgSrc(originalUrl);
-                  requestMaskRefresh();
-                } else {
-                  maskJobIdRef.current += 1;
-                  setIsMaskingForDisplay(false);
-                  setProgressText(null);
-                  const originalUrl = originalImgUrlRef.current;
-                  if (originalUrl) setImgSrc(originalUrl);
-                  setShowAdvancedSettings(false);
-                }
-              }}
-              disabled={isApplying || isMaskingForDisplay}
-              className={`p-2 rounded-lg transition-all border ${
-                isPrivacyMode
-                  ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
-                  : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
-              } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
-              title={isPrivacyMode ? t('imagePrepDisableFaceHide') : t('imagePrepEnableFaceHide')}
-              aria-pressed={isPrivacyMode}
-            >
-              <span className={`text-lg ${isPrivacyMode ? '' : 'opacity-90'}`}>🎭</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
-              disabled={!isPrivacyMode || isApplying || isMaskingForDisplay}
-              className={`p-2 rounded-lg transition-all ${
-                !isPrivacyMode || isApplying || isMaskingForDisplay
-                  ? 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
-                  : showAdvancedSettings
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
-                    : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
-              }`}
-              title={isPrivacyMode ? t('imagePrepAdvancedSettings') : t('imagePrepEnableFaceHideToShow')}
-            >
-              <Settings size={18} />
-            </button>
           </div>
-        ) : null
+        </div>
       }
     >
       <input
@@ -567,8 +570,12 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
         }}
       />
 
-      {!file || !imgSrc ? (
-        <div className="text-sm text-slate-600 dark:text-slate-300">{t('imagePrepSelectImageFirst')}</div>
+      {!file ? (
+        <div className={`text-sm ${isDesignerTheme ? 'text-zinc-400' : 'text-slate-600 dark:text-slate-300'}`}>{t('imagePrepSelectImageFirst')}</div>
+      ) : !imgSrc ? (
+        <div className="flex items-center justify-center py-8">
+          <div className={`h-8 w-8 rounded-full border-2 ${isDesignerTheme ? 'border-zinc-600' : 'border-slate-300 dark:border-slate-600'} border-t-transparent animate-spin`} />
+        </div>
       ) : (
         <div className="relative flex flex-col">
           <style>{`
@@ -609,7 +616,11 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           {/* Crop Section - Compact */}
           <div className="image-prep-crop-wrapper mb-2">
             <div
-              className="h-[46vh] sm:h-[40vh] rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 p-2 overflow-visible flex items-center justify-center"
+              className={`h-[50vh] sm:h-[48vh] rounded-lg border p-2 overflow-visible flex items-center justify-center ${
+                isDesignerTheme
+                  ? 'border-zinc-700 bg-zinc-950/60'
+                  : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50'
+              }`}
               dir="ltr"
             >
               <ReactCrop
@@ -645,8 +656,14 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           </div>
 
           {!isTemplateMode && (
-            <div className="mb-2 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-2.5">
-              <div className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-2">
+            <div className={`mb-2 rounded-lg border px-3 py-2.5 ${
+              isDesignerTheme
+                ? 'border-zinc-700 bg-zinc-900/50'
+                : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
+            }`}>
+              <div className={`text-[10px] font-semibold uppercase tracking-wide mb-2 ${
+                isDesignerTheme ? 'text-zinc-400' : 'text-slate-500 dark:text-slate-400'
+              }`}>
                 {t('imagePrepFabricType')}
               </div>
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
@@ -672,7 +689,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                       className={`flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all ${
                         isActive
                           ? 'border-purple-500 bg-purple-500/15 text-purple-600 dark:text-purple-300'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
+                          : isDesignerTheme
+                            ? 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                            : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                       title={material.label}
                     >
@@ -687,12 +706,20 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
 
           {/* Advanced Privacy Settings - Collapsible & Compact */}
           {isPrivacyMode && showAdvancedSettings && (
-            <div className="mb-2 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className={`mb-2 rounded-lg border overflow-hidden ${
+              isDesignerTheme
+                ? 'border-zinc-700'
+                : 'border-slate-200 dark:border-slate-700'
+            }`}>
 
-              <div className="px-3 py-2.5 space-y-2.5 bg-white dark:bg-slate-900">
+              <div className={`px-3 py-2.5 space-y-2.5 ${
+                isDesignerTheme ? 'bg-zinc-900/50' : 'bg-white dark:bg-slate-900'
+              }`}>
                 {/* Masking Style - Compact Icons */}
                 <div>
-                  <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 block">
+                  <label className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 block ${
+                    isDesignerTheme ? 'text-zinc-400' : 'text-slate-500 dark:text-slate-400'
+                  }`}>
                     {t('imagePrepMaskStyleLabel')}
                   </label>
                   <div className="flex gap-1.5">
@@ -708,11 +735,15 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                         className={`flex-1 py-1.5 px-2 rounded-md border text-center transition-all ${
                           maskingStyle === style.value
                             ? 'bg-purple-500/15 border-purple-500/60 shadow-sm'
-                            : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'
+                            : isDesignerTheme
+                              ? 'bg-zinc-900 border-zinc-700'
+                              : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'
                         }`}
                       >
                         <div className="text-base leading-none mb-0.5">{style.icon}</div>
-                        <div className="text-[9px] font-medium text-slate-600 dark:text-slate-400">{style.label}</div>
+                        <div className={`text-[9px] font-medium ${
+                          isDesignerTheme ? 'text-zinc-400' : 'text-slate-600 dark:text-slate-400'
+                        }`}>{style.label}</div>
                       </button>
                     ))}
                   </div>
@@ -721,7 +752,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 {/* Blur Strength - Compact */}
                 {maskingStyle === 'feathered-blur' && (
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1 flex items-center justify-between">
+                    <label className={`text-[10px] font-semibold uppercase tracking-wide mb-1 flex items-center justify-between ${
+                      isDesignerTheme ? 'text-zinc-400' : 'text-slate-500 dark:text-slate-400'
+                    }`}>
                       <span>{t('imagePrepStrength')}</span>
                       <span className="text-xs text-purple-600 dark:text-purple-400 font-bold">{blurStrength}px</span>
                     </label>
@@ -739,7 +772,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 {/* Emoji Selection - Compact Grid */}
                 {maskingStyle === 'emoji' && (
                   <div>
-                    <label className="text-[10px] font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wide mb-1.5 block">
+                    <label className={`text-[10px] font-semibold uppercase tracking-wide mb-1.5 block ${
+                      isDesignerTheme ? 'text-zinc-400' : 'text-slate-500 dark:text-slate-400'
+                    }`}>
                       {t('imagePrepChooseEmoji')}
                     </label>
                     <div className="grid grid-cols-4 gap-1.5">
@@ -751,7 +786,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                           className={`aspect-square py-1.5 rounded-md border text-xl transition-all ${
                             selectedEmoji === emoji
                               ? 'bg-purple-500/15 border-purple-500/60 shadow-sm scale-105'
-                              : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:scale-105'
+                              : isDesignerTheme
+                                ? 'bg-zinc-900 border-zinc-700 hover:scale-105'
+                                : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700 hover:scale-105'
                           }`}
                         >
                           {emoji}
@@ -765,7 +802,11 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           )}
 
           {error && (
-            <div className="mb-2 px-3 py-2 rounded-lg bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-xs text-red-700 dark:text-red-300">
+            <div className={`mb-2 px-3 py-2 rounded-lg text-xs ${
+              isDesignerTheme
+                ? 'bg-red-950/40 border border-red-800 text-red-300'
+                : 'bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-700 dark:text-red-300'
+            }`}>
               {error}
             </div>
           )}

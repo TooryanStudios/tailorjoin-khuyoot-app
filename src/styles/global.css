@@ -1,16 +1,59 @@
-﻿/* Minimal Clean CSS - Fresh Start */
+/* Minimal Clean CSS - Fresh Start */
 
 :root {
   --app-height: 100vh;
   --footer-height: 74px;
   
-  /* Master/Main Color Theme */
-  --theme-primary: #2fb8b3;
-  --theme-main: #2fb8b3;
-  --theme-master: #2fb8b3;
+  /* 🎨 Master Theme (Unified App Identity) */
+  --theme-master: #2563eb;       /* Vivid Blue (Primary) */
+  --theme-primary: #2563eb;
+  --theme-primary-glow: rgba(37, 99, 235, 0.15);
+  --theme-primary-dark: #1d4ed8;
+  --theme-secondary: #0ea5e9;     /* Cyan/Sky Blue (Accent) */
   
-  /* Derived theme colors (fallbacks; enhanced below when supported) */
-  --theme-primary-dark: #1f8f8b;
+  /* 🌌 Studio Design Tokens (Creati.studio style) */
+  --studio-bg: #ffffff;
+  --studio-sidebar: #0a0a0a;
+  --studio-card: #f9f9f9;
+  --studio-card-border: rgba(0, 0, 0, 0.05);
+  --studio-primary: var(--theme-primary);
+  --studio-primary-glow: var(--theme-primary-glow);
+  --studio-success: #10b981;
+  --studio-danger: #ef4444;
+  --studio-text: #1a1a1a;
+  --studio-text-muted: #71717a;
+  --studio-surface: #f3f4f6;
+}
+
+/* 🌙 Studio Dark Mode Overrides */
+.dark {
+  --studio-bg: #09090b; /* zinc-950 */
+  --studio-sidebar: #000000;
+  --studio-card: #18181b; /* zinc-900 */
+  --studio-card-border: rgba(255, 255, 255, 0.08);
+  --studio-success: #059669;
+  --studio-danger: #dc2626;
+  --studio-text: #ffffff;
+  --studio-text-muted: #a1a1aa;
+  --studio-surface: #09090b;
+}
+
+/* 🚀 Global Studio Utilities */
+.studio-glass {
+  background: var(--studio-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--studio-card-border);
+}
+
+.studio-card-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.studio-card-hover:hover {
+  transform: translateY(-4px) scale(1.01);
+  border-color: rgba(255, 255, 255, 0.15);
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.2), 0 0 15px var(--studio-primary-glow);
 }
 
 @supports (color: color-mix(in srgb, black, white)) {
@@ -91,7 +134,7 @@ html, body {
 }
 
 /* Hide scrollbars on mobile devices */
-@media (max-width: 768px) {
+@media (max-width: 640px) {
   * {
     -ms-overflow-style: none;  /* IE and Edge */
     scrollbar-width: none;  /* Firefox */
@@ -108,6 +151,25 @@ html, body {
   scrollbar-color: #3f3f46 transparent;
 }
 
+/* Studio Main Scrollbar */
+.studio-main-viewport::-webkit-scrollbar {
+  width: 8px;
+}
+
+.studio-main-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.studio-main-viewport::-webkit-scrollbar-thumb {
+  background: #e2e2e7; /* zinc-200 */
+  border-radius: 10px;
+  border: 2px solid white;
+}
+
+.studio-main-viewport::-webkit-scrollbar-thumb:hover {
+  background: #d4d4d8; /* zinc-300 */
+}
+
 /* Hide scrollbar utility */
 .scrollbar-hide {
   -ms-overflow-style: none;  /* IE and Edge */
@@ -116,6 +178,35 @@ html, body {
 
 .scrollbar-hide::-webkit-scrollbar {
   display: none;  /* Chrome, Safari and Opera */
+}
+
+/* ✨ Premium Animations */
+@keyframes shine {
+  0% { left: -100%; }
+  20% { left: 100%; }
+  100% { left: 100%; }
+}
+
+.animate-shine {
+  position: relative;
+  overflow: hidden;
+}
+
+.animate-shine::after {
+  content: "";
+  position: absolute;
+  top: -50%;
+  left: -100%;
+  width: 50%;
+  height: 200%;
+  background: linear-gradient(
+    to right,
+    transparent,
+    rgba(255, 255, 255, 0.2),
+    transparent
+  );
+  transform: rotate(25deg);
+  animation: shine 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
 /* Fix autofill styling for dark inputs */

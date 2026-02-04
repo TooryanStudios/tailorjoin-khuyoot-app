@@ -1,4 +1,5 @@
 import React from 'react';
+import { createPortal } from 'react-dom';
 import { AlertCircle, X } from 'lucide-react';
 
 interface ErrorModalProps {
@@ -14,10 +15,20 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
   title = 'خطأ',
   message,
 }) => {
+  // Prevent overlay cleanup from removing this modal
+  React.useEffect(() => {
+    if (isOpen) {
+      try { document.body.classList.add('modal-open'); } catch {}
+    }
+    return () => {
+      try { document.body.classList.remove('modal-open'); } catch {}
+    };
+  }, [isOpen]);
+
   if (!isOpen) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+  return createPortal(
+    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
       <div className="bg-zinc-900 border border-zinc-700 rounded-lg shadow-2xl max-w-md w-full mx-4 overflow-hidden">
         {/* Header */}
         <div className="relative flex items-center px-6 py-4 border-b border-zinc-800 bg-zinc-950">
@@ -53,6 +64,7 @@ export const ErrorModal: React.FC<ErrorModalProps> = ({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };

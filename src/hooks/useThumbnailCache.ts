@@ -12,12 +12,14 @@ type CacheMetaV1 = {
 };
 
 const STORAGE_KEY = 'khuyoot_thumbnail_cache_meta_v1';
+const PERSISTENT_CACHE_NAME = 'khuyoot-thumbnail-persistent-v1';
 
 const listeners = new Set<() => void>();
 let version = 0;
 
 const entries = new Map<string, CacheEntry>(); // remoteUrl -> entry (insertion order = LRU order)
 const inFlight = new Map<string, Promise<string>>();
+
 // IMPORTANT: Use a global capacity that only grows.
 // If some views request a smaller maxEntries, it should NOT evict entries created
 // for other views (otherwise navigating away/back causes visible image reloads).
@@ -36,7 +38,7 @@ function bump() {
 
 function readMeta(): CacheMetaV1 | null {
   try {
-    const raw = window.sessionStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as CacheMetaV1;
     if (!parsed || parsed.v !== 1 || !Array.isArray(parsed.order)) return null;
@@ -50,13 +52,50 @@ function writeMeta() {
   try {
     const meta: CacheMetaV1 = {
       v: 1,
-      order: Array.from(entries.keys()),
+      order: Array.from(entries.keys()).slice(-100), // Keep a reasonable history
       touchedAt: Date.now(),
     };
-    window.sessionStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(meta));
   } catch {
     // ignore
   }
+}
+
+let isHydrating = false;
+async function hydrate(max = 40) {
+  if (isHydrating || typeof caches === 'undefined') return;
+  isHydrating = true;
+  
+  try {
+    const meta = readMeta();
+    if (!meta?.order?.length) return;
+
+    const cache = await caches.open(PERSISTENT_CACHE_NAME);
+    const toHydrate = meta.order.slice(-max);
+    
+    for (const url of toHydrate) {
+      if (entries.has(url)) continue;
+      const matched = await cache.match(url);
+      if (matched) {
+        const b = await matched.blob();
+        entries.set(url, { blobUrl: URL.createObjectURL(b), lastAccess: Date.now() });
+      }
+    }
+    
+    if (toHydrate.length > 0) {
+      bump();
+    }
+  } catch (e) {
+    console.warn('[Thumbnail Cache] Hydration failed:', e);
+  } finally {
+    isHydrating = false;
+  }
+}
+
+// 🚀 TOP-LEVEL HYDRATION:
+// Start re-populating memory cache from disk as soon as the JS module is parsed.
+if (typeof window !== 'undefined') {
+  hydrate(60);
 }
 
 function isCacheableUrl(url: string) {
@@ -76,9 +115,33 @@ function touch(url: string) {
 }
 
 async function fetchAsBlobUrl(remoteUrl: string): Promise<string> {
-  const res = await fetch(remoteUrl);
-  if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  const blob = await res.blob();
+  // 💾 Persistent Cache Layer (Cache API)
+  let blob: Blob | null = null;
+  
+  if (typeof caches !== 'undefined') {
+    try {
+      const cache = await caches.open(PERSISTENT_CACHE_NAME);
+      const matched = await cache.match(remoteUrl);
+      if (matched) {
+        blob = await matched.blob();
+      } else {
+        const res = await fetch(remoteUrl);
+        if (res.ok) {
+          await cache.put(remoteUrl, res.clone());
+          blob = await res.blob();
+        }
+      }
+    } catch (e) {
+      console.warn('[Thumbnail Cache] Cache API failure, falling back to network:', e);
+    }
+  }
+
+  if (!blob) {
+    const res = await fetch(remoteUrl);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    blob = await res.blob();
+  }
+
   return URL.createObjectURL(blob);
 }
 
@@ -137,7 +200,7 @@ function getServerSnapshot() {
 }
 
 export function useThumbnailCache(params?: { maxEntries?: number; enabled?: boolean }) {
-  const maxEntries = params?.maxEntries ?? 30;
+  const maxEntries = params?.maxEntries ?? 100;
   const enabled = params?.enabled ?? true;
 
   // Make capacity monotonic (only grows) across the entire SPA session.
@@ -148,17 +211,12 @@ export function useThumbnailCache(params?: { maxEntries?: number; enabled?: bool
     globalMaxEntries = Math.max(globalMaxEntries, maxEntries);
   }, [enabled, maxEntries]);
 
-  // Ensure sessionStorage is initialized (metadata-only). We don't attempt to persist blobs.
+  // Persistent Hydration on mount
   React.useEffect(() => {
     if (!enabled) return;
     if (typeof window === 'undefined') return;
-
-    const meta = readMeta();
-    if (meta?.order?.length) {
-      // No-op for now; metadata is mainly for debugging/observability and future warm strategies.
-      // We intentionally don't prefetch everything on mount.
-    }
-  }, [enabled]);
+    hydrate(maxEntries);
+  }, [enabled, maxEntries]);
 
   const getThumbnailSrc = React.useCallback(
     (remoteUrl: string | null | undefined) => {

@@ -194,3 +194,15 @@ export function useFilteredTailors(region: string | null, maxTailors: number = 8
     retry: false, // Don't retry on Firebase index errors
   })
 }
+
+export function useProductCategories(level?: number) {
+  return useQuery<any[]>({
+    queryKey: ['product-categories', level],
+    queryFn: async () => {
+      return await firebaseService.getProductCategories(level);
+    },
+    staleTime: 1000 * 60 * 60, // 1 hour
+    gcTime: 1000 * 60 * 60 * 2,
+    refetchOnWindowFocus: false,
+  })
+}

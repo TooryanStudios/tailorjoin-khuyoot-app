@@ -7,9 +7,8 @@ let storage: any = null;
 
 try {
   storage = getStorage();
-  console.log('✅ Firebase Storage initialized');
 } catch (error) {
-  console.warn('⚠️ Firebase Storage not initialized:', error);
+  // Storage not initialized
 }
 
 /**
