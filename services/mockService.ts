@@ -407,39 +407,19 @@ export const getProducts = async (category?: string, tailorId?: string): Promise
 
     // جلب المنتجات من Firebase فقط (بدون دمج مع النموذجية)
     const firebaseProducts = await firebaseService.getProducts(category);
-    console.log('🔍 منتجات Firebase:', firebaseProducts.length);
 
     let filteredProducts = firebaseProducts;
 
     // تصفية حسب الخياط إذا تم تحديده
     if (tailorId) {
-      console.log('🔍 تصفية المنتجات للخياط:', tailorId);
-
       const tailor = await getTailorById(tailorId);
       const tailorUsername = tailor?.username;
-
-      console.log('🔍 معلومات الخياط:', {
-        tailorId,
-        username: tailorUsername
-      });
 
       filteredProducts = firebaseProducts.filter((p) => {
         const matchesId = p.tailorId === tailorId;
         const matchesUsername = tailorUsername && p.tailorId === tailorUsername;
         return matchesId || matchesUsername;
       });
-
-      console.log('🔍 عدد المنتجات بعد التصفية:', filteredProducts.length);
-
-      if (filteredProducts.length > 0) {
-        console.log('🔍 أول منتج بعد التصفية:', {
-          id: filteredProducts[0].id,
-          name: filteredProducts[0].name,
-          image: filteredProducts[0].image,
-          images: filteredProducts[0].images,
-          tailorId: filteredProducts[0].tailorId
-        });
-      }
     }
 
     // إذا وجدنا بيانات حقيقية نعيدها مباشرة
@@ -494,7 +474,6 @@ export const getTailors = async (): Promise<Tailor[]> => {
     
     // جلب الخياطين الموافق عليهم من Firebase فقط
     const approvedTailors = await firebaseService.getApprovedTailors();
-    console.log(`🎨 Tailors from Firebase: ${approvedTailors.length}`);
     
     // جلب portfolio لكل خياط
     const realTailors: Tailor[] = await Promise.all(
@@ -506,7 +485,7 @@ export const getTailors = async (): Promise<Tailor[]> => {
             .filter(item => item.type === 'image')
             .map(item => item.mediaUrl);
         } catch (error) {
-          console.log(`No portfolio items for tailor ${tailor.id}`);
+          // No portfolio items available
         }
         
         return {
@@ -565,6 +544,10 @@ export const getAllShops = async (): Promise<Shop[]> => {
         approvalStatus: user.approvalStatus as 'approved' | 'pending' | 'rejected',
         bio: user.bio || '',
         description: user.bio || '',
+        email: user.email || user.loginId,
+        loginId: user.loginId,
+        phone: user.phone || user.contactNumber,
+        contactNumber: user.contactNumber,
         reviews: [],
         coverImage: user.coverImage || '/placeholders/cover.svg',
         createdAt: user.createdAt || new Date().toISOString(),
@@ -580,8 +563,6 @@ export const getAllShops = async (): Promise<Shop[]> => {
     
     // دمج الخياطين مع البوتيكات والمحلات
     const allShops: Shop[] = [...tailorsWithType, ...realShops, ...mockShopsWithType];
-    
-    console.log('📊 getAllShops - Total:', allShops.length, '| Tailors:', tailorsWithType.length, '| Shops:', realShops.length, '| Mock:', mockShopsWithType.length);
     
     return allShops;
   } catch (error) {
@@ -608,7 +589,7 @@ export const getTailorById = async (id: string): Promise<Tailor | undefined> => 
           .filter(item => item.type === 'image')
           .map(item => item.mediaUrl);
       } catch (error) {
-        console.log(`No portfolio items for tailor ${user.id}`);
+        // No portfolio items available
       }
 
       return {
@@ -633,12 +614,6 @@ export const getTailorById = async (id: string): Promise<Tailor | undefined> => 
     const allTailors = await getTailors();
     const tailor = allTailors.find(t => t.id === id);
     
-    console.log('🔍 بيانات الخياط:', {
-      id: tailor?.id,
-      name: tailor?.name,
-      username: tailor?.username
-    });
-    
     return tailor;
   } catch (error) {
     console.error('Error fetching tailor by id:', error);
@@ -652,7 +627,6 @@ export const getStories = async (): Promise<Story[]> => {
     const { firebaseService } = await import('./firebase');
     // Try to fetch real stories from Firebase
     const stories = await firebaseService.getStories?.() ?? [];
-    console.log(`📖 Stories from Firebase: ${stories.length}`);
     
     if (stories.length === 0) {
       console.warn('⚠️ No Firebase stories found');
@@ -684,8 +658,6 @@ export const getFabricStores = async (): Promise<Shop[]> => {
 
   // Mock stores removed as per request
   // const mockStores = MOCK_SHOPS.filter(s => s.type === 'fabric_store').map(s => ({ ... }));
-
-  console.log(`📊 Fabric Stores: ${realStores.length} real`);
   
   // Return only real stores
   return realStores;

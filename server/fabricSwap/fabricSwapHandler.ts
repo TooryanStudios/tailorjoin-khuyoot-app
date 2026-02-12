@@ -4,6 +4,7 @@ import { generateFabricSwap, generateUpscaleImage } from '../tryon/geminiClient.
 import { applyWatermark } from '../utils/watermark.js';
 import { saveGeneration } from '../services/generationsService.js';
 import sharp from 'sharp';
+import { v4 as uuidv4 } from 'uuid';
 
 type HandlerContext = {
   ip: string;
@@ -91,10 +92,14 @@ async function forceImageDimensions(params: {
       position: 'centre',
       withoutEnlargement: false,
     })
-    .png()
+    .jpeg({ 
+      quality: 90, 
+      mozjpeg: true,
+      progressive: true 
+    })
     .toBuffer();
 
-  return { imageBase64: outputBuffer.toString('base64'), mimeType: 'image/png' };
+  return { imageBase64: outputBuffer.toString('base64'), mimeType: 'image/jpeg' };
 }
 
 function checkRateLimit(key: string, limitPerMinute: number) {
@@ -271,52 +276,54 @@ export async function handleFabricSwap(body: any, ctx: HandlerContext): Promise<
   if (req.userId) {
     try {
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.log('[DEBUG] [Fabric Swap] ATTEMPTING TO SAVE GENERATION');
-      console.log('[DEBUG] [Fabric Swap] userId:', req.userId);
-      console.log('[DEBUG] [Fabric Swap] Has templateBase64:', !!req.templateBase64);
-      console.log('[DEBUG] [Fabric Swap] Has fabricBase64:', !!req.fabricBase64);
-      console.log('[DEBUG] [Fabric Swap] Has finalImageBase64:', !!finalImageBase64);
+      console.log('[Fabric Swap] BACKGROUNDING GENERATION SAVE');
+      console.log('[Fabric Swap] userId:', req.userId);
       
-      generationUrls = await saveGeneration({
+      const jobId = uuidv4();
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'khuyoot-app.appspot.com';
+      
+      // Predicted URLs so the frontend gets them immediately
+      generationUrls = {
+        jobId,
+        fullImageUrl: `https://storage.googleapis.com/${bucketName}/generations/${req.userId}/${jobId}_result.png`,
+        thumbnailUrl: `https://storage.googleapis.com/${bucketName}/generations/${req.userId}/${jobId}_thumb.webp`,
+        templateUrl: req.templateMimeType ? `https://storage.googleapis.com/${bucketName}/generations/${req.userId}/${jobId}_template.${req.templateMimeType.split('/')[1] || 'png'}` : undefined,
+        fabricUrl: req.fabricMimeType ? `https://storage.googleapis.com/${bucketName}/generations/${req.userId}/${jobId}_fabric.${req.fabricMimeType.split('/')[1] || 'png'}` : undefined,
+      };
+      
+      // FIRE AND FORGET - Don't await the storage uploads before responding to user
+      saveGeneration({
+        jobId, // Pass our pre-generated ID
         imageBase64: finalImageBase64,
         userId: req.userId,
         model: req.model || 'NanoBana',
         templateId: req.templateId,
         fabricId: req.fabricId,
         upscaleEnabled: false,
-        // Pass template and fabric images for history comparison
         templateBase64: req.templateBase64,
         templateMimeType: req.templateMimeType,
         fabricBase64: req.fabricBase64,
         fabricMimeType: req.fabricMimeType,
-        // Pass settings for enhanced metadata
         refinementPrompt: req.refinementPrompt,
         outputFit: req.outputFit === 'cover' ? 'cover' : 'contain',
         preserveFace: true,
         preservePose: true,
         shouldWatermark: req.shouldWatermark || false,
         processingTimeMs: tSwapMs || 0,
-        originalTemplateFilename: req.templateFilename,
-        originalFabricFilename: req.fabricFilename,
+        originalTemplateFilename: (req as any).templateFilename,
+        originalFabricFilename: (req as any).fabricFilename,
+        isBackground: true, // NEW: Tell service to return URLs immediately
+      }).catch(err => {
+        console.error('[Background Save] ❌ FAILED:', err?.message || err);
       });
       
-      console.log('[DEBUG] [Fabric Swap] ✅ Generation saved successfully!');
-      console.log('[DEBUG] [Fabric Swap] jobId:', generationUrls.jobId);
-      console.log('[DEBUG] [Fabric Swap] fullImageUrl:', generationUrls.fullImageUrl);
-      console.log('[DEBUG] [Fabric Swap] thumbnailUrl:', generationUrls.thumbnailUrl);
-      console.log('[DEBUG] [Fabric Swap] templateUrl:', generationUrls.templateUrl);
-      console.log('[DEBUG] [Fabric Swap] fabricUrl:', generationUrls.fabricUrl);
+      console.log('[Fabric Swap] ✅ Response prepared (Save continuing in background)');
       console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
     } catch (err: any) {
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      console.error('[DEBUG] [Fabric Swap] ❌ FAILED TO SAVE GENERATION');
-      console.error('[DEBUG] [Fabric Swap] Error:', err?.message || err);
-      console.error('[DEBUG] [Fabric Swap] Stack:', err?.stack);
-      console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-      // Don't fail the request if saving fails - still return the image
+      console.error('[Fabric Swap] ❌ ERROR PREPARING SAVE:', err?.message || err);
     }
   } else {
-    console.warn('[DEBUG] [Fabric Swap] ⚠️ No userId provided - skipping database save');
+    console.warn('[Fabric Swap] ⚠️ No userId provided - skipping database save');
   }
 
     return {

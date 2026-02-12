@@ -7,6 +7,7 @@ import {
 import { Button } from '../components/Button';
 import { useApp } from '../context/AppContext';
 import { firebaseService } from '../services/firebase';
+import { measurementService } from '../src/modules/measurements/services/measurementService';
 
 export const Checkout = () => {
   const navigate = useNavigate();
@@ -52,12 +53,32 @@ export const Checkout = () => {
     setLoading(true);
 
     try {
+      // 1. Fetch template for the product to ensure we save labels/map and filter correctly
+      let template: any = null;
+      if (state?.product) {
+        template = await measurementService.getTemplateForProduct(state.product);
+      }
+
+      // 2. Filter measurements & create labels mapping
+      const measurements = state?.measurements || {};
+      const filteredMeasurements: Record<string, string | number> = {};
+      const measurementLabels: Record<string, string> = {};
+
+      if (template?.points) {
+        template.points.forEach((p: any) => {
+          measurementLabels[p.id] = p.label || p.name || p.id;
+          if (measurements[p.id] !== undefined) {
+            filteredMeasurements[p.id] = measurements[p.id];
+          }
+        });
+      }
+
       // Create order object
       const orderData = {
-        userId: user?.id || 'guest',
-        customerName: formData.name,
-        customerPhone: formData.phone,
-        customerEmail: formData.email,
+        userId: user?.id || user?.uid || null,
+        customerName: formData.name || user?.name || 'عميل خيوط',
+        customerPhone: formData.phone || user?.phone || '',
+        customerEmail: formData.email || user?.email || '',
         customerAddress: formData.address,
         productId: state?.productId,
         productName: state?.product?.name,
@@ -68,20 +89,27 @@ export const Checkout = () => {
         region: state?.product?.region || state?.product?.location,
         measurementId: state?.measurementId,
         customizationId: state?.customizationId,
-        measurements: state?.measurements,
+        measurements: Object.keys(filteredMeasurements).length > 0 ? filteredMeasurements : measurements,
+        measurementLabels: Object.keys(measurementLabels).length > 0 ? measurementLabels : {},
+        templateId: template?.id || null,
+        templateUrl: template?.imageUrl || template?.baseImageUrl || null,
+        templatePoints: template?.points || [],
+        templateArrows: template?.arrows || [],
         customization: state?.customization,
         notes: formData.notes,
         status: 'pending',
+        orderDate: new Date().toISOString(),
         createdAt: new Date().toISOString(),
+        price: state?.product?.price || 0,
         totalPrice: state?.product?.price || 0
       };
 
-      console.log('[Checkout] Creating order:', orderData);
+      console.log('[Checkout] Creating order with filtered data:', orderData);
 
       // Save order to Firebase or localStorage
       let newOrderId: string;
       
-      if (user?.id) {
+      if (user?.id || user?.uid) {
         // Authenticated user - save to Firebase
         newOrderId = await firebaseService.createOrder(orderData);
         console.log('[Checkout] Order saved to Firebase:', newOrderId);

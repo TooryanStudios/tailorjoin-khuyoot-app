@@ -2,13 +2,32 @@
 <html lang="ar" dir="rtl">
   <head>
     <meta charset="utf-8" />
+    
+    <!-- 🎨 Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@200;300;400;500;700;800;900&display=swap" rel="stylesheet">
+
 
     <!-- مهم جداً على iOS: إضافة viewport-fit=cover -->
     <!-- منع zoom لضمان دقة المقاسات في PWA -->
     <meta
       name="viewport"
-      content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
     />
+
+    <!-- CRITICAL: Prevent common legacy script crashes -->
+    <script>
+      window.addEventListener('error', function(e) {
+        if (e.message && (e.message.indexOf('share-modal.js') !== -1 || e.message.indexOf('addEventListener') !== -1)) {
+          if (e.target && (e.target.src || '').indexOf('share-modal.js') !== -1) {
+            console.warn('Caught and suppressed legacy share-modal script error');
+            e.preventDefault();
+            return true;
+          }
+        }
+      }, true);
+    </script>
 
     <!-- DEV: If a stale PWA Service Worker is controlling localhost, it can serve old cached JS
          (causing blank-first-render + share-modal.js errors). Redirect to the SW cleanup page. -->
@@ -53,7 +72,7 @@
         try {
           const savedTheme = localStorage.getItem('theme');
           const appSettings = localStorage.getItem('app_settings');
-          let theme = 'dark'; // default
+          let theme = 'light'; // default
           
           if (savedTheme) {
             theme = savedTheme;
@@ -69,8 +88,8 @@
           }
 
           // Apply theme colors early to avoid flash
-          let primary = '#2563eb';
-          let secondary = '#0ea5e9';
+          let primary = '#63498b';
+          let secondary = '#b5e58d';
           if (appSettings) {
             try {
               const settings = JSON.parse(appSettings);
@@ -207,6 +226,7 @@
                 primary: 'var(--theme-primary)',
                 secondary: 'var(--theme-secondary)',
                 master: 'var(--theme-master)',
+                surface: 'var(--theme-surface-lavender)',
               },
               boutique: {
                 dark: '#0F051D',
@@ -226,14 +246,14 @@
 
     <style>
       :root {
-        --theme-primary: #2563eb;
-        --theme-secondary: #0ea5e9;
+        --theme-primary: #63498b;
+        --theme-secondary: #b5e58d;
       }
 
       /* Khiyoot Glass Surface helpers */
       .khiyoot-glass {
-        backdrop-filter: blur(24px);
         -webkit-backdrop-filter: blur(24px);
+        backdrop-filter: blur(24px);
         background: rgba(255,255,255,0.05);
         border: 1px solid rgba(255,255,255,0.1);
       }
@@ -483,8 +503,8 @@
     <div id="root" class="min-height-screen bg-inherit text-inherit">
       <!-- Inline splash screen before React loads -->
       <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a] z-[9999] transition-opacity duration-300">
-        <div style="text-align: center;">
-          <img src="/logo_big.png?v=4" alt="خيوط" style="width: 200px; height: 200px; margin: 0 auto; object-fit: contain;">
+        <div class="text-center">
+          <img src="/logo_big.png?v=4" alt="خيوط" class="w-[200px] h-[200px] mx-auto object-contain">
         </div>
       </div>
     </div>

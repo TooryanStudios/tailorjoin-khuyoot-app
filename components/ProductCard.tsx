@@ -282,8 +282,15 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
           
           <div className="flex flex-col gap-1 mt-1">
              {product.tailorName && (
-               <div className="text-slate-700 dark:text-slate-300 text-xs font-medium truncate">
-                 {product.tailorName}
+               <div className="flex flex-col">
+                 <div className="text-slate-700 dark:text-slate-300 text-xs font-medium truncate">
+                   {product.tailorName}
+                 </div>
+                 {product.tailorId && (
+                   <div className="text-slate-400 dark:text-slate-500 text-[10px] font-mono truncate">
+                     ID: {product.tailorId}
+                   </div>
+                 )}
                </div>
              )}
              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-xs">

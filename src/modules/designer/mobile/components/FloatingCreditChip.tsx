@@ -18,7 +18,7 @@ export const FloatingCreditChip = React.memo(function FloatingCreditChip(props: 
   const clearLooksInactive = !Boolean(canClear);
 
   return (
-    <div className="w-full flex items-center justify-between px-4 py-2.5 bg-zinc-900/80 backdrop-blur-md border-b border-zinc-800/50 rounded-[4px]">
+    <div className="w-full flex items-center justify-between px-4 py-2.5 bg-purple-50/95 backdrop-blur-md border-b border-purple-100 rounded-[4px]">
       <div className="flex items-center">
         <CreditBadge onRefill={onRefill} minimal />
       </div>
@@ -34,8 +34,8 @@ export const FloatingCreditChip = React.memo(function FloatingCreditChip(props: 
             className={
               'h-9 w-9 grid place-items-center rounded-full border transition-colors ' +
               (clearLooksInactive
-                ? 'bg-zinc-950/20 border-zinc-900 text-zinc-500 hover:border-red-500/30 hover:text-zinc-200'
-                : 'bg-zinc-950/40 border-zinc-800 text-zinc-200 hover:border-red-500/40')
+                ? 'bg-zinc-50 border-zinc-200 text-zinc-400 hover:border-red-400 hover:text-red-500'
+                : 'bg-zinc-100 border-zinc-300 text-zinc-600 hover:border-red-400 hover:text-red-500')
             }
           >
             <Trash2 size={16} />

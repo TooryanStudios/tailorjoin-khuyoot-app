@@ -8,8 +8,10 @@ type ErrorBoundaryProps = React.PropsWithChildren<{
 }>;
 
 export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoundaryState> {
-  declare props: ErrorBoundaryProps;
-  state: ErrorBoundaryState = { hasError: false, error: null };
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    (this as any).state = { hasError: false, error: null };
+  }
 
   static getDerivedStateFromError(error: Error): ErrorBoundaryState {
     return { hasError: true, error };
@@ -21,19 +23,19 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   }
 
   componentDidMount(): void {
-    if (this.props.resetOnHashChange !== false) {
+    if ((this as any).props.resetOnHashChange !== false) {
       window.addEventListener('hashchange', this.resetBoundary);
     }
   }
 
   componentWillUnmount(): void {
-    if (this.props.resetOnHashChange !== false) {
+    if ((this as any).props.resetOnHashChange !== false) {
       window.removeEventListener('hashchange', this.resetBoundary);
     }
   }
 
   resetBoundary = (): void => {
-    this.setState({ hasError: false, error: null });
+    (this as any).setState({ hasError: false, error: null });
   };
 
   clearLocalAppCaches = (): void => {
@@ -47,11 +49,11 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
   };
 
   render() {
-    const { hasError } = this.state;
+    const { hasError } = (this as any).state;
 
     if (hasError) {
       return (
-        this.props.fallback || (
+        (this as any).props.fallback || (
           <div className="min-h-[60vh] flex flex-col items-center justify-center p-8 text-center animate-in fade-in zoom-in duration-500">
             <div className="w-20 h-20 mb-6 relative">
               <img 
@@ -113,6 +115,6 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
       );
     }
 
-    return this.props.children as React.ReactNode;
+    return (this as any).props.children as React.ReactNode;
   }
 }

@@ -150,14 +150,14 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
       ref={containerRef}
       dir="ltr"
       className={
-        `relative w-full ${heightClassName} overflow-visible select-none bg-transparent ` +
+        `relative w-full ${heightClassName} overflow-hidden select-none bg-white ` +
         (className ?? '')
       }
       onPointerMove={onPointerMove}
       onPointerUp={onPointerUpOrCancel}
       onPointerCancel={onPointerUpOrCancel}
     >
-      <div className="absolute inset-0 overflow-hidden rounded-lg">
+      <div className="absolute inset-0 overflow-hidden rounded-md">
         {before && !beforeImageError ? (
           <img
             src={before}
@@ -188,7 +188,7 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
         ) : null}
         
         {!before && !beforeImageError && (
-          <div className="absolute inset-0 flex items-center justify-center bg-zinc-900/30">
+          <div className="absolute inset-0 flex items-center justify-center bg-white">
             <img
               src="/logo_big.png?v=4"
               alt="Khuyoot Logo"
@@ -281,15 +281,15 @@ const ImageSlider: React.FC<ImageSliderProps> = ({
 
       {/* Slider Handle Line */}
       <div
-        className="absolute top-0 bottom-0 w-1 bg-white/90 shadow-[0_0_15px_rgba(255,255,255,0.4)] flex items-center justify-center cursor-col-resize pointer-events-auto z-50"
+        className="absolute top-0 bottom-0 w-px bg-black shadow-[0_0_15px_rgba(0,0,0,0.4)] flex items-center justify-center cursor-col-resize pointer-events-auto z-50"
         style={{ left: `${sliderPos}%`, transform: 'translateX(-50%)', willChange: 'left' }}
         onPointerDown={onStartDrag}
         ref={handleLineRef}
       >
         <div 
-          className="w-10 h-10 bg-white border-2 border-theme-primary/10 rounded-full flex items-center justify-center shadow-[0_0_20px_rgba(0,0,0,0.5)] cursor-col-resize pointer-events-auto touch-none z-50 transition-transform active:scale-90"
+          className="w-10 h-10 bg-white border-2 border-black/40 rounded-full flex items-center justify-center cursor-col-resize pointer-events-auto touch-none z-50 transition-transform active:scale-90"
         >
-          <span className="text-theme-primary text-base font-black">↔</span>
+          <span className="text-black text-xs font-black">↔</span>
         </div>
       </div>
     </div>

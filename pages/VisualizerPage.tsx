@@ -134,7 +134,9 @@ function CameraRig({ position, target, fov }: CameraRigProps) {
   const { camera } = useThree();
   useEffect(() => {
     camera.position.set(position[0], position[1], position[2]);
-    camera.fov = fov;
+    if ('fov' in camera) {
+      (camera as any).fov = fov;
+    }
     camera.updateProjectionMatrix();
     camera.lookAt(target[0], target[1], target[2]);
   }, [camera, position, target, fov]);
@@ -157,6 +159,7 @@ type SceneModelProps = {
   scale: number;
   position: [number, number, number];
   rotation: [number, number, number];
+  key?: string;
 };
 
 function SceneModel({ url, scale, position, rotation }: SceneModelProps) {
@@ -947,14 +950,14 @@ const VisualizerPage = () => {
                 3D Viewport • {activeAspect.label}
               </div>
               <div className="absolute inset-0 pt-8">
-                <Canvas
-                  gl={{ preserveDrawingBuffer: true }}
-                  camera={{ position: cameraPosition, fov: cameraFov }}
-                  className="bg-gradient-to-b from-gray-800 to-gray-900"
-                  onCreated={({ gl }) => {
-                    canvasRef.current = gl.domElement;
-                  }}
-                >
+                <div className="w-full h-full bg-gradient-to-b from-gray-800 to-gray-900">
+                  <Canvas
+                    gl={{ preserveDrawingBuffer: true }}
+                    camera={{ position: cameraPosition, fov: cameraFov }}
+                    onCreated={({ gl }) => {
+                      canvasRef.current = gl.domElement;
+                    }}
+                  >
                   <Suspense fallback={null}>
                     <CameraRig position={cameraPosition} target={cameraTarget} fov={cameraFov} />
                     <SceneContent
@@ -995,6 +998,7 @@ const VisualizerPage = () => {
                     />
                   </Suspense>
                 </Canvas>
+                </div>
               </div>
             </div>
           </div>

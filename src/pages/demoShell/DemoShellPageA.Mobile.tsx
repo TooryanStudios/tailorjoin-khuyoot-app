@@ -348,7 +348,7 @@ export function DemoShellPageAMobile() {
       <HomeAdsRow />
 
       {/* 5. Women's Exclusive Releases */}
-      <section id="mobile-exclusive-women" className="rounded-lg border border-zinc-950 bg-zinc-900/30 p-3 shadow-sm mx-4">
+      <section id="mobile-exclusive-women" className="rounded-lg border border-zinc-950 bg-stone-900 p-3 shadow-sm mx-4">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-normal text-zinc-100">{(womenRoot?.nameAr || "Women's") + " - Exclusives"}</h2>
@@ -389,7 +389,7 @@ export function DemoShellPageAMobile() {
         {isDbLoading ? (
           <div className="grid gap-1 grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="rounded-lg overflow-hidden bg-zinc-900 aspect-[3/4] animate-pulse" />
+              <div key={i} className="rounded-lg overflow-hidden bg-stone-800 aspect-[3/4] animate-pulse" />
             ))}
           </div>
         ) : (
@@ -409,7 +409,7 @@ export function DemoShellPageAMobile() {
       </section>
 
       {/* 6. Men's Exclusive Releases */}
-      <section id="mobile-exclusive-men" className="rounded-lg border border-zinc-950 bg-zinc-900/30 p-3 shadow-sm mx-4">
+      <section id="mobile-exclusive-men" className="rounded-lg border border-zinc-950 bg-slate-900 p-3 shadow-sm mx-4">
         <div className="flex items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-lg font-normal text-zinc-100">{(menRoot?.nameAr || "Men's") + " - Exclusives"}</h2>
@@ -450,7 +450,7 @@ export function DemoShellPageAMobile() {
         {isDbLoading ? (
           <div className="grid gap-1 grid-cols-2">
             {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="rounded-lg overflow-hidden bg-zinc-900 aspect-[3/4] animate-pulse" />
+              <div key={i} className="rounded-lg overflow-hidden bg-slate-800 aspect-[3/4] animate-pulse" />
             ))}
           </div>
         ) : (

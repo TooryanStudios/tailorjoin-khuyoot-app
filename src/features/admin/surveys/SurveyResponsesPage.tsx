@@ -8,7 +8,7 @@ import { saveSurveyConfigRemote, watchSurveyConfig } from '../../survey/db';
 import { SurveyModal } from '../../survey/SurveyModal';
 import { computeAggregations, type SurveyResponse } from './aggregations';
 
-const ADMIN_EMAILS = ['admin@khuyoot.app'];
+const ADMIN_EMAILS = ['admin@khuyoot.app', 'master.admin@khuyoot.app'];
 const PAGE_SIZE = 50;
 
 const DATE_RANGE_OPTIONS = [
@@ -580,6 +580,7 @@ export const SurveyResponsesPage: React.FC = () => {
           value={dateRangeDays}
           onChange={(event) => setDateRangeDays(Number(event.target.value))}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          title="نطاق التاريخ"
         >
           {DATE_RANGE_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -591,6 +592,7 @@ export const SurveyResponsesPage: React.FC = () => {
           value={filterStatus}
           onChange={(event) => setFilterStatus(event.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          title="الحالة"
         >
           <option value="all">All statuses</option>
           <option value="completed">Completed</option>
@@ -601,6 +603,7 @@ export const SurveyResponsesPage: React.FC = () => {
           value={filterCountry}
           onChange={(event) => setFilterCountry(event.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          title="الدولة"
         >
           <option value="all">All countries</option>
           <option value="oman">Oman</option>
@@ -614,6 +617,7 @@ export const SurveyResponsesPage: React.FC = () => {
           value={filterPersona}
           onChange={(event) => setFilterPersona(event.target.value)}
           className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+          title="الشخصية"
         >
           <option value="all">All personas</option>
           <option value="self">Self</option>

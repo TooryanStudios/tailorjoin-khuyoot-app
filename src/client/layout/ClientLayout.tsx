@@ -46,8 +46,9 @@ export const ClientLayout: React.FC = () => {
   // For mobile: hide header on designer, tailor profile, and product details pages
   // For mobile tailor profile and product details, hide only the header but keep the footer
   // UPDATED: Hide header on ALL mobile pages
-  const hideHeader = isMobile || isDesignerRoute;
-  const hideChrome = pathname.startsWith('/designer-v2-1');
+  // ALSO: Hide header for Tailor Orders and Account as they use MontHeader
+  const hideHeader = isMobile || isDesignerRoute || pathname === '/tailor/orders' || pathname === '/tailor/collections' || pathname === '/tailor-dashboard' || pathname === '/account';
+  const hideChrome = pathname.startsWith('/designer-v2-1') || pathname === '/tailor/orders' || pathname === '/tailor/collections' || pathname === '/account';
 
   React.useLayoutEffect(() => {
     if (hideHeader) {

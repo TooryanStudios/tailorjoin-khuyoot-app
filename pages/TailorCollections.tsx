@@ -2,8 +2,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, Sparkles } from 'lucide-react';
 import { Button } from '../components/Button';
+import { ProductFormDialog } from '../components/ProductFormDialog';
 import { firebaseService } from '../services/firebase';
 import { storageService } from '../services/storageService';
 import { Product } from '../types';
@@ -16,6 +17,7 @@ import { getDefaultImagesForCategory, type DefaultImageOption } from '../utils/d
 import { useAppStore } from '../src/store/useAppStore';
 import { preloadImages } from '../src/utils/imagePreloader';
 import { StableImage } from '../components/StableImage';
+import { MontHeader } from '../src/components/MontHeader';
 
 type UploadItemStatus = 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
 type SaveJobStatus = 'uploading' | 'saving' | 'done' | 'error';
@@ -37,77 +39,6 @@ type SaveJob = {
   message?: string;
 };
 
-const UploadJobsPanel = React.memo(function UploadJobsPanel(props: {
-  jobs: SaveJob[];
-  onDismiss: (jobId: string) => void;
-}) {
-  if (props.jobs.length === 0) return null;
-
-  const activeJobs = props.jobs
-    .slice()
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .slice(0, 5);
-
-  return (
-    <div className="mb-4 rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="text-sm font-bold text-slate-900 dark:text-white">عمليات الرفع والحفظ</div>
-        <div className="text-xs text-slate-500">{props.jobs.length} عملية</div>
-      </div>
-
-      <div className="mt-3 space-y-3">
-        {activeJobs.map((job) => {
-          const total = job.items.length;
-          const done = job.items.filter((i) => i.status === 'done').length;
-          const uploading = job.items.find((i) => i.status === 'uploading' || i.status === 'compressing');
-          const overall = total === 0 ? 100 : Math.round(job.items.reduce((s, i) => s + (i.progress || 0), 0) / total);
-
-          const statusLabel =
-            job.status === 'done'
-              ? 'تم'
-              : job.status === 'error'
-                ? 'خطأ'
-                : job.status === 'saving'
-                  ? 'حفظ المنتج…'
-                  : 'رفع الصور…';
-
-          return (
-            <div key={job.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/40 p-3">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-semibold text-slate-900 dark:text-white truncate">{job.title}</div>
-                  <div className="text-xs text-slate-500 mt-0.5">
-                    {statusLabel} • {done}/{total}
-                    {uploading ? ` • ${uploading.fileName}` : ''}
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => props.onDismiss(job.id)}
-                  className="shrink-0 p-1 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-700/60"
-                  title="إخفاء"
-                >
-                  <X size={16} className="text-slate-500" />
-                </button>
-              </div>
-
-              <div className="mt-2 h-2 rounded-full bg-slate-200 dark:bg-slate-700 overflow-hidden">
-                <div
-                  className={`h-full transition-all ${job.status === 'error' ? 'bg-red-500' : job.status === 'done' ? 'bg-green-600' : 'bg-blue-600'}`}
-                  style={{ width: `${overall}%` }}
-                />
-              </div>
-
-              {(job.message || job.status === 'error') && (
-                <div className="mt-2 text-xs text-red-600 dark:text-red-400">{job.message || 'حدث خطأ أثناء العملية'}</div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
-  );
-});
 
 export const TailorCollections = () => {
   const { user } = useApp();
@@ -125,7 +56,7 @@ export const TailorCollections = () => {
   const [filterMode, setFilterMode] = useState<'all' | 'published' | 'drafts'>('all');
   const [bulkMode, setBulkMode] = useState(false); // Quick add mode
 
-  const productsQuery = useQuery({
+  const productsQuery = useQuery<Product[]>({
     queryKey: ['tailor-products', user?.id],
     queryFn: async () => {
       if (!user?.id) return [] as Product[];
@@ -134,15 +65,16 @@ export const TailorCollections = () => {
     enabled: !!user?.id,
     staleTime: 1000 * 60 * 5,
     gcTime: 1000 * 60 * 15, // Keep in cache 15min instead of default 5min
-    onSuccess: (data) => {
-      preloadImages(data.slice(0, 5).map((p) => p.image));
-    },
   });
 
   useEffect(() => {
     if (productsQuery.data) {
       setTailorProducts(productsQuery.data);
       setInitialLoading(false);
+      // Preload first few images for perceived performance
+      if (typeof preloadImages === 'function') {
+        preloadImages(productsQuery.data.slice(0, 5).map((p: any) => p.image));
+      }
     }
   }, [productsQuery.data, setTailorProducts]);
 
@@ -195,7 +127,6 @@ export const TailorCollections = () => {
     parentName?: string;
     isParent?: boolean;
   }>>([]);
-  const [showCategoryModal, setShowCategoryModal] = useState(false); // modal اختيار التصنيف
   const [uploadJobs, setUploadJobs] = useState<SaveJob[]>([]);
   const [isImageDragOver, setIsImageDragOver] = useState(false);
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
@@ -240,17 +171,34 @@ export const TailorCollections = () => {
       const { collection, query, where, getDocs } = await import('firebase/firestore');
       const { db } = await import('../services/firebase');
       
-      // تحديد جنس الخياط من user (تحقق من tailorGender أولاً ثم specialization كبديل)
-      let tailorGender: 'male' | 'female' = 'male'; // الافتراضي
-      
+      // تحديد جنس الخياط من user (تحقق من tailorGender أولاً ثم تخصص/جنس كبديل)
+      let tailorGender: 'male' | 'female' = 'female'; // الافتراضي (لحسابات الخياطين النسائية)
+      const isFemaleValue = (value?: string) => {
+        if (!value) return false;
+        const v = value.toLowerCase();
+        return v.includes('female') || v.includes('نسائي') || v.includes('women') || v.includes('woman');
+      };
+      const isMaleValue = (value?: string) => {
+        if (!value) return false;
+        const v = value.toLowerCase();
+        return v.includes('male') || v.includes('رجالي') || v.includes('men') || v.includes('man');
+      };
+
       if (user?.tailorGender) {
         tailorGender = user.tailorGender;
-      } else if (user?.specialization) {
-        // Fallback: check specialization field for old data
-        const spec = String(user.specialization).toLowerCase();
-        if (spec.includes('female') || spec.includes('نسائي') || spec.includes('women')) {
-          tailorGender = 'female';
+      } else if (user?.specialization && (isFemaleValue(user.specialization) || isMaleValue(user.specialization))) {
+        tailorGender = isFemaleValue(user.specialization) ? 'female' : 'male';
+      } else if (Array.isArray(user?.specializations) && user.specializations.length > 0) {
+        const joined = user.specializations.join(' ');
+        if (isFemaleValue(joined) || isMaleValue(joined)) {
+          tailorGender = isFemaleValue(joined) ? 'female' : 'male';
         }
+      } else if (user?.gender && (user.gender === 'female' || user.gender === 'male')) {
+        tailorGender = user.gender;
+      } else {
+        const lastGender = localStorage.getItem('khuyoot:lastGender');
+        if (lastGender === 'male' || lastGender === 'men') tailorGender = 'male';
+        if (lastGender === 'female' || lastGender === 'women') tailorGender = 'female';
       }
       
       console.log('🔍 [TailorCollections] Loading categories for gender:', tailorGender);
@@ -258,8 +206,8 @@ export const TailorCollections = () => {
       console.log('   tailorGender field:', user?.tailorGender);
       console.log('   specialization field:', user?.specialization);
       
-      if (!user?.tailorGender && !user?.specialization) {
-        console.warn('⚠️ لم يتم تحديد جنس الخياط، سيتم عرض التصنيفات الرجالية (افتراضي)');
+      if (!user?.tailorGender && !user?.specialization && !user?.specializations?.length && !user?.gender) {
+        console.warn('⚠️ لم يتم تحديد جنس الخياط، سيتم استخدام آخر اختيار أو الافتراضي النسائي');
       } else if (!user?.tailorGender && user?.specialization) {
         console.warn('⚠️ استخدام حقل specialization كبديل لـ tailorGender');
       }
@@ -454,10 +402,6 @@ export const TailorCollections = () => {
       setLoadingLibrary(false);
     }
   };
-
-  const dismissUploadJob = React.useCallback((jobId: string) => {
-    setUploadJobs((prev) => prev.filter((j) => j.id !== jobId));
-  }, []);
 
   const addImageFilesToForm = React.useCallback(
     (files: File[]) => {
@@ -961,6 +905,7 @@ export const TailorCollections = () => {
             if (uploadedUrls.length === 0) throw new Error('يجب إضافة صورة واحدة على الأقل');
 
             const productData = {
+              id: '', // Will be generated by Firestore
               name: snapshot.name,
               price: parseFloat(snapshot.price),
               duration: snapshot.duration,
@@ -1050,20 +995,61 @@ export const TailorCollections = () => {
   }, [filteredProducts]);
 
   return (
-    <div className="pb-24 pt-6 px-4">
-      <div className="max-w-3xl mx-auto">
-        <UploadJobsPanel jobs={uploadJobs} onDismiss={dismissUploadJob} />
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+      <div className="sticky top-0 z-50">
+        <MontHeader />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto">
+        {/* --- HERO / BANNER SECTION --- */}
+        <section className="px-4 md:px-6 lg:px-8 py-3 max-w-[1400px] mx-auto">
+        <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4" dir="rtl">
+            <div className="space-y-1">
+              <h1 className="text-xl md:text-2xl text-white leading-tight">إدارة المنتجات</h1>
+              <p className="text-white/70 text-xs md:text-sm max-w-sm">أضف بضائعك وعروضك وقم بتحديث مخزونك ومسوداتك بكل سهولة.</p>
+            </div>
+            
+            <div className="flex gap-3">
+               <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xl text-white">{myProducts.length}</span>
+                  <span className="text-[9px] text-white/60">إجمالي المنتجات</span>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xl text-white">{myProducts.filter(p => !p.isDraft).length}</span>
+                  <span className="text-[9px] text-white/60">منشور</span>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xl text-white">{myProducts.filter(p => p.isDraft).length}</span>
+                  <span className="text-[9px] text-white/60">مسودة</span>
+               </div>
+               <button 
+                onClick={handleRefresh}
+                title="تحديث البيانات"
+                className="px-3 py-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"
+               >
+                 <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+               </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <main className="px-4 md:px-6 lg:px-8 py-4 max-w-[1400px] mx-auto pb-8">
         <div className="flex items-center justify-between mb-6">
-           <h1 className="text-2xl font-bold text-slate-900 dark:text-white">إدارة منتجاتي</h1>
+           <h2 className="text-xl font-bold text-slate-900">قائمة المنتجات</h2>
            <div className="flex items-center gap-2">
              {/* View Mode Buttons */}
-             <div className="flex items-center bg-slate-100 dark:bg-slate-800 rounded-lg p-1">
+             <div className="flex items-center bg-white rounded-lg border border-gray-200 p-1">
                <button
                  onClick={() => setViewMode('list')}
                  className={`p-2 rounded transition ${
                    viewMode === 'list'
-                     ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow'
-                     : 'text-slate-600 dark:text-slate-400 hover:text-blue-600'
+                     ? 'bg-[#63498b] text-white shadow'
+                     : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض قائمة"
                >
@@ -1073,8 +1059,8 @@ export const TailorCollections = () => {
                  onClick={() => setViewMode('grid')}
                  className={`p-2 rounded transition ${
                    viewMode === 'grid'
-                     ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow'
-                     : 'text-slate-600 dark:text-slate-400 hover:text-blue-600'
+                     ? 'bg-[#63498b] text-white shadow'
+                     : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض شبكة"
                >
@@ -1084,8 +1070,8 @@ export const TailorCollections = () => {
                  onClick={() => setViewMode('compact')}
                  className={`p-2 rounded transition ${
                    viewMode === 'compact'
-                     ? 'bg-white dark:bg-slate-700 text-blue-600 dark:text-blue-400 shadow'
-                     : 'text-slate-600 dark:text-slate-400 hover:text-blue-600'
+                     ? 'bg-[#63498b] text-white shadow'
+                     : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض مضغوط"
                >
@@ -1094,53 +1080,22 @@ export const TailorCollections = () => {
              </div>
              
              <button
-               onClick={handleRefresh}
-               disabled={refreshing}
-               className="flex items-center gap-1.5 px-3 py-2 text-sm font-medium text-slate-600 dark:text-slate-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors disabled:opacity-50"
-               title="تحديث القائمة"
+               onClick={() => setShowAddForm(true)}
+               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#63498b] text-white font-medium text-sm transition-all shadow-sm hover:bg-[#63498b]/90"
              >
-               <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
-               تحديث
-             </button>
-             <Button onClick={() => setShowAddForm(true)} size="sm" className="flex items-center gap-2">
                <Plus size={16} /> إضافة منتج
-             </Button>
+             </button>
              <button
                onClick={() => navigate('/tailor/product/new')}
-               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white font-medium text-sm transition-all shadow-lg"
+               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-slate-700 font-medium text-sm transition-all shadow-sm hover:bg-slate-50"
              >
-               <Sparkles size={16} /> تجربة الواجهة الجديدة
+               <Sparkles size={16} className="text-[#63498b]" /> تجربة الواجهة الجديدة
              </button>
            </div>
         </div>
 
-        {/* Filter Tabs with Scroll Arrows */}
+        {/* Filter Tabs */}
         <div className="relative group/filters mb-6">
-          {/* Left Arrow */}
-          <button
-            onClick={() => scrollFilters('right')}
-            className={`absolute left-1 top-1/2 -translate-y-1/2 z-10 w-9 h-9 md:w-10 md:h-10 rounded-full border-2 transition-all duration-200 flex items-center justify-center shadow-xl ${
-              filtersScrollable
-                ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 hover:scale-110'
-                : 'bg-white/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-default'
-            }`}
-            aria-label="Scroll left"
-          >
-            <ChevronLeft size={22} strokeWidth={3} />
-          </button>
-
-          {/* Right Arrow */}
-          <button
-            onClick={() => scrollFilters('left')}
-            className={`absolute right-1 top-1/2 -translate-y-1/2 z-10 w-9 h-9 md:w-10 md:h-10 rounded-full border-2 transition-all duration-200 flex items-center justify-center shadow-xl ${
-              filtersScrollable
-                ? 'bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-blue-50 dark:hover:bg-blue-900/20 hover:text-blue-600 dark:hover:text-blue-400 hover:border-blue-400 dark:hover:border-blue-500 hover:scale-110'
-                : 'bg-white/70 dark:bg-slate-800/70 border-slate-200 dark:border-slate-700 text-slate-300 dark:text-slate-600 cursor-default'
-            }`}
-            aria-label="Scroll right"
-          >
-            <ChevronRight size={22} strokeWidth={3} />
-          </button>
 
           {/* Scrollable filter tabs */}
           <div 
@@ -1152,8 +1107,8 @@ export const TailorCollections = () => {
               onClick={() => setFilterMode('all')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filterMode === 'all'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-[#63498b] text-white'
+                  : 'bg-white text-slate-600 border border-gray-200 hover:bg-slate-50'
               }`}
             >
               الكل ({myProducts.length})
@@ -1162,8 +1117,8 @@ export const TailorCollections = () => {
               onClick={() => setFilterMode('published')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filterMode === 'published'
-                  ? 'bg-green-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-[#10b981] text-white'
+                  : 'bg-white text-slate-600 border border-gray-200 hover:bg-slate-50'
               }`}
             >
               ✓ المنشورة ({myProducts.filter(p => !p.isDraft).length})
@@ -1172,8 +1127,8 @@ export const TailorCollections = () => {
               onClick={() => setFilterMode('drafts')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filterMode === 'drafts'
-                  ? 'bg-amber-600 text-white'
-                  : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-200 dark:hover:bg-slate-700'
+                  ? 'bg-[#f59e0b] text-white'
+                  : 'bg-white text-slate-600 border border-gray-200 hover:bg-slate-50'
               }`}
             >
               📄 المسودات ({myProducts.filter(p => p.isDraft).length})
@@ -1182,612 +1137,60 @@ export const TailorCollections = () => {
         </div>
 
         {(showAddForm || editingProduct) && (
-          <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-lg mb-8 animate-in slide-in-from-top-4">
-             <h3 className="font-bold text-lg mb-4 text-slate-900 dark:text-white">
-               {editingProduct ? 'تعديل المنتج' : 'تفاصيل المنتج الجديد'}
-             </h3>
-             
-             {/* Debug Panel */}
-             <div className="mb-4 p-3 bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-500 rounded">
-               <p className="text-xs font-bold text-blue-700 dark:text-blue-300 mb-2">🐛 معلومات التصنيف</p>
-               <div className="space-y-1 text-[10px]">
-                 <div className="flex items-center justify-between">
-                   <span className="text-slate-600 dark:text-slate-400">التصنيف المحدد:</span>
-                   <span className="font-mono font-bold text-blue-600 dark:text-blue-400">
-                     {availableCategories.find(cat => cat.id === newCategory)?.nameAr || 'غير محدد'}
-                   </span>
-                 </div>
-                 <div className="flex items-center justify-between">
-                   <span className="text-slate-600 dark:text-slate-400">categoryId:</span>
-                   <span className="font-mono text-[9px] text-green-600 dark:text-green-400 break-all max-w-[200px] text-left">
-                     {newCategory || '❌ Not Set'}
-                   </span>
-                 </div>
-                 <div className="flex items-center justify-between">
-                   <span className="text-slate-600 dark:text-slate-400">category (old):</span>
-                   <span className="font-mono text-[9px] text-slate-500 dark:text-slate-500 line-through">
-                     {availableCategories.find(cat => cat.id === newCategory)?.nameAr || 'N/A'}
-                   </span>
-                 </div>
-                 {editingProduct && (
-                   <>
-                     <div className="border-t border-blue-200 dark:border-blue-800 my-1 pt-1">
-                       <p className="text-blue-600 dark:text-blue-400 font-bold mb-1">المنتج الحالي:</p>
-                     </div>
-                     <div className="flex items-center justify-between">
-                       <span className="text-slate-600 dark:text-slate-400">categoryId الحالي:</span>
-                       <span className={`font-mono text-[9px] font-bold ${editingProduct.categoryId ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}`}>
-                         {editingProduct.categoryId || '❌ غير موجود'}
-                       </span>
-                     </div>
-                     <div className="flex items-center justify-between">
-                       <span className="text-slate-600 dark:text-slate-400">category القديم:</span>
-                       <span className="font-mono text-[9px] text-slate-500">
-                         {editingProduct.category || 'N/A'}
-                       </span>
-                     </div>
-                   </>
-                 )}
-               </div>
-             </div>
-             
-             <div className="flex justify-end mb-4">
-               {!editingProduct && (
-                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-700 p-1 rounded-lg">
-                   <button type="button" onClick={() => setBulkMode(false)} className={`px-3 py-1 text-xs font-medium rounded-md transition ${!bulkMode ? 'bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>عادي</button>
-                   <button type="button" onClick={() => setBulkMode(true)} className={`px-3 py-1 text-xs font-medium rounded-md transition ${bulkMode ? 'bg-white dark:bg-slate-600 shadow text-blue-600 dark:text-blue-300' : 'text-slate-500 dark:text-slate-400'}`}>إدخال سريع</button>
-                 </div>
-               )}
-             </div>
-
-             <form onSubmit={editingProduct ? handleUpdateProduct : (bulkMode ? handleSaveAndAddAnother : handleAddProduct)} className="space-y-4">
-               <div className={bulkMode ? "grid grid-cols-1 md:grid-cols-12 gap-6" : "space-y-4"}>
-                 <div className={bulkMode ? "md:col-span-8 space-y-4 order-1" : "space-y-4"}>
-                   <div>
-                     <label className="block text-xs font-medium text-slate-500 mb-1">اسم المنتج</label>
-                     <div className="flex items-center gap-2">
-                   <input 
-                      type="text" 
-                      value={newName}
-                      onChange={e => setNewName(e.target.value)}
-                      required
-                      className="input-std flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5" 
-                      placeholder="مثال: دشداشة مطرزة فاخرة"
-                   />
-                   <span className="text-xs font-mono bg-yellow-100 dark:bg-yellow-900/30 text-yellow-800 dark:text-yellow-200 px-2 py-1 rounded">
-                     {newName.length} chars
-                   </span>
-                 </div>
-               </div>
-               
-               <div className="grid grid-cols-2 gap-4">
-                 <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">السعر (ر.ع)</label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <DollarSign size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
-                        <input 
-                          type="number" 
-                          value={newPrice}
-                          onChange={e => setNewPrice(e.target.value)}
-                          required
-                          className="input-std w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 pr-8" 
-                          placeholder="25.000"
-                        />
-                      </div>
-                      <span className="text-xs font-mono bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200 px-2 py-1 rounded whitespace-nowrap">
-                        {newPrice || '0'} OMR
-                      </span>
-                    </div>
-                 </div>
-                 <div>
-                    <label className="block text-xs font-medium text-slate-500 mb-1">مدة الإنجاز</label>
-                    <div className="flex items-center gap-2">
-                      <div className="relative flex-1">
-                        <Clock size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
-                        <input 
-                          type="text" 
-                          value={newDuration}
-                          onChange={e => setNewDuration(e.target.value)}
-                          required
-                          className="input-std w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 pr-8" 
-                          placeholder="مثال: 5 أيام"
-                        />
-                      </div>
-                      <span className="text-xs font-mono bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 px-2 py-1 rounded whitespace-nowrap">
-                        {newDuration || 'N/A'}
-                      </span>
-                    </div>
-                 </div>
-               </div>
-
-               <div>
-                  <label className="block text-xs font-medium text-slate-500 mb-1">الفئة</label>
-                  
-                  {newCategory ? (
-                    <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg group hover:border-blue-400 transition-colors">
-                       {(() => {
-                          const cat = availableCategories.find(c => c.id === newCategory);
-                          return (
-                            <>
-                              <div className="w-12 h-12 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 overflow-hidden shrink-0">
-                                {cat?.image ? <img src={cat.image} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300"><LayoutGrid size={20}/></div>}
-                              </div>
-                              <div className="flex-1">
-                                <div className="font-bold text-slate-900 dark:text-white">{cat?.nameAr}</div>
-                                <div className="text-xs text-slate-500">{cat?.parentName || 'تصنيف'}</div>
-                              </div>
-                              <button type="button" onClick={() => setNewCategory('')} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-white dark:hover:bg-slate-800 rounded-full transition-all">
-                                <Edit size={16} />
-                              </button>
-                            </>
-                          );
-                       })()}
-                    </div>
-                  ) : (
-                    <div className="space-y-2 animate-in fade-in zoom-in-95 duration-200">
-                      <div className="relative">
-                        <input
-                          type="text"
-                          value={categorySearch}
-                          onChange={(e) => setCategorySearch(e.target.value)}
-                          placeholder="ابحث... (جلابية، فستان، دشداشة)"
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-3 pl-10 text-sm focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all"
-                          autoFocus={bulkMode}
-                        />
-                         <div className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">
-                           <LayoutGrid size={16} />
-                         </div>
-                      </div>
-
-                      <div className="max-h-[220px] overflow-y-auto rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900 p-2 custom-scrollbar">
-                        {/* Compact Grouped List */}
-                        {groupedCategoryOptions.map(({ groupName, children }) => (
-                           <div key={groupName} className="mb-3 last:mb-0">
-                             <h4 className="text-[10px] font-bold text-slate-400 uppercase px-2 mb-1.5 tracking-wider">{groupName}</h4>
-                             <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                               {children.map((child) => (
-                                 <button
-                                   key={child.id}
-                                   type="button"
-                                   onClick={() => setNewCategory(child.id)}
-                                   className="flex items-center gap-2 p-2 rounded-lg bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:shadow-md transition-all group text-right"
-                                 >
-                                    <div className="w-8 h-8 rounded bg-slate-100 dark:bg-slate-700 overflow-hidden shrink-0 group-hover:scale-110 transition-transform">
-                                      {child.image && <img src={child.image} className="w-full h-full object-cover" loading="lazy" />}
-                                    </div>
-                                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 truncate">{child.nameAr}</span>
-                                 </button>
-                               ))}
-                             </div>
-                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-               </div>
-
-               <div>
-                 <label className="block text-xs font-medium text-slate-500 mb-1">الوصف</label>
-                 <textarea 
-                   value={newDescription}
-                   onChange={e => setNewDescription(e.target.value)}
-                   className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5 min-h-[100px]" 
-                   placeholder="وصف تفصيلي للمنتج..."
-                 />
-                 <span className="text-xs font-mono bg-indigo-100 dark:bg-indigo-900/30 text-indigo-800 dark:text-indigo-200 px-2 py-1 rounded inline-block mt-1">
-                   {newDescription.length} / 500 chars
-                 </span>
-               </div>
-
-               <div>
-                 <label className="block text-xs font-medium text-slate-500 mb-1">الوسوم (افصل بينها بفاصلة)</label>
-                 <div className="flex items-start gap-2">
-                   <input 
-                     type="text" 
-                     value={newTags}
-                     onChange={e => setNewTags(e.target.value)}
-                     className="flex-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg p-2.5" 
-                     placeholder="مثال: فاخر، مطرز، عماني"
-                   />
-                   <span className="text-xs font-mono bg-pink-100 dark:bg-pink-900/30 text-pink-800 dark:text-pink-200 px-2 py-1 rounded whitespace-nowrap self-center">
-                     {newTags.split(',').filter(t => t.trim()).length} tags
-                   </span>
-                 </div>
-               </div>
-               
-               </div>
-               
-               <div className={bulkMode ? "md:col-span-4 order-2" : ""}>
-               {/* Image Management Section */}
-               <div>
-                 <div className="flex items-center justify-between mb-2">
-                   <label className="block text-sm font-medium text-slate-700 dark:text-slate-300">
-                     صور المنتج {!editingProduct && '*'} (حتى 10 صور)
-                   </label>
-                   <span className="text-xs font-mono bg-orange-100 dark:bg-orange-900/30 text-orange-800 dark:text-orange-200 px-2 py-1 rounded">
-                     {allProductImages.length} / 10 images
-                   </span>
-                 </div>
-                 
-                 {/* منطقة رفع الصور */}
-                 {allProductImages.length < 10 && (
-                   <div
-                     className={`border-2 border-dashed rounded-xl p-8 text-center transition-all mb-4 ${
-                       isImageDragOver
-                         ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/10'
-                         : 'border-slate-300 dark:border-slate-600 hover:border-blue-500 dark:hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/10'
-                     }`}
-                     onDragEnter={(e) => {
-                       e.preventDefault();
-                       e.stopPropagation();
-                       setIsImageDragOver(true);
-                     }}
-                     onDragOver={(e) => {
-                       e.preventDefault();
-                       e.stopPropagation();
-                       setIsImageDragOver(true);
-                     }}
-                     onDragLeave={(e) => {
-                       e.preventDefault();
-                       e.stopPropagation();
-                       setIsImageDragOver(false);
-                     }}
-                     onDrop={(e) => {
-                       e.preventDefault();
-                       e.stopPropagation();
-                       setIsImageDragOver(false);
-                       const files = Array.from(e.dataTransfer.files || []);
-                       addImageFilesToForm(files);
-                     }}
-                   >
-                     <button
-                       type="button"
-                       onClick={() => {
-                         const input = document.createElement('input');
-                         input.type = 'file';
-                         input.accept = 'image/*,image/avif';
-                         input.multiple = true;
-                       input.onchange = (e) => {
-                         const files = Array.from((e.target as HTMLInputElement).files || []);
-                         if (files.length === 0) return;
-                         addImageFilesToForm(files);
-                       };
-                       input.click();
-                       }}
-                       className="w-full"
-                       disabled={loading}
-                     >
-                       <div className="flex flex-col items-center gap-3">
-                         <div className="w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center">
-                           <ImageIcon size={32} className="text-blue-600" />
-                         </div>
-                         <div>
-                           <p className="text-base font-medium text-slate-700 dark:text-slate-300">
-                             {loading ? 'جاري الرفع...' : 'اضغط لرفع الصور'}
-                           </p>
-                           <p className="text-sm text-slate-500 mt-1">
-                             أو اسحب الصور وأفلتها هنا
-                           </p>
-                         </div>
-                         <p className="text-xs text-slate-400">
-                           JPG, PNG, WEBP, AVIF (بحد أقصى 10MB لكل صورة) • حتى {10 - allProductImages.length} صور
-                         </p>
-                       </div>
-                     </button>
-                   </div>
-                 )}
-                 
-                 {/* مربع منفصل لمكتبة الصور */}
-                 {allProductImages.length < 10 && (
-                   <div className="border-2 border-dashed border-purple-300 dark:border-purple-600 rounded-xl p-6 text-center hover:border-purple-500 dark:hover:border-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/10 transition-all mb-4">
-                     <button
-                       type="button"
-                       onClick={() => setShowDefaultImagesModal(true)}
-                       className="w-full"
-                     >
-                       <div className="flex flex-col items-center gap-3">
-                         <div className="w-14 h-14 rounded-full bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                           <ImagePlus size={28} className="text-purple-600" />
-                         </div>
-                         <div>
-                           <p className="text-base font-medium text-slate-700 dark:text-slate-300">
-                             اختر من مكتبة الصور
-                           </p>
-                           <p className="text-sm text-slate-500 mt-1">
-                             استخدم صور جاهزة من المكتبة
-                           </p>
-                         </div>
-                       </div>
-                     </button>
-                   </div>
-                 )}
-                 
-                 {uploadError && (
-                   <p className="mt-2 text-sm text-red-600 dark:text-red-400">{uploadError}</p>
-                 )}
-                 
-                    {pendingImageFiles.length > 0 && (
-                   <p className="mt-2 text-xs text-blue-600 dark:text-blue-400">
-                     📝 {pendingImageFiles.length} صورة جاهزة للرفع عند حفظ المنتج
-                   </p>
-                 )}
-                 
-                 {editingProduct && allProductImages.length === 0 && (
-                   <p className="mt-2 text-xs text-slate-500">لن يتم تغيير الصور إلا إذا قمت برفع صور جديدة</p>
-                 )}
-
-                 {/* Image Management Grid */}
-                 {allProductImages.length > 0 && (
-                   <div className="mt-4 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg">
-                     <div className="flex items-center justify-between mb-3">
-                       <label className="text-xs font-medium text-slate-500">
-                         إدارة الصور ({allProductImages.length}/10)
-                       </label>
-                       <span className="text-xs text-slate-400">
-                         الصورة #{coverImageIndex + 1} هي صورة الغلاف
-                       </span>
-                     </div>
-                     <div className="grid grid-cols-3 md:grid-cols-5 gap-2">
-                       {allProductImages.map((img, index) => (
-                         <div 
-                           key={index} 
-                           className={`relative group rounded-lg overflow-hidden ${
-                             index === coverImageIndex 
-                               ? 'ring-2 ring-blue-500 shadow-lg' 
-                               : 'ring-1 ring-slate-200 dark:ring-slate-700'
-                           }`}
-                           draggable
-                           onDragStart={(e) => {
-                             e.dataTransfer.setData('text/plain', String(index));
-                             setDraggedImageIndex(index);
-                           }}
-                           onDragEnd={() => setDraggedImageIndex(null)}
-                           onDragOver={(e) => {
-                             e.preventDefault();
-                           }}
-                           onDrop={(e) => {
-                             e.preventDefault();
-                             const fromRaw = e.dataTransfer.getData('text/plain');
-                             const from = Number(fromRaw);
-                             if (!Number.isFinite(from)) return;
-                             reorderImages(from, index);
-                             setDraggedImageIndex(null);
-                           }}
-                         >
-                           <img 
-                             src={img} 
-                             alt={`صورة ${index + 1}`}
-                             className="w-full aspect-square object-cover"
-                           />
-                           
-                           {/* Cover Badge */}
-                           {index === coverImageIndex && (
-                             <div className="absolute top-1 left-1 bg-blue-500 text-white text-xs px-2 py-0.5 rounded-full flex items-center gap-1">
-                               <Star size={10} fill="white" />
-                               غلاف
-                             </div>
-                           )}
-
-                           {/* Image Number */}
-                          <div className="absolute top-1 right-1 bg-black/60 text-white text-xs px-1.5 py-0.5 rounded">
-                             {index + 1}
-                           </div>
-
-                          {/* Drag hint */}
-                          {draggedImageIndex !== null && draggedImageIndex === index && (
-                            <div className="absolute inset-0 bg-blue-500/15 pointer-events-none" />
-                          )}
-
-                           {/* Action Buttons - Show on hover */}
-                           <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1 p-2">
-                             {index !== coverImageIndex && (
-                               <button
-                                 type="button"
-                                 onClick={() => setCoverImageIndex(index)}
-                                 className="w-full bg-blue-500 hover:bg-blue-600 text-white text-xs px-2 py-1 rounded flex items-center justify-center gap-1"
-                               >
-                                 <Star size={12} />
-                                 تعيين كغلاف
-                               </button>
-                             )}
-                             <button
-                               type="button"
-                               onClick={() => {
-                                 // Create hidden file input
-                                 const input = document.createElement('input');
-                                 input.type = 'file';
-                                 input.accept = 'image/*,image/avif';
-                                 input.onchange = async (e) => {
-                                   const file = (e.target as HTMLInputElement).files?.[0];
-                                   if (file) {
-                                     try {
-                                       setLoading(true);
-                                       // Compress image
-                                       const options = {
-                                         maxSizeMB: 1,
-                                         maxWidthOrHeight: 1920,
-                                         useWebWorker: true
-                                       };
-                                       const compressedFile = await imageCompression(file, options);
-                                       
-                                       // Upload to Firebase Storage with unique ID
-                                       const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
-                                       const storageRef = ref(storage, `products/${user?.id}/${uniqueId}_${file.name}`);
-                                       await uploadBytes(storageRef, compressedFile);
-                                       const newUrl = await getDownloadURL(storageRef);
-                                       
-                                       // Replace in array
-                                       setAllProductImages(prev => {
-                                         const newArr = [...prev];
-                                         newArr[index] = newUrl;
-                                         return newArr;
-                                       });
-                                       setLoading(false);
-                                     } catch (error) {
-                                       console.error('Error replacing image:', error);
-                                       setUploadError('فشل استبدال الصورة');
-                                       setLoading(false);
-                                     }
-                                   }
-                                 };
-                                 input.click();
-                               }}
-                               className="w-full bg-orange-500 hover:bg-orange-600 text-white text-xs px-2 py-1 rounded flex items-center justify-center gap-1"
-                               disabled={loading}
-                             >
-                               <RefreshCw size={12} />
-                               استبدال
-                             </button>
-                             <button
-                               type="button"
-                               onClick={async () => {
-                                 // التحقق من الطلبات النشطة إذا كانت هذه آخر صورة
-                                 if (allProductImages.length === 1 && editingProduct) {
-                                   const activeOrders = await getActiveOrdersForProduct(editingProduct.id);
-                                   if (activeOrders.length > 0) {
-                                     alert(`لا يمكن حذف آخر صورة لأن المنتج لديه ${activeOrders.length} طلب نشط. يرجى إكمال أو إلغاء الطلبات أولاً.`);
-                                     return;
-                                   }
-                                 }
-
-                                 // إذا كانت آخر صورة، اعرض خيار اختيار صورة افتراضية
-                                 if (allProductImages.length === 1) {
-                                   if (confirm('هل تريد حذف آخر صورة واختيار صورة افتراضية بدلاً منها؟')) {
-                                     setAllProductImages([]);
-                                     setShowDefaultImagesModal(true);
-                                   }
-                                   return;
-                                 }
-
-                                 if (confirm(`هل تريد حذف الصورة #${index + 1}؟`)) {
-                                   // Revoke blob URL if it's a local preview
-                                   const urlToDelete = allProductImages[index];
-                                   if (urlToDelete.startsWith('blob:')) {
-                                     URL.revokeObjectURL(urlToDelete);
-                                     // Also remove from pending files/blob mapping
-                                     const blobIndex = allProductImages.slice(0, index).filter(u => u.startsWith('blob:')).length;
-                                     setPendingImageFiles(prev => prev.filter((_, i) => i !== blobIndex));
-                                     setPendingBlobUrls(prev => prev.filter((_, i) => i !== blobIndex));
-                                   }
-                                   
-                                   setAllProductImages(prev => prev.filter((_, i) => i !== index));
-                                   // Adjust cover index if needed
-                                   if (index === coverImageIndex && allProductImages.length > 1) {
-                                     setCoverImageIndex(0); // Reset to first image
-                                   } else if (index < coverImageIndex) {
-                                     setCoverImageIndex(prev => prev - 1); // Adjust index
-                                   }
-                                 }
-                               }}
-                               className="w-full bg-red-500 hover:bg-red-600 text-white text-xs px-2 py-1 rounded flex items-center justify-center gap-1"
-                             >
-                               <Trash2 size={12} />
-                               حذف
-                             </button>
-                           </div>
-                         </div>
-                       ))}
-                     </div>
-                   </div>
-                 )}
-               </div>
-               
-               </div>
-               </div>
-
-               <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-800 mt-2">
-                 {!editingProduct && bulkMode ? (
-                    <>
-                      <Button 
-                        type="button" 
-                        onClick={handleSaveAndAddAnother}
-                        className="flex-1 bg-blue-600 hover:bg-blue-700 text-white"
-                        disabled={loading}
-                      >
-                         {loading ? 'جاري الحفظ...' : (
-                           <span className="flex items-center gap-2 justify-center">
-                             <Plus size={16} /> حفظ وإضافة التالي
-                           </span>
-                         )}
-                      </Button>
-                      <Button 
-                         type="submit" 
-                         variant="outline"
-                         className="flex-1"
-                         disabled={loading}
-                       >
-                         {loading ? 'جاري النشر...' : 'حفظ وإنهاء'}
-                       </Button>
-                    </>
-                  ) : (
-                    <>
-                 {/* إذا كان المنتج مسودة، نعرض زر نشر */}
-                 {editingProduct?.isDraft ? (
-                   <>
-                     <Button 
-                       type="button" 
-                       onClick={(e) => handleUpdateProduct(e as any, true)}
-                       className="flex-1 bg-green-600 hover:bg-green-700" 
-                       disabled={loading}
-                     >
-                       {loading ? 'جاري النشر...' : '✓ نشر المنتج'}
-                     </Button>
-                     <Button 
-                       type="submit" 
-                       variant="outline"
-                       className="flex-1"
-                       disabled={loading}
-                     >
-                       {loading ? 'جاري الحفظ...' : 'حفظ التعديلات'}
-                     </Button>
-                   </>
-                 ) : editingProduct ? (
-                   // منتج منشور - فقط تحديث
-                   <Button type="submit" className="flex-1" disabled={loading}>
-                     {loading ? 'جاري التحديث...' : 'تحديث المنتج'}
-                   </Button>
-                 ) : (
-                   // منتج جديد - خياران: مسودة أو نشر
-                   <>
-                     <Button 
-                       type="button" 
-                       onClick={(e) => handleAddProduct(e as any, true)}
-                       variant="outline"
-                       className="flex-1"
-                       disabled={loading}
-                     >
-                       {loading ? 'جاري الحفظ...' : '📄 حفظ كمسودة'}
-                     </Button>
-                     <Button 
-                       type="submit" 
-                       className="flex-1 bg-green-600 hover:bg-green-700"
-                       disabled={loading}
-                     >
-                       {loading ? 'جاري النشر...' : '✓ نشر المنتج'}
-                     </Button>
-                   </>
-                 )}
-                    </>
-                  )}
-                 
-                 <Button  
-                   type="button" 
-                   variant="outline" 
-                   onClick={() => {
-                     if (editingProduct) {
-                       cancelEdit();
-                     } else {
-                       setShowAddForm(false);
-                       resetForm();
-                     }
-                   }}
-                 >
-                   إلغاء
-                 </Button>
-               </div>
-             </form>
-          </div>
+          <ProductFormDialog
+            isOpen={showAddForm || !!editingProduct}
+            isEditing={!!editingProduct}
+            editingProduct={editingProduct}
+            formState={{
+              newName,
+              newPrice,
+              newDuration,
+              newCategory,
+              newDescription,
+              newTags,
+              categorySearch,
+              allProductImages,
+              coverImageIndex,
+              isImageDragOver,
+              bulkMode,
+              loading,
+              uploadError,
+              pendingImageFiles,
+              pendingBlobUrls,
+              draggedImageIndex,
+            }}
+            handlers={{
+              setNewName,
+              setNewPrice,
+              setNewDuration,
+              setNewCategory,
+              setNewDescription,
+              setNewTags,
+              setCategorySearch,
+              setAllProductImages,
+              setCoverImageIndex,
+              setIsImageDragOver,
+              setBulkMode,
+              setUploadError,
+              setPendingImageFiles,
+              setPendingBlobUrls,
+              setDraggedImageIndex,
+            }}
+            callbacks={{
+              handleAddProduct,
+              handleUpdateProduct,
+              handleSaveAndAddAnother,
+              cancelEdit,
+              resetForm,
+              closeDialog: () => setShowAddForm(false),
+              addImageFilesToForm,
+              reorderImages,
+              showDefaultImagesModal: setShowDefaultImagesModal,
+            }}
+            availableCategories={availableCategories}
+            groupedCategoryOptions={groupedCategoryOptions}
+            user={user}
+          />
         )}
 
         {/* Products Display */}
@@ -1802,8 +1205,8 @@ export const TailorCollections = () => {
             {viewMode === 'list' && (
               <div className="space-y-4">
                 {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl p-4 border border-slate-200 dark:border-slate-700 flex gap-4 group hover:shadow-md transition">
-                    <div className="relative w-20 aspect-square bg-slate-100 dark:bg-slate-900 rounded-lg overflow-hidden shrink-0">
+                  <div key={product.id} className="bg-white rounded-xl p-4 border border-slate-200 flex gap-4 group hover:shadow-md transition">
+                    <div className="relative w-20 aspect-square bg-slate-100 rounded-lg overflow-hidden shrink-0">
                       <StableImage src={product.image} alt={product.name} aspectClass="h-full" className="absolute inset-0" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
@@ -1815,9 +1218,9 @@ export const TailorCollections = () => {
                       <div className="flex justify-between items-start">
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <h3 className="font-bold text-slate-900 dark:text-white">{product.name}</h3>
+                            <h3 className="font-bold text-slate-900">{product.name}</h3>
                             {product.isDraft && (
-                              <span className="text-[10px] bg-amber-100 dark:bg-amber-900 text-amber-600 dark:text-amber-300 px-2 py-0.5 rounded-full font-bold">📄 مسودة</span>
+                              <span className="text-[10px] bg-amber-100 text-amber-600 px-2 py-0.5 rounded-full font-bold">📄 مسودة</span>
                             )}
                           </div>
                           <p className="text-xs text-slate-500 mb-2">{product.category}</p>
@@ -1825,7 +1228,7 @@ export const TailorCollections = () => {
                         <div className="flex items-center gap-2">
                           <button 
                             onClick={() => startEditProduct(product)} 
-                            className="text-blue-400 hover:text-blue-500 p-1"
+                            className="text-[#63498b] hover:text-[#63498b]/80 p-1"
                             title="تعديل المنتج"
                           >
                             <Edit size={16} />
@@ -1840,7 +1243,7 @@ export const TailorCollections = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="font-bold text-blue-600 dark:text-blue-400">{product.price.toFixed(3)} ر.ع</span>
+                        <span className="font-bold text-[#63498b]">{product.price.toFixed(3)} ر.ع</span>
                         <span className="text-slate-400 text-xs flex items-center gap-1">
                           <Clock size={12} /> {product.duration}
                         </span>
@@ -1849,14 +1252,14 @@ export const TailorCollections = () => {
                         )}
                       </div>
                       {product.description && (
-                        <p className="text-xs text-slate-600 dark:text-slate-400 mt-2 line-clamp-2">
+                        <p className="text-xs text-slate-600 mt-2 line-clamp-2">
                           {product.description}
                         </p>
                       )}
                       {product.tags && product.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {product.tags.slice(0, 3).map((tag, idx) => (
-                            <span key={idx} className="text-xs bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 px-2 py-0.5 rounded">
+                            <span key={idx} className="text-xs bg-purple-100 text-[#63498b] px-2 py-0.5 rounded">
                               {tag}
                             </span>
                           ))}
@@ -1876,14 +1279,14 @@ export const TailorCollections = () => {
                       {/* Section Header */}
                       <div className="flex items-center justify-between mb-4 px-1">
                         <div className="flex items-center gap-2">
-                          <h3 className="text-xl font-bold text-slate-900 dark:text-white">{categoryName}</h3>
-                          <span className="text-xs font-medium bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full">
+                          <h3 className="text-xl font-bold text-slate-900">{categoryName}</h3>
+                          <span className="text-xs font-medium bg-slate-100 text-slate-500 px-2 py-0.5 rounded-full">
                             {products.length}
                           </span>
                         </div>
                         {products.length > 4 && (
-                           <button className="text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline flex items-center gap-1">
-                             عرض الكل <ChevronLeft size={14} />
+                           <button className="text-xs font-semibold text-[#63498b] hover:underline">
+                             عرض الكل
                            </button>
                         )}
                       </div>
@@ -1891,9 +1294,9 @@ export const TailorCollections = () => {
                       {/* Horizontal Scrolling List */}
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {products.map((product) => (
-                           <div key={product.id} className="bg-white dark:bg-slate-800 rounded-xl overflow-hidden group hover:shadow-xl transition-all duration-300 border border-slate-100 dark:border-slate-800">
+                           <div key={product.id} className="bg-white rounded-xl overflow-hidden group hover:shadow-xl transition-all duration-300 border border-slate-100">
                              {/* Image Area */}
-                             <div className="relative aspect-[4/5] overflow-hidden bg-slate-100 dark:bg-slate-900">
+                             <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
                                <StableImage 
                                  src={product.image} 
                                  alt={product.name} 
@@ -1922,14 +1325,14 @@ export const TailorCollections = () => {
                                <div className="absolute top-2 right-2 flex flex-col gap-2 translate-x-10 group-hover:translate-x-0 transition-transform duration-300">
                                  <button 
                                    onClick={(e) => { e.stopPropagation(); startEditProduct(product); }} 
-                                   className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-2 rounded-lg text-blue-600 hover:bg-blue-600 hover:text-white transition shadow-lg"
+                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-[#63498b] hover:bg-[#63498b] hover:text-white transition shadow-lg"
                                    title="تعديل"
                                  >
                                    <Edit size={14} />
                                  </button>
                                  <button 
                                    onClick={(e) => { e.stopPropagation(); removeProduct(product.id); }} 
-                                   className="bg-white/90 dark:bg-slate-800/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition shadow-lg"
+                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition shadow-lg"
                                    title="حذف"
                                  >
                                    <Trash2 size={14} />
@@ -1948,12 +1351,12 @@ export const TailorCollections = () => {
                              </div>
                              
                              {/* Footer Clean */}
-                             <div className="p-3 flex items-center justify-between bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700/50">
-                               <p className="font-bold text-blue-600 dark:text-blue-400 text-sm">
+                             <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
+                               <p className="font-bold text-[#63498b] text-sm">
                                  {product.price.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">ر.ع</span>
                                </p>
                                {product.likes > 0 && (
-                                 <div className="flex items-center gap-1 text-xs text-red-500 font-medium bg-red-50 dark:bg-red-900/20 px-1.5 py-0.5 rounded">
+                                 <div className="flex items-center gap-1 text-xs text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded">
                                    <span className="text-[10px]">♥</span> {product.likes}
                                  </div>
                                )}
@@ -1970,8 +1373,8 @@ export const TailorCollections = () => {
             {viewMode === 'compact' && (
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
                 {filteredProducts.map((product) => (
-                  <div key={product.id} className="bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden group hover:shadow-md transition">
-                    <div className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900">
+                  <div key={product.id} className="bg-white rounded-lg border border-slate-200 overflow-hidden group hover:shadow-md transition">
+                    <div className="relative aspect-square overflow-hidden bg-slate-100">
                       <StableImage src={product.image} alt={product.name} aspectClass="aspect-square" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute top-1 left-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
@@ -1986,22 +1389,24 @@ export const TailorCollections = () => {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                         <button 
                           onClick={() => startEditProduct(product)} 
-                          className="bg-white p-2 rounded-lg text-blue-600 hover:bg-blue-600 hover:text-white transition"
+                          className="bg-white p-2 rounded-lg text-[#63498b] hover:bg-[#63498b] hover:text-white transition"
+                          title="تعديل"
                         >
                           <Edit size={14} />
                         </button>
                         <button 
                           onClick={() => removeProduct(product.id)} 
                           className="bg-white p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition"
+                          title="حذف"
                         >
                           <Trash2 size={14} />
                         </button>
                       </div>
                     </div>
                     <div className="p-2">
-                      <h3 className="font-bold text-xs text-slate-900 dark:text-white truncate">{product.name}</h3>
+                      <h3 className="font-bold text-xs text-slate-900 truncate">{product.name}</h3>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="font-bold text-xs text-blue-600 dark:text-blue-400">{product.price.toFixed(2)} ر.ع</span>
+                        <span className="font-bold text-xs text-[#63498b]">{product.price.toFixed(2)} ر.ع</span>
                         {product.likes && product.likes > 0 && (
                           <span className="text-red-400 text-xs">♥ {product.likes}</span>
                         )}
@@ -2013,38 +1418,38 @@ export const TailorCollections = () => {
             )}
           </>
         ) : (
-          <div className="text-center py-12 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+          <div className="text-center py-12 bg-white rounded-xl border border-slate-200">
             <Package size={48} className="mx-auto mb-2 opacity-50 text-slate-400" />
             <p className="text-slate-600 dark:text-slate-400">
               {filterMode === 'drafts' ? 'لا توجد مسودات' : filterMode === 'published' ? 'لا توجد منتجات منشورة' : 'لا توجد منتجات مضافة حالياً'}
             </p>
             <button
               onClick={() => setShowAddForm(true)}
-              className="mt-4 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+              className="mt-4 px-6 py-2 bg-[#63498b] text-white rounded-lg hover:bg-[#63498b]/90 transition"
             >
               إضافة منتج جديد
             </button>
           </div>
         )}
-      </div>
 
       {/* Modal الصور الافتراضية */}
       {showDefaultImagesModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
-            <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700 p-6 flex items-center justify-between">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[10060] p-4">
+          <div className="bg-white rounded-2xl max-w-3xl w-full max-h-[80vh] overflow-y-auto shadow-2xl">
+            <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
               <div>
-                <h3 className="text-xl font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <ImagePlus size={24} className="text-blue-600" />
+                <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
+                  <ImagePlus size={24} className="text-[#63498b]" />
                   اختر صورة افتراضية للمنتج
                 </h3>
-                <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
+                <p className="text-sm text-slate-500 mt-1">
                   اختر صورة مناسبة من المكتبة أو قم برفع صورك الخاصة لاحقاً
                 </p>
               </div>
               <button
                 onClick={() => setShowDefaultImagesModal(false)}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition"
+                className="text-slate-400 hover:text-slate-600 transition"
+                title="إغلاق"
               >
                 <X size={24} />
               </button>
@@ -2053,13 +1458,13 @@ export const TailorCollections = () => {
             <div className="p-6">
               {loadingLibrary ? (
                 <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
-                  <p className="text-slate-600 dark:text-slate-400">جاري تحميل المكتبة...</p>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#63498b] mx-auto mb-4"></div>
+                  <p className="text-slate-600">جاري تحميل المكتبة...</p>
                 </div>
               ) : libraryImages.length === 0 ? (
                 <div className="text-center py-12">
-                  <ImageIcon size={64} className="mx-auto mb-4 text-slate-300 dark:text-slate-700" />
-                  <p className="text-slate-600 dark:text-slate-400 font-medium mb-2">
+                  <ImageIcon size={64} className="mx-auto mb-4 text-slate-300" />
+                  <p className="text-slate-600 font-medium mb-2">
                     المكتبة فارغة حالياً
                   </p>
                   <p className="text-sm text-slate-500">
@@ -2087,7 +1492,7 @@ export const TailorCollections = () => {
                         }, 100);
                       }
                     }}
-                      className="group relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-slate-200 dark:border-slate-700 hover:border-purple-500 transition-all hover:shadow-md"
+                      className="group relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#63498b] transition-all hover:shadow-md"
                     >
                       <img
                         src={imageOption.url}
@@ -2099,7 +1504,7 @@ export const TailorCollections = () => {
                           <p className="text-xs font-medium line-clamp-2">{imageOption.label}</p>
                         </div>
                       </div>
-                      <div className="absolute top-1 right-1 w-6 h-6 bg-purple-600 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-1 right-1 w-6 h-6 bg-[#63498b] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <ImagePlus size={14} className="text-white" />
                       </div>
                     </button>
@@ -2119,196 +1524,8 @@ export const TailorCollections = () => {
         </div>
       )}
 
-      {/* Modal اختيار التصنيف */}
-      {showCategoryModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-2xl w-full max-w-xl max-h-[70vh] overflow-hidden animate-scale-in">
-            <div className="sticky top-0 bg-gradient-to-r from-blue-500 to-purple-600 text-white p-3 flex justify-between items-center">
-              <div>
-                <h3 className="text-base font-bold mb-0.5">اختر التصنيف المناسب</h3>
-                <p className="text-blue-100 text-xs">اضغط على التصنيف لاختياره</p>
-              </div>
-              <button 
-                onClick={() => setShowCategoryModal(false)}
-                className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 transition-colors flex items-center justify-center"
-              >
-                <X size={16} />
-              </button>
-            </div>
-            
-            <div className="p-3 overflow-y-auto max-h-[calc(70vh-60px)]">
-              {availableCategories.length === 0 ? (
-                <div className="text-center py-8">
-                  <Package size={32} className="mx-auto mb-3 text-slate-300 dark:text-slate-700" />
-                  <p className="text-slate-600 dark:text-slate-400 text-sm font-medium">
-                    لا توجد تصنيفات متاحة حالياً
-                  </p>
-                </div>
-              ) : (
-                <div className="space-y-3">
-                  {(() => {
-                    const sections: React.ReactElement[] = [];
-                    let currentParent = '';
-                    let currentParentName = '';
-                    let currentChildren: any[] = [];
-                    
-                    availableCategories.forEach((cat, idx) => {
-                      if (cat.isParent) {
-                        // إذا كان هناك أطفال سابقين، أضف العنوان والـ grid
-                        if (currentChildren.length > 0) {
-                          sections.push(
-                            <div key={`section-${currentParent}`} className={sections.length > 0 ? 'pt-2' : ''}>
-                              {/* عنوان القسم */}
-                              <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 pb-1.5 border-b border-blue-500/30">
-                                {currentParentName}
-                              </h4>
-                              {/* Grid الأبناء */}
-                              <div className="grid grid-cols-3 md:grid-cols-4 gap-2 mb-3">
-                                {currentChildren.map(child => (
-                                  <button
-                                    key={child.id}
-                                    type="button"
-                                    onClick={() => {
-                                      setNewCategory(child.id);
-                                      setShowCategoryModal(false);
-                                    }}
-                                    className={`group relative rounded-md overflow-hidden transition-all duration-200 ${
-                                      newCategory === child.id
-                                        ? 'ring-2 ring-blue-500 shadow-md'
-                                        : 'hover:shadow-md border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                                    }`}
-                                  >
-                                    {/* صورة التصنيف */}
-                                    <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800">
-                                      {child.image ? (
-                                        <img
-                                          src={child.image}
-                                          alt={child.nameAr}
-                                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                        />
-                                      ) : (
-                                        <div className="w-full h-full flex items-center justify-center">
-                                          <Package size={20} className="text-slate-400 dark:text-slate-600" />
-                                        </div>
-                                      )}
-                                    </div>
-                                    
-                                    {/* الأسماء */}
-                                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-1.5 pt-6">
-                                      <h5 className="font-bold text-white text-xs mb-0 text-center leading-tight">
-                                        {child.nameAr}
-                                      </h5>
-                                      {child.nameEnOriginal && (
-                                        <p className="text-[10px] text-white/70 text-center leading-tight">
-                                          {child.nameEnOriginal}
-                                        </p>
-                                      )}
-                                    </div>
-                                    
-                                    {/* علامة الاختيار */}
-                                    {newCategory === child.id && (
-                                      <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
-                                        <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                        </svg>
-                                      </div>
-                                    )}
-                                  </button>
-                                ))}
-                              </div>
-                            </div>
-                          );
-                        }
-                        currentParent = cat.nameEn;
-                        currentParentName = cat.nameAr;
-                        currentChildren = [];
-                      } else {
-                        currentChildren.push(cat);
-                      }
-                    });
-                    
-                    // إضافة آخر مجموعة
-                    if (currentChildren.length > 0 && currentParentName) {
-                      sections.push(
-                        <div key={`section-${currentParent}`} className={sections.length > 0 ? 'pt-2' : ''}>
-                          {/* عنوان القسم */}
-                          <h4 className="text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 pb-1.5 border-b border-blue-500/30">
-                            {currentParentName}
-                          </h4>
-                          {/* Grid الأبناء */}
-                          <div className="grid grid-cols-3 md:grid-cols-4 gap-2">
-                            {currentChildren.map(child => (
-                              <button
-                                key={child.id}
-                                type="button"
-                                onClick={() => {
-                                  setNewCategory(child.id);
-                                  setShowCategoryModal(false);
-                                }}
-                                className={`group relative rounded-md overflow-hidden transition-all duration-200 ${
-                                  newCategory === child.id
-                                    ? 'ring-2 ring-blue-500 shadow-md'
-                                    : 'hover:shadow-md border border-slate-200 dark:border-slate-700 hover:border-blue-300'
-                                }`}
-                              >
-                                {/* صورة التصنيف */}
-                                <div className="aspect-[3/4] bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800">
-                                  {child.image ? (
-                                    <img
-                                      src={child.image}
-                                      alt={child.nameAr}
-                                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
-                                    />
-                                  ) : (
-                                    <div className="w-full h-full flex items-center justify-center">
-                                      <Package size={20} className="text-slate-400 dark:text-slate-600" />
-                                    </div>
-                                  )}
-                                </div>
-                                
-                                {/* الأسماء */}
-                                <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 via-black/50 to-transparent p-1.5 pt-6">
-                                  <h5 className="font-bold text-white text-xs mb-0 text-center leading-tight">
-                                    {child.nameAr}
-                                  </h5>
-                                  {child.nameEnOriginal && (
-                                    <p className="text-[10px] text-white/70 text-center leading-tight">
-                                      {child.nameEnOriginal}
-                                    </p>
-                                  )}
-                                </div>
-                                
-                                {/* علامة الاختيار */}
-                                {newCategory === child.id && (
-                                  <div className="absolute top-1 right-1 w-5 h-5 bg-blue-500 rounded-full flex items-center justify-center shadow-lg">
-                                    <svg className="w-3 h-3 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
-                                    </svg>
-                                  </div>
-                                )}
-                              </button>
-                            ))}
-                          </div>
-                        </div>
-                      );
-                    }
-                    
-                    return sections;
-                  })()}
-                </div>
-              )}
-              
-              {availableCategories.length > 0 && (
-                <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-md border border-blue-200 dark:border-blue-800">
-                  <p className="text-[10px] text-slate-600 dark:text-slate-400 text-center">
-                    💡 اختر التصنيف الذي يتناسب مع نوع المنتج
-                  </p>
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-      )}
+      </main>
+      </div>
     </div>
   );
 };

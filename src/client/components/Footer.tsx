@@ -1,5 +1,5 @@
 import React from 'react';
-import { Home, User, BarChart3, Settings, PenTool } from 'lucide-react';
+import { Home, User, BarChart3, Settings, PenTool, LayoutDashboard } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
@@ -23,7 +23,7 @@ function roleBadge(role: string | undefined, t: (key: string) => string) {
 
 function getDesignerProductIdFromPath(pathname: string) {
   const parts = pathname.split('/').filter(Boolean);
-  if (parts[0] !== 'designer-v2-1') return null;
+  if (parts[0] !== 'designer-v2-1' && parts[0] !== 'tryon') return null;
   if (!parts[1] || parts[1] === 'design') return null;
   return parts[1];
 }
@@ -52,11 +52,11 @@ const FooterNavItem = React.memo(function FooterNavItem({
 }) {
   if (isCenter) {
     return (
-      <button onClick={onClick} className="group relative -top-9 flex flex-col items-center justify-center p-1">
-        <div className="relative overflow-hidden flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-tr from-blue-600 to-indigo-600 text-white shadow-lg shadow-blue-600/30 ring-[6px] ring-white dark:ring-[#1a1a1a] transition-transform duration-200 active:scale-95">
+      <button onClick={onClick} className="group relative -top-6 flex flex-col items-center justify-center p-1">
+        <div className="relative overflow-hidden flex h-14 w-14 items-center justify-center rounded-full bg-theme-primary text-white shadow-xl shadow-black/20 ring-[6px] ring-[#ededed] dark:ring-[#1a1a1a] transition-transform duration-200 active:scale-95">
           <Icon size={24} strokeWidth={2.5} className="relative transition-transform duration-300 group-hover:rotate-12" />
         </div>
-        <span className="absolute -bottom-6 text-[10px] font-bold text-slate-500 dark:text-slate-400 bg-white/80 dark:bg-black/50 px-2 rounded-full backdrop-blur-sm">
+        <span className="absolute -bottom-6 text-[10px] font-normal text-zinc-500 bg-white/80 px-2 rounded-full backdrop-blur-sm shadow-sm md:hidden">
           {label}
         </span>
       </button>
@@ -66,22 +66,22 @@ const FooterNavItem = React.memo(function FooterNavItem({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center justify-center transition-all duration-200 active:scale-95"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95 px-1"
     >
-      <div className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${
+      <div className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-300 ${
         active 
-          ? 'border-emerald-400 bg-emerald-400/15 scale-105' 
-          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white scale-105 shadow-md' 
+          : 'border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-black'
       }`}>
         <Icon
-          size={20}
-          strokeWidth={active ? 2.6 : 2.2}
-          className={`transition-colors duration-300 ${
-            active 
-              ? 'text-emerald-100' 
-              : 'text-slate-200 group-hover:text-white'
-          }`}
+          size={24}
+          strokeWidth={active ? 2.5 : 2}
+          className={`transition-colors duration-300`}
         />
+        {/* Active Indicator inside the button */}
+        {active && (
+           <span className="absolute bottom-2 w-1 h-1 rounded-full bg-white animate-pulse"></span>
+        )}
       </div>
     </button>
   );
@@ -104,25 +104,25 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   return (
     <button
       onClick={onClick}
-      className="group flex items-center justify-center transition-all duration-200 active:scale-95"
+      className="group flex items-center justify-center transition-all duration-200 active:scale-95 px-1"
     >
-      <div className={`relative flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-300 ${
+      <div className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-300 ${
         active 
-          ? 'border-emerald-400 bg-emerald-400/15 scale-105' 
-          : 'border-white/10 bg-white/5 hover:border-white/20 hover:bg-white/10'
+          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white scale-105 shadow-md' 
+          : 'border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-black'
       }`}>
         {user?.profileImage ? (
-          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-6 w-6 rounded-full object-cover" />
+          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-full w-full rounded-full object-cover border border-zinc-200" />
         ) : (
           <User
-            size={20}
-            strokeWidth={active ? 2.6 : 2.2}
-            className={`transition-colors duration-300 ${
-              active 
-                ? 'text-emerald-100' 
-                : 'text-slate-200 group-hover:text-white'
-            }`}
+            size={24}
+            strokeWidth={active ? 2.5 : 2}
+            className={`transition-colors duration-300`}
           />
+        )}
+        {/* Active Indicator inside the button */}
+        {active && !user?.profileImage && (
+           <span className="absolute bottom-2 w-1 h-1 rounded-full bg-white animate-pulse"></span>
         )}
       </div>
     </button>
@@ -201,11 +201,12 @@ export function Footer() {
     location.pathname === '/designer' ||
     location.pathname.startsWith('/designer/') ||
     location.pathname === '/designer-v2-1' ||
-    location.pathname.startsWith('/designer-v2-1/');
+    location.pathname.startsWith('/designer-v2-1/') ||
+    location.pathname === '/tryon' ||
+    location.pathname.startsWith('/tryon/');
 
   const isActive = (path: string) => {
-    if (path === '/designer') return isInDesigner;
-    if (path === '/designer-v2-1') return isInDesigner;
+    if (path === '/designer' || path === '/designer-v2-1' || path === '/tryon') return isInDesigner;
     return location.pathname === path;
   };
 
@@ -216,7 +217,7 @@ export function Footer() {
   const handlePlaceOrder = () => {
     if (!resolvedProductId) return;
     navigate(`/measurements/${resolvedProductId}`, {
-      state: { productId: resolvedProductId, templateId: selectedTemplateId, source: 'designer-v2-1' },
+      state: { productId: resolvedProductId, templateId: selectedTemplateId, source: 'tryon' },
     });
   };
 
@@ -228,52 +229,58 @@ export function Footer() {
   const isRTL = i18n.dir() === 'rtl';
 
   return (
-    // Floating rounded navigation bar
+    // Fixed bottom navigation bar
     <div
-      className="bottom-nav fixed bottom-4 left-1/2 -translate-x-1/2 w-auto z-50"
-      style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+      className="bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] pb-4 md:pb-0"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
     >
-      {/* Rounded pill container with stronger blur */}
-      <div className="flex items-center gap-3 px-5 h-16 bg-slate-900/70 dark:bg-black/70 backdrop-blur-[24px] rounded-full shadow-2xl shadow-black/40 border border-white/10">
+      {/* Container - stretch items completely with standard mobile tab bar spacing */}
+      <div className="flex items-center justify-around h-16 w-full max-w-md mx-auto px-2">
 
         {/* Guest layout: Home / Account / Designer */}
         {!user && (
-          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          <div className={`flex items-center justify-around w-full ${isRTL ? 'flex-row-reverse' : ''}`}>
             <button
-              onClick={() => navigate('/')}
-              className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
+              onClick={() => navigate('/')}              title="حسابي"              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 ${
                 isActive('/')
-                  ? 'border-emerald-400 bg-emerald-400/15 text-emerald-100'
-                  : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20'
+                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
+                  : 'border-transparent text-zinc-400 hover:bg-zinc-100 hover:text-black'
               }`}
             >
-              <Home size={20} strokeWidth={isActive('/') ? 2.6 : 2.2} />
+              <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
+              {isActive('/') && (
+                <span className="absolute bottom-2 w-1 h-1 rounded-full bg-black animate-pulse"></span>
+              )}
             </button>
 
             <button
               onClick={() => {
                 requestLoginPrompt('user_action');
               }}
-              className={`flex h-11 w-11 items-center justify-center rounded-full border transition-all duration-200 ${
+              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 ${
                 isActive('/account')
-                  ? 'border-emerald-400 bg-emerald-400/15 text-emerald-100'
-                  : 'border-white/10 bg-white/5 text-slate-200 hover:border-white/20'
+                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
+                  : 'border-transparent text-zinc-400 hover:bg-zinc-100 hover:text-black'
               }`}
             >
-              <User size={20} strokeWidth={isActive('/account') ? 2.6 : 2.2} />
+              <User size={24} strokeWidth={isActive('/account') ? 2.5 : 2} />
+              {isActive('/account') && (
+                <span className="absolute bottom-2 w-1 h-1 rounded-full bg-black animate-pulse"></span>
+              )}
             </button>
 
             <button
-              onClick={() => navigate('/designer-v2-1')}
+              onClick={() => navigate('/tryon')}
+              title="المصمم"
               className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 overflow-hidden ${
-                isActive('/designer') || isActive('/designer-v2-1')
-                  ? 'border-emerald-400 bg-emerald-400/10 text-emerald-100'
-                  : 'border-white/10 bg-gradient-to-br from-indigo-500/30 via-blue-500/20 to-cyan-500/10 text-slate-200 hover:border-white/20'
+                isActive('/designer') || isActive('/designer-v2-1') || isActive('/tryon')
+                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
+                  : 'border-transparent bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
               }`}
             >
               <span
                 aria-hidden
-                className="pointer-events-none absolute inset-0 -translate-x-full bg-white/20"
+                className="pointer-events-none absolute inset-0 -translate-x-full bg-white/40"
                 style={{ animation: 'khuyootFooterShine 2.5s ease-in-out infinite' }}
               />
               <PenTool size={21} strokeWidth={2.4} className="relative" />
@@ -309,9 +316,7 @@ export function Footer() {
                       ? '/boutique-account'
                       : user?.role === 'shop'
                         ? '/shop-account'
-                        : user?.role === 'admin'
-                          ? '/admin'
-                          : '/account'
+                        : '/account'
                 );
               }}
             />
@@ -320,14 +325,14 @@ export function Footer() {
               icon={PenTool} 
               label={t('navDesigner') || 'Designer'} 
               active={isInDesigner} 
-              onClick={() => navigate('/designer-v2-1')} 
+              onClick={() => navigate('/tryon')} 
             />
 
             <FooterNavItem 
-              icon={BarChart3} 
-              label={t('navStats')} 
-              active={isActive('/stats')} 
-              onClick={() => navigate('/stats')} 
+              icon={user?.role === 'admin' ? LayoutDashboard : BarChart3} 
+              label={user?.role === 'admin' ? (t('navDashboard') || 'Admin') : (t('navStats') || 'Stats')} 
+              active={user?.role === 'admin' ? location.pathname.startsWith('/admin') : isActive('/stats')} 
+              onClick={() => navigate(user?.role === 'admin' ? '/admin' : '/stats')} 
             />
 
             <FooterNavItem 

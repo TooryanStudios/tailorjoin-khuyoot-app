@@ -15,16 +15,19 @@ export function applyUserDefaults(rawUser: any, docId: string): UserProfile {
   
   // Determine role from existing data
   const role = determineRole(rawUser);
+  const anyPhone = rawUser.phone || rawUser.phoneNumber || (rawUser as any).phone_number || (rawUser as any).contactNumber || (rawUser as any).mobile;
   
   // Base defaults for all users
   const base: UserBase = {
     // Identity
     id: docId,
     uid: docId,
-    name: rawUser.name || 'User',
+    name: rawUser.name || rawUser.displayName || 'User',
     email: rawUser.email || '',
-    phone: rawUser.phone,
-    loginId: rawUser.loginId || rawUser.phone || rawUser.email || '',
+    phone: anyPhone,
+    phoneNumber: anyPhone, // Sync for compatibility
+    contactNumber: anyPhone, // Sync for compatibility
+    loginId: rawUser.loginId || anyPhone || rawUser.email || '',
     
     // System
     role,
@@ -58,9 +61,9 @@ export function applyUserDefaults(rawUser: any, docId: string): UserProfile {
     region: rawUser.region,
     coordinates: rawUser.coordinates || { lat: null, lng: null },
     
-    // Profile - Use avatar as fallback for profileImage (legacy support)
-    avatar: rawUser.avatar,
-    profileImage: rawUser.profileImage || rawUser.avatar || '',
+    // Profile - Sync avatar and profileImage for compatibility
+    avatar: rawUser.avatar || rawUser.profileImage || rawUser.photoURL || '',
+    profileImage: rawUser.profileImage || rawUser.avatar || rawUser.photoURL || '',
     boardImage: rawUser.boardImage || '',
     bio: rawUser.bio || '',
     

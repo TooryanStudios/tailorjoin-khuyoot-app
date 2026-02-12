@@ -13,7 +13,7 @@ export const GenerateButton = React.memo(function GenerateButton(props: Generate
 
   return (
     <div className="">
-      <div className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-1.5">
+      <div className="rounded-xl border border-zinc-200 bg-white/50 p-1.5">
         <button
           type="button"
           disabled={disabled || isProcessing}
@@ -21,8 +21,8 @@ export const GenerateButton = React.memo(function GenerateButton(props: Generate
           className={
             'w-full py-4 rounded-lg font-black shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest ' +
             (disabled || isProcessing
-              ? 'bg-zinc-800 text-zinc-500 cursor-not-allowed'
-              : 'bg-white text-black active:scale-[0.98] shadow-white/10')
+              ? 'bg-zinc-200 text-zinc-400 cursor-not-allowed'
+              : 'bg-gradient-to-r from-purple-600 to-purple-500 text-white hover:from-purple-500 hover:to-purple-400 active:scale-[0.98]')
           }
         >
           {isProcessing && <Loader2 className="h-5 w-5 animate-spin" />}

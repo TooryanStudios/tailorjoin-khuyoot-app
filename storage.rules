@@ -205,5 +205,21 @@ service firebase.storage {
       allow delete: if isAdmin();
       allow read: if true;
     }
+
+    // ===========================================
+    // Landing Page Configuration (admin-managed)
+    // ===========================================
+    // Path: landing_page/{path=**}
+    // Examples:
+    // - landing_page/hero.backgroundImage_123456.jpg
+    // - landing_page/hero.maleCard_123456.png
+    // - landing_page/categories.largeCat1_123456.webp
+    match /landing_page/{path=**} {
+      allow write: if isAdmin() && 
+                      isValidImage() &&
+                      request.resource.size < 10 * 1024 * 1024; // 10MB max
+      allow delete: if isAdmin();
+      allow read: if true;
+    }
   }
 }

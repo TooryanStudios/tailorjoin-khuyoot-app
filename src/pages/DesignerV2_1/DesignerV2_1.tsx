@@ -23,7 +23,8 @@ export const DesignerV2_1: React.FC = () => {
   const credits = serverUser?.billing?.credits ?? (serverUser as any)?.credits ?? (serverUser as any)?.credit_balance;
   const tier = serverUser?.billing?.tier ?? (serverUser as any)?.tier ?? (serverUser as any)?.subscription?.tier ?? (serverUser as any)?.subscriptionTier;
 
-  const { t, isMobile, uiState, features, setFeatures, isAdminUser, handleClearSelections, navigateHome } = logic;
+  const { t, isMobile, uiState, features, setFeatures, isAdminUser, handleClearSelections, navigateHome, i18n } = logic;
+  const isAr = i18n.language === 'ar';
 
   // Handle payment status from URL
   React.useEffect(() => {
@@ -32,12 +33,12 @@ export const DesignerV2_1: React.FC = () => {
     
     if (paymentStatus === 'success') {
       window.history.replaceState({}, document.title, window.location.pathname);
-      alert('Payment Successful! Your credits are being updated.');
+      alert(t('paymentSuccess'));
     } else if (paymentStatus === 'cancel') {
       window.history.replaceState({}, document.title, window.location.pathname);
-      alert('Payment cancelled.');
+      alert(t('paymentCancelled'));
     }
-  }, []);
+  }, [t]);
   
   // Synchronize internal sidebar with master shell:
   const context = useOutletContext<DemoShellOutletContext>();
@@ -65,27 +66,20 @@ export const DesignerV2_1: React.FC = () => {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#020202] text-zinc-100 flex flex-col font-sans selection:bg-blue-500/30">
-      <FeatureToggleBar 
-        features={features} 
-        onFeaturesChange={setFeatures} 
-        isAdminUser={isAdminUser} 
-      />
-      
-      <DesignerHeader 
-        onHome={navigateHome}
-        credits={credits}
-        tier={tier}
-        userName={serverUser?.displayName}
-        profileImage={serverUser?.photoURL}
-        title="Try On 2.1"
-      />
+    <div className="w-full h-full overflow-hidden bg-white text-zinc-900 flex flex-col font-sans selection:bg-purple-100">
+      {isAdminUser && (
+        <FeatureToggleBar 
+          features={features} 
+          onFeaturesChange={setFeatures} 
+          isAdminUser={isAdminUser} 
+        />
+      )}
 
       <main className="flex-1 flex overflow-hidden">
         <Sidebar {...logic} />
 
-        <div className="flex-1 flex overflow-hidden bg-[#070708]">
-          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-auto custom-scrollbar border-l border-zinc-800/50">
+        <div className="flex-1 flex overflow-hidden bg-white">
+          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-auto custom-scrollbar border-l border-zinc-200">
             <DesignerViewport {...logic} />
             
             {features.showFullComparison && (

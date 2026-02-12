@@ -43,7 +43,7 @@ export const Tabs: React.FC<TabsProps> = ({
               <span
                 className={`
                   ml-1.5 px-1.5 py-0.5 rounded text-[10px] font-semibold
-                  ${isActive ? 'bg-lime-400 text-slate-900' : 'bg-white/10 text-slate-400'}
+                  ${isActive ? 'bg-theme-primary text-white' : 'bg-white/10 text-slate-400'}
                 `}
               >
                 {tab.badge}
@@ -57,3 +57,4 @@ export const Tabs: React.FC<TabsProps> = ({
 };
 
 export default Tabs;
+

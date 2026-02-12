@@ -23,25 +23,43 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 async function readJsonBody(req: http.IncomingMessage, maxBytes = 6 * 1024 * 1024): Promise<any> {
-  const chunks: Buffer[] = [];
-  let total = 0;
-  for await (const chunk of req) {
-    const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk);
-    total += buf.length;
-    if (total > maxBytes) {
-      const err: any = new Error('Payload too large');
-      err.statusCode = 413;
-      throw err;
-    }
-    chunks.push(buf);
-  }
-  const raw = Buffer.concat(chunks).toString('utf8');
-  if (!raw) return {};
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return {};
-  }
+  return new Promise((resolve, reject) => {
+    const chunks: Buffer[] = [];
+    let total = 0;
+    
+    // Safety timeout for body reading
+    const timer = setTimeout(() => {
+      reject(new Error('Body read timeout'));
+    }, 10000);
+
+    req.on('data', (chunk) => {
+      total += chunk.length;
+      if (total > maxBytes) {
+        clearTimeout(timer);
+        reject(new Error('Payload too large'));
+      }
+      chunks.push(chunk);
+    });
+
+    req.on('end', () => {
+      clearTimeout(timer);
+      const raw = Buffer.concat(chunks).toString('utf8');
+      if (!raw) {
+        resolve({});
+        return;
+      }
+      try {
+        resolve(JSON.parse(raw));
+      } catch (err) {
+        resolve({});
+      }
+    });
+
+    req.on('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
 }
 
 function setCors(res: http.ServerResponse, req?: http.IncomingMessage) {
@@ -166,14 +184,16 @@ async function proxyRemoteImageInfo(urlStr: string, res: http.ServerResponse, re
 const port = Number(process.env.TRYON_API_PORT || 8788);
 
 const server = http.createServer(async (req, res) => {
-  if (!req.url) return;
+  try {
+    if (!req.url) return;
+    console.log(`[API] ${req.method} ${req.url}`);
 
-  if (req.method === 'OPTIONS') {
-    setCors(res, req);
-    res.writeHead(204);
-    res.end();
-    return;
-  }
+    if (req.method === 'OPTIONS') {
+      setCors(res, req);
+      res.writeHead(204);
+      res.end();
+      return;
+    }
 
   // COOKIE LOGIN
   if (req.url.startsWith('/api/auth/login-cookie') && req.method === 'POST') {
@@ -224,8 +244,12 @@ const server = http.createServer(async (req, res) => {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ customToken }));
     } catch (e: any) {
+      console.error('[API] /custom-token error:', e);
       res.writeHead(500, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ error: e?.message || 'Failed to create custom token' }));
+      res.end(JSON.stringify({ 
+        error: e?.message || 'Failed to create custom token',
+        stack: process.env.NODE_ENV !== 'production' ? e?.stack : undefined 
+      }));
     }
     return;
   }
@@ -279,14 +303,21 @@ const server = http.createServer(async (req, res) => {
 
       console.log('[API] Session verified for:', (decoded as any).email || decoded.uid);
       console.log('[API] Decoded Token Claims:', JSON.stringify(decoded));
-      console.log('[API] Firestore Profile:', JSON.stringify(profile));
+      console.log('[API] Firestore Profile from users:', JSON.stringify(profile));
+      
+      let role = profile.role || (decoded as any).role || 'customer';
+      console.log('[API] Initial role determination:', role);
+      
+      console.log('[API] Final role sent to client:', role);
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      const role = profile.role || (decoded as any).role || 'customer';
       res.end(JSON.stringify({
         uid: decoded.uid,
         email: (decoded as any).email,
         displayName: profile.name || profile.displayName || (decoded as any).name || (decoded as any).displayName || 'User',
         photoURL: profile.profileImage || profile.photoURL || profile.avatar || (decoded as any).picture || (decoded as any).photoURL || null,
+        phone: profile.phone || profile.phoneNumber || profile.contactNumber || (profile as any).phone_number || null,
+        phoneNumber: profile.phoneNumber || profile.phone || profile.contactNumber || null,
+        contactNumber: profile.contactNumber || profile.phone || null,
         role: role,
         billing: {
           credits: profile.credit_balance ?? profile.credits ?? 0,
@@ -370,6 +401,18 @@ const server = http.createServer(async (req, res) => {
 
   // UPSCALE / FABRIC SWAP / HISTORY (Abbreviated for clarity, using existing handlers)
   if (req.url.startsWith('/api/upscale')) {
+    setCors(res, req);
+    try {
+      const body = await readJsonBody(req);
+      const { status, json } = await handleUpscale(body, { ip: 'dev', headers: req.headers as any });
+      res.writeHead(status, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify(json));
+    } catch (e: any) { res.writeHead(500); res.end(); }
+    return;
+  }
+
+  // Designer V2.1 Upscale
+  if (req.url.startsWith('/api/designer-v2-1/upscale')) {
     setCors(res, req);
     try {
       const body = await readJsonBody(req);
@@ -552,6 +595,19 @@ const server = http.createServer(async (req, res) => {
   // Default
   res.writeHead(404);
   res.end(JSON.stringify({ error: 'Not Found' }));
+  } catch (globalErr: any) {
+    console.error('[API] UNCAUGHT GLOBAL ERROR:', globalErr);
+    try {
+      if (!res.headersSent) {
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ 
+          error: 'Internal Server Error (Global)', 
+          message: globalErr?.message,
+          stack: globalErr?.stack 
+        }));
+      }
+    } catch (e) {}
+  }
 });
 
 server.listen(port, '0.0.0.0', () => {

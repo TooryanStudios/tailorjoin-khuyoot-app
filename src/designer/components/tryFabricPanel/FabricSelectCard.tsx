@@ -12,7 +12,7 @@ export function FabricSelectCard(props: {
   return (
     <div className="grid gap-3 grid-cols-1">
       <div
-        className="relative w-full aspect-[3/4] lg:aspect-auto lg:h-[260px] xl:h-[260px] lg:max-w-[520px] lg:mx-auto rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-800 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-blue-500 transition-all group"
+        className="relative w-full aspect-[3/4] lg:aspect-auto lg:h-[260px] xl:h-[260px] lg:max-w-[520px] lg:mx-auto rounded-xl overflow-hidden bg-slate-50 dark:bg-slate-700/60 border-2 border-slate-300 dark:border-slate-600 cursor-pointer hover:border-blue-500 transition-all group"
         onClick={onClick}
       >
         {imageUrl ? (
@@ -23,7 +23,7 @@ export function FabricSelectCard(props: {
             className="w-full h-full"
           />
         ) : (
-          <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+          <div className="w-full h-full flex flex-col items-center justify-center text-slate-500">
             <svg className="w-12 h-12 mb-2 opacity-50" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path
                 strokeLinecap="round"

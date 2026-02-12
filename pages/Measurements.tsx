@@ -546,12 +546,14 @@ export const Measurements = () => {
                     <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button
                         onClick={(e) => { e.stopPropagation(); handleEdit(measurement); }}
+                        title="تعديل"
                         className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 rounded-lg transition-colors"
                       >
                         <Edit2 size={14} />
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); handleDelete(measurement.id); }}
+                        title="حذف"
                         className="p-1.5 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 rounded-lg transition-colors"
                       >
                         <Trash2 size={14} />
@@ -690,6 +692,7 @@ export const Measurements = () => {
                     </h2>
                     <button
                       onClick={handleCancel}
+                      title="إلغاء"
                       className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-lg transition-colors"
                     >
                       <X size={20} />
@@ -748,6 +751,7 @@ export const Measurements = () => {
                             <select
                               value={selectedTemplateId}
                               onChange={(e) => setSelectedTemplateId(e.target.value)}
+                              title="اختر قالباً مرجعياً"
                               className="px-3 py-1.5 bg-zinc-950 border border-zinc-800 rounded-lg text-xs text-zinc-300 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
                             >
                               {visibleTemplates.map((t) => (
@@ -857,12 +861,14 @@ export const Measurements = () => {
                           <div className="flex gap-1">
                             <button
                               onClick={() => handleEdit(measurement)}
+                              title="تعديل"
                               className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-purple-400 rounded-lg transition-colors"
                             >
                               <Edit2 size={18} />
                             </button>
                             <button
                               onClick={() => handleDelete(measurement.id)}
+                              title="حذف"
                               className="p-2 hover:bg-zinc-800 text-zinc-400 hover:text-red-400 rounded-lg transition-colors"
                             >
                               <Trash2 size={18} />

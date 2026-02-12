@@ -169,24 +169,24 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
 
   return (
     <div
-      className="relative w-full overflow-hidden bg-[#050817] text-white"
+      className="relative w-full overflow-hidden bg-white text-zinc-900"
       style={{ height: '100%', minHeight: '100vh' }}
     >
       {/* Studio Canvas */}
-      <div className="absolute inset-0 bg-gradient-to-br from-[#050817] via-[#0b0515] to-[#120821]" />
+      <div className="absolute inset-0 bg-gradient-to-br from-white via-zinc-50 to-purple-50/30" />
 
             {/* Floating Header Actions */}
       <div className="absolute top-3 right-3 z-30 flex items-center gap-2 scale-[0.92] origin-top-right">
         <CreditBadge onRefill={onRefillCredits} />
         {user && (
           <button 
-            className="w-8 h-8 rounded-full overflow-hidden border border-white/10 bg-black/20 backdrop-blur-sm flex items-center justify-center"
+            className="w-10 h-10 rounded-full overflow-hidden border border-zinc-200 bg-white shadow-sm flex items-center justify-center p-0.5"
             onClick={() => window.location.href = '/account'}
           >
             {user.profileImage ? (
-              <img src={user.profileImage} className="w-full h-full object-cover" alt="User" />
+              <img src={user.profileImage} className="w-full h-full rounded-full object-cover" alt="User" />
             ) : (
-              <User size={16} className="text-white/70" />
+              <User size={18} className="text-zinc-400" />
             )}
           </button>
         )}
@@ -201,15 +201,18 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
             <img
               src={previewImage}
               alt="Designer preview"
-              className="absolute inset-0 w-full h-full object-contain"
+              className="absolute inset-0 w-full h-full object-contain p-4"
               decoding="async"
             />
           )}
 
           {isProcessing && (
-            <div className="absolute inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center">
-              <div className="rounded-2xl border border-white/10 bg-black/30 px-4 py-3 text-sm">
-                Processing…
+            <div className="absolute inset-0 bg-white/60 backdrop-blur-sm flex items-center justify-center z-50">
+              <div className="flex flex-col items-center gap-4 p-8 rounded-3xl bg-white border border-zinc-100 shadow-2xl">
+                <div className="w-12 h-12 border-4 border-purple-100 border-t-purple-600 rounded-full animate-spin" />
+                <div className="flex flex-col items-center gap-1">
+                  <span className="text-[10px] font-black text-zinc-900 uppercase tracking-[0.2em]">جاري المعالجة...</span>
+                </div>
               </div>
             </div>
           )}
@@ -226,19 +229,25 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
             <div className="inline-flex gap-2 pr-2">
               {envOptions.map((o) => {
                 const active = lightingPreset === o.id;
+                // Arabic Labels
+                const labels: Record<string, string> = {
+                   'night': 'ليلي',
+                   'day': 'نهاري',
+                   'cinematic': 'سينمائي'
+                };
                 return (
                   <button
                     key={o.id}
                     type="button"
                     onClick={() => onSelectLightingPreset(o.id)}
                     className={
-                      'h-10 px-4 rounded-full border text-sm font-semibold whitespace-nowrap transition-colors ' +
+                      'h-10 px-5 rounded-full border text-[11px] font-black uppercase tracking-widest transition-all ' +
                       (active
-                        ? 'bg-white/10 border-purple-400/60 text-white'
-                        : 'bg-black/20 border-white/10 text-white/75 hover:border-white/20')
+                        ? 'bg-purple-600 border-purple-600 text-white shadow-lg shadow-purple-100'
+                        : 'bg-white border-zinc-200 text-zinc-400 hover:border-purple-300')
                     }
                   >
-                    {o.label}
+                    {labels[o.id] || o.label}
                   </button>
                 );
               })}
@@ -260,12 +269,12 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
       >
         {/* Grab Handle */}
         <div
-          className="absolute -top-3 left-0 right-0 flex justify-center"
+          className="absolute -top-4 left-0 right-0 flex justify-center py-4"
           onTouchStart={onTouchStart}
           onTouchMove={onTouchMove}
           onTouchEnd={onTouchEnd}
         >
-          <div className="h-1.5 w-12 rounded-full bg-white/20" />
+          <div className="h-1.5 w-12 rounded-full bg-zinc-300" />
         </div>
 
         <MobileControlDrawer
@@ -279,7 +288,7 @@ export const MobileDesignerLayout = React.memo(function MobileDesignerLayout(
           canGenerate={canGenerate}
           isProcessing={isProcessing}
           onGenerate={onGenerate}
-          generateLabel="Generate & Enhance"
+          generateLabel="توليد وتحسين"
         />
       </div>
     </div>

@@ -901,7 +901,7 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
 
                 {/* Country selection with thumbnails */}
                 {question.id === 'country' ? (
-                  renderCountryThumbnails(answers[question.id], (selected) => updateAnswer(question.id, selected), selectedLang, backdropVariant)
+                  renderCountryThumbnails(answers[question.id], (selected) => updateAnswer(question.id, selected), selectedLang, backdropVariant as 'default' | 'designerV2_1')
                 ) : null}
                 
                 {/* Video + Options Side-by-Side Layout */}
@@ -910,19 +910,19 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
                     {/* Options Column */}
                     <div>
                       {question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                        ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
+                        ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant as 'default' | 'designerV2_1')
                         : null}
 
                       {question.useCardLayout && question.type === 'multi'
-                        ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant)
+                        ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant as 'default' | 'designerV2_1')
                         : null}
 
                       {!question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                        ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
+                        ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant as 'default' | 'designerV2_1')
                         : null}
 
                       {!question.useCardLayout && question.type === 'multi' 
-                        ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant) 
+                        ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant as 'default' | 'designerV2_1') 
                         : null}
                     </div>
                     
@@ -964,20 +964,20 @@ export const SurveyModal: React.FC<SurveyModalProps> = ({
 
                     {/* Card layout for designated questions */}
                     {question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                      ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
+                      ? renderCardOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant as 'default' | 'designerV2_1')
                       : null}
 
                     {question.useCardLayout && question.type === 'multi'
-                      ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant)
+                      ? renderCardOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant as 'default' | 'designerV2_1')
                       : null}
 
                     {/* Standard list layout for non-card questions */}
                     {!question.useCardLayout && question.type === 'single' && question.id !== 'country'
-                      ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant)
+                      ? renderOptions(question, answers[question.id], (selected) => updateAnswer(question.id, selected), () => {}, selectedLang, backdropVariant as 'default' | 'designerV2_1')
                       : null}
 
                     {!question.useCardLayout && question.type === 'multi' 
-                      ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant) 
+                      ? renderOptions(question, answers[question.id], () => {}, (selected) => toggleMultiAnswer(question.id, selected), selectedLang, backdropVariant as 'default' | 'designerV2_1') 
                       : null}
                   </>
                 )}

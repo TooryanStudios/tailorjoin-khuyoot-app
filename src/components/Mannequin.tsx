@@ -1,7 +1,6 @@
 import React from 'react';
-import { GroupProps } from '@react-three/fiber';
 
-export function Mannequin(props: GroupProps) {
+export function Mannequin(props: any) {
   return (
     <group position={[0, -1, 0]} {...props}>
       {/* Head */}

@@ -14,10 +14,9 @@ export function TryFabricMainCard(props: {
     <div className="order-2 md:order-1 space-y-4">
       {fabricSelectCard ?? (
         
-        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-4">
-          fabricSelectCarddddd
+        <div className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-950/60 p-4">
           <div className="flex items-start gap-3">
-            <div className="w-24 aspect-[3/4] rounded-lg bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
+            <div className="w-24 aspect-[3/4] rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 flex items-center justify-center overflow-hidden">
               
               <svg
                 className="w-8 h-8 text-slate-300 dark:text-slate-600"
@@ -35,8 +34,8 @@ export function TryFabricMainCard(props: {
             </div>
 
             <div className="flex-1">
-              <div className="text-sm font-bold text-slate-800 dark:text-white">اختر القماش</div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">اختر صورة القماش ليظهر هنا.</div>
+              <div className="text-sm font-bold text-slate-900 dark:text-white">اختر القماش</div>
+              <div className="mt-1 text-xs text-slate-600 dark:text-slate-300">اختر صورة القماش ليظهر هنا.</div>
             </div>
           </div>
         </div>

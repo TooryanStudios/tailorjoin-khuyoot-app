@@ -23,8 +23,21 @@ export type StudioLayoutProps = {
     cost?: number;
     onGenerate: () => void;
   };
+  /** Optional secondary CTA below generate row */
+  stitchAction?: {
+    label: string;
+    onClick: () => void;
+  };
   /** Clear/reset selections */
   onClear?: () => void;
+  /** Optional direct browse handlers (mobile). If provided, drawer tab switching is skipped. */
+  onBrowseTemplate?: () => void;
+  onBrowseFabric?: () => void;
+  /** Optional fabric tiling quick action shown over fabric card (mobile). */
+  fabricTiling?: {
+    enabled: boolean;
+    onOpen: () => void;
+  };
 };
 
 /**
@@ -45,7 +58,11 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
   templateThumbUrl,
   fabricThumbUrl,
   generateAction,
+  stitchAction,
   onClear,
+  onBrowseTemplate,
+  onBrowseFabric,
+  fabricTiling,
 }) => {
   const shouldNudgeFabric = Boolean(templateThumbUrl) && !fabricThumbUrl;
 
@@ -69,12 +86,16 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
 
         {/* Generate Button */}
         {generateAction && (
-          <div className="px-4 py-0.5">
+          <div className="px-6 py-2.5">
             <div className="flex items-stretch gap-1.5">
               <button
                 type="button"
                 aria-label="Template"
                 onClick={() => {
+                  if (onBrowseTemplate) {
+                    onBrowseTemplate();
+                    return;
+                  }
                   try {
                     window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-expand'));
                     window.dispatchEvent(new CustomEvent('khuyoot:studio-open-tab', { detail: 'templates' }));
@@ -82,7 +103,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     // ignore
                   }
                 }}
-                className="h-11 w-11 shrink-0 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600"
+                className="h-[124px] w-[124px] shrink-0 rounded-xl bg-white border border-zinc-300 ring-1 ring-zinc-500/70 text-zinc-600 shadow-lg shadow-black/10 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-50 hover:border-purple-400"
               >
                 {templateThumbUrl ? (
                   <img
@@ -136,6 +157,10 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                   type="button"
                   aria-label="Fabric"
                   onClick={() => {
+                    if (onBrowseFabric) {
+                      onBrowseFabric();
+                      return;
+                    }
                     try {
                       window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-expand'));
                       window.dispatchEvent(new CustomEvent('khuyoot:studio-open-tab', { detail: 'fabric' }));
@@ -144,10 +169,28 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     }
                   }}
                   className={
-                    "relative h-11 w-11 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-white shadow-lg shadow-black/30 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-800 hover:border-zinc-600 " +
+                    "relative h-[124px] w-[124px] rounded-xl bg-white border border-zinc-300 ring-1 ring-zinc-500/70 text-zinc-600 shadow-lg shadow-black/10 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-50 hover:border-purple-400 " +
                     (shouldNudgeFabric ? "animate-bounce border-pink-500/60 shadow-pink-500/30" : "")
                   }
                 >
+                  {fabricTiling?.enabled && (
+                    <button
+                      type="button"
+                      aria-label="Open fabric tiling"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        fabricTiling.onOpen();
+                      }}
+                      className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500 text-black hover:scale-110 active:scale-95 transition-all"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" className="shrink-0">
+                        <path d="M13 2L3 14h7l-1 8 10-12h-7l1-8z" />
+                      </svg>
+                      <span className="text-[9px] font-black uppercase tracking-tight">Tile</span>
+                    </button>
+                  )}
+
                   {shouldNudgeFabric && (
                     <span className="pointer-events-none absolute inset-0 rounded-xl ring-2 ring-pink-500/50 animate-ping opacity-40" />
                   )}
@@ -162,7 +205,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     />
                   ) : (
                     <div className="h-full w-full relative">
-                      <div className="h-full w-full bg-[linear-gradient(45deg,theme(colors.zinc.800)_25%,theme(colors.zinc.900)_25%,theme(colors.zinc.900)_50%,theme(colors.zinc.800)_50%,theme(colors.zinc.800)_75%,theme(colors.zinc.900)_75%,theme(colors.zinc.900)_100%)] bg-[length:12px_12px]" />
+                      <div className="h-full w-full bg-[linear-gradient(45deg,theme(colors.zinc.100)_25%,theme(colors.zinc.200)_25%,theme(colors.zinc.200)_50%,theme(colors.zinc.100)_50%,theme(colors.zinc.100)_75%,theme(colors.zinc.200)_75%,theme(colors.zinc.200)_100%)] bg-[length:12px_12px]" />
                       {shouldNudgeFabric && (
                         <div className="absolute inset-0 flex items-center justify-center">
                           <div className="rounded-full bg-pink-500/20 px-2 py-1 text-[10px] font-bold text-pink-200">
@@ -180,7 +223,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                   type="button"
                   onClick={onClear}
                   aria-label="Clear selections"
-                  className="h-11 w-11 shrink-0 rounded-xl bg-zinc-900 border-2 border-zinc-700 text-zinc-400 shadow-lg shadow-black/30 transition-all active:scale-[0.98] hover:bg-zinc-800 hover:border-red-500/60 hover:text-red-400 flex items-center justify-center"
+                  className="h-[124px] w-[124px] shrink-0 rounded-xl bg-white border border-zinc-300 ring-1 ring-zinc-500/70 text-zinc-400 shadow-lg shadow-black/10 transition-all active:scale-[0.98] hover:bg-zinc-50 hover:border-red-400 hover:text-red-500 flex items-center justify-center"
                 >
                   <svg
                     width="20"
@@ -205,7 +248,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                 disabled={!generateAction.canGenerate || generateAction.isProcessing}
                 onClick={generateAction.onGenerate}
                 className={
-                  'flex-1 h-11 rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 uppercase tracking-widest text-[12px] focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
+                  'flex-1 h-[124px] rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
                   (!generateAction.canGenerate || generateAction.isProcessing
                     ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20 opacity-50'
                     : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-[0.98] border-purple-500/40 hover:border-purple-400/60')
@@ -220,17 +263,20 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                     جاري التنفيذ...
                   </>
                 ) : (
-                  `توليد التصميم${typeof generateAction.cost === 'number' && generateAction.cost > 0 ? ` (${generateAction.cost})` : ''}`
+                  'توليد'
                 )}
               </button>
             </div>
-          </div>
-        )}
 
-        {/* Lighting Presets */}
-        {lighting && (
-          <div className={styles.lightingWrapper}>
-            {lighting}
+            {stitchAction && (
+              <button
+                type="button"
+                onClick={stitchAction.onClick}
+                className="mt-2 w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black text-[11px] uppercase tracking-widest hover:from-blue-500 hover:to-blue-400 transition-all active:scale-95 shadow-sm"
+              >
+                {stitchAction.label}
+              </button>
+            )}
           </div>
         )}
 
@@ -246,12 +292,17 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
           <div className={[panelClassName, 'px-2 pb-6'].filter(Boolean).join(' ')}>
             <div className={panelTopPaddingClassName}>
               {panel}
+              {lighting && (
+                <div className={styles.lightingWrapper}>
+                  {lighting}
+                </div>
+              )}
             </div>
           </div>
         )}
         
         {/* Bottom padding to prevent content from being hidden under sheet */}
-        <div style={{ height: '0px' }} />
+        <div className="h-0" />
       </div>
 
       {/* Foreground Layer: Draggable Selection Sheet */}
@@ -259,6 +310,11 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
         <StudioSheet initialSnap="collapsed">
           <div className={panelTopPaddingClassName}>
             {panel}
+            {lighting && (
+              <div className={styles.lightingWrapper}>
+                {lighting}
+              </div>
+            )}
           </div>
         </StudioSheet>
       )}

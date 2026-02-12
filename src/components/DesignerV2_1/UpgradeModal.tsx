@@ -119,13 +119,13 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
       />
 
       {/* Modal Content */}
-      <div className="relative w-full max-w-md mx-4 bg-gradient-to-b from-zinc-900 to-zinc-950 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden">
+      <div className="relative w-full max-w-md mx-4 bg-white border border-zinc-200 rounded-2xl shadow-2xl overflow-hidden">
         {/* Close Button */}
         <button
           onClick={phase === 'idle' ? onClose : undefined}
           disabled={phase !== 'idle'}
           className={`absolute top-4 right-4 p-2 transition-colors z-10 ${
-            phase === 'idle' ? 'text-zinc-400 hover:text-zinc-200' : 'text-zinc-600 cursor-not-allowed'
+            phase === 'idle' ? 'text-zinc-400 hover:text-zinc-600' : 'text-zinc-300 cursor-not-allowed'
           }`}
         >
           <X className="w-5 h-5" />
@@ -133,32 +133,32 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
         {/* Header with Badge */}
         <div className="px-5 pt-5 pb-3 text-center">
-          <h2 className="text-xl font-bold text-white mb-1">{t('upgradeTitle')}</h2>
-          <p className="text-xs text-zinc-400">{t('upgradeSubtitle')}</p>
+          <h2 className="text-xl font-bold text-zinc-900 mb-1">{t('upgradeTitle')}</h2>
+          <p className="text-xs text-zinc-500">{t('upgradeSubtitle')}</p>
         </div>
 
         {/* Features List */}
         <div className="px-5 py-3 space-y-1.5">
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeatureRemoveWatermark')}</span>
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <span className="text-zinc-700">{t('upgradeFeatureRemoveWatermark')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeature4k')}</span>
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <span className="text-zinc-700">{t('upgradeFeature4k')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeaturePriority')}</span>
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <span className="text-zinc-700">{t('upgradeFeaturePriority')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeatureAdvancedModels')}</span>
+            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <span className="text-zinc-700">{t('upgradeFeatureAdvancedModels')}</span>
           </div>
         </div>
 
         {/* Pricing */}
-        <div className="px-5 py-3 bg-zinc-900/50 border-t border-zinc-800">
+        <div className="px-5 py-3 bg-zinc-50 border-t border-zinc-200">
           {/* Tabs */}
           <div className="flex gap-1.5 mb-3">
             <button
@@ -166,7 +166,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'onetime'
                   ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
               }`}
             >
               {t('upgradeTabCredits')}
@@ -176,7 +176,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'monthly'
                   ? 'bg-emerald-600 text-white shadow-lg shadow-emerald-500/30'
-                  : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                  : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
               }`}
             >
               {t('upgradeTabMonthly')}
@@ -186,64 +186,64 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           {/* One-Time Packs */}
           {activeTab === 'onetime' && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-purple-400 mb-2 font-medium">{t('upgradeCreditsNeverExpire')}</div>
+              <div className="text-[10px] text-center text-purple-600 mb-2 font-medium">{t('upgradeCreditsNeverExpire')}</div>
               {import.meta.env.DEV && (
                 <button
                   onClick={() => setSelectedOneTime('test')}
                   className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg border-2 border-dashed transition-all ${
                     selectedOneTime === 'test'
-                      ? 'bg-purple-500/20 border-purple-500/60 ring-1 ring-purple-400/50'
-                      : 'border-white/10 hover:border-purple-500/30 bg-purple-500/5'
+                      ? 'bg-purple-50 border-purple-500/60 ring-1 ring-purple-400/50'
+                      : 'border-zinc-200 hover:border-purple-500/30 bg-purple-50/50'
                   }`}
                 >
                   <div className="flex flex-col items-start">
-                    <span className="text-purple-300 font-bold uppercase tracking-widest text-[9px]">UAT TEST PACK</span>
-                    <span className="text-xs text-white">1 Generation (10 Credits)</span>
+                    <span className="text-purple-600 font-bold uppercase tracking-widest text-[9px]">UAT TEST PACK</span>
+                    <span className="text-xs text-zinc-900">1 Generation (10 Credits)</span>
                   </div>
-                  <span className="text-white font-black">0.1 OMR</span>
+                  <span className="text-zinc-900 font-black">0.1 OMR</span>
                 </button>
               )}
               <button
                 onClick={() => setSelectedOneTime('starter')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'starter'
-                    ? 'bg-purple-500/20 border border-purple-500/40 ring-1 ring-purple-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'starter' ? 'text-purple-200 font-medium' : 'text-zinc-300'}>{t('upgradePackStarter')}</span>
+                  <span className={selectedOneTime === 'starter' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackStarter')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackStarterCredits')}</span>
                 </div>
-                <span className={selectedOneTime === 'starter' ? 'text-white font-bold' : 'text-white font-semibold'}>2 {t('currencyOmr')}</span>
+                <span className={selectedOneTime === 'starter' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>2 {t('currencyOmr')}</span>
               </button>
               <button
                 onClick={() => setSelectedOneTime('value')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'value'
-                    ? 'bg-purple-500/20 border border-purple-500/40 ring-1 ring-purple-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'value' ? 'text-purple-200 font-medium' : 'text-zinc-300'}>{t('upgradePackValue')}</span>
+                  <span className={selectedOneTime === 'value' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackValue')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackValueCredits')}</span>
                 </div>
-                <span className={selectedOneTime === 'value' ? 'text-white font-bold' : 'text-white font-semibold'}>5 {t('currencyOmr')}</span>
+                <span className={selectedOneTime === 'value' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>5 {t('currencyOmr')}</span>
               </button>
               <button
                 onClick={() => setSelectedOneTime('pro')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'pro'
-                    ? 'bg-purple-500/20 border border-purple-500/40 ring-1 ring-purple-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'pro' ? 'text-purple-200 font-medium' : 'text-zinc-300'}>{t('upgradePackPro')}</span>
+                  <span className={selectedOneTime === 'pro' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackPro')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackProCredits')}</span>
                 </div>
-                <span className={selectedOneTime === 'pro' ? 'text-white font-bold' : 'text-white font-semibold'}>10 {t('currencyOmr')}</span>
+                <span className={selectedOneTime === 'pro' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>10 {t('currencyOmr')}</span>
               </button>
             </div>
           )}
@@ -251,48 +251,48 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           {/* Monthly Subscriptions */}
           {activeTab === 'monthly' && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-emerald-400 mb-2 font-medium">{t('upgradeMonthlyRenews')}</div>
+              <div className="text-[10px] text-center text-emerald-600 mb-2 font-medium">{t('upgradeMonthlyRenews')}</div>
               <button
                 onClick={() => setSelectedMonthly('basic')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedMonthly === 'basic'
-                    ? 'bg-emerald-500/20 border border-emerald-500/40 ring-1 ring-emerald-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-emerald-50 border border-emerald-500/40 ring-1 ring-emerald-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedMonthly === 'basic' ? 'text-emerald-200 font-medium' : 'text-zinc-300'}>{t('upgradeMonthlyBasic')}</span>
+                  <span className={selectedMonthly === 'basic' ? 'text-emerald-700 font-medium' : 'text-zinc-700'}>{t('upgradeMonthlyBasic')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradeMonthlyBasicCredits')}</span>
                 </div>
-                <span className={selectedMonthly === 'basic' ? 'text-white font-bold' : 'text-white font-semibold'}>3 {t('currencyOmr')}</span>
+                <span className={selectedMonthly === 'basic' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>3 {t('currencyOmr')}</span>
               </button>
               <button
                 onClick={() => setSelectedMonthly('standard')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedMonthly === 'standard'
-                    ? 'bg-emerald-500/20 border border-emerald-500/40 ring-1 ring-emerald-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-emerald-50 border border-emerald-500/40 ring-1 ring-emerald-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedMonthly === 'standard' ? 'text-emerald-200 font-medium' : 'text-zinc-300'}>{t('upgradeMonthlyStandard')}</span>
+                  <span className={selectedMonthly === 'standard' ? 'text-emerald-700 font-medium' : 'text-zinc-700'}>{t('upgradeMonthlyStandard')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradeMonthlyStandardCredits')}</span>
                 </div>
-                <span className={selectedMonthly === 'standard' ? 'text-white font-bold' : 'text-white font-semibold'}>6 {t('currencyOmr')}</span>
+                <span className={selectedMonthly === 'standard' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>6 {t('currencyOmr')}</span>
               </button>
               <button
                 onClick={() => setSelectedMonthly('plus')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedMonthly === 'plus'
-                    ? 'bg-emerald-500/20 border border-emerald-500/40 ring-1 ring-emerald-400/50'
-                    : 'hover:bg-zinc-800/50'
+                    ? 'bg-emerald-50 border border-emerald-500/40 ring-1 ring-emerald-400/50'
+                    : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedMonthly === 'plus' ? 'text-emerald-200 font-medium' : 'text-zinc-300'}>{t('upgradeMonthlyPlus')}</span>
+                  <span className={selectedMonthly === 'plus' ? 'text-emerald-700 font-medium' : 'text-zinc-700'}>{t('upgradeMonthlyPlus')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradeMonthlyPlusCredits')}</span>
                 </div>
-                <span className={selectedMonthly === 'plus' ? 'text-white font-bold' : 'text-white font-semibold'}>12 {t('currencyOmr')}</span>
+                <span className={selectedMonthly === 'plus' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>12 {t('currencyOmr')}</span>
               </button>
             </div>
           )}
@@ -301,7 +301,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
         {/* Action Buttons */}
         <div className="px-5 py-4 space-y-2.5">
           {error && (
-            <div className="rounded-lg border border-red-900/40 bg-red-950/30 px-3 py-2 text-xs text-red-200">
+            <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-600">
               {error}
             </div>
           )}
@@ -310,10 +310,10 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             disabled={phase !== 'idle'}
             className={`w-full px-4 py-2.5 text-sm text-white font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 ${
               phase === 'idle'
-                ? 'bg-gradient-to-r from-purple-600 to-purple-700 hover:from-purple-500 hover:to-purple-600'
+                ? 'bg-purple-600 hover:bg-purple-700'
                 : phase === 'progress'
-                  ? 'bg-gradient-to-r from-purple-700 to-purple-800 opacity-95 cursor-wait'
-                  : 'bg-gradient-to-r from-emerald-600 to-emerald-700'
+                  ? 'bg-purple-400 cursor-wait'
+                  : 'bg-emerald-600'
             }`}
           >
             {phase === 'idle' && t('upgradeNow')}
@@ -335,8 +335,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
             disabled={phase !== 'idle'}
             className={`w-full px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
               phase === 'idle'
-                ? 'bg-zinc-800 text-zinc-300 hover:bg-zinc-700'
-                : 'bg-zinc-900 text-zinc-600 cursor-not-allowed'
+                ? 'bg-zinc-100 text-zinc-600 hover:bg-zinc-200'
+                : 'bg-zinc-50 text-zinc-400 cursor-not-allowed'
             }`}
           >
             {t('upgradeLater')}
@@ -350,10 +350,10 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           </p>
 
           {/* Development Test Link - Visible for now */}
-          <div className="pt-2 border-t border-white/5">
+          <div className="pt-2 border-t border-zinc-100">
             <a 
               href="/__dev/payment-test"
-              className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-400 hover:text-purple-300 transition-colors"
+              className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-600 hover:text-purple-500 transition-colors"
             >
               <Shield size={12} />
               <span>Test Payment Fulfillment</span>

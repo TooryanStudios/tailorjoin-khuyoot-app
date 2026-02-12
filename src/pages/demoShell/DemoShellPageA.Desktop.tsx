@@ -67,6 +67,7 @@ const ProductCard = React.memo(function ProductCard({
            <button 
              type="button" 
              onClick={(e) => { e.stopPropagation(); /* Add like logic if needed */ }}
+             title="Like product"
              className="p-2 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-white hover:text-red-500 transition border border-white/10 shadow-lg"
            >
              <Heart size={16} />
@@ -74,6 +75,7 @@ const ProductCard = React.memo(function ProductCard({
            <button 
              type="button" 
              onClick={(e) => { e.stopPropagation(); /* Add tag logic if needed */ }}
+             title="Category tags"
              className="p-2 rounded-full bg-black/40 backdrop-blur-md text-white hover:bg-white hover:text-blue-500 transition border border-white/10 shadow-lg"
            >
              <Tag size={16} />
@@ -211,7 +213,7 @@ const HeroBanner = () => {
   const displaySrc = useThumbnail('/auth-panel.jpg', { maxEntries: 10 });
   
   return (
-    <section className="relative w-full h-[200px] bg-zinc-900 rounded-[3rem] overflow-hidden flex items-center justify-center p-8 border border-[var(--studio-card-border)] mb-12 group">
+    <section className="relative w-full h-[200px] bg-[var(--studio-surface)] rounded-[3rem] overflow-hidden flex items-center justify-center p-8 border border-[var(--studio-card-border)] mb-12 group">
       {/* Background Image with Overlay */}
       <div className="absolute inset-0 z-0">
         <img 
@@ -219,19 +221,19 @@ const HeroBanner = () => {
           className="w-full h-full object-cover opacity-40 transition-transform duration-700 group-hover:scale-105" 
           alt="" 
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-zinc-950 via-zinc-900/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-[var(--studio-bg)] via-[var(--studio-surface)]/60 to-transparent" />
       </div>
 
       <div className="text-center space-y-3 max-w-xl relative z-10" dir="rtl">
-        <h1 className="text-3xl font-bold tracking-tight text-white leading-tight">
-          خيوط: <span className="text-blue-400 italic">نسيجٌ من التواصل</span>
+        <h1 className="text-3xl font-bold tracking-tight text-[var(--studio-text)] leading-tight">
+          خيوط: <span className="text-blue-500 italic">نسيجٌ من التواصل</span>
         </h1>
-        <p className="text-lg text-zinc-300 font-normal">تجربة خياطة متميزة تجمع المجتمعات وتنسج الروابط.</p>
+        <p className="text-lg text-[var(--studio-text-muted)] font-normal">تجربة خياطة متميزة تجمع المجتمعات وتنسج الروابط.</p>
       </div>
 
       {/* Floating Logo - Simplified and smaller */}
       <div className="absolute right-10 top-1/2 -translate-y-1/2 hidden lg:flex items-center gap-4 z-10">
-        <div className="w-16 h-28 bg-white/5 backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl rotate-[5deg] border border-white/10">
+        <div className="w-16 h-28 bg-[var(--studio-card)] backdrop-blur-md rounded-2xl overflow-hidden shadow-2xl rotate-[5deg] border border-[var(--studio-card-border)]">
           <img src="/logo_big.png" className="w-full h-full object-contain p-3" alt="" />
         </div>
       </div>
@@ -266,6 +268,7 @@ const SectionHeader = ({
           <button 
             type="button"
             onClick={onNext} 
+            title="Next item"
             className="h-7 w-7 flex items-center justify-center rounded-full border border-zinc-200 text-zinc-500 hover:bg-zinc-50 transition-colors shadow-sm"
           >
             <ChevronRight size={14} />
@@ -273,6 +276,7 @@ const SectionHeader = ({
           <button 
             type="button"
             onClick={onPrev} 
+            title="Previous item"
             className="h-7 w-7 flex items-center justify-center rounded-full border border-zinc-200 text-zinc-500 hover:bg-zinc-50 transition-colors shadow-sm"
           >
             <ChevronLeft size={14} />
@@ -404,7 +408,7 @@ export function DemoShellPageADesktop() {
       return cid === selectedRecentCategoryId;
     });
 
-    return filtered.slice(0, 30).map(p => ({ ...p, _isNewArrival: true }));
+    return filtered.slice(0, 30).map((p, index) => ({ ...p, _isNewArrival: index < 3 }));
   }, [dbProducts, searchQuery, selectedRecentCategoryId, womenSubCategories, menSubCategories, menRoot]);
 
   return (
@@ -420,9 +424,9 @@ export function DemoShellPageADesktop() {
             placeholder="Search products, tailors, or collections..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full bg-white dark:bg-zinc-900 border border-[var(--studio-card-border)] rounded-full py-4 pl-14 pr-6 text-sm shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all group-hover:shadow-2xl"
+            className="w-full bg-[var(--studio-bg)] text-[var(--studio-text)] border border-[var(--studio-card-border)] rounded-full py-4 pl-14 pr-6 text-sm shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all group-hover:shadow-2xl placeholder:text-[var(--studio-text-muted)]"
           />
-          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-zinc-400">
+          <div className="absolute left-6 top-1/2 -translate-y-1/2 text-[var(--studio-text-muted)]">
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -430,7 +434,8 @@ export function DemoShellPageADesktop() {
           {searchQuery && (
             <button 
               onClick={() => setSearchQuery('')}
-              className="absolute right-6 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 p-1"
+              title="Clear search"
+              className="absolute right-6 top-1/2 -translate-y-1/2 text-[var(--studio-text-muted)] hover:text-[var(--studio-text)] p-1"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -541,13 +546,13 @@ export function DemoShellPageADesktop() {
         </div>
         
         {isDbLoading ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((i) => (
-              <div key={i} className="aspect-[2/3] bg-zinc-100 rounded-xl animate-pulse" />
+          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-10 gap-2">
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20].map((i) => (
+              <div key={i} className="aspect-[2/3] bg-zinc-100 rounded-lg animate-pulse" />
             ))}
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-4 sm:grid-cols-6 lg:grid-cols-10 gap-2">
             {recentlyAddedProducts.map((product) => (
               <ProductCard key={product.id} product={product} />
             ))}

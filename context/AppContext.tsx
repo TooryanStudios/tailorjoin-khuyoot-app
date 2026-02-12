@@ -5,7 +5,7 @@ import { useOnlineStatus } from '../utils/useOnlineStatus';
 import { useFirestoreSyncReady } from '../src/hooks/useFirestoreSyncReady';
 import { apiJson } from '../src/api/apiFetch';
 
-export type UserRole = 'admin' | 'tailor' | 'fabric_shop' | 'customer' | 'boutique' | 'guest';
+export type UserRole = 'admin' | 'tailor' | 'fabric_shop' | 'user' | 'boutique' | 'guest' | 'shop' | 'fabric_store' | 'customer';
 
 // Product, MerchantInfo, AppSettings, etc. types (simplified for context)
 export interface Product {
@@ -47,6 +47,9 @@ export interface User {
     name: string;
     email?: string;
     profileImage?: string;
+    phone?: string;
+    phoneNumber?: string;
+    contactNumber?: string;
     role: UserRole;
     isGuest: boolean;
     joinDate: string;
@@ -58,6 +61,7 @@ export interface User {
     photoURL?: string;
     credit_balance?: number;
     billing?: { credits?: number; tier?: string; subscriptionStatus?: string };
+    disabled?: boolean;
     history?: any[];
     closet?: any[];
     savedItems?: any[];
@@ -143,14 +147,28 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         }
         
         if (!role) role = 'customer';
-
+        
         // Ensure we always have name/profileImage regardless of whether source uses Firebase names (displayName/photoURL) or our names
+        const name = u.name || u.displayName || u.email?.split('@')[0] || 'User';
+        const profileImage = u.profileImage || u.photoURL || u.avatar || u.avatar_url;
+        const phone = u.phone || u.phoneNumber || (u as any).phone_number || (u as any).contactNumber || (u as any).mobile || (u as any).tel;
+
+        if (u.uid) {
+            console.log(`[AppContext] Normalizing user ${u.uid}:`, { 
+                hasPhone: !!phone, 
+                phoneValue: phone,
+                hasImage: !!profileImage,
+                sourceKeys: Object.keys(u)
+            });
+        }
+
         const base = {
             id: u.uid || u.id,
             uid: u.uid || u.id,
-            name: u.name || u.displayName || u.email?.split('@')[0] || 'User',
+            name,
             email: u.email,
-            profileImage: u.profileImage || u.photoURL || u.avatar,
+            profileImage,
+            avatar: profileImage, // Sync for compatibility
             role: role as UserRole,
             isGuest: u.isGuest || false,
             joinDate: u.joinDate || u.metadata?.joinDate || u.createdAt || new Date().toISOString(),
@@ -163,6 +181,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             ...base,
             credits,
             tier,
+            phone: phone || '', // Ensure it's at least an empty string
+            phoneNumber: phone || '', // Sync field name
             metadata: u.metadata || {}
         };
     };
@@ -178,16 +198,24 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                     const parsed = JSON.parse(cachedRaw);
                     if (parsed && (parsed.uid === authUser.uid || parsed.id === authUser.uid)) {
                         const normalized = normalizeUser(parsed);
-                        console.log(`[AppContext] Hydrated from profile cache in ${performance.now() - start}ms`, normalized?.name);
+                        console.log(`[AppContext] Hydrated from profile cache`, normalized?.name, normalized?.role);
                         return normalized;
                     }
                 }
             } catch {}
-            const normalized = normalizeUser(authUser);
-            console.log(`[AppContext] Hydrated from AuthProvider snapshot in ${performance.now() - start}ms`, normalized?.name);
-            return normalized;
+            
+            // FALLBACK: If no cache, DO NOT trust the role from the auth snapshot if it's just 'customer'
+            // This prevents the "Flash of Customer Role" before the profile syncs.
+            const initial = normalizeUser(authUser);
+            if (initial && initial.role === 'customer') {
+                console.log(`[AppContext] Auth snapshot has role 'customer' - waiting for profile sync instead.`);
+                return null; 
+            }
+            
+            console.log(`[AppContext] Hydrated from AuthProvider snapshot`, initial?.name, initial?.role);
+            return initial;
         }
-        console.log(`[AppContext] No initial user found in ${performance.now() - start}ms`);
+        console.log(`[AppContext] No initial user found`);
         return null;
     });
 
@@ -206,7 +234,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             const stored = localStorage.getItem('theme') as Theme | null;
             if (stored === 'dark' || stored === 'light' || stored === 'system') return stored;
         } catch {}
-        return 'dark'; // Fallback
+        return 'light'; // Fallback
     });
 
     const [appSettings, setAppSettings] = useState<AppSettings>(() => ({
@@ -217,7 +245,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         cartEnabled: true,
         showHeader: true,
         showFooter: true,
-        defaultTheme: 'dark',
+        defaultTheme: 'light',
         storeEnabled: false,
         themeColors: { primary: '#CFFF04', secondary: '#D4AF37' },
         ...initialAppSettings
@@ -282,8 +310,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 
                 // UNIVERSAL APPROACH: Fetch enriched user profile from /api/auth/me
                 // This includes: displayName, photoURL, credits, billing, history, closet
+                console.log('[AppContext] Fetching profile from /api/auth/me for UID:', authUser.uid);
                 try {
                     const serverData = await apiJson<any>('/api/auth/me');
+                    console.log('[AppContext] /api/auth/me response:', serverData);
                     if (cancelled) return;
                     
                     if (serverData) {
@@ -297,7 +327,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         if (serverData.user && serverData.user.uid) {
                             Object.keys(serverData).forEach(key => {
                                 if (key !== 'user' && key !== 'status' && key !== 'success') {
-                                    (mergedUser as any)[key] = serverData[key];
+                                    // Only overwrite if the value is truthy or if mergedUser doesn't have it
+                                    if (serverData[key] !== undefined && serverData[key] !== null) {
+                                      (mergedUser as any)[key] = serverData[key];
+                                    }
                                 }
                             });
                         }
@@ -305,8 +338,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         const normalized = normalizeUser({
                             ...authUser,
                             ...mergedUser,
-                            name: mergedUser.displayName || mergedUser.name || authUser.displayName || authUser.name,
-                            profileImage: mergedUser.photoURL || mergedUser.profileImage || authUser.photoURL || authUser.profileImage
+                            name: mergedUser.displayName || mergedUser.name || authUser.displayName || (authUser as any).name || (mergedUser as any).name,
+                            profileImage: mergedUser.photoURL || mergedUser.profileImage || authUser.photoURL || (authUser as any).profileImage || (mergedUser as any).avatar
                         });
                         
                         setUser(normalized);
@@ -332,8 +365,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                     const normalized = normalizeUser({
                         ...authUser,
                         ...extendedUser,
-                        name: authUser.displayName || authUser.name || extendedUser.name,
-                        profileImage: authUser.photoURL || authUser.profileImage || extendedUser.profileImage
+                        name: authUser.displayName || (authUser as any).name || extendedUser.name,
+                        profileImage: authUser.photoURL || (authUser as any).profileImage || extendedUser.profileImage
                     });
                     
                     setUser(normalized);
@@ -396,10 +429,29 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     const logout = async () => {
         setAuthActionLoading(true);
         try {
-            await firebaseService.logout();
+            // Clear cached profile FIRST (before user state)
+            if (user?.uid) {
+                const cacheKey = `khuyoot:user-profile:${user.uid}`;
+                localStorage.removeItem(cacheKey);
+                console.log('[AppContext] Cleared profile cache for:', user.uid);
+            }
+            
+            // Clear user state
             setUser(null);
             setCart([]);
+            
+            // Logout from Firebase
+            await firebaseService.logout();
+            
+            // Wait for Firebase auth state to propagate
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Final cleanup of all storage
             localStorage.clear();
+            sessionStorage.clear();
+            
+            console.log('[AppContext] Complete logout - all state cleared');
+            
         } catch (error) {
             console.error('Logout failed', error);
         } finally {

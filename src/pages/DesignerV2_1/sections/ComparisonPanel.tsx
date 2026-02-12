@@ -1,7 +1,8 @@
 import React from 'react';
-import ImageSlider from '../../components/DesignerV2_1/ImageSlider';
-import { ProcessingOverlay } from '../../modules/canvas/components/ProcessingOverlay';
-import { FabricSourceTile } from '../../modules/results/FabricSourceTile';
+import { useTranslation } from 'react-i18next';
+import ImageSlider from '../../../components/DesignerV2_1/ImageSlider';
+import { ProcessingOverlay } from '../../../modules/canvas/components/ProcessingOverlay';
+import { FabricSourceTile } from '../../../modules/results/FabricSourceTile';
 
 export type ComparisonPanelProps = {
   showComparisonSlider: boolean;
@@ -22,6 +23,8 @@ export type ComparisonPanelProps = {
 };
 
 export function ComparisonPanel(props: ComparisonPanelProps) {
+  const { t, i18n } = useTranslation(['designer']);
+  const isAr = i18n.language === 'ar';
   const {
     showComparisonSlider,
     sourceForComparison,
@@ -68,7 +71,7 @@ export function ComparisonPanel(props: ComparisonPanelProps) {
         <div className="absolute inset-0 bg-zinc-950/50 backdrop-blur-sm flex items-center justify-center z-40">
           <div className="flex flex-col items-center gap-3">
             <div className="w-10 h-10 border-4 border-purple-500/30 border-t-purple-500 rounded-full animate-spin" />
-            <span className="text-xs text-zinc-400">Loading image...</span>
+            <span className="text-xs text-zinc-400">{t('loading')}</span>
           </div>
         </div>
       )}

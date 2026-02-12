@@ -5,17 +5,18 @@
   --footer-height: 74px;
   
   /* 🎨 Master Theme (Unified App Identity) */
-  --theme-master: #2563eb;       /* Vivid Blue (Primary) */
-  --theme-primary: #2563eb;
-  --theme-primary-glow: rgba(37, 99, 235, 0.15);
-  --theme-primary-dark: #1d4ed8;
-  --theme-secondary: #0ea5e9;     /* Cyan/Sky Blue (Accent) */
+  --theme-master: #63498b;       /* Royal Purple (Primary) */
+  --theme-primary: #63498b;
+  --theme-primary-glow: rgba(99, 73, 139, 0.15);
+  --theme-primary-dark: #4e3a6d;
+  --theme-secondary: #b5e58d;     /* Lime Green (Accent) */
+  --theme-surface-lavender: #c2b7d3; /* Light Lavender for backgrounds */
   
   /* 🌌 Studio Design Tokens (Creati.studio style) */
   --studio-bg: #ffffff;
-  --studio-sidebar: #0a0a0a;
-  --studio-card: #f9f9f9;
-  --studio-card-border: rgba(0, 0, 0, 0.05);
+  --studio-sidebar: #ffffff;
+  --studio-card: #ffffff; /* FORCE PURE WHITE FOR CARDS IN BRIGHT THEME */
+  --studio-card-border: rgba(0, 0, 0, 0.08); /* Stronger border for white-on-white */
   --studio-primary: var(--theme-primary);
   --studio-primary-glow: var(--theme-primary-glow);
   --studio-success: #10b981;
@@ -41,8 +42,8 @@
 /* 🚀 Global Studio Utilities */
 .studio-glass {
   background: var(--studio-card);
-  backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
   border: 1px solid var(--studio-card-border);
 }
 
@@ -72,8 +73,8 @@ html, body {
   width: 100%;
   height: 100%;
   overflow-x: hidden;
-  touch-action: pan-y;
   -ms-touch-action: pan-y;
+  touch-action: pan-y;
   overscroll-behavior: none;
 }
 
@@ -99,7 +100,6 @@ html, body {
   flex: 1;
   width: 100%;
   overflow-y: auto;
-  -webkit-overflow-scrolling: touch;
   padding-bottom: 0;
   touch-action: pan-y;
   overscroll-behavior: none;
@@ -157,13 +157,13 @@ html, body {
 }
 
 .studio-main-viewport::-webkit-scrollbar-track {
-  background: transparent;
+  background: #ededed;
 }
 
 .studio-main-viewport::-webkit-scrollbar-thumb {
-  background: #e2e2e7; /* zinc-200 */
+  background: #d4d4d8; /* zinc-300 */
   border-radius: 10px;
-  border: 2px solid white;
+  border: 2px solid #ededed;
 }
 
 .studio-main-viewport::-webkit-scrollbar-thumb:hover {
@@ -209,16 +209,16 @@ html, body {
   animation: shine 4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
 }
 
-/* Fix autofill styling for dark inputs */
-input:-webkit-autofill,
-input:-webkit-autofill:hover,
-input:-webkit-autofill:focus,
-input:-webkit-autofill:active {
+/* Fix autofill styling for dark inputs DO NOT OVERRIDE WHITE INPUTS */
+input:not(.bg-white):-webkit-autofill,
+input:not(.bg-white):-webkit-autofill:hover,
+input:not(.bg-white):-webkit-autofill:focus,
+input:not(.bg-white):-webkit-autofill:active {
   -webkit-box-shadow: 0 0 0 30px #1e293b inset !important;
   box-shadow: 0 0 0 30px #1e293b inset !important;
 }
 
-input:-webkit-autofill {
+input:not(.bg-white):-webkit-autofill {
   -webkit-text-fill-color: #ffffff !important;
 }
 

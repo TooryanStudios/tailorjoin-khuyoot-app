@@ -11,7 +11,6 @@ export type PreviewCanvasProps = {
   fabricProductId?: string;
   fabricDebug?: any;
   showIntroCards?: boolean;
-  onOpenTemplates?: () => void;
   onUploadTemplate?: () => void;
   onOpenFabric?: () => void;
   onRefillCredits?: () => void;
@@ -29,12 +28,11 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
   fabricProductId,
   fabricDebug,
   showIntroCards,
-  onOpenTemplates,
   onUploadTemplate,
   onOpenFabric,
 }) => {
   return (
-    <div className="h-full relative overflow-hidden bg-[#09090b]">
+    <div className="h-full relative overflow-hidden bg-white">
       <div className="relative h-full w-full px-0 sm:px-10">
         <ComparisonSlider
           before={beforeImage}
@@ -46,7 +44,6 @@ export const PreviewCanvas: React.FC<PreviewCanvasProps> = ({
           fabricProductId={fabricProductId}
           fabricDebug={fabricDebug}
           showIntroCards={showIntroCards}
-          onOpenTemplates={onOpenTemplates}
           onUploadTemplate={onUploadTemplate}
           onOpenFabric={onOpenFabric}
         />

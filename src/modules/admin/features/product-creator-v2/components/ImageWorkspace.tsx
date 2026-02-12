@@ -85,7 +85,7 @@ export const ImageWorkspace: React.FC = () => {
                 key={`${img}-${index}`}
                 className={`relative group flex-shrink-0 w-14 h-14 rounded-md overflow-hidden cursor-pointer transition-all ${
                   index === coverImageIndex
-                    ? 'ring-2 ring-lime-400 shadow-lg shadow-lime-400/20'
+                    ? 'ring-2 ring-theme-primary shadow-lg shadow-theme-primary/20'
                     : 'ring-1 ring-white/10 hover:ring-white/20'
                 }`}
                 onClick={() => setCoverImage(index)}
@@ -99,7 +99,7 @@ export const ImageWorkspace: React.FC = () => {
                 />
 
                 {index === coverImageIndex && (
-                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-lime-400 text-slate-950 text-[10px] font-bold">
+                  <div className="absolute top-1 left-1 px-1.5 py-0.5 rounded bg-theme-primary text-white text-[10px] font-bold">
                     غلاف
                   </div>
                 )}
@@ -143,3 +143,4 @@ export const ImageWorkspace: React.FC = () => {
     </div>
   );
 };
+

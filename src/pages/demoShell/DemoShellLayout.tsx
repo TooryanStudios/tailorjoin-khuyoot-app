@@ -1,14 +1,17 @@
 import React from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { Home, LayoutGrid, History as HistoryIcon, Sparkles, Crown, HelpCircle, ChevronDown, User2, Bell, Search, PanelLeftClose, PanelLeftOpen, MapPin, SquareSplitHorizontal } from 'lucide-react';
+import { Home, LayoutGrid, History as HistoryIcon, Sparkles, Crown, HelpCircle, ChevronDown, User2, Bell, Search, PanelLeftClose, PanelLeftOpen, MapPin, SquareSplitHorizontal, Tag } from 'lucide-react';
 import { useApp } from '../../../context/AppContext';
-import { DesignerV2_1 } from '../DesignerV2_1/DesignerV2_1';
+import TryOn from '../TryOn';
 import { useMobileDetection } from '../../modules/designer/mobile';
 import { useHomeProducts, useHomeTailors, usePopularRegions, useProductCategories } from '../../hooks/useHomeData';
 import { useThumbnailCache, useThumbnail } from '../../hooks/useThumbnailCache';
 import { Footer } from '../../client/components/Footer';
 import { getUserOrders } from '../../../services/orderService';
 import { Order } from '../../../types';
+
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../../services/firebase';
 
 export type DemoShellOutletContext = {
   pageCounters: { a: number; b: number };
@@ -25,6 +28,9 @@ export type DemoShellOutletContext = {
   isCategoriesLoading: boolean;
   isMasterSidebarCollapsed: boolean;
   setMasterSidebarCollapsed: (collapsed: boolean) => void;
+  landingConfig: any;
+  activeTheme: string;
+  setActiveTheme: (theme: string) => void;
 };
 
 const COUNTERS_STORAGE_KEY = 'demo-shell-page-counters';
@@ -57,7 +63,7 @@ const PrewarmImage = React.memo((props: { url: string; onLoaded: (url: string) =
   );
 });
 
-const DesignerKeepAlive = React.memo(DesignerV2_1);
+const DesignerKeepAlive = React.memo(TryOn);
 
 export function DemoShellLayout() {
   const { prefetchThumbnails } = useThumbnailCache({ maxEntries: 100 });
@@ -70,12 +76,13 @@ export function DemoShellLayout() {
   
   // Track designer visits - keep it mounted once visited
   const [designerMounted, setDesignerMounted] = React.useState(false);
+  const isDesignerRoute = ['designer', 'designer-v2-1', 'tryon'].includes(currentPath);
   
   React.useEffect(() => {
-    if (currentPath === 'designer' && !designerMounted) {
+    if (isDesignerRoute && !designerMounted) {
       setDesignerMounted(true);
     }
-  }, [currentPath, designerMounted]);
+  }, [isDesignerRoute, designerMounted]);
 
   const [pageCounters, setPageCounters] = React.useState<{ a: number; b: number }>(() => {
     if (typeof window === 'undefined') {
@@ -180,8 +187,42 @@ export function DemoShellLayout() {
     });
   }, []);
 
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = React.useState(true);
   const [activeOrders, setActiveOrders] = React.useState<Order[]>([]);
+  const [activeTheme, setActiveTheme] = React.useState<string>(() => {
+    if (typeof window === 'undefined') return 'lime';
+    return window.localStorage.getItem('demo-active-theme') || 'lime';
+  });
+
+  const [landingConfig, setLandingConfig] = React.useState<any>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = window.localStorage.getItem('demo-landing-config-cache');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+
+  React.useEffect(() => {
+    const loadConfig = async () => {
+      try {
+        const docRef = doc(db, 'site_config', 'landing_page');
+        const docSnap = await getDoc(docRef);
+        if (docSnap.exists()) {
+          const data = docSnap.data();
+          setLandingConfig(data);
+          window.localStorage.setItem('demo-landing-config-cache', JSON.stringify(data));
+        }
+      } catch (error) {
+        console.error('Error loading landing page config:', error);
+      }
+    };
+    loadConfig();
+  }, []);
+
+  React.useEffect(() => {
+    if (activeTheme) {
+      window.localStorage.setItem('demo-active-theme', activeTheme);
+    }
+  }, [activeTheme]);
 
   React.useEffect(() => {
     if (user?.id) {
@@ -191,181 +232,10 @@ export function DemoShellLayout() {
     }
   }, [user?.id]);
 
-  const activeCount = React.useMemo(() => {
-    return activeOrders.filter(o => 
-      ['pending', 'measuring', 'cutting', 'sewing', 'ready'].includes(o.status)
-    ).length;
-  }, [activeOrders]);
-
-  const orderIndicator = React.useMemo(() => {
-    if (activeCount === 0) return null;
-    
-    // Green takes priority if anything is "approved/active"
-    const hasGreen = activeOrders.some(o => 
-      ['measuring', 'cutting', 'sewing', 'ready'].includes(o.status)
-    );
-    if (hasGreen) return 'green';
-    
-    // Yellow for pending/submitted
-    const hasYellow = activeOrders.some(o => o.status === 'pending');
-    if (hasYellow) return 'yellow';
-    
-    return null;
-  }, [activeOrders, activeCount]);
-
   return (
-    <div className="flex h-screen bg-[var(--studio-bg)] text-[var(--studio-text)] font-sans overflow-hidden">
-      {/* 🚀 Sidebar - Fixed Right */}
-      <aside 
-        className={`fixed inset-y-0 right-0 bg-[var(--studio-sidebar)] text-white flex flex-col p-4 z-50 transition-all duration-300 ease-in-out overflow-y-auto overflow-x-hidden scrollbar-hide border-l border-white/[0.08] shadow-[-20px_0_25px_-5px_rgba(0,0,0,0.1)] ${
-          isSidebarCollapsed ? 'w-20 items-center' : 'w-[240px]'
-        }`}
-      >
-        {/* Top Header / Toggle Area */}
-        <div className="relative flex items-center mb-10 w-full min-h-[44px]">
-          {!isSidebarCollapsed && (
-            <div className="flex items-center gap-2 pl-2 select-none">
-              <div className="h-8 w-8 bg-zinc-800 rounded-lg flex items-center justify-center font-bold text-white italic shadow-xl border border-white/5 text-[11px]">K</div>
-              <span className="text-xl font-bold tracking-tight italic text-white leading-none">khuyoot <span className="text-zinc-400">studio</span></span>
-            </div>
-          )}
-          
-          <button 
-            onClick={() => setIsSidebarCollapsed(!isSidebarCollapsed)}
-            className={`absolute z-[100] p-1.5 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-white transition-all shadow-xl border border-white/10 flex items-center justify-center ${
-              isSidebarCollapsed 
-                ? 'relative left-auto top-auto translate-y-0 mx-auto mt-2' 
-                : 'left-0 top-1/2 -translate-y-1/2 -translate-x-1/2'
-            }`}
-            title={isSidebarCollapsed ? "Expand Sidebar" : "Collapse Sidebar"}
-          >
-            {isSidebarCollapsed ? (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 19V5"/><path d="m13 19-7-7 7-7"/><path d="M6 12h11"/></svg>
-            ) : (
-              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 19V5"/><path d="m11 19 7-7-7-7"/><path d="M18 12H7"/></svg>
-            )}
-          </button>
-        </div>
-
-        {/* User Profile Area */}
-        <div 
-          onClick={() => navigate('/account')}
-          className={`group flex items-center gap-3 mb-10 rounded-xl hover:bg-white/5 cursor-pointer transition w-full ${
-            isSidebarCollapsed ? 'justify-center p-2' : 'p-2'
-          }`}
-        >
-          <div className="h-10 w-10 flex-shrink-0 rounded-full bg-zinc-800 border border-white/10 relative">
-            {user?.profileImage ? (
-              <img src={user.profileImage} alt={user.name} className="h-full w-full object-cover rounded-full" />
-            ) : (
-              <div className="h-full w-full flex items-center justify-center text-zinc-400 group-hover:text-white transition-colors rounded-full overflow-hidden">
-                <User2 size={20} />
-              </div>
-            )}
-            
-            {/* Order Status Indicator Badge */}
-            {activeCount > 0 && (
-              <div className={`absolute -top-1 -right-1 min-w-[18px] h-[18px] px-1 rounded-full border-2 border-zinc-900 shadow-lg flex items-center justify-center text-[10px] font-black text-white z-10 ${
-                orderIndicator === 'green' ? 'bg-emerald-500' : 'bg-amber-500 animate-pulse'
-              }`}>
-                {activeCount}
-              </div>
-            )}
-          </div>
-          {!isSidebarCollapsed && (
-            <>
-              <div className="flex flex-col min-w-0">
-                <span className="text-sm font-bold truncate uppercase">{user?.name || 'Designer'}</span>
-                <span className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest border border-zinc-800 rounded px-1.5 w-fit mt-0.5 group-hover:border-zinc-700 transition-colors">
-                  {user?.isGoldMember ? 'Gold' : 'Free'}
-                </span>
-              </div>
-              <ChevronDown size={14} className="ml-auto text-zinc-600 group-hover:text-zinc-400 transition-colors" />
-            </>
-          )}
-        </div>
-
-        {/* Navigation */}
-        <nav className="flex-1 space-y-2 w-full">
-          <button 
-            onClick={() => navigate('/')}
-            className={`w-full flex items-center gap-3 py-3 rounded-xl transition ${
-              isSidebarCollapsed ? 'justify-center px-0' : 'px-4'
-            } ${
-              currentPath === 'home' ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <Home size={22} />
-            {!isSidebarCollapsed && <span className="text-sm font-semibold">Home</span>}
-          </button>
-          <button 
-            onClick={() => navigate('/tailors')}
-            className={`w-full flex items-center gap-3 py-3 rounded-xl transition ${
-              isSidebarCollapsed ? 'justify-center px-0' : 'px-4'
-            } ${
-              currentPath === 'tailors' ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <LayoutGrid size={22} />
-            {!isSidebarCollapsed && <span className="text-sm font-semibold">Discovery</span>}
-          </button>
-          <button 
-            onClick={() => navigate('/designer-v2-1')}
-            className={`w-full flex items-center gap-3 py-3 rounded-xl transition ${
-              isSidebarCollapsed ? 'justify-center px-0' : 'px-4'
-            } ${
-              currentPath === 'designer-v2-1' ? 'bg-zinc-800 text-white shadow-xl' : 'text-zinc-400 hover:text-white'
-            }`}
-          >
-            <SquareSplitHorizontal size={22} />
-            {!isSidebarCollapsed && <span className="text-sm font-semibold">Try On</span>}
-          </button>
-        </nav>
-
-        {/* Credits Section */}
-        {isSidebarCollapsed ? (
-          <div className="mt-auto mb-6 flex flex-col items-center gap-4 py-6 w-10 rounded-full bg-[var(--studio-card)] text-[var(--studio-text)] border border-[var(--studio-card-border)] shadow-sm">
-            <div className="p-1 rounded-full bg-blue-600/10 text-blue-500">
-              <Sparkles size={16} fill="currentColor" />
-            </div>
-            <div className="flex-1 w-[3px] bg-zinc-800 rounded-full relative">
-               <div className="absolute top-0 left-0 w-full h-[0%] bg-blue-500 rounded-full" />
-            </div>
-            <div className="text-[10px] font-bold text-zinc-500 rotate-0 text-center">0%<br/>used</div>
-            <div className="p-1 rounded-full bg-blue-600/10 text-blue-500">
-              <Crown size={16} fill="currentColor" />
-            </div>
-          </div>
-        ) : (
-          <div className="mt-auto mb-6 p-6 rounded-3xl bg-[var(--studio-card)] text-[var(--studio-text)] space-y-4 shadow-xl border border-[var(--studio-card-border)]">
-            <div className="flex items-center gap-2 text-sm font-bold text-blue-500">
-               <div className="p-1.5 rounded-full bg-blue-600/10"><Sparkles size={12} fill="currentColor" /></div>
-               <span>0 / 50 Credits</span>
-            </div>
-            <p className="text-[11px] text-[var(--studio-text-muted)] font-medium leading-relaxed">Upgrade to paid plan. Cancel anytime.</p>
-            <button className="w-full py-2.5 rounded-full bg-blue-600/10 text-blue-500 text-sm font-bold flex items-center justify-center gap-2 hover:bg-blue-600/20 transition">
-              Upgrade
-              <Crown size={14} fill="currentColor" />
-            </button>
-            <p className="text-[9px] text-zinc-500 font-medium text-center">*Credits used to generate designs.</p>
-          </div>
-        )}
-
-        {/* Support */}
-        <button className={`flex items-center gap-3 text-zinc-500 hover:text-zinc-300 transition w-full ${
-          isSidebarCollapsed ? 'justify-center p-2' : 'px-4 py-2'
-        }`}>
-          <HelpCircle size={20} />
-          {!isSidebarCollapsed && <span className="text-xs font-bold uppercase tracking-wider">Support</span>}
-        </button>
-      </aside>
-
+    <div className="flex h-screen bg-[#ededed] font-sans overflow-hidden">
       {/* 🚀 Main Content area - Scrollable */}
-      <main 
-        className={`flex-1 bg-[var(--studio-bg)] h-full overflow-y-auto overflow-x-hidden studio-main-viewport transition-all duration-300 ease-in-out ${
-          isSidebarCollapsed ? 'mr-20' : 'mr-[240px]'
-        }`}
-      >
+      <main className="flex-1 bg-[#ededed] overflow-y-auto overflow-x-hidden h-screen w-full">
         {/* 🚀 UNIFIED BLOB LAYER: These images stay mounted so blobs remain valid & cached */}
         <div className="sr-only" aria-hidden="true">
           {allImageUrls.map((url) => (
@@ -373,11 +243,9 @@ export function DemoShellLayout() {
           ))}
         </div>
 
-        <div className={`mx-auto h-full ${
-          ['product', 'tailor', 'designer-v2-1', 'order-summary', 'measurements', 'studio'].includes(currentPath) ? 'max-w-none p-1' : 'max-w-[1400px] p-8'
-        }`}>
-          {/* Regular routes */}
-          {!['designer'].includes(currentPath) && (
+        <div className="mx-auto h-full max-w-none p-0">
+          {/* Regular routes: Render everything EXCEPT designer sub-routes which are handled by KeepAlive */}
+          {!isDesignerRoute && (
             <Outlet
               context={
                 {
@@ -393,8 +261,11 @@ export function DemoShellLayout() {
                   isRegionsLoading,
                   dbCategories,
                   isCategoriesLoading,
-                  isMasterSidebarCollapsed: isSidebarCollapsed,
-                  setMasterSidebarCollapsed: setIsSidebarCollapsed,
+                  isMasterSidebarCollapsed: true,
+                  setMasterSidebarCollapsed: () => {},
+                  landingConfig,
+                  activeTheme,
+                  setActiveTheme
                 } as DemoShellOutletContext
               }
             />
@@ -403,9 +274,8 @@ export function DemoShellLayout() {
           {/* Designer: keep mounted for persistent state; hidden when not active */}
           {designerMounted && (
             <div 
-              style={{ display: currentPath === 'designer' ? 'block' : 'none' }} 
-              aria-hidden={currentPath !== 'designer'}
-              className="h-full"
+              aria-hidden={!isDesignerRoute ? "true" : "false"}
+              className={`${isDesignerRoute ? 'block h-full' : 'hidden h-full pointer-events-none opacity-0 invisible absolute inset-0 -z-50'}`}
             >
               <DesignerKeepAlive />
             </div>
@@ -414,7 +284,7 @@ export function DemoShellLayout() {
 
         {/* 🚀 Footer: Only active in Mobile version */}
         {appSettings.showFooter && isMobile && (
-          <div className="mt-12 border-t border-[var(--studio-card-border)] pt-8">
+          <div className="mt-12 border-t border-black/5 pt-8">
             <Footer />
           </div>
         )}

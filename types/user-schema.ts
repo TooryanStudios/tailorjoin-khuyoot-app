@@ -64,6 +64,8 @@ export interface UserBase {
   name: string;
   email: string;
   phone?: string;
+  phoneNumber?: string; // Standardized phone field
+  contactNumber?: string; // Standardized phone field
   loginId?: string;
   
   // System

@@ -169,6 +169,21 @@ export function DebugToolsHub() {
         kind: 'route',
       },
       {
+        id: 'designer-v2-1',
+        title: 'Designer V2.1',
+        description: 'AI-powered design generation interface with fabric selection and lighting controls.',
+        href: withOrigin('/designer-v2-1'),
+        kind: 'route',
+      },
+      {
+        id: 'tryon',
+        title: 'Try-On (Designer V2.1 Fork)',
+        description: 'Virtual try-on experience - forked from Designer V2.1.',
+        href: withOrigin('/tryon'),
+        kind: 'route',
+        badge: 'NEW',
+      },
+      {
         id: 'video-lab',
         title: 'Video Producer (Video Lab)',
         description: 'Dev page to generate MP4 via local Python server (MoviePy).',

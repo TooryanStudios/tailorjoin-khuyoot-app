@@ -31,6 +31,7 @@ import { DesignerUserDataDisplay } from '../../components/userData/DesignerUserD
 import { useDesignerUserData } from '../../components/userData/useDesignerUserData';
 import { useAuth } from '../../../../auth/useAuth';
 import { requestLoginPrompt } from '../../../../auth/authEvents';
+import { LightingPresets } from '../../components/LightingPresets';
 
 interface SidebarProps {
   features: any;
@@ -110,9 +111,16 @@ interface SidebarProps {
   setFabricTilingOpen: (val: boolean) => void;
   fabricScale: number;
   setFabricScale: (val: number) => void;
-  originalFabricData: { url: string; base64: string } | null;
+  originalFabricData: { url: string; base64: string; mimeType?: string } | null;
+  setOriginalFabricData: (data: { url: string; base64: string; mimeType: string } | null) => void;
   setFabricPreviewUrl: (url: string | null) => void;
+  fabricImageBase64: string | null;
+  fabricImageMimeType: string | null;
   setFabricImageBase64: (val: string | null) => void;
+  setFabricImageMimeType: (val: string | null) => void;
+  persistFabricSelection: (selection: any) => void;
+  lightingGenerator: any;
+  productId?: string;
 }
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -139,9 +147,15 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     fabricScale,
     setFabricScale,
     originalFabricData,
+    setOriginalFabricData,
     setFabricPreviewUrl,
+    fabricImageBase64,
+    fabricImageMimeType,
     setFabricImageBase64,
+    setFabricImageMimeType,
+    persistFabricSelection,
     fabricTilingOpen,
+    lightingGenerator,
   } = props;
 
   const { logout } = useAuth();
@@ -159,48 +173,85 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
   }, [isSidebarCollapsed]);
 
   const handleApplyTiling = async () => {
-    if (!originalFabricData || !originalFabricData.url) return;
-    
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.src = originalFabricData.url;
-    
-    await new Promise((resolve) => { img.onload = resolve; });
-    
-    const canvas = document.createElement('canvas');
-    const size = 1024;
-    canvas.width = size;
-    canvas.height = size;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // scale 1 is original. scale 0.5 is smaller (more tiles).
-    const tileW = Math.max(16, img.naturalWidth * fabricScale);
-    const tileH = Math.max(16, img.naturalHeight * fabricScale);
-    
-    const tileCanvas = document.createElement('canvas');
-    tileCanvas.width = tileW;
-    tileCanvas.height = tileH;
-    const tctx = tileCanvas.getContext('2d');
-    if (tctx) {
-      tctx.drawImage(img, 0, 0, tileW, tileH);
-      const pattern = ctx.createPattern(tileCanvas, 'repeat');
-      if (pattern) {
-        ctx.fillStyle = pattern;
-        ctx.fillRect(0, 0, size, size);
-      }
+    console.log('[Tiling] Applying tiling with scale:', fabricScale);
+    if (!originalFabricData || !originalFabricData.url) {
+      console.warn('[Tiling] No original fabric data found');
+      return;
     }
     
-    const tiledDataUrl = canvas.toDataURL('image/webp', 0.9);
-    setFabricPreviewUrl(tiledDataUrl);
-    setFabricImageBase64(tiledDataUrl.split(',')[1]);
-    setFabricTilingOpen(false);
+    try {
+      const img = new Image();
+      img.crossOrigin = 'anonymous';
+      
+      const loadPromise = new Promise((resolve, reject) => {
+        img.onload = resolve;
+        img.onerror = (e) => reject(new Error('Failed to load fabric image for tiling'));
+        // Add a timeout just in case
+        setTimeout(() => reject(new Error('Fabric image load timeout')), 10000);
+      });
+      
+      img.src = originalFabricData.url;
+      await loadPromise;
+      
+      console.log('[Tiling] Image loaded:', img.naturalWidth, 'x', img.naturalHeight);
+      
+      const canvas = document.createElement('canvas');
+      const size = 1024;
+      canvas.width = size;
+      canvas.height = size;
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) throw new Error('Could not get canvas context');
+      
+      // scale 1 is original. scale 0.5 is smaller (more tiles).
+      const tileW = Math.max(16, img.naturalWidth * fabricScale);
+      const tileH = Math.max(16, img.naturalHeight * fabricScale);
+      
+      console.log('[Tiling] Tile size:', tileW, 'x', tileH);
+      
+      const tileCanvas = document.createElement('canvas');
+      tileCanvas.width = tileW;
+      tileCanvas.height = tileH;
+      const tctx = tileCanvas.getContext('2d');
+      if (tctx) {
+        tctx.drawImage(img, 0, 0, tileW, tileH);
+        const pattern = ctx.createPattern(tileCanvas, 'repeat');
+        if (pattern) {
+          ctx.fillStyle = pattern;
+          ctx.fillRect(0, 0, size, size);
+          
+          const tiledDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+          console.log('[Tiling] Tiled image generated, length:', tiledDataUrl.length);
+          
+          setFabricPreviewUrl(tiledDataUrl);
+          setFabricImageBase64(tiledDataUrl.split(',')[1]);
+          setFabricImageMimeType('image/jpeg');
+          
+          persistFabricSelection({
+            fabricId: null,
+            image: { base64: tiledDataUrl.split(',')[1], mimeType: 'image/jpeg' },
+          });
+          
+          setFabricTilingOpen(false);
+        } else {
+          throw new Error('Could not create tiling pattern');
+        }
+      } else {
+        throw new Error('Could not get tile canvas context');
+      }
+    } catch (err) {
+      console.error('[Tiling] Apply failed:', err);
+      // Fallback to original if something goes wrong
+      handleCancelTiling();
+    }
   };
 
   const handleCancelTiling = () => {
     if (originalFabricData) {
       setFabricPreviewUrl(originalFabricData.url);
       setFabricImageBase64(originalFabricData.base64);
+      if (originalFabricData.mimeType) {
+        setFabricImageMimeType(originalFabricData.mimeType);
+      }
     }
     setFabricTilingOpen(false);
     setFabricScale(1);
@@ -212,14 +263,18 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     <motion.aside 
       initial={false}
       animate={{ width: isSidebarCollapsed ? 80 : 320 }}
-      className={`h-full border-r border-white/10 bg-zinc-800/95 backdrop-blur-3xl khiyoot-glass flex flex-col items-center z-50 shadow-[20px_0_50px_-20px_rgba(0,0,0,0.8)] relative`}
+      className={`h-full bg-[#ededed] flex flex-col items-center z-50 relative`}
     >
+      {/* Black divider line at the end of the sidebar */}
+      <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-400 z-[100]" />
+
       {/* Hidden constant inputs */}
       <input
         ref={sourceInputRef}
         type="file"
         accept="image/*"
         className="hidden"
+        title="Upload Source Image"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) openUserImagePrep(file);
@@ -231,6 +286,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
         type="file"
         accept="image/*"
         className="hidden"
+        title="Upload Fabric Image"
         onChange={(e) => {
           const file = e.target.files?.[0];
           if (file) openFabricPrep(file);
@@ -254,12 +310,12 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               <button 
                 type="button"
                 onClick={() => setIsSidebarCollapsed(false)}
-                className="p-3 rounded-xl bg-white/5 border border-white/10 text-zinc-400 hover:text-white hover:border-zinc-500 hover:bg-zinc-800 transition-all active:scale-95 shadow-md group"
+                className="p-3 rounded-xl bg-white border border-zinc-200 text-zinc-600 hover:text-purple-600 hover:border-purple-400 hover:bg-purple-50 transition-all active:scale-95 group"
                 title={t('expandSidebar')}
               >
                 <PanelLeftClose size={18} className="group-hover:scale-110 transition-transform" />
               </button>
-              <div className="w-8 h-px bg-white/5 my-0.5" />
+              <div className="w-8 h-px bg-zinc-200 my-0.5" />
 
               {/* Credits (Collapsed) - Premium Amber Style */}
               <button 
@@ -275,7 +331,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 </span>
               </button>
 
-              <div className="w-8 h-px bg-white/5 my-0.5" />
+              <div className="w-8 h-px bg-zinc-200 my-0.5" />
 
               {/* Quick Tools */}
               <div className="flex flex-col gap-3 w-full px-3">
@@ -285,13 +341,13 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   onClick={() => sourceInputRef.current?.click()}
                   className={`w-full aspect-square flex items-center justify-center rounded-xl border border-solid transition-all relative group ${
                     sourcePreviewUrl 
-                      ? 'border-theme-primary bg-theme-primary/10 text-theme-primary shadow-[0_0_15px_var(--theme-primary-glow)]' 
-                      : 'border-zinc-800 bg-white/5 hover:border-theme-primary/50 hover:bg-zinc-900/50'
+                      ? 'border-theme-primary bg-theme-primary/10 text-theme-primary' 
+                      : 'border-zinc-200 bg-white hover:border-purple-400 hover:bg-purple-50'
                   } ${uiState.uploadsDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
                   title={t('originalModel')}
                 >
                   {sourcePreviewUrl ? (
-                    <img src={sourcePreviewUrl} alt="" className="w-full h-full object-cover rounded-lg" />
+                    <img src={sourcePreviewUrl} alt="" className="w-full h-full object-contain rounded-lg" />
                   ) : (
                     <ImageIcon size={20} />
                   )}
@@ -303,13 +359,13 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   onClick={() => fabricInputRef.current?.click()}
                   className={`w-full aspect-square flex items-center justify-center rounded-xl border border-solid transition-all relative group ${
                     fabricPreviewUrl 
-                      ? 'border-theme-primary bg-theme-primary/10 text-theme-primary shadow-[0_0_15px_var(--theme-primary-glow)]' 
-                      : 'border-zinc-800 bg-white/5 text-zinc-500 hover:border-theme-primary/50 hover:bg-zinc-900/50'
+                      ? 'border-theme-primary bg-theme-primary/10 text-theme-primary' 
+                      : 'border-zinc-200 bg-white text-zinc-600 hover:border-purple-400 hover:bg-purple-50'
                   } ${uiState.uploadsDisabled ? 'opacity-40 cursor-not-allowed' : 'cursor-pointer active:scale-95'}`}
                   title={t('fabricTexture')}
                 >
                   {fabricPreviewUrl ? (
-                    <img src={fabricPreviewUrl} alt="" className="w-full h-full object-cover rounded-lg" />
+                    <img src={fabricPreviewUrl} alt="" className="w-full h-full object-contain rounded-lg" />
                   ) : (
                     <Palette size={20} />
                   )}
@@ -321,8 +377,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   disabled={uiState.generationDisabled}
                   className={`w-full aspect-square flex items-center justify-center rounded-xl transition-all relative group overflow-visible ${
                     uiState.generationDisabled 
-                      ? 'bg-zinc-900 border border-zinc-800 text-zinc-700 opacity-50' 
-                      : 'bg-theme-primary text-white shadow-lg hover:shadow-theme-primary/20 active:scale-95'
+                      ? 'bg-zinc-100 border border-zinc-200 text-zinc-600 opacity-50' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600 active:scale-95'
                   }`}
                   title={t('generateOne')}
                 >
@@ -346,7 +402,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                     className={`w-full aspect-square flex items-center justify-center rounded-xl border border-solid transition-all relative group shadow-sm ${
                       !isHistoryCollapsed 
                         ? 'border-amber-500 bg-amber-500/10 text-amber-500' 
-                        : 'border-zinc-800 bg-white/5 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-900/50'
+                        : 'border-zinc-200 bg-white text-zinc-600 hover:border-purple-400 hover:bg-purple-50'
                     }`}
                     title={t('history')}
                   >
@@ -360,10 +416,11 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   type="button"
                   onClick={handleShareTask}
                   disabled={!currentTaskId}
+                  title={t('shareDesign')}
                   className={`w-full aspect-square flex items-center justify-center rounded-xl border border-solid transition-all relative group shadow-sm ${
                     shareUrlCopied 
                       ? 'border-green-500 bg-green-500/10 text-green-500' 
-                      : 'border-zinc-800 bg-white/5 text-zinc-500 hover:border-zinc-400 hover:bg-zinc-900/50'
+                      : 'border-zinc-200 bg-white text-zinc-500 hover:border-zinc-400 hover:bg-zinc-50'
                   } ${!currentTaskId ? 'opacity-30 cursor-not-allowed' : 'active:scale-95'}`}
                 >
                   <Share2 size={18} />
@@ -380,49 +437,46 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="w-full h-full flex flex-col"
           >
-             {/* Header Bar - Toggle Button (Top) */}
-            <div className="px-5 py-2 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
-              <span className="text-xs font-bold text-zinc-500 uppercase tracking-widest leading-none">{t('designControls')}</span>
-              <button 
-                type="button"
-                onClick={() => setIsSidebarCollapsed(true)}
-                className="p-2 rounded-lg text-zinc-400 hover:bg-white/10 hover:text-white transition-all active:scale-95 border border-white/10 shadow-sm"
-                title={t('collapseSidebar')}
-              >
-                <PanelLeftOpen size={18} />
-              </button>
-            </div>
-
             {/* Credits Section (Below Divider) - Tightened */}
-            <div className="px-5 py-3 border-b border-white/5 bg-white/[0.01]">
+            <div className="px-5 py-3 border-b border-zinc-200 bg-transparent">
               <div 
-                className="group flex items-center justify-between pl-3 pr-1.5 py-2 rounded-xl border border-transparent backdrop-blur-md shadow-2xl bg-white/[0.03]" 
+                className="group flex items-center justify-between pl-1.5 pr-1.5 py-1.5 rounded-2xl border border-zinc-200 bg-white shadow-sm" 
               >
-                {/* 1. Credits Display (Left-aligned via flex-1) */}
-                <div className="flex-1 flex items-center">
+                {/* 1. Collapse Button (Left) */}
+                <button 
+                  type="button"
+                  onClick={() => setIsSidebarCollapsed(true)}
+                  className="p-1.5 rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-all active:scale-95 border border-transparent hover:border-zinc-300"
+                  title={t('collapseSidebar')}
+                >
+                  <PanelLeftOpen size={16} />
+                </button>
+
+                {/* 2. Credits Display (Left-aligned via flex-1) */}
+                <div className="flex-1 flex items-center pl-1">
                   <div className="flex items-center gap-2 cursor-pointer active:scale-95" onClick={() => openUpgradeModal('sidebar_credits_click')}>
-                    <div className="w-8 h-8 rounded-full bg-theme-primary flex items-center justify-center shadow-[0_0_15px_var(--theme-primary-glow)] group-hover:scale-110 transition-transform">
-                      <span className="text-[11px] font-black italic text-white leading-none">K</span>
+                    <div className="w-7 h-7 rounded-full bg-theme-primary flex items-center justify-center text-[10px] font-black italic text-white leading-none">
+                      K
                     </div>
                     <div className="flex flex-col">
-                      <span className="text-xl font-black text-amber-500 leading-none tracking-tight drop-shadow-[0_0_8px_rgba(245,158,11,0.3)]">{credits || 0}</span>
-                      <span className="text-[10px] text-amber-500/60 font-black uppercase tracking-[0.15em] leading-none mt-0.5">{t('credits')}</span>
+                      <span className="text-xl font-black text-amber-500 leading-none tracking-tight">{credits || 0}</span>
+                      <span className="text-[9px] text-amber-500/60 font-black uppercase tracking-[0.1em] leading-none">{t('credits')}</span>
                     </div>
                   </div>
                 </div>
 
-                {/* 2. Transactions History (Perfectly Centered) */}
-                <div className="flex-shrink-0 border-x border-white/20 px-4 mx-1">
+                {/* 3. Transactions History (Perfectly Centered) */}
+                <div className="flex-shrink-0 border-l border-zinc-200 pl-2 mx-1.5">
                   <button 
                     onClick={() => navigate('/account/billing')}
-                    className="p-1.5 rounded-lg text-zinc-500 hover:bg-white/10 hover:text-zinc-300 transition-all active:scale-90"
+                    className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition-all active:scale-90"
                     title="Transaction History"
                   >
                     <HistoryIcon size={16} />
                   </button>
                 </div>
 
-                {/* 3. Refill Button (Right-aligned via flex-1) */}
+                {/* 4. Refill Button (Right-aligned via flex-1) */}
                 <div className="flex-1 flex justify-end">
                   <button 
                     onClick={() => openUpgradeModal('refill_button')}
@@ -439,27 +493,27 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             <div className="flex-1 overflow-y-auto p-4 space-y-4 custom-scrollbar">
               
               {/* 1. PRIMARY ACTIONS HUB - Selection & Execution */}
-              <div className="p-3 rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur-lg shadow-xl space-y-2.5">
+              <div className="p-3 rounded-2xl border border-dashed border-zinc-400 bg-[#fcfcfc] space-y-2.5">
                 <div className="grid grid-cols-2 gap-2">
                   {/* Template Selection */}
                   {features.showTemplateUpload && (
                     <div className="space-y-1.5">
-                      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest px-1">
+                      <div className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest px-1">
                         {t('originalModel')}
                       </div>
                       <div 
-                        className={`relative group rounded-xl border border-black/60 h-[180px] transition-all overflow-hidden ${
+                        className={`relative group rounded-2xl border h-[180px] transition-all overflow-hidden ${
                           sourcePreviewUrl 
-                            ? 'bg-theme-primary/5' 
-                            : 'bg-white/5 hover:bg-white/10'
+                            ? 'border-zinc-700 bg-purple-50/30' 
+                            : 'border-zinc-800 bg-[#fcfcfc] hover:border-zinc-700'
                         }`}
                       >
                         {sourcePreviewUrl ? (
                           <div className="absolute inset-0 cursor-pointer" onClick={() => sourceInputRef.current?.click()}>
-                            <img src={sourcePreviewUrl} alt="Template" className="w-full h-full object-contain p-1" />
+                            <img src={sourcePreviewUrl} alt="Template" className="w-full h-full object-cover" />
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-zinc-950/60 transition-all flex flex-col items-center justify-center">
                               <Upload size={14} className="text-white" />
-                              <span className="text-[8px] font-bold text-white uppercase tracking-widest">{t('change')}</span>
+                              <span className="text-[8px] font-medium text-white uppercase tracking-widest">{t('change')}</span>
                             </div>
                           </div>
                         ) : (
@@ -469,7 +523,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                             className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-zinc-500 hover:text-theme-primary transition-all"
                           >
                             <Upload size={16} />
-                            <span className="text-[9px] font-bold uppercase tracking-wider">{t('upload')}</span>
+                            <span className="text-[9px] font-medium uppercase tracking-wider">{t('upload')}</span>
                           </button>
                         )}
                       </div>
@@ -479,14 +533,14 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   {/* Fabric Selection */}
                   {features.showFabricUpload && (
                     <div className="space-y-1.5">
-                      <div className="text-[9px] font-bold text-zinc-500 uppercase tracking-widest px-1">
+                      <div className="text-[11px] font-medium text-zinc-500 uppercase tracking-widest px-1">
                         {t('fabricTexture')}
                       </div>
                       <div 
-                        className={`relative group rounded-xl border border-black/60 h-[180px] transition-all overflow-hidden ${
+                        className={`relative group rounded-2xl border h-[180px] transition-all overflow-hidden ${
                           fabricPreviewUrl 
-                            ? 'bg-theme-primary/5' 
-                            : 'bg-zinc-950/20 hover:bg-zinc-950/40'
+                            ? 'border-zinc-700 bg-purple-50/30' 
+                            : 'border-zinc-800 bg-[#fcfcfc] hover:border-zinc-700'
                         }`}
                       >
                         {fabricPreviewUrl ? (
@@ -497,16 +551,16 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                 style={{ 
                                   backgroundImage: `url(${originalFabricData?.url || fabricPreviewUrl})`,
                                   backgroundRepeat: 'repeat',
-                                  backgroundSize: `${100 * (1 / (fabricScale || 1))}%`,
+                                  backgroundSize: `${(fabricScale || 1) * 100}%`,
                                   backgroundPosition: 'center'
                                 }}
                               />
                             ) : (
-                              <img src={fabricPreviewUrl} alt="Fabric" className="w-full h-full object-cover" />
+                              <img src={fabricPreviewUrl} alt="Fabric" className="w-full h-full object-contain" />
                             )}
                             <div className="absolute inset-0 opacity-0 group-hover:opacity-100 bg-zinc-950/60 transition-all flex flex-col items-center justify-center">
                                 <Upload size={14} className="text-white" />
-                                <span className="text-[8px] font-bold text-white uppercase tracking-widest">{t('change')}</span>
+                                <span className="text-[8px] font-medium text-white uppercase tracking-widest">{t('change')}</span>
                               </div>
                             </div>
                           ) : (
@@ -516,7 +570,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                               className="absolute inset-0 flex flex-col items-center justify-center gap-1 text-zinc-500 hover:text-theme-primary transition-all"
                             >
                               <Palette size={16} />
-                              <span className="text-[9px] font-bold uppercase tracking-wider">{t('noFabric')}</span>
+                              <span className="text-[9px] font-medium uppercase tracking-wider">{t('noFabric')}</span>
                             </button>
                           )}
 
@@ -526,9 +580,18 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
+                              if (!originalFabricData && fabricPreviewUrl) {
+                                // Fallback: If original data is missing (e.g. after refresh), 
+                                // use current preview as original
+                                setOriginalFabricData({ 
+                                  base64: fabricImageBase64 || '', 
+                                  mimeType: fabricImageMimeType || 'image/jpeg', 
+                                  url: fabricPreviewUrl 
+                                });
+                              }
                               setFabricTilingOpen(true);
                             }}
-                            className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500 text-black shadow-lg hover:scale-110 active:scale-95 transition-all group/tile"
+                            className="absolute top-2 right-2 z-20 flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500 text-black hover:scale-110 active:scale-95 transition-all group/tile"
                             title={t('tile')}
                           >
                             <Zap size={10} fill="currentColor" />
@@ -566,15 +629,16 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                             max={2}
                             step={0.05}
                             value={fabricScale}
+                            title="Tiling Scale"
                             onChange={(e) => setFabricScale(Number(e.target.value))}
-                            className="flex-1 accent-amber-500 h-1 bg-zinc-800 rounded-full appearance-none cursor-pointer"
+                            className="flex-1 accent-purple-500 h-1 bg-zinc-300 rounded-full appearance-none cursor-pointer"
                           />
                           
                           <div className="flex gap-1.5">
                             <button
                               type="button"
                               onClick={handleCancelTiling}
-                              className="p-1.5 rounded-lg bg-zinc-800 text-zinc-400 hover:text-white transition-colors"
+                              className="p-1.5 rounded-lg bg-white border border-zinc-200 text-purple-600 hover:text-purple-700 transition-colors"
                               title={t('cancel')}
                             >
                               <X size={14} />
@@ -602,8 +666,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                     onClick={handleFabricSwap}
                     className={`generateButtonShine flex-1 px-4 py-3.5 rounded-xl font-black tracking-widest text-xs transition-all flex items-center justify-center gap-2 shadow-xl ${
                       uiState.generationDisabled
-                        ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed border border-zinc-700'
-                        : 'bg-gradient-to-r from-theme-primary to-theme-secondary text-white hover:scale-[1.01] active:scale-95 shadow-theme-primary/30 border border-white/20'
+                        ? 'bg-zinc-100 text-zinc-600 cursor-not-allowed border border-zinc-200'
+                        : 'bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white hover:scale-[1.01] active:scale-95 shadow-theme-primary/30 border border-white/20'
                     }`}
                   >
                     {isProcessing ? (
@@ -629,7 +693,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                       className={`w-12 aspect-square flex items-center justify-center rounded-xl border transition-all active:scale-95 ${
                         !isHistoryCollapsed
                           ? 'bg-amber-500/10 border-amber-500 text-amber-500 shadow-lg shadow-amber-500/10'
-                          : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                          : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300'
                       }`}
                       title={isHistoryCollapsed ? "Open History" : "Close History"}
                     >
@@ -639,8 +703,20 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 </div>
               </div>
 
+              {/* Tailor It Button - New Row */}
+              <button
+                type="button"
+                onClick={() => {
+                  const idToUse = productId || 'default';
+                  window.location.href = `/studio/measurements/${idToUse}`;
+                }}
+                className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black text-[11px] uppercase tracking-widest hover:from-blue-500 hover:to-blue-400 transition-all active:scale-95 shadow-sm"
+              >
+                Tailor It
+              </button>
+
               {/* 2. TOOLS GROUP - Share, Download, Zoom, Maximize */}
-              <div className="p-2 rounded-2xl border border-white/5 bg-white/[0.02] backdrop-blur-md shadow-lg flex items-center justify-around gap-1">
+              <div className="p-2 rounded-2xl border border-zinc-200 bg-white shadow-sm flex items-center justify-around gap-1">
                 <button
                   type="button"
                   title={shareUrlCopied ? t('shareLinkCopied') : t('shareDesign')}
@@ -649,7 +725,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   className={`p-2.5 rounded-xl border transition-all flex-1 flex justify-center ${
                     shareUrlCopied
                       ? 'border-green-500/60 bg-green-500/10 text-green-400'
-                      : 'border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-theme-primary/60 hover:text-white'
+                      : 'border-zinc-200 bg-white text-zinc-600 hover:border-purple-400 hover:bg-purple-50'
                   } ${!currentTaskId ? 'opacity-30 cursor-not-allowed' : 'active:scale-90'}`}
                 >
                   <Share2 size={16} />
@@ -658,7 +734,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 <button
                   type="button"
                   title={t('download')}
-                  className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-theme-primary/60 hover:text-white transition-all flex-1 flex justify-center active:scale-90"
+                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
                 >
                   <Download size={16} />
                 </button>
@@ -666,7 +742,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 <button
                   type="button"
                   title={t('zoomIn')}
-                  className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-theme-primary/60 hover:text-white transition-all flex-1 flex justify-center active:scale-90"
+                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
                 >
                   <ZoomIn size={16} />
                 </button>
@@ -674,14 +750,14 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 <button
                   type="button"
                   title={t('fullscreen')}
-                  className="p-2.5 rounded-xl border border-zinc-800 bg-zinc-900/50 text-zinc-400 hover:border-theme-primary/60 hover:text-white transition-all flex-1 flex justify-center active:scale-90"
+                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
                 >
                   <Maximize2 size={16} />
                 </button>
               </div>
 
               {/* Advanced Settings - Collapsible - NOW ABOVE GALLERY */}
-              <div className="pt-2 border-t border-white/5">
+              <div className="pt-2 border-t border-zinc-200">
                 <button 
                   onClick={() => setIsAdvancedOpen(!isAdvancedOpen)}
                   className="w-full flex items-center justify-between py-2 px-1 text-zinc-500 hover:text-zinc-300 transition-colors group"
@@ -719,7 +795,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                 className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                                   selectedModel === model
                                     ? 'bg-theme-primary/20 border border-theme-primary/50 text-theme-primary'
-                                    : 'bg-zinc-900 border border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                    : 'bg-white border border-zinc-200 text-zinc-600 hover:border-purple-400'
                                 }`}
                               >
                                 {model === 'NanoBana' ? 'Bana 2.1' : 'Ultra Pro'}
@@ -728,6 +804,19 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                           </div>
                         </div>
                       )}
+
+                      {/* Lighting Settings */}
+                      <div>
+                        <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-3 px-1">
+                          {t('lighting')}
+                        </div>
+                        <div className="px-1">
+                          <LightingPresets 
+                            value={lightingGenerator.value} 
+                            onChange={lightingGenerator.onSelectPreset} 
+                          />
+                        </div>
+                      </div>
 
                       {/* Output Quality */}
                       {features.showOutputQuality && (
@@ -747,8 +836,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                   onClick={() => setOutputFit(fit.id)}
                                   className={`px-2 py-1.5 rounded-lg text-[11px] font-bold transition-all ${
                                     outputFit === fit.id
-                                      ? 'bg-zinc-100 text-zinc-950 shadow-lg'
-                                      : 'bg-zinc-900 border border-zinc-800 text-zinc-500'
+                                      ? 'bg-zinc-100 text-zinc-950'
+                                      : 'bg-white border border-zinc-200 text-zinc-600'
                                   }`}
                                 >
                                   {fit.label}
@@ -761,17 +850,18 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
 
                       {/* Upscale Controls */}
                       {features.showUpscaleButton && uiState.showUpscaleButton && (
-                        <div className="space-y-3 pt-2 border-t border-white/5">
+                        <div className="space-y-3 pt-2 border-t border-zinc-200">
                           <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest mb-2 px-1 flex justify-between items-center">
                             <span>{t('upscaleResult')}</span>
                             {features.showUpscaleEngine && (
                               <select 
                                 value={upscaleEngine}
+                                title="Upscale Engine"
                                 onChange={(e) => setUpscaleEngine(e.target.value as any)}
                                 className="bg-transparent border-none text-[9px] font-bold text-theme-primary focus:ring-0 cursor-pointer"
                               >
-                                <option value="standard" className="bg-zinc-900">{t('upscaleStandard')}</option>
-                                <option value="creative" className="bg-zinc-900">{t('upscaleCreative')}</option>
+                                <option value="standard" className="bg-white text-black">{t('upscaleStandard')}</option>
+                                <option value="creative" className="bg-white text-black">{t('upscaleCreative')}</option>
                               </select>
                             )}
                           </div>
@@ -803,12 +893,13 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
 
                       {/* Privacy Shield Section */}
                       {features.showPrivacySettings && (
-                        <div className="pt-2 border-t border-white/5 space-y-4">
+                        <div className="pt-2 border-t border-zinc-200 space-y-4">
                           <div className="flex items-center justify-between px-1">
                             <div className="text-[10px] font-bold text-zinc-500 uppercase tracking-widest">{t('privacyProtectionTitle')}</div>
                             <button
                               onClick={() => setPrivacyMode(!isPrivacyMode)}
                               disabled={isProcessingPrivacy}
+                              title={isPrivacyMode ? t('disablePrivacy') : t('enablePrivacy')}
                               className={`relative inline-flex items-center h-4 w-8 rounded-full transition-colors ${
                                 isPrivacyMode ? 'bg-theme-primary' : 'bg-zinc-700'
                               } ${isProcessingPrivacy ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
@@ -833,7 +924,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                       className={`p-2 rounded-lg border flex flex-col items-center justify-center transition-all ${
                                         maskingStyle === style.value
                                           ? 'bg-theme-primary/20 border-theme-primary text-theme-primary'
-                                          : 'bg-zinc-900 border-zinc-800 text-zinc-500 hover:border-zinc-700'
+                                          : 'bg-white border-zinc-200 text-zinc-500 hover:border-zinc-300'
                                       }`}
                                     >
                                       <span className="text-base mb-0.5">{style.icon}</span>
@@ -854,8 +945,9 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                     min="10"
                                     max="50"
                                     value={blurStrength}
+                                    title="Blur Strength"
                                     onChange={(e) => setBlurStrength(Number(e.target.value))}
-                                    className="w-full h-1 bg-zinc-800 rounded-lg appearance-none cursor-pointer accent-theme-primary"
+                                    className="w-full h-1 bg-zinc-200 rounded-lg appearance-none cursor-pointer accent-theme-primary"
                                   />
                                 </div>
                               )}
@@ -867,7 +959,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                                       key={emoji}
                                       onClick={() => setSelectedEmoji(emoji)}
                                       className={`text-sm aspect-square flex items-center justify-center rounded transition-all ${
-                                        selectedEmoji === emoji ? 'bg-theme-primary/30 ring-1 ring-theme-primary' : 'bg-transparent hover:bg-white/5'
+                                        selectedEmoji === emoji ? 'bg-theme-primary/30 ring-1 ring-theme-primary' : 'bg-transparent hover:bg-zinc-100'
                                       }`}
                                     >
                                       {emoji}
@@ -882,8 +974,8 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
 
                       {/* Watermark Toggle */}
                       {features.showExportSettings && (
-                        <label className="flex items-center justify-between p-2 rounded-xl bg-zinc-900/50 border border-zinc-800/50 cursor-pointer hover:bg-zinc-800 transition-colors">
-                          <span className="text-[11px] font-bold text-zinc-400 uppercase tracking-wider">{t('watermark')}</span>
+                        <label className="flex items-center justify-between p-2 rounded-xl bg-white border border-zinc-200 cursor-pointer hover:bg-purple-50 transition-colors">
+                          <span className="text-[11px] font-bold text-zinc-600 uppercase tracking-wider">{t('watermark')}</span>
                           <div className="relative">
                             <input
                               type="checkbox"
@@ -901,7 +993,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               </div>
 
               {/* Galleries - NOW AT THE BOTTOM */}
-              <div className="pt-4 border-t border-white/5 space-y-2 pb-12">
+              <div className="pt-4 border-t border-zinc-200 space-y-2 pb-12">
                 <button 
                   onClick={() => setIsTemplatesOpen(!isTemplatesOpen)}
                   className="w-full flex items-center justify-between py-2 px-1 text-zinc-500 hover:text-zinc-300 transition-colors group"

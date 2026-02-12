@@ -709,19 +709,22 @@ export const firebaseService = {
     const uid = sanitizeFirestoreDocId(userId);
     if (!uid) return null;
     await this.waitForAuth(4000);
-    if (!auth.currentUser || auth.currentUser.uid !== uid) return null;
+    console.log('[CreditSystem] getUserCreditProfile:', { uid, hasCurrentUser: !!auth.currentUser, currentUserUid: auth.currentUser?.uid });
     try {
       const refDoc = doc(db, 'user_profiles', uid);
       const snap = await getDoc(refDoc);
+      console.log('[CreditSystem] Firestore doc exists:', snap.exists());
       if (!snap.exists()) return null;
       const data: any = snap.data() || {};
-      return {
+      const profile = {
         user_id: uid,
         credit_balance: typeof data.credit_balance === 'number' ? data.credit_balance : 0,
         tier: typeof data.tier === 'string' ? data.tier : undefined,
       };
+      console.log('[CreditSystem] Profile loaded:', profile);
+      return profile;
     } catch (e) {
-      console.warn('[CreditSystem] getUserCreditProfile failed', e);
+      console.error('[CreditSystem] getUserCreditProfile failed:', e);
       return null;
     }
   },
@@ -1375,8 +1378,7 @@ export const firebaseService = {
     }
 
     try {
-      // SOLUTION B: Strictly Cache-First
-      // (Default behavior now also includes this optimization)
+      // FORCE SERVER FETCH for profiles to avoid stale "customer" roles from cache
       const userRef = doc(db, 'users', uid);
       const profileRef = doc(db, 'user_profiles', uid);
       
@@ -1385,15 +1387,16 @@ export const firebaseService = {
 
       try {
         [userSnap, profileSnap] = await Promise.all([
+          getDocFromServer(userRef),
+          getDocFromServer(profileRef)
+        ]);
+        console.log(`[FirebaseService] User profile loaded from SERVER for ${uid}`);
+      } catch (serverError) {
+        // Fallback to cache if server is offline
+        console.warn(`[FirebaseService] Server fetch failed for profile, trying cache:`, serverError);
+        [userSnap, profileSnap] = await Promise.all([
           getDocFromCache(userRef),
           getDocFromCache(profileRef)
-        ]);
-        console.log(`[FirebaseService] User profile loaded from cache for ${uid}`);
-      } catch (cacheError) {
-        // Fallback to server if cache miss
-        [userSnap, profileSnap] = await Promise.all([
-          getDoc(userRef),
-          getDoc(profileRef)
         ]);
       }
 
@@ -1401,8 +1404,24 @@ export const firebaseService = {
         const userData = userSnap.exists() ? userSnap.data() : {};
         const profileData = profileSnap.exists() ? profileSnap.data() : {};
         
-        // Merge them - profileData (user_profiles) usually has more specific info like credits
-        const merged = { ...userData, ...profileData };
+        // Merge them carefully to avoid overwriting valid data with null/undefined
+        const merged = { ...userData };
+        Object.keys(profileData).forEach(key => {
+          if (profileData[key] !== undefined && profileData[key] !== null) {
+            merged[key] = profileData[key];
+          }
+        });
+
+        // Ensure phone field consistency
+        const anyPhone = merged.phone || (merged as any).phoneNumber || (merged as any).phone_number || (merged as any).contactNumber ||
+                         userData.phone || (userData as any).phoneNumber || 
+                         profileData.phone || (profileData as any).phoneNumber;
+        
+        if (anyPhone) {
+          merged.phone = anyPhone;
+          (merged as any).phoneNumber = anyPhone;
+          (merged as any).contactNumber = anyPhone;
+        }
         
         // Apply defaults to ensure all fields exist
         const normalizedUser = applyUserDefaults(merged, uid);
@@ -1424,20 +1443,47 @@ export const firebaseService = {
   async updateUserProfile(uid: string, data: Partial<User>): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     try {
+        const updates: any = { ...data };
+        
+        // Ensure phone naming consistency across different systems
+        const anyPhone = (data as any).phone || (data as any).phoneNumber || (data as any).phone_number || (data as any).contactNumber;
+        if (anyPhone) {
+            updates.phone = anyPhone;
+            updates.phoneNumber = anyPhone;
+            updates.phone_number = anyPhone;
+            updates.contactNumber = anyPhone;
+        }
+
+        // Ensure image naming consistency across different systems
+        const anyImage = (data as any).avatar || (data as any).profileImage || (data as any).photoURL;
+        if (anyImage) {
+            updates.avatar = anyImage;
+            updates.profileImage = anyImage;
+            updates.photoURL = anyImage;
+        }
+        
         const userRef = doc(db, 'users', uid);
-        await setDoc(userRef, data, { merge: true });
+        const profileRef = doc(db, 'user_profiles', uid);
+        await Promise.all([
+          setDoc(userRef, updates, { merge: true }),
+          setDoc(profileRef, updates, { merge: true })
+        ]);
         
         // Also update auth profile if name/photo changed
-        if (auth.currentUser && (data.name || data.profileImage)) {
+        if (auth.currentUser && (updates.name || updates.profileImage)) {
             await updateProfile(auth.currentUser, {
-                displayName: data.name,
-                photoURL: data.profileImage
+                displayName: updates.name || auth.currentUser.displayName,
+                photoURL: updates.profileImage || auth.currentUser.photoURL
             });
         }
     } catch (e) {
         console.error("Error updating profile", e);
         throw e;
     }
+  },
+
+  async getUser(uid: string): Promise<User | null> {
+    return this.getUserProfile(uid);
   },
 
   async logout(): Promise<void> {
@@ -1519,6 +1565,7 @@ export const firebaseService = {
               products.push({ 
                 id: doc.id, 
                 ...data,
+                tailorId: userId, // Ensure tailorId is set from the path
                 _isOldStructure: false 
               } as Product);
               seenIds.add(doc.id);
@@ -2113,6 +2160,59 @@ export const firebaseService = {
     }
   },
 
+  // --- Family Measurements Management ---
+
+  async getFamilyMembers(userId: string): Promise<any[]> {
+    if (!isFirebaseInitialized) return [];
+    
+    try {
+      // Query family members as subcollection under user's document
+      const familyRef = collection(db, `users/${userId}/family_members`);
+      const snapshot = await getDocs(familyRef);
+      
+      const members: any[] = [];
+      snapshot.forEach(doc => {
+        members.push({ id: doc.id, ...doc.data() });
+      });
+      
+      return members;
+    } catch (error) {
+      console.error("Error fetching family members:", error);
+      return [];
+    }
+  },
+
+  async saveFamilyMember(member: any): Promise<string> {
+    if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
+    
+    try {
+      const userId = member.userId;
+      if (!userId) throw new Error("userId is required for family members");
+      
+      const familyRef = collection(db, `users/${userId}/family_members`);
+      const docRef = doc(familyRef, member.id);
+      await setDoc(docRef, member);
+      return member.id;
+    } catch (error) {
+      console.error("Error saving family member:", error);
+      throw error;
+    }
+  },
+
+  async deleteFamilyMember(memberId: string, userId: string): Promise<void> {
+    if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
+    
+    try {
+      if (!userId) throw new Error("userId is required to delete family member");
+      
+      const memberRef = doc(db, `users/${userId}/family_members`, memberId);
+      await deleteDoc(memberRef);
+    } catch (error) {
+      console.error("Error deleting family member:", error);
+      throw error;
+    }
+  },
+
   async getAllUsers(): Promise<User[]> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
@@ -2505,6 +2605,10 @@ export const firebaseService = {
           followers: d.followers || 0,
           approvalStatus: d.approvalStatus || 'approved',
           bio: d.bio,
+          email: d.email || d.loginId,
+          loginId: d.loginId,
+          phone: d.phone || d.contactNumber,
+          contactNumber: d.contactNumber,
           portfolio: d.portfolio || [],
           reviews: d.reviews || [],
           tailorGender: d.tailorGender
@@ -2549,6 +2653,10 @@ export const firebaseService = {
           followers: d.followers || 0,
           approvalStatus: d.approvalStatus || 'approved',
           bio: d.bio,
+          email: d.email || d.loginId,
+          loginId: d.loginId,
+          phone: d.phone || d.contactNumber,
+          contactNumber: d.contactNumber,
           portfolio: d.portfolio || [],
           reviews: d.reviews || [],
           tailorGender: d.tailorGender
@@ -2742,6 +2850,10 @@ export const firebaseService = {
           specialization: doc.data().specialization || '',
           experience: doc.data().experience || '',
           bio: doc.data().bio,
+          email: doc.data().email || doc.data().loginId,
+          loginId: doc.data().loginId,
+          phone: doc.data().phone || doc.data().contactNumber,
+          contactNumber: doc.data().contactNumber,
           portfolio: doc.data().portfolio || [],
           reviewsCount: doc.data().reviewsCount || 0,
           region: doc.data().region,
@@ -2786,6 +2898,10 @@ export const firebaseService = {
           specialization: d.specialization || '',
           experience: d.experience || '',
           bio: d.bio,
+          email: d.email || d.loginId,
+          loginId: d.loginId,
+          phone: d.phone || d.contactNumber,
+          contactNumber: d.contactNumber,
           portfolio: d.portfolio || [],
           reviewsCount: d.reviewsCount || 0,
           region: d.region,
@@ -2826,6 +2942,72 @@ export const firebaseService = {
   },
 
   /**
+   * Check if a matching order already exists for a user
+   */
+  async findMatchingOrder(
+    userId: string, 
+    productId: string, 
+    measurements: Record<string, number>,
+    comments?: string,
+    tailorId?: string,
+    price?: number
+  ): Promise<any | null> {
+    if (!isFirebaseInitialized || !db || !userId) return null;
+
+    try {
+      const ordersRef = collection(db, 'orders');
+      // We only care about orders currently "waiting to be approved" (status: pending)
+      // As per user request: "If the product is placed after the approval. That would be OK."
+      const q = query(
+        ordersRef, 
+        where('userId', '==', userId),
+        where('productId', '==', productId),
+        where('status', '==', 'pending')
+      );
+
+      const querySnapshot = await getDocs(q);
+      
+      for (const d of querySnapshot.docs) {
+        const order = d.data();
+        
+        // 1. Check tailorId if provided
+        if (tailorId && order.tailorId !== tailorId) continue;
+
+        // 2. Check price if provided (handling precision)
+        if (price !== undefined && order.price !== undefined) {
+           if (Math.abs(Number(order.price) - Number(price)) > 0.001) continue;
+        }
+
+        // 3. Check measurements precisely
+        const existingMeasurements = order.measurements || {};
+        const m1Keys = Object.keys(measurements);
+        const m2Keys = Object.keys(existingMeasurements);
+        
+        if (m1Keys.length !== m2Keys.length) continue;
+
+        const measurementsMatch = m1Keys.every(key => 
+          Number(existingMeasurements[key]) === Number(measurements[key])
+        );
+
+        if (!measurementsMatch) continue;
+
+        // 4. Check comments/details ("every single details")
+        const existingComments = order.comments || '';
+        const currentComments = comments || '';
+        
+        if (existingComments.trim() !== currentComments.trim()) continue;
+
+        // If we reached here, it's a perfect match
+        return { id: d.id, ...order };
+      }
+      return null;
+    } catch (error) {
+      console.error('Error finding matching order:', error);
+      return null;
+    }
+  },
+
+  /**
    * Create a new order
    */
   async createOrder(orderData: any): Promise<string> {
@@ -2845,7 +3027,8 @@ export const firebaseService = {
       const ordersRef = collection(db, 'orders');
       const docRef = await addDoc(ordersRef, {
         ...cleanedData,
-        createdAt: new Date().toISOString(),
+        orderDate: cleanedData.orderDate || new Date().toISOString(),
+        createdAt: cleanedData.createdAt || new Date().toISOString(),
         updatedAt: new Date().toISOString()
       });
 

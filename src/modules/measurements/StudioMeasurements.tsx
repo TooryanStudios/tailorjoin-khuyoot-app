@@ -65,40 +65,40 @@ export const StudioMeasurements: React.FC = () => {
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-full bg-zinc-950/50 backdrop-blur-md">
+      <div className="flex items-center justify-center h-full bg-white/60 backdrop-blur-md">
         <div className="flex flex-col items-center gap-4">
-          <div className="w-12 h-12 rounded-full border-2 border-emerald-500/20 border-t-emerald-500 animate-spin" />
-          <span className="text-zinc-400 font-medium animate-pulse">Initializing Studio Measurements...</span>
+          <div className="w-12 h-12 rounded-full border-2 border-purple-200 border-t-purple-600 animate-spin" />
+          <span className="text-zinc-500 font-bold animate-pulse">جاري تشغيل استوديو المقاسات...</span>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-full flex flex-col bg-zinc-950 text-white overflow-hidden font-sans">
+    <div className="h-full flex flex-col bg-white text-zinc-800 overflow-hidden font-sans">
       {/* Premium Header */}
-      <div className="h-16 flex-shrink-0 px-4 flex items-center justify-between border-b border-white/5 bg-zinc-900/40 backdrop-blur-xl">
+      <div className="h-16 flex-shrink-0 px-4 flex items-center justify-between border-b border-zinc-100 bg-white/80 backdrop-blur-xl">
         <div className="flex items-center gap-4">
-          <div className="w-10 h-10 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
+          <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
             <Ruler size={20} />
           </div>
           <div>
-            <h1 className="text-lg font-bold tracking-tight">{t('measurements:enterYourMeasurements')}</h1>
-            <p className="text-xs text-zinc-500 flex items-center gap-2">
-              <ShieldCheck size={12} className="text-emerald-500" />
-              {productData?.name || 'Custom Garment'}
+            <h1 className="text-lg font-bold tracking-tight text-zinc-900">{t('measurements:enterYourMeasurements')}</h1>
+            <p className="text-xs text-zinc-400 flex items-center gap-2">
+              <ShieldCheck size={12} className="text-purple-600" />
+              {productData?.name || 'قطعة مفصلة'}
             </p>
           </div>
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-sm font-semibold transition-all">
+          <button className="flex items-center gap-2 px-4 py-2 rounded-lg bg-zinc-100 hover:bg-zinc-200 text-sm font-bold text-zinc-600 transition-all">
             <Video size={16} />
             {t('common:watchVideo')}
           </button>
           <button 
             onClick={handleSave}
-            className="flex items-center gap-2 px-6 py-2 rounded-lg bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold shadow-lg shadow-emerald-500/10 transition-all active:scale-95"
+            className="flex items-center gap-2 px-6 py-2 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-bold shadow-lg shadow-purple-100 transition-all active:scale-95"
           >
             <Save size={16} />
             {t('measurements:saveMeasurements')}
@@ -122,14 +122,14 @@ export const StudioMeasurements: React.FC = () => {
           </div>
           
           {/* Overlay Guide Card */}
-          <div className="absolute bottom-4 left-4 max-w-sm p-4 bg-zinc-900/80 backdrop-blur-xl border border-white/5 rounded-2xl shadow-2xl">
+          <div className="absolute bottom-4 left-4 max-w-sm p-4 bg-white/90 backdrop-blur-xl border border-zinc-100 rounded-2xl shadow-2xl">
             <div className="flex items-start gap-4">
-              <div className="w-8 h-8 rounded-lg bg-blue-500/10 flex items-center justify-center text-blue-400 flex-shrink-0">
+              <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600 flex-shrink-0">
                 <Info size={18} />
               </div>
               <div>
-                <h4 className="text-sm font-bold text-white mb-1">{t('measurements:precisionGuide')}</h4>
-                <p className="text-xs text-zinc-400 leading-relaxed italic">
+                <h4 className="text-sm font-bold text-zinc-900 mb-1">{t('measurements:precisionGuide')}</h4>
+                <p className="text-xs text-zinc-500 leading-relaxed italic">
                   {t('measurements:precisionGuideDesc')}
                 </p>
               </div>
@@ -138,13 +138,13 @@ export const StudioMeasurements: React.FC = () => {
         </div>
 
         {/* Right Side: Data Entry Panel */}
-        <div className="w-[450px] flex-shrink-0 bg-zinc-900/30 border-l border-white/5 flex flex-col overflow-hidden backdrop-blur-sm">
-          <div className="p-3 border-b border-white/5 bg-zinc-900/50">
+        <div className="w-[450px] flex-shrink-0 bg-zinc-50 border-l border-zinc-100 flex flex-col overflow-hidden">
+          <div className="p-3 border-b border-zinc-100 bg-white">
             <div className="flex items-center justify-between mb-4">
-              <span className="text-xs font-black uppercase tracking-widest text-zinc-500">Input Metrics</span>
-              <div className="flex bg-zinc-950 rounded-lg p-1">
-                <button className="px-3 py-1 text-[10px] font-bold bg-zinc-800 rounded-md">CM</button>
-                <button className="px-3 py-1 text-[10px] font-bold text-zinc-600">IN</button>
+              <span className="text-xs font-black uppercase tracking-widest text-zinc-500">وحدات القياس</span>
+              <div className="flex bg-zinc-100 rounded-lg p-1">
+                <button className="px-3 py-1 text-[10px] font-bold bg-white text-zinc-900 rounded-md shadow-sm">سم</button>
+                <button className="px-3 py-1 text-[10px] font-bold text-zinc-400">بوصة</button>
               </div>
             </div>
 
@@ -156,8 +156,8 @@ export const StudioMeasurements: React.FC = () => {
                   onClick={() => setActiveTemplate(tmp)}
                   className={`px-3 py-1.5 rounded-lg text-[10px] font-bold border transition-all ${
                     activeTemplate?.id === tmp.id 
-                    ? 'bg-emerald-500/10 border-emerald-500/40 text-emerald-400' 
-                    : 'bg-zinc-800/40 border-white/5 text-zinc-500 hover:text-zinc-300'
+                    ? 'bg-purple-50 border-purple-200 text-purple-600' 
+                    : 'bg-white border-zinc-200 text-zinc-400 hover:text-zinc-600'
                   }`}
                 >
                   {tmp.name}
@@ -180,13 +180,13 @@ export const StudioMeasurements: React.FC = () => {
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-3">
                     <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-colors ${
-                      activePointId === point.id ? 'bg-emerald-500 text-zinc-950' : 'bg-zinc-800 text-zinc-500'
+                      activePointId === point.id ? 'bg-purple-600 text-white shadow-lg' : 'bg-zinc-100 text-zinc-400'
                     }`}>
                       <Scissors size={14} />
                     </div>
                     <div>
-                      <h3 className="text-sm font-bold text-white leading-none">{point.label}</h3>
-                      <span className="text-[10px] text-zinc-500">Ref: {point.id}</span>
+                      <h3 className={`text-sm font-bold leading-none ${activePointId === point.id ? 'text-purple-600' : 'text-zinc-700'}`}>{point.label}</h3>
+                      <span className="text-[10px] text-zinc-400">Ref: {point.id}</span>
                     </div>
                   </div>
                   {measurements[point.id] && (
@@ -202,20 +202,20 @@ export const StudioMeasurements: React.FC = () => {
                     value={measurements[point.id] || ''}
                     placeholder="---"
                     onChange={(e) => setMeasurements(prev => ({ ...prev, [point.id]: e.target.value }))}
-                    className="w-full h-12 bg-zinc-950 border border-white/5 rounded-xl px-4 text-emerald-400 font-mono text-lg font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500/40 transition-all placeholder:text-zinc-800"
+                    className="w-full h-12 bg-white border border-zinc-200 rounded-xl px-4 text-purple-600 font-mono text-lg font-bold focus:outline-none focus:ring-2 focus:ring-purple-500/20 focus:border-purple-600 transition-all placeholder:text-zinc-200"
                   />
-                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-700 uppercase">
-                    cm
+                  <div className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-zinc-400 uppercase">
+                    سم
                   </div>
                 </div>
               </div>
             ))}
           </div>
           
-          <div className="p-4 bg-zinc-900/60 border-t border-white/5">
+          <div className="p-4 bg-white border-t border-zinc-100">
             <button 
               onClick={handleSave}
-              className="w-full h-14 bg-white text-zinc-950 font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-emerald-400 transition-all group active:scale-95"
+              className="w-full h-14 bg-purple-600 text-white font-black rounded-2xl flex items-center justify-center gap-3 hover:bg-purple-700 transition-all group active:scale-95 shadow-xl shadow-purple-100"
             >
               {t('measurements:confirmAll')}
               <ArrowRight size={18} className="translate-x-0 group-hover:translate-x-1 transition-transform" />

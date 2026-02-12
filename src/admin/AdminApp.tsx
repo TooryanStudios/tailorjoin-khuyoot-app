@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X } from 'lucide-react';
+import { firebaseService } from '../services/firebase';
+import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Zap, Eye, EyeOff } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
 import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
@@ -22,6 +23,7 @@ import { MeasurementTemplates } from './measurements/MeasurementTemplates';
 import { ProductsManagement } from './products/ProductsManagement';
 import { OrphanedProducts } from './products/OrphanedProducts';
 import { HomePageSettings } from './settings/HomePageSettings';
+import { LandingPageConfig } from './settings/LandingPageConfig';
 import { DesignerSettings } from './settings/DesignerSettings';
 import { SiteTextsSettings } from './settings/SiteTextsSettings';
 import { SocialMediaSettings } from './settings/SocialMediaSettings';
@@ -64,11 +66,11 @@ type AdminSection =
   | 'config' 
   | 'logs';
 
-type ConfigSection = 'general' | 'homepage' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
+type ConfigSection = 'general' | 'homepage' | 'landing-page' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
 
 type ExtendedConfigSection = ConfigSection | 'designer' | 'debug-tools';
 
-const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page', 'debug-tools'];
+const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'landing-page', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page', 'debug-tools'];
 
 function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
   // Supported:
@@ -84,9 +86,17 @@ function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
 }
 
 export const AdminApp = () => {
-  const { appSettings, saveAppSettings, user, logout, login, loading, theme, toggleTheme } = useApp();
+  const { appSettings, saveAppSettings, user, logout, login, loading, theme, toggleTheme, refreshUser } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Force refresh user profile when accessing admin panel
+  React.useEffect(() => {
+    if (user && user.role !== 'admin') {
+      console.log('[AdminApp] User role is not admin, forcing profile refresh...');
+      refreshUser?.();
+    }
+  }, [user?.uid, user?.role]);
 
   const ADMIN_SIDEBAR_OPEN_KEY = 'khuyoot_admin_sidebar_open';
 
@@ -143,7 +153,9 @@ export const AdminApp = () => {
   const [loginPassword, setLoginPassword] = useState('');
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [loginError, setLoginError] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [hasCompletedInitialCheck, setHasCompletedInitialCheck] = useState(false);
 
   useEffect(() => {
     const onResize = () => {
@@ -245,18 +257,44 @@ export const AdminApp = () => {
 
   // انتظر تحميل حالة المصادقة
   useEffect(() => {
-    const timer = setTimeout(() => {
-      setIsCheckingAuth(false);
-    }, 2000);
-    return () => clearTimeout(timer);
+    // Always wait minimum time before showing any UI (prevents flash)
+    const minWaitTimer = setTimeout(() => {
+      setHasCompletedInitialCheck(true);
+    }, 800);
+
+    return () => clearTimeout(minWaitTimer);
   }, []);
 
-  // إذا تغير المستخدم، أعد التحقق
   useEffect(() => {
-    if (user !== null) {
+    // Don't make any decisions until minimum wait time has passed
+    if (!hasCompletedInitialCheck) {
+      return;
+    }
+
+    // If we have an admin user, stop checking immediately
+    if (user?.role === 'admin') {
+      setIsCheckingAuth(false);
+      return;
+    }
+
+    // If AppContext is still loading, keep checking
+    if (loading) {
+      return;
+    }
+
+    // If we have a user but not admin role, wait for profile refresh
+    if (user && user.role !== 'admin') {
+       const timer = setTimeout(() => {
+          setIsCheckingAuth(false);
+       }, 1500);
+       return () => clearTimeout(timer);
+    }
+    
+    // If no user at all, stop checking
+    if (!user) {
       setIsCheckingAuth(false);
     }
-  }, [user]);
+  }, [user, loading, hasCompletedInitialCheck]);
 
   const handleToggle = (key: keyof AppSettings) => {
     setLocalSettings((prev) => {
@@ -275,26 +313,50 @@ export const AdminApp = () => {
   };
 
   const handleLogout = async () => {
-      await logout();
-      // Navigate to homepage after logout
-      navigate('/', { replace: true });
+      try {
+        // Show checking state during logout
+        setIsCheckingAuth(true);
+        
+        // Perform logout
+        await logout();
+        
+        // Wait to ensure Firebase auth state is fully cleared
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Stay on the admin page (which will show login form) instead of redirecting
+        // Using reload ensures clean state
+        window.location.reload();
+      } catch (error) {
+        console.error('Logout error:', error);
+        window.location.reload();
+      }
   };
 
   const handleAdminLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
+    console.log('🚀 [AdminApp] Attempting admin login for:', loginEmail);
     
     try {
       await login(loginEmail, loginPassword);
+      console.log('✅ [AdminApp] Firebase login successful');
       
-      // انتظر قليلاً لتحميل بيانات المستخدم من Firestore
+      // Wait for profile hydration
+      console.log('⏳ [AdminApp] Waiting for profile hydration...');
       setTimeout(() => {
-        setShowLoginForm(false);
         setIsLoggingIn(false);
-      }, 1500);
+        console.log('🏁 [AdminApp] Login flow finished. User:', user?.email, 'Role:', user?.role);
+        if (user?.role === 'admin') {
+          setShowLoginForm(false);
+        } else {
+          console.warn('❌ [AdminApp] User logged in but role is NOT admin:', user?.role);
+          setLoginError(`تم تسجيل الدخول بنجاح، ولكن دور الحساب هو "${user?.role}". يرجى التأكد من أنك تستخدم حساب مسؤول.`);
+        }
+      }, 2000);
       
     } catch (error: any) {
+      console.error('❌ [AdminApp] Login error:', error);
       setLoginError(error.message || 'فشل تسجيل الدخول. تحقق من البيانات.');
       setIsLoggingIn(false);
     }
@@ -322,7 +384,7 @@ export const AdminApp = () => {
        <div className="w-20 h-20 bg-slate-100 dark:bg-zinc-800 rounded-full flex items-center justify-center mb-4">
           <Icon size={40} className="opacity-50" />
        </div>
-       <h3 className="text-lg font-bold text-slate-600 dark:text-zinc-300">{title}</h3>
+       <h3 className="text-lg font-normal text-slate-600 dark:text-zinc-300">{title}</h3>
        <p className="text-sm">هذه الوحدة قيد التطوير حالياً</p>
     </div>
   );
@@ -331,16 +393,16 @@ export const AdminApp = () => {
     const configSection = getConfigSectionFromPathname(location.pathname);
 
     return (
-      <div className="space-y-6 w-full max-w-none min-w-0 rounded-3xl border border-zinc-800 bg-zinc-950 p-6 shadow-[0_20px_60px_-30px_rgba(168,85,247,0.25)]">
-        <div className="flex justify-between items-start gap-3 mb-4">
+      <div className="space-y-4 w-full">
+        <div className="flex justify-between items-start gap-3 mb-3">
           <div>
-            <h2 className="text-xl font-black text-white drop-shadow-sm">إعدادات النظام</h2>
-            <p className="text-sm text-zinc-400">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
+            <h2 className="text-lg font-black text-zinc-900 dark:text-white">إعدادات النظام</h2>
+            <p className="text-xs text-zinc-600 dark:text-zinc-400">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Link
               to="/visualizer"
-              className="inline-flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-semibold text-purple-100 hover:bg-purple-500/20 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-normal text-purple-100 hover:bg-purple-500/20 transition-colors"
             >
               <Maximize2 size={14} />
               <span>فتح الـ 3D Visualizer</span>
@@ -355,83 +417,93 @@ export const AdminApp = () => {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
+        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-3">
           <button
             onClick={() => navigate('/admin/config/general')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'general'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             الإعدادات العامة
           </button>
           <button
             onClick={() => navigate('/admin/config/homepage')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'homepage'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             الصفحة الرئيسية
           </button>
           <button
+            onClick={() => navigate('/admin/config/landing-page')}
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
+              configSection === 'landing-page'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
+            }`}
+          >
+            صفحة الهبوط (Mont)
+          </button>
+          <button
             onClick={() => navigate('/admin/config/designer')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'designer'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             المصمم
           </button>
           <button
             onClick={() => navigate('/admin/config/product-page')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'product-page'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             صفحة المنتج
           </button>
           <button
             onClick={() => navigate('/admin/config/texts')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'texts'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             نصوص الموقع
           </button>
           <button
             onClick={() => navigate('/admin/config/social')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'social'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             السوشيال ميديا
           </button>
           <button
             onClick={() => navigate('/admin/config/seo')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'seo'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-theme-primary text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             SEO
           </button>
           <button
             onClick={() => navigate('/admin/config/advanced/orders')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'advanced'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-black text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             إعدادات متقدمة
@@ -439,10 +511,10 @@ export const AdminApp = () => {
 
           <button
             onClick={() => navigate('/admin/config/debug-tools')}
-            className={`px-4 py-2 rounded-full text-sm md:text-base font-semibold transition-all whitespace-nowrap border ${
+            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
               configSection === 'debug-tools'
-                ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30 border-purple-400/40'
-                : 'bg-zinc-800/50 text-zinc-200 border-zinc-700 hover:bg-zinc-800'
+                ? 'bg-black text-white'
+                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
             }`}
           >
             أدوات التشخيص
@@ -453,6 +525,8 @@ export const AdminApp = () => {
           <DebugToolsHub />
         ) : configSection === 'homepage' ? (
           <HomePageSettings />
+        ) : configSection === 'landing-page' ? (
+          <LandingPageConfig />
           ) : configSection === 'designer' ? (
             <DesignerSettings />
         ) : configSection === 'product-page' ? (
@@ -466,23 +540,23 @@ export const AdminApp = () => {
         ) : configSection === 'advanced' ? (
           <AdvancedSettings />
         ) : (
-          <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden divide-y divide-zinc-800/50 shadow-xl shadow-purple-900/20">
+          <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden divide-y divide-zinc-800/50 shadow-xl shadow-theme-primary/40">
             {/* خيار الوضع الفاتح/الداكن */}
           <div className="p-5 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
             <div className="flex items-center gap-4">
-              <div className={`p-2 rounded-lg bg-zinc-800/50 ${theme === 'dark' ? 'text-purple-400' : 'text-amber-300'} border border-zinc-700`}>
+              <div className={`p-2 rounded-lg bg-zinc-800/50 ${theme === 'dark' ? 'text-theme-primary' : 'text-amber-300'} border border-zinc-700`}>
                 {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
               </div>
               <div>
-                <p className="font-semibold text-white text-sm">مظهر لوحة التحكم</p>
+                <p className="font-normal text-white text-sm">مظهر لوحة التحكم</p>
                 <p className="text-xs text-zinc-400">التبديل بين الوضع الفاتح والداكن للوحة التحكم</p>
               </div>
             </div>
             <button 
               onClick={toggleTheme}
-              className={`px-4 py-2 rounded-lg font-semibold text-sm transition-colors border border-zinc-700 shadow-sm ${
+              className={`px-4 py-2 rounded-lg font-normal text-sm transition-colors border border-zinc-700 shadow-sm ${
                 theme === 'dark' 
-                  ? 'bg-purple-600 text-white hover:bg-purple-500' 
+                  ? 'bg-theme-primary text-white hover:bg-purple-500' 
                   : 'bg-amber-500 text-white hover:bg-amber-400'
               }`}
             >
@@ -492,7 +566,7 @@ export const AdminApp = () => {
 
           {[
             { key: 'storiesEnabled', label: 'القصص (Stories)', desc: 'تفعيل ميزة القصص للخياطين في الصفحة الرئيسية', icon: PlayCircle, color: 'text-pink-500' },
-            { key: 'designerEnabled', label: 'المصمم الذكي', desc: 'تفعيل أدوات التصميم بالذكاء الاصطناعي', icon: PenTool, color: 'text-purple-500' },
+            { key: 'designerEnabled', label: 'المصمم الذكي', desc: 'تفعيل أدوات التصميم بالذكاء الاصطناعي', icon: PenTool, color: 'text-theme-primary' },
             { key: 'cartEnabled', label: 'نظام السلة والطلبات', desc: 'إتاحة عمليات الشراء وإدارة الطلبات', icon: ShoppingCart, color: 'text-orange-500' },
             { key: 'storeEnabled', label: 'متجر خيوط للأقمشة', desc: 'تفعيل متجر خيوط لشراء الأقمشة (تجريبي)', icon: Store, color: 'text-emerald-500' },
             { key: 'allowNewRegistrations', label: 'التسجيل الجديد', desc: 'السماح للمستخدمين الجدد بإنشاء حسابات', icon: Users, color: 'text-blue-500' },
@@ -504,13 +578,15 @@ export const AdminApp = () => {
                     <item.icon size={20} />
                   </div>
                   <div>
-                    <p className="font-semibold text-white text-sm">{item.label}</p>
+                    <p className="font-normal text-white text-sm">{item.label}</p>
                     <p className="text-xs text-zinc-400">{item.desc}</p>
                   </div>
               </div>
               <button 
                 onClick={() => handleToggle(item.key)}
                 className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings[item.key as keyof AppSettings] ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                title={localSettings[item.key as keyof AppSettings] ? 'الغاء التفعيل' : 'تفعيل'}
+                aria-label={item.label}
               >
                 <div className={`w-4 h-4 rounded-full bg-white shadow transform transition ${localSettings[item.key as keyof AppSettings] ? 'translate-x-6' : ''}`} />
               </button>
@@ -521,7 +597,7 @@ export const AdminApp = () => {
           <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                <h3 className="text-sm font-normal text-white flex items-center gap-2">
                   <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-200 border border-purple-500/40">جديد</span>
                   إعدادات فيديو المساعدة
                 </h3>
@@ -536,6 +612,8 @@ export const AdminApp = () => {
                   }
                 }))}
                 className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings.helpVideo?.enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                title={localSettings.helpVideo?.enabled ? 'الغاء التفعيل' : 'تفعيل'}
+                aria-label="تفعيل فيديو المساعدة"
               >
                 <div className={`w-4 h-4 rounded-full bg-white shadow transform transition ${localSettings.helpVideo?.enabled ? 'translate-x-6' : ''}`} />
               </button>
@@ -561,7 +639,7 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="مثال: https://youtu.be/xxxxxxxx أو https://www.youtube.com/watch?v=xxxxxxx"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div>
@@ -583,7 +661,7 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="شاهد"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div className="flex items-center gap-2 bg-purple-500/15 text-purple-100 px-3 py-2 rounded-lg text-xs md:justify-end border border-purple-500/30">
@@ -596,7 +674,7 @@ export const AdminApp = () => {
           {/* ??????? ????? ?????? */}
           <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
             <div className="mb-4">
-              <h3 className="text-sm font-bold text-white">????? ??????</h3>
+              <h3 className="text-sm font-normal text-white">????? ??????</h3>
               <p className="text-xs text-zinc-400 mt-1">???? ??????? ???????? ????????? (HEX) ???????? ??? ??????? ?????? ????????.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -619,7 +697,7 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="#CFFF04"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div>
@@ -641,7 +719,7 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="#D4AF37"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-purple-500/40"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
             </div>
@@ -650,13 +728,14 @@ export const AdminApp = () => {
           {/* إعدادات مقاسات قوالب المقاسات */}
           <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
             <div className="mb-4">
-              <h3 className="text-sm font-bold text-white mb-1">مقاسات صور قوالب المقاسات</h3>
+              <h3 className="text-sm font-normal text-white mb-1">مقاسات صور قوالب المقاسات</h3>
               <p className="text-xs text-zinc-400">حدد الأبعاد الموحدة المطلوبة لصور قوالب المقاسات (بالبكسل)</p>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-2">العرض (Width)</label>
+                <label htmlFor="template-width" className="block text-xs font-medium text-zinc-300 mb-2">العرض (Width)</label>
                 <input
+                  id="template-width"
                   type="number"
                   min="100"
                   max="5000"
@@ -666,12 +745,15 @@ export const AdminApp = () => {
                     setLocalSettings(newSettings);
                     saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-purple-500/40"
+                  title="العرض"
+                  placeholder="600"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-2">الارتفاع (Height)</label>
+                <label htmlFor="template-height" className="block text-xs font-medium text-zinc-300 mb-2">الارتفاع (Height)</label>
                 <input
+                  id="template-height"
                   type="number"
                   min="100"
                   max="5000"
@@ -681,13 +763,15 @@ export const AdminApp = () => {
                     setLocalSettings(newSettings);
                     saveAppSettings(newSettings, { silent: true, optimistic: true });
                   }}
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-purple-500/40"
+                  title="الارتفاع"
+                  placeholder="800"
+                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-white text-sm focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
             </div>
             <div className="mt-3 p-3 bg-purple-500/15 rounded-lg border border-purple-500/30">
               <p className="text-xs text-purple-200">
-                📐 المقاس الحالي: <span className="font-bold">{localSettings.measurementTemplateWidth || 600}×{localSettings.measurementTemplateHeight || 800}</span> بكسل (نسبة 3:4)
+                📐 المقاس الحالي: <span className="font-normal">{localSettings.measurementTemplateWidth || 600}×{localSettings.measurementTemplateHeight || 800}</span> بكسل (نسبة 3:4)
               </p>
             </div>
           </div>
@@ -713,7 +797,7 @@ export const AdminApp = () => {
       case 'orphaned-products': return <OrphanedProducts />;
       case 'store': return (
         <div className="space-y-6 max-w-3xl">
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-4">إدارة متجر خيوط</h2>
+          <h2 className="text-2xl font-normal text-slate-800 dark:text-white mb-4">إدارة متجر خيوط</h2>
           
           <div className="bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl p-8 text-white shadow-xl">
             <div className="flex items-start gap-6">
@@ -721,14 +805,14 @@ export const AdminApp = () => {
                 <Store size={48} />
               </div>
               <div className="flex-1">
-                <h3 className="text-2xl font-bold mb-2">لوحة التحكم الكاملة للمتجر</h3>
+                <h3 className="text-2xl font-normal mb-2">لوحة التحكم الكاملة للمتجر</h3>
                 <p className="text-emerald-50 mb-6">
                   انتقل إلى صفحة إدارة المتجر المنفصلة للوصول إلى جميع ميزات الإدارة الشاملة:
                   إدارة المنتجات، الطلبات، المخزون، التقارير والإحصائيات.
                 </p>
                 <Button 
                   onClick={() => navigate('/store-admin')}
-                  className="bg-white text-emerald-600 hover:bg-emerald-50 font-bold flex items-center gap-2 shadow-lg"
+                  className="bg-white text-emerald-600 hover:bg-emerald-50 font-normal flex items-center gap-2 shadow-lg"
                 >
                   <Store size={20} />
                   الانتقال إلى إدارة المتجر
@@ -746,7 +830,7 @@ export const AdminApp = () => {
                 <div className="p-2 bg-blue-500/20 rounded-lg">
                   <Package className="text-blue-500" size={24} />
                 </div>
-                <h4 className="font-bold text-slate-800 dark:text-white">إدارة المنتجات</h4>
+                <h4 className="font-normal text-slate-800 dark:text-white">إدارة المنتجات</h4>
               </div>
               <p className="text-sm text-slate-600 dark:text-zinc-400">
                 إضافة وتعديل وحذف المنتجات، إدارة الفئات والأسعار
@@ -758,7 +842,7 @@ export const AdminApp = () => {
                 <div className="p-2 bg-amber-500/20 rounded-lg">
                   <ShoppingCart className="text-amber-500" size={24} />
                 </div>
-                <h4 className="font-bold text-slate-800 dark:text-white">معالجة الطلبات</h4>
+                <h4 className="font-normal text-slate-800 dark:text-white">معالجة الطلبات</h4>
               </div>
               <p className="text-sm text-slate-600 dark:text-zinc-400">
                 متابعة الطلبات، تحديث الحالات، إدارة الشحن والتوصيل
@@ -768,9 +852,9 @@ export const AdminApp = () => {
             <div className="bg-white dark:bg-zinc-900 rounded-xl border border-slate-200 dark:border-zinc-800 p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="p-2 bg-purple-500/20 rounded-lg">
-                  <Activity className="text-purple-500" size={24} />
+                  <Activity className="text-theme-primary" size={24} />
                 </div>
-                <h4 className="font-bold text-slate-800 dark:text-white">التقارير والإحصائيات</h4>
+                <h4 className="font-normal text-slate-800 dark:text-white">التقارير والإحصائيات</h4>
               </div>
               <p className="text-sm text-slate-600 dark:text-zinc-400">
                 تقارير المبيعات، تحليل الأداء، إحصائيات شاملة
@@ -799,18 +883,25 @@ export const AdminApp = () => {
 
   // شاشة تحميل أثناء التحقق من المصادقة
   // Keep this gate time-bound to avoid indefinite spinners if auth is slow.
-  if (isCheckingAuth) {
+  // Also show spinner if global loading is active to prevent flashes of restricted area
+  if (isCheckingAuth || loading) {
     return (
       <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center">
         <div className="text-center">
-          <Activity className="animate-spin text-purple-500 mx-auto mb-4" size={48} />
+          <Activity className="animate-spin text-theme-primary mx-auto mb-4" size={48} />
           <p className="text-zinc-400">جاري التحقق من الصلاحيات...</p>
         </div>
       </div>
     );
   }
 
-  if (user?.role !== 'admin') {
+  // Check both authentication and admin role
+  // CRITICAL: Check Firebase auth state first to prevent cached access
+  const isFirebaseAuthenticated = !!firebaseService.auth.currentUser;
+  const hasUserData = !!user;
+  const isAdminRole = user?.role === 'admin';
+  
+  if (!isFirebaseAuthenticated || !hasUserData || !isAdminRole) {
      return (
         <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center text-center p-4" dir="rtl">
            <div className="max-w-md w-full">
@@ -819,7 +910,7 @@ export const AdminApp = () => {
                  <Shield size={40} className="text-red-500" />
                </div>
                
-               <h1 className="text-3xl font-bold text-white mb-2">منطقة محظورة</h1>
+               <h1 className="text-3xl font-normal text-white mb-2">منطقة محظورة</h1>
                <p className="text-zinc-400 mb-8">
                  {showLoginForm 
                    ? 'أدخل بيانات حساب المسؤول للمتابعة' 
@@ -831,7 +922,7 @@ export const AdminApp = () => {
                  <div className="space-y-3">
                    <Button 
                      onClick={() => setShowLoginForm(true)} 
-                     className="w-full bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 flex items-center justify-center gap-2 transition-all"
+                     className="w-full bg-theme-primary hover:bg-theme-primary/90 shadow-lg shadow-theme-primary/30 hover:shadow-theme-primary/50 flex items-center justify-center gap-2 transition-all"
                    >
                      <Lock size={18} />
                      تسجيل دخول كمسؤول
@@ -859,9 +950,10 @@ export const AdminApp = () => {
                        type="email"
                        value={loginEmail}
                        onChange={(e) => setLoginEmail(e.target.value)}
-                       placeholder="admin@khuyoot.com"
+                       placeholder="admin@example.com"
+                       title="البريد الإلكتروني"
                        required
-                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-transparent"
+                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-theme-primary/40 focus:border-transparent"
                      />
                    </div>
 
@@ -869,21 +961,30 @@ export const AdminApp = () => {
                      <label className="block text-sm font-medium text-zinc-300 mb-2">
                        كلمة المرور
                      </label>
-                     <input
-                       type="password"
-                       value={loginPassword}
-                       onChange={(e) => setLoginPassword(e.target.value)}
-                       placeholder="••••••••"
-                       required
-                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40 focus:border-transparent"
-                     />
+                     <div className="relative">
+                       <button
+                         type="button"
+                         onClick={() => setShowPassword(!showPassword)}
+                         className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                       >
+                         {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                       </button>
+                       <input
+                         type={showPassword ? "text" : "password"}
+                         value={loginPassword}
+                         onChange={(e) => setLoginPassword(e.target.value)}
+                         placeholder="••••••••"
+                         required
+                         className="w-full px-4 py-3 pl-10 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-theme-primary/40 focus:border-transparent"
+                       />
+                     </div>
                    </div>
 
                    <div className="space-y-2 pt-2">
                      <Button 
                        type="submit" 
                        disabled={isLoggingIn}
-                       className="w-full bg-purple-600 hover:bg-purple-700 shadow-lg shadow-purple-500/30 hover:shadow-purple-500/50 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:bg-zinc-600"
+                       className="w-full bg-theme-primary hover:bg-theme-primary/90 shadow-lg shadow-theme-primary/30 hover:shadow-theme-primary/50 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:bg-zinc-600"
                      >
                        {isLoggingIn ? (
                          <>
@@ -915,10 +1016,33 @@ export const AdminApp = () => {
                )}
 
                {user && user.role !== 'admin' && (
-                 <div className="mt-6 pt-6 border-t border-zinc-700">
+                 <div className="mt-6 pt-6 border-t border-zinc-700 space-y-4">
                    <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-yellow-400 text-xs">
                      ⚠️ أنت مسجل دخول كـ "{user.role}" - يجب أن يكون الدور "admin" في Firestore
+                     <div className="mt-2 text-[10px] opacity-70">UID: {user.uid}</div>
+                     <div className="text-[10px] opacity-70">Email: {user.email}</div>
                    </div>
+                   
+                   <Button 
+                     variant="outline"
+                     size="sm"
+                     className="w-full text-xs"
+                     onClick={() => {
+                        localStorage.clear();
+                        window.location.reload();
+                     }}
+                   >
+                     مسح الذاكرة التخزينية وتحديث الصفحة
+                   </Button>
+
+                   <Button 
+                     variant="ghost"
+                     size="sm"
+                     className="w-full text-xs text-red-400"
+                     onClick={() => logout()}
+                   >
+                     تسجيل الخروج والتبديل
+                   </Button>
                  </div>
                )}
              </div>
@@ -953,17 +1077,17 @@ export const AdminApp = () => {
       )}
 
       <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-16 bg-white dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800 flex items-center justify-between px-6 shadow-sm z-10">
+        <header className="h-16 bg-[#ededed] dark:bg-zinc-900 border-b border-zinc-200 dark:border-zinc-800 flex items-center justify-between px-6 shadow-sm z-10">
            <div className="flex items-center gap-4">
              <button 
                onClick={() => setSidebarOpenPersisted(!isSidebarOpen)} 
-               className="text-slate-500 hover:text-slate-700 dark:hover:text-zinc-300 transition-colors"
+               className="text-zinc-600 dark:text-zinc-400 hover:text-black dark:hover:text-white transition-colors p-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full"
                title={isSidebarOpen ? "إخفاء الشريط الجانبي" : "إظهار الشريط الجانبي"}
              >
                <Menu size={24} />
              </button>
              <div className="flex items-center gap-3">
-               <h2 className="text-lg font-bold text-slate-700 dark:text-zinc-200 capitalize">
+               <h2 className="text-lg font-normal text-zinc-900 dark:text-white capitalize">
                  {activeSection === 'ai'
                    ? 'AI Configuration'
                    : activeSection === 'debug-tools'
@@ -977,7 +1101,7 @@ export const AdminApp = () => {
            <div className="flex items-center gap-4">
               <button 
                 onClick={() => navigate('/')}
-                className="p-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg"
+                className="p-2 bg-black hover:bg-zinc-800 text-white rounded-full transition-colors shadow-sm"
                 title="الصفحة الرئيسية"
               >
                 <Home size={20} />
@@ -987,36 +1111,35 @@ export const AdminApp = () => {
                   console.log('🔘 AdminApp - Show Upgrade Modal clicked');
                   setIsUpgradeModalOpen(true);
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg font-semibold text-sm"
+                className="p-2 bg-theme-primary hover:bg-theme-primary/90 text-white rounded-full transition-colors shadow-sm"
                 title="عرض نافذة الترقية"
               >
-                🪙 عرض نافذة الترقية
+                <Zap size={20} />
               </button>
               <button
                 onClick={() => {
                   console.log('🖥️ AdminApp - Opening visualizer');
                   window.open('/visualizer', '_blank', 'noopener,noreferrer');
                 }}
-                className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-lg transition-colors shadow-md hover:shadow-lg font-semibold text-sm flex items-center gap-2"
+                className="p-2 bg-black hover:bg-zinc-800 text-white rounded-full transition-colors shadow-sm"
                 title="فتح لوحة التحكم في نافذة منفصلة"
               >
-                <Maximize2 size={16} />
-                فتح منفصل
+                <Maximize2 size={20} />
               </button>
               <div className="relative hidden md:block">
-                 <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-slate-100 dark:bg-zinc-800 border-none rounded-full text-xs w-64 focus:ring-1 focus:ring-purple-500" />
-                 <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-slate-400" />
+                 <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-xs w-64 focus:ring-2 focus:ring-theme-primary/50 focus:border-theme-primary" />
+                 <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-zinc-400" />
               </div>
-              <button className="relative p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-zinc-800 rounded-full">
+              <button title="التنبيهات" className="relative p-2 text-zinc-600 dark:text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors">
                  <Bell size={20} />
                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-2 border-r border-slate-200 dark:border-zinc-700 pr-4">
+              <div className="flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-700 pr-4">
                  <div className="text-left hidden md:block">
-                    <p className="text-xs font-bold text-slate-700 dark:text-white">Admin User</p>
-                    <p className="text-[10px] text-slate-400">Super Admin</p>
+                    <p className="text-xs font-normal text-zinc-900 dark:text-white">Admin User</p>
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Super Admin</p>
                  </div>
-                 <div className="w-8 h-8 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold">A</div>
+                 <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-normal">A</div>
               </div>
            </div>
         </header>
@@ -1024,7 +1147,7 @@ export const AdminApp = () => {
         <main
           id={`admin-${activeSection}`}
           data-admin-section={activeSection}
-          className="flex-1 overflow-y-auto p-6 scroll-smooth"
+          className="flex-1 overflow-y-auto p-4 scroll-smooth"
         >
           {renderContent()}
         </main>
@@ -1035,9 +1158,9 @@ export const AdminApp = () => {
             {/* Header */}
             <div className="h-16 bg-gradient-to-r from-zinc-900 to-zinc-800 border-b border-zinc-700 px-6 flex items-center justify-between shadow-xl">
               <div className="flex items-center gap-3">
-                <Shield className="text-purple-400" size={28} />
+                <Shield className="text-theme-primary" size={28} />
                 <div>
-                  <h1 className="text-lg font-bold text-white">لوحة التحكم - وضع منفصل</h1>
+                  <h1 className="text-lg font-normal text-white">لوحة التحكم - وضع منفصل</h1>
                   <p className="text-xs text-zinc-400">Admin Dashboard - Full Screen Mode</p>
                 </div>
               </div>
@@ -1056,9 +1179,9 @@ export const AdminApp = () => {
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto p-6">
               <div className="max-w-full">
-                <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden shadow-xl shadow-purple-900/20 p-8">
+                <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden shadow-xl shadow-theme-primary/40 p-8">
                   <div className="text-center mb-8">
-                    <h2 className="text-3xl font-bold text-white mb-2">لوحة التحكم الرئيسية</h2>
+                    <h2 className="text-3xl font-normal text-white mb-2">لوحة التحكم الرئيسية</h2>
                     <p className="text-zinc-400">هذه نسخة منفصلة من لوحة التحكم بدون حاويات الوالد</p>
                   </div>
 
@@ -1074,7 +1197,7 @@ export const AdminApp = () => {
                     ].map((item, idx) => (
                       <div key={idx} className={`bg-gradient-to-br ${item.color} rounded-xl p-6 shadow-lg hover:shadow-xl transition-shadow`}>
                         <div className={`${item.icon_color} mb-4 opacity-80`}>{item.icon}</div>
-                        <h3 className="text-white font-bold mb-1">{item.title}</h3>
+                        <h3 className="text-white font-normal mb-1">{item.title}</h3>
                         <p className="text-white/90 text-2xl font-extrabold">{item.count}</p>
                       </div>
                     ))}
@@ -1096,3 +1219,4 @@ export const AdminApp = () => {
     </div>
   );
 };
+

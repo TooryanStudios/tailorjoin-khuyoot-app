@@ -9,10 +9,11 @@ import { DemoShellPageA } from './src/pages/demoShell/DemoShellPageA';
 import { DemoShellPageB } from './src/pages/demoShell/DemoShellPageB';
 import { DemoShellTopTailors } from './src/pages/demoShell/DemoShellTopTailors';
 import { AppProvider, useApp } from './context/AppContext';
+import { OrderDetailsProvider } from './src/context/OrderDetailsContext';
 import { MainLayout } from './src/components/MainLayout';
 import { ProductList } from './pages/ProductList';
 import { Account } from './pages/Account';
-import { DesignerV2 as Designer } from './pages/DesignerV2';
+import { DesignerV2_1 as Designer } from './src/pages/DesignerV2_1/DesignerV2_1';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TailorCollections } from './pages/TailorCollections';
 import { TailorOrders } from './pages/TailorOrders';
@@ -37,6 +38,7 @@ import { ShopInventory } from './pages/ShopInventory';
 import PortfolioManagement from './pages/PortfolioManagement';
 import { Customization } from './pages/Customization';
 import { CustomizationPage } from './pages/CustomizationPage';
+import { FamilyMeasurements } from './pages/FamilyMeasurements';
 const ClientMeasurements = React.lazy(() => import('./pages/ClientMeasurements').then(m => ({ default: m.ClientMeasurements })));
 import ClientMeasurementsV2 from './src/modules/measurements/ClientMeasurementsV2';
 import { StudioMeasurements } from './src/modules/measurements/StudioMeasurements';
@@ -67,9 +69,10 @@ import { useAppStore } from './src/store/useAppStore';
 import { LoadingShell } from './src/components/LoadingShell';
 import { NewProductPage } from './src/modules/admin/features/product-creator-v2';
 import { AppInitializer } from './src/components/AppInitializer';
-import { DesignerV2_1 } from './src/pages/DesignerV2_1/DesignerV2_1';
-import { DesignerV2_1_NewShell } from './src/pages/DesignerV2_1/DesignerV2_1.NewShell';
 import { PaymentTestPage } from './src/pages/DesignerV2_1/pages/PaymentTestPage';
+import TryOn from './src/pages/TryOn';
+import { DesignerV2_1_NewShell as TryOnNewShell } from './src/pages/DesignerV2_1/DesignerV2_1.NewShell';
+import MontLandingPage from './src/pages/demoShell/MontLandingPage';
 import { useModalStore } from './src/store/useModalStore';
 import UpgradeModal from './src/components/DesignerV2_1/UpgradeModal';
 import { firebaseService } from './services/firebase';
@@ -88,27 +91,9 @@ import { NavDebugA, NavDebugB, NavDebugC, NavDebugIndex, NavDebugLayout } from '
 import { ClientNavDebugPage } from './src/pages/ClientNavDebugPage';
 import { TransactionHistory } from './src/pages/TransactionHistory';
 import PDFTestPage from './src/pages/PDFTest/PDFTestPage';
-// Ensure dev.khuyoot.app defaults to designer (not tailor join)
-const AUTH_OUTAGE_STORAGE_KEY = 'khuyoot:notice:auth-outage';
-
-const AuthOutageBanner: React.FC<{ onDismiss: () => void }> = React.memo(({ onDismiss }) => (
-  <div className="fixed top-0 left-0 right-0 z-[9999] bg-amber-600 text-white shadow-lg">
-    <div className="max-w-6xl mx-auto px-4 py-3 flex items-start gap-3">
-      <div className="flex-1 text-sm sm:text-base">
-        <strong className="font-bold">تنبيه مهم:</strong>{' '}
-        توجد مشكلة مؤقتة في تسجيل الدخول والخدمات التي تعتمد على Firebase. نعمل على الإصلاح حالياً. شكراً لصبركم.
-      </div>
-      <button
-        onClick={onDismiss}
-        className="text-white/90 hover:text-white text-sm font-bold px-2"
-        aria-label="إغلاق التنبيه"
-      >
-        ✕
-      </button>
-    </div>
-  </div>
-));
-
+import { AppLayout } from './src/layouts/AppLayout';
+// DEV-ONLY: No longer redirecting dev.khuyoot.app to /designer
+// Users will land on homepage (/) by default
 const DevDefaultRoute: React.FC = () => {
   // Disabled: No longer redirecting dev.khuyoot.app to /designer
   // Users will land on homepage (/) by default
@@ -129,6 +114,20 @@ const TailorJoinRedirect: React.FC = () => {
       navigate('/join-tailor', { replace: true });
     }
   }, [navigate]);
+  return null;
+};
+
+// Smart Home Redirect - remembers user's last gender selection
+const SmartHomeRedirect: React.FC = () => {
+  const navigate = useNavigate();
+
+  React.useEffect(() => {
+    // Check localStorage for last selected gender
+    const lastGender = localStorage.getItem('khuyoot:lastGender');
+    const targetPath = lastGender === 'male' ? '/male' : '/female';
+    navigate(targetPath, { replace: true });
+  }, [navigate]);
+
   return null;
 };
 
@@ -240,25 +239,9 @@ const App: React.FC = () => {
 const AppContent: React.FC = () => {
   const { user } = useApp();
   const isDev = import.meta.env.DEV;
-  const [showAuthNotice, setShowAuthNotice] = React.useState(() => {
-    try {
-      return localStorage.getItem(AUTH_OUTAGE_STORAGE_KEY) !== 'dismissed';
-    } catch {
-      return true;
-    }
-  });
   const [globalErrorOpen, setGlobalErrorOpen] = React.useState(false);
   const [globalErrorMessage, setGlobalErrorMessage] = React.useState('حدث خطأ غير متوقع. يرجى المحاولة مرة أخرى.');
   const [globalErrorTitle, setGlobalErrorTitle] = React.useState('خطأ');
-
-  const dismissAuthNotice = React.useCallback(() => {
-    try {
-      localStorage.setItem(AUTH_OUTAGE_STORAGE_KEY, 'dismissed');
-    } catch {
-      // ignore
-    }
-    setShowAuthNotice(false);
-  }, []);
 
   React.useEffect(() => {
     const handleError = (event: ErrorEvent) => {
@@ -349,7 +332,6 @@ const AppContent: React.FC = () => {
   
   return (
     <>
-      {showAuthNotice && <AuthOutageBanner onDismiss={dismissAuthNotice} />}
       <ErrorModal
         isOpen={globalErrorOpen}
         onClose={() => setGlobalErrorOpen(false)}
@@ -359,6 +341,7 @@ const AppContent: React.FC = () => {
       <BrowserRouter>
         <DevDefaultRoute />
         <TailorJoinRedirect />
+              <OrderDetailsProvider>
               <CreditProvider>
               <GlobalErrorBoundary>
               <Routes>
@@ -416,38 +399,53 @@ const AppContent: React.FC = () => {
                  <Route path="/visualizer" element={<VisualizerPage />} />
                <Route path="/transaction-history" element={<TransactionHistory />} />
 
-               {/* Homepage / Studio Shell (Standalone) */}
-               <Route path="/" element={<DemoShellLayout />}>
-                 <Route index element={<DemoShellPageA />} />
-                 <Route path="page-b" element={<DemoShellPageB />} />
-                 <Route path="tailors" element={<TailorList />} />
-                 <Route path="tailor/:id" element={<TailorProfile />} />
-                 <Route path="product/:id" element={<ProductDetails />} />
-                 <Route path="designer-v2-1" element={<DesignerV2_1 />} />
-                 <Route path="designer-v2-1/:productId" element={<DesignerV2_1 />} />
-                 <Route path="designer-v2-1/design/:taskId" element={<DesignerV2_1 />} />
-                 <Route path="designer-v2-1/new" element={<DesignerV2_1_NewShell />} />
-                  <Route path="order-summary/:orderId" element={<OrderSummary />} />
-                  <Route path="measurements" element={<ClientMeasurementsV2 />} />
-                  <Route path="measurements/:productId" element={<ClientMeasurementsV2 />} />
-                  <Route path="studio/measurements/:productId" element={<StudioMeasurements />} />
-                  <Route path="measurements-v2" element={<ClientMeasurementsV2 />} />
-                  <Route path="measurements-v2/:productId" element={<ClientMeasurementsV2 />} />
+               {/* Homepage / Studio Shell with Persistent Header */}
+               <Route element={<AppLayout />}>
+                 <Route path="/" element={<DemoShellLayout />}>
+                   <Route index element={<SmartHomeRedirect />} />
+                   <Route path="women" element={<Navigate to="/female" replace />} />
+                   <Route path="men" element={<Navigate to="/male" replace />} />
+                   <Route path="female" element={<MontLandingPage />} />
+                   <Route path="male" element={<MontLandingPage />} />
+                   <Route path="products" element={<Navigate to="/products/women/all" replace />} />
+                   <Route path="products/:gender" element={<Navigate to="/products/:gender/all" replace />} />
+                   <Route path="products/:gender/:category" element={<ProductList />} />
+                   <Route path="product/:id" element={<ProductDetails />} />
+                   <Route path="page-a" element={<DemoShellPageA />} />
+                   <Route path="page-b" element={<DemoShellPageB />} />
+                   <Route path="tailors" element={<TailorList />} />
+                   <Route path="tailor/:id" element={<TailorProfile />} />
+                   <Route path="designer-v2-1" element={<Navigate to="/tryon" replace />} />
+                   <Route path="designer-v2-1/:productId" element={<Navigate to="/tryon" replace />} />
+                   <Route path="designer-v2-1/design/:taskId" element={<Navigate to="/tryon" replace />} />
+                   <Route path="designer-v2-1/new" element={<Navigate to="/tryon/new" replace />} />
+                   <Route path="tryon" element={<TryOn />} />
+                   <Route path="tryon/:productId" element={<TryOn />} />
+                   <Route path="tryon/design/:taskId" element={<TryOn />} />
+                   <Route path="tryon/new" element={<TryOnNewShell />} />
+                    <Route path="order-summary/:orderId" element={<OrderSummary />} />
+                    <Route path="measurements" element={<ClientMeasurementsV2 />} />
+                    <Route path="measurements/:productId" element={<ClientMeasurementsV2 />} />
+                    <Route path="studio/measurements/:productId" element={<StudioMeasurements />} />
+                    <Route path="measurements-v2" element={<ClientMeasurementsV2 />} />
+                    <Route path="measurements-v2/:productId" element={<ClientMeasurementsV2 />} />
+                 </Route>
                </Route>
 
                <Route element={<ClientLayout />}>
                  {isDev && <Route path="/__dev/client-nav-debug" element={<ClientNavDebugPage />} />}
-                 <Route path="/jackets" element={<ProductList />} />
+                 <Route path="/jackets" element={<Navigate to="/products/women/jacket" replace />} />
                  <Route path="/tailor-account" element={<TailorAccount />} />
                  <Route path="/boutique-account" element={<BoutiqueAccount />} />
                  <Route path="/shop-account" element={<ShopAccount />} />
                  {/* Fabric store removed in new role model */}
-                 <Route path="/account" element={<Account />} />
+                 <Route path="/account/*" element={<Account />} />
+                 <Route path="/family-measurements" element={<FamilyMeasurements />} />
                  <Route path="/checkout" element={<Checkout />} />
                  <Route path="/measurements-old" element={<Measurements />} />
                  <Route path="/designer" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
                  <Route path="/designer/:id" element={<ErrorBoundary><Designer /></ErrorBoundary>} />
-                 <Route path="/product" element={<Navigate to="/jackets" replace />} />
+                 <Route path="/product" element={<Navigate to="/products" replace />} />
                  <Route path="/customization" element={<CustomizationPage />} />
                  <Route path="/customization/:productId" element={<CustomizationPage />} />
                  <Route path="/tailor/collections" element={<TailorCollections />} />
@@ -483,6 +481,7 @@ const AppContent: React.FC = () => {
              </Routes>
              </GlobalErrorBoundary>
              </CreditProvider>
+             </OrderDetailsProvider>
 
             {/* Global Root-Level Modal Portal */}
             {createPortal(

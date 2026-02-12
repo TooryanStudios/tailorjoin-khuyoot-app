@@ -54,63 +54,63 @@ export const ControlsPanel = React.memo<ControlsPanelProps>(function ControlsPan
         <div className="rounded-xl md:rounded-2xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 p-2 md:sticky md:top-0 space-y-1 w-full flex-shrink-0 md:flex-shrink flex flex-col items-center">
           <div className="w-full md:w-auto flex flex-col items-center gap-3">
             <div className="w-full flex justify-center gap-2 md:flex-col md:gap-2">
-              {/* Template Preview Button */}
-              {features.showTemplatePreview && (
+              {/* Fabric Select Card (replaces template block) */}
+              {features.showFabricPreview && (
               <button
                 type="button"
                 onClick={() => {
-                  console.log('[TryOnResult] Template picker button clicked', { onOpenTemplatePicker });
-                  onOpenTemplatePicker?.();
+                  console.log('[TryOnResult] Fabric picker button clicked', { onOpenFabricPicker });
+                  onOpenFabricPicker?.();
                 }}
-                disabled={!onOpenTemplatePicker}
+                disabled={!onOpenFabricPicker}
                 className="group rounded-xl text-right transition-all disabled:opacity-60 disabled:cursor-not-allowed w-1/2 max-w-[150px] md:w-[108px] md:max-w-none"
-                aria-label="اختيار القالب"
-                title="اختيار القالب"
+                aria-label="اختيار القماش"
+                title="اختيار القماش"
               >
-                <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-slate-400 dark:group-hover:ring-slate-500 transition-all">
-                  {originalImageUrl ? (
+                <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-emerald-400 dark:group-hover:ring-emerald-500 transition-all">
+                  {fabricThumbnailUrl ? (
                     <>
                       <StableImage
-                        src={originalImageUrl}
-                        alt="القالب"
+                        src={fabricThumbnailUrl}
+                        alt="القماش"
                         className="absolute inset-0 h-full w-full object-cover"
                       />
                       <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                       {/* Hover overlay */}
-                      <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                      <div className="absolute inset-0 bg-emerald-900/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                     </>
                   ) : (
-                    <div className="absolute inset-0 animate-pulse bg-slate-200/70 dark:bg-slate-700/60" />
+                    <div className="absolute inset-0 animate-pulse bg-slate-100/90 dark:bg-slate-600/50" />
                   )}
                 </div>
               </button>
               )}
 
-              {/* Fabric Preview Button + Tiling */}
-              {features.showFabricPreview && (
+              {/* Template Preview Button */}
+              {features.showTemplatePreview && (
               <div className="flex flex-col gap-1 w-1/2 max-w-[150px] md:w-[108px] md:max-w-none">
                 <button
                   type="button"
                   onClick={() => {
-                    console.log('[TryOnResult] Fabric picker button clicked', { onOpenFabricPicker });
-                    onOpenFabricPicker?.();
+                    console.log('[TryOnResult] Template picker button clicked', { onOpenTemplatePicker });
+                    onOpenTemplatePicker?.();
                   }}
-                  disabled={!onOpenFabricPicker}
+                  disabled={!onOpenTemplatePicker}
                   className="group rounded-xl text-right transition-all disabled:opacity-60 disabled:cursor-not-allowed w-full"
-                  aria-label="اختيار القماش"
-                  title="اختيار القماش"
+                  aria-label="اختيار القالب"
+                  title="اختيار القالب"
                 >
-                  <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-emerald-400 dark:group-hover:ring-emerald-500 transition-all">
-                    {fabricThumbnailUrl ? (
+                  <div className="relative w-full aspect-[5/6] md:h-[185px] md:aspect-auto overflow-hidden rounded-xl ring-2 ring-transparent group-hover:ring-slate-400 dark:group-hover:ring-slate-500 transition-all">
+                    {originalImageUrl ? (
                       <>
                         <StableImage
-                          src={fabricThumbnailUrl}
-                          alt="القماش"
+                          src={originalImageUrl}
+                          alt="القالب"
                           className="absolute inset-0 h-full w-full object-cover"
                         />
                         <div className="absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-black/70 to-transparent pointer-events-none" />
                         {/* Hover overlay */}
-                        <div className="absolute inset-0 bg-emerald-900/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+                        <div className="absolute inset-0 bg-slate-900/20 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
                       </>
                     ) : (
                       <div className="absolute inset-0 animate-pulse bg-slate-200/70 dark:bg-slate-700/60" />

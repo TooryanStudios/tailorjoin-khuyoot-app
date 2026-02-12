@@ -1,0 +1,132 @@
+/* Premium slider styling (Leonardo-like). */
+
+:global(.premium-slider) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 4px;
+  background: #09090b; /* zinc-800 */
+  border-radius: 2px;
+  outline: none;
+}
+
+:global(.premium-slider::-webkit-slider-thumb) {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  background: #2563eb; /* theme-primary */
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+}
+
+:global(.premium-slider::-moz-range-thumb) {
+  width: 16px;
+  height: 16px;
+  background: #2563eb;
+  border-radius: 50%;
+  cursor: pointer;
+  border: 2px solid white;
+}
+
+:global(.hide-scrollbar) {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+
+:global(.hide-scrollbar::-webkit-scrollbar) {
+  display: none; /* Chrome, Safari, Opera */
+}
+
+/* Ensure the sidebar doesn't trigger horizontal scrolling */
+:global(aside) {
+  overflow-x: hidden !important;
+}
+
+/* Hide horizontal scroll for the whole page */
+:global(.main-wrapper) {
+  overflow-x: hidden;
+}
+
+/* Prevent the entire page from scrolling */
+:global(body),
+:global(#root) {
+  overflow: hidden;
+  height: 100vh;
+}
+
+/* Sidebar and main viewport: no horizontal scroll */
+:global(aside),
+:global(.main-viewport-wrapper) {
+  overflow-x: hidden !important;
+}
+
+/* Make sure the scrollbar is thin and matches your dark theme */
+:global(.custom-scrollbar) {
+  scrollbar-width: thin;
+  scrollbar-color: #3f3f46 transparent;
+}
+
+:global(.custom-scrollbar::-webkit-scrollbar) {
+  width: 5px;
+}
+
+:global(.custom-scrollbar::-webkit-scrollbar-track) {
+  background: transparent;
+}
+
+:global(.custom-scrollbar::-webkit-scrollbar-thumb) {
+  background: #3f3f46;
+  border-radius: 10px;
+}
+
+.generateButtonShine {
+  position: relative;
+  overflow: hidden;
+}
+
+.generateButtonShine::after {
+  content: '';
+  position: absolute;
+  top: -50%;
+  left: -60%;
+  width: 20%;
+  height: 200%;
+  background: rgba(255, 255, 255, 0.2);
+  transform: rotate(30deg);
+  transition: all 0.6s ease;
+  pointer-events: none;
+}
+
+.generateButtonShine:hover::after {
+  left: 120%;
+}
+
+@keyframes border-pulse {
+  0% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  50% { border-color: rgba(37, 99, 235, 0.6); box-shadow: 0 0 15px 0 rgba(37, 99, 235, 0.2); }
+  100% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+}
+
+.premium-border-pulse {
+  animation: border-pulse 3s infinite ease-in-out;
+}
+
+@keyframes scanning {
+  0% { top: 0%; }
+  100% { top: 100%; }
+}
+
+.scan-line {
+  position: absolute;
+  left: 0;
+  width: 100%;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #2563eb, transparent);
+  box-shadow: 0 0 15px #2563eb;
+  z-index: 50;
+  animation: scanning 2s linear infinite;
+  opacity: 0.8;
+}

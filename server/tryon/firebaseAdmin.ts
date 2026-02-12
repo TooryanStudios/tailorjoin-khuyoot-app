@@ -15,17 +15,25 @@ export function getFirebaseAdminApp(): admin.app.App {
   const clientEmail = getEnv('FIREBASE_CLIENT_EMAIL');
   const privateKey = getEnv('FIREBASE_PRIVATE_KEY')?.replace(/\\n/g, '\n');
 
+  console.log('[FirebaseAdmin] Initializing with Project ID:', projectId || (serviceAccountJson ? JSON.parse(serviceAccountJson).project_id : 'MISSING'));
+
   let credential: admin.credential.Credential | undefined;
   if (serviceAccountJson) {
-    credential = admin.credential.cert(JSON.parse(serviceAccountJson));
+    try {
+      credential = admin.credential.cert(JSON.parse(serviceAccountJson));
+      console.log('[FirebaseAdmin] Using serviceAccountJson credential');
+    } catch (e: any) {
+      console.error('[FirebaseAdmin] Failed to parse serviceAccountJson:', e.message);
+    }
   } else if (projectId && clientEmail && privateKey) {
     credential = admin.credential.cert({ projectId, clientEmail, privateKey } as any);
+    console.log('[FirebaseAdmin] Using individual env credentials');
   }
 
   if (!credential) {
-    throw new Error(
-      'Missing Firebase Admin credentials. Set FIREBASE_SERVICE_ACCOUNT_JSON or (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY).'
-    );
+    const errorMsg = 'Missing Firebase Admin credentials. Set FIREBASE_SERVICE_ACCOUNT_JSON or (FIREBASE_PROJECT_ID, FIREBASE_CLIENT_EMAIL, FIREBASE_PRIVATE_KEY).';
+    console.error('[FirebaseAdmin] ❌ CRTICAL ERROR:', errorMsg);
+    throw new Error(errorMsg);
   }
 
   const storageBucket = getEnv('FIREBASE_STORAGE_BUCKET');
@@ -58,6 +66,11 @@ export async function verifyFirebaseIdToken(idToken: string): Promise<{ uid: str
 export function getFirestore() {
   const app = getFirebaseAdminApp();
   return app.firestore();
+}
+
+export function getAuth() {
+  const app = getFirebaseAdminApp();
+  return app.auth();
 }
 
 export function getStorageBucket() {

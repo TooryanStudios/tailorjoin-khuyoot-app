@@ -30,8 +30,8 @@ const ParentTabButton = React.memo(function ParentTabButton({ active, label, onC
       className={
         'flex-1 px-3 py-2 text-[11px] font-black uppercase tracking-wider transition-colors border-b-2 ' +
         (active
-          ? 'text-white border-white'
-          : 'text-zinc-500 border-transparent hover:text-zinc-300')
+          ? 'text-purple-600 border-purple-600'
+          : 'text-zinc-600 border-transparent hover:text-purple-600')
       }
     >
       {label}
@@ -173,7 +173,7 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
 
   return (
     <div className="space-y-4 px-2 pt-1 pb-32 max-w-5xl mx-auto">
-      <nav className="flex justify-around border-b border-zinc-800/50">
+      <nav className="flex justify-around border-b border-zinc-200">
         <ParentTabButton
           active={parentTab === 'templates'}
           label="القوالب"
@@ -201,17 +201,17 @@ export const SelectionPanel = React.memo<SelectionPanelProps>(function Selection
               forcedTab={templatePickerTab}
               onTabChange={setTemplatePickerTab}
               closetExtra={(
-                <label className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-950 px-3 py-2 text-sm text-zinc-200">
+                <label className="flex items-center gap-3 rounded-xl border border-zinc-200 bg-white px-3 py-2 text-sm text-zinc-700">
                   <input
                     type="checkbox"
-                    className="h-4 w-4 rounded border-zinc-700 bg-zinc-900 text-purple-500 focus:ring-purple-500"
+                    className="h-4 w-4 rounded border-zinc-300 bg-white text-purple-500 focus:ring-purple-500"
                     checked={safePrivacy.isPrivacyMode}
                     onChange={(e) => safePrivacy.setPrivacyMode(e.target.checked)}
                     disabled={Boolean(safePrivacy.disabled) || Boolean(inputsDisabled) || safePrivacy.isProcessingPrivacy}
                   />
                   <div className="flex flex-col leading-tight">
                     <span className="font-semibold text-[13px]">Privacy Protection</span>
-                    <span className="text-[11px] text-zinc-400">Blur faces locally before upload</span>
+                    <span className="text-[11px] text-zinc-600">Blur faces locally before upload</span>
                   </div>
                 </label>
               )}

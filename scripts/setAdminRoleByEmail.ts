@@ -1,5 +1,5 @@
 import 'dotenv/config';
-import { getFirestore } from '../server/tryon/firebaseAdmin.ts';
+import { getFirestore, getFirebaseAdminApp } from '../server/tryon/firebaseAdmin.ts';
 
 async function setAdminRole() {
   const email = process.argv[2];
@@ -11,49 +11,51 @@ async function setAdminRole() {
   }
 
   try {
+    const app = getFirebaseAdminApp();
     const db = getFirestore();
+    const auth = app.auth();
     
-    console.log(`🔍 Searching for user with email: ${email}`);
-    
-    const snapshot = await db.collection('users').where('email', '==', email).get();
-    
-    if (snapshot.empty) {
-      console.log(`❌ No user found with email: ${email}`);
-      console.log('');
-      console.log('💡 Make sure the user has logged in at least once so their document is created in Firestore.');
+    console.log(`🔍 Searching for user in Auth with email: ${email}`);
+    let authUser;
+    try {
+      authUser = await auth.getUserByEmail(email);
+      console.log(`✅ Found in Auth: UID ${authUser.uid}`);
+    } catch (e) {
+      console.log(`❌ No user found in Firebase Auth with email: ${email}`);
+      console.log('💡 The user must sign up first.');
       process.exit(1);
     }
+
+    const userId = authUser.uid;
+    console.log(`\n🔧 Updating Firestore documents for UID: ${userId}`);
     
-    const doc = snapshot.docs[0];
-    const userId = doc.id;
-    const userData = doc.data();
-    
-    console.log('✅ Found user:');
-    console.log(`   Name: ${userData.name || 'N/A'}`);
-    console.log(`   Email: ${userData.email}`);
-    console.log(`   UID: ${userId}`);
-    console.log(`   Current role: ${userData.role || 'none'}`);
-    
-    if (userData.role === 'admin') {
-      console.log('');
-      console.log('✨ User already has admin role!');
-    } else {
-      console.log('');
-      console.log('🔧 Setting admin role...');
-      
-      await db.collection('users').doc(userId).set({ role: 'admin' }, { merge: true });
-      
-      console.log('✅ Admin role set successfully!');
-      console.log('');
-      console.log('🔄 The user needs to log out and log back in for changes to take effect.');
-    }
-    
-  } catch (error) {
-    console.error('❌ Error:', error);
+    // Update 'users' collection
+    await db.collection('users').doc(userId).set({ 
+      role: 'admin',
+      email: email, // ensure email matches
+      updatedAt: new Date()
+    }, { merge: true });
+    console.log('✅ Updated users/role = admin');
+
+    // Update 'user_profiles' collection
+    await db.collection('user_profiles').doc(userId).set({ 
+      role: 'admin',
+      updatedAt: new Date()
+    }, { merge: true });
+    console.log('✅ Updated user_profiles/role = admin');
+
+    // Set Custom Claims
+    console.log('🔧 Setting Custom Claims in Auth...');
+    await auth.setCustomUserClaims(userId, { role: 'admin' });
+    console.log('✅ Custom Claims set successfully!');
+
+    console.log('\n✨ ALL DONE! ✨');
+    console.log('🔄 The user MUST LOG OUT and LOG BACK IN for these changes to take effect.');
+    process.exit(0);
+  } catch (error: any) {
+    console.error('❌ Error updating admin role:', error.message);
     process.exit(1);
   }
 }
 
-setAdminRole().then(() => {
-  process.exit(0);
-});
+setAdminRole();

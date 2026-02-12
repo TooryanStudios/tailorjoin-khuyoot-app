@@ -1,6 +1,6 @@
 import type { Timestamp } from 'firebase/firestore';
 
-export type UserRole = 'guest' | 'user' | 'tailor' | 'admin' | 'shop' | 'boutique' | 'fabric_store';
+export type UserRole = 'guest' | 'user' | 'tailor' | 'admin' | 'shop' | 'boutique' | 'fabric_store' | 'customer' | 'fabric_shop';
 export type ShopType = 'tailor' | 'boutique' | 'fabric_store' | 'sewing_supplies';
 export type ApprovalStatus = 'pending' | 'approved' | 'rejected';
 export type Gender = 'male' | 'female' | 'not_specified';
@@ -27,8 +27,11 @@ export interface User {
   name: string;
   email: string;
   avatar?: string;
+  profileImage?: string; // Standardized avatar field
   username?: string;
   phone?: string;
+  phoneNumber?: string; // Alternative naming for phone
+  contactNumber?: string; // Alternative naming for phone
   loginId?: string; // معرف تسجيل الدخول (بريد إلكتروني أو رقم جوال)
   gender?: Gender; // الجنس لتحسين التجربة
   region?: string; // المنطقة/الولاية
@@ -37,6 +40,7 @@ export interface User {
   joinDate: string;
   role: UserRole;
   isGoldMember?: boolean;
+  disabled?: boolean; // Account disabled state
   createdAt?: string;
   updatedAt?: string;
   coverImage?: string;
@@ -51,7 +55,6 @@ export interface User {
   bio?: string; // نبذة عن المحل
   rating?: number; // التقييم
   reviewsCount?: number; // عدد التقييمات
-  profileImage?: string; // صورة البروفايل
   boardImage?: string; // صورة اللوحة
   createdByAdmin?: boolean; // تم إنشاؤه بواسطة المدير
   requirePasswordChange?: boolean; // يتطلب تغيير كلمة المرور
@@ -83,6 +86,7 @@ export interface ImageLibraryItem {
 
 export interface Product {
   id: string;
+  isNew?: boolean; // New arrival flag
   name: string;
   category: string; // deprecated - نص عادي (مثل: "dishdasha")
   categoryId?: string; // معرف التصنيف من نظام التصنيفات الجديد
@@ -166,6 +170,11 @@ export interface Review {
 export interface Shop {
   id: string;
   name: string;
+  shopName?: string;
+  role?: UserRole;
+  email?: string;
+  phone?: string;
+  loginId?: string;
   type?: 'tailor' | 'boutique' | 'fabric_store' | 'shop' | 'other'; // نوع المحل
   shopType?: ShopType;
   username?: string; // معرف المستخدم
@@ -488,6 +497,11 @@ export interface Order {
 
   // Ordering Details
   measurements?: OrderMeasurements;
+  measurementLabels?: Record<string, string>;
+  templateId?: string;
+  templateUrl?: string;
+  templatePoints?: any[];
+  templateArrows?: any[];
   fabricSource?: FabricSource;
   paymentStatus?: PaymentStatus;
   
@@ -495,6 +509,7 @@ export interface Order {
   canEdit?: boolean; // يمكن التعديل قبل بدء التفصيل
   acceptedByTailor?: boolean; // هل قبل الخياط الطلب
   acceptedAt?: string; // تاريخ قبول الطلب
+  rejectionReason?: string; // سبب الرفض/الإلغاء
   
   // Delivery & Notifications
   deliveryMethod?: DeliveryMethod; // طريقة الاستلام
@@ -503,6 +518,7 @@ export interface Order {
   readyNotificationDate?: string; // تاريخ إرسال الإشعار
   notificationChannels?: NotificationChannel[]; // قنوات الإشعار المستخدمة
   notes?: string;
+  comments?: string;
 }
 
 export interface AuthState {
@@ -515,9 +531,15 @@ export interface AuthState {
 
 export interface FamilyMember {
   id: string;
+  userId?: string; // ID of the main user who owner this member record
   name: string;
   relation: string;
+  relationship?: string; // Alternative naming
   avatar?: string;
+  gender?: 'male' | 'female';
+  measurements?: any[];
+  updatedAt?: string;
+  createdAt?: string;
 }
 
 export interface SavedShop {

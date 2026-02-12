@@ -56,7 +56,7 @@ export function DesignerHeader(props: DesignerHeaderProps) {
   }, []);
 
   const handleLogout = () => {
-    if (confirm(t('confirmLogout') || 'Log out?')) {
+    if (confirm(t('confirmLogout') || (activeLang === 'ar' ? 'هل تريد تسجيل الخروج؟' : 'Log out?'))) {
       authLogout();
     }
   };
@@ -82,7 +82,7 @@ export function DesignerHeader(props: DesignerHeaderProps) {
   const activeLangOption = languageOptions.find(o => o.code === activeLang);
 
   return (
-    <div className="h-[72px] border-b border-white/10 px-6 flex items-center justify-between bg-black text-zinc-200">
+    <div className="h-[72px] border-b border-zinc-100 dark:border-white/10 px-6 flex items-center justify-between bg-white dark:bg-black text-zinc-900 dark:text-zinc-200">
       {/* Left Section: Branding only */}
       <div className="flex items-center gap-6">
         <button
@@ -98,10 +98,10 @@ export function DesignerHeader(props: DesignerHeaderProps) {
           )}
           {title && (
             <div className="flex flex-col">
-              <span className="text-[13px] font-black text-white uppercase tracking-[0.2em] opacity-90">
+              <span className="text-[13px] font-black text-zinc-900 dark:text-white uppercase tracking-[0.2em] opacity-90">
                 {title}
               </span>
-              <div className="h-0.5 w-full bg-theme-primary/50 rounded-full mt-0.5" />
+              <div className="h-0.5 w-full bg-purple-600 dark:bg-theme-primary/50 rounded-full mt-0.5" />
             </div>
           )}
         </button>
@@ -116,7 +116,7 @@ export function DesignerHeader(props: DesignerHeaderProps) {
           <div className="relative" ref={langMenuRef}>
             <button
               onClick={() => setLangMenuOpen(!langMenuOpen)}
-              className="h-10 px-3 flex items-center gap-2 rounded-xl bg-zinc-900 border border-white/5 hover:bg-zinc-850 hover:border-zinc-700 transition-all"
+              className="h-10 px-3 flex items-center gap-2 rounded-xl bg-zinc-100 dark:bg-zinc-900 border border-zinc-200 dark:border-white/5 hover:bg-zinc-200 dark:hover:bg-zinc-850 hover:border-zinc-300 dark:hover:border-zinc-700 transition-all font-bold text-zinc-900 dark:text-zinc-200"
             >
               {activeLangOption?.icon}
               <span className="text-xs font-bold">{activeLangOption?.label}</span>
@@ -128,14 +128,14 @@ export function DesignerHeader(props: DesignerHeaderProps) {
                   initial={{ opacity: 0, y: 10, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute top-full right-0 mt-2 w-32 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[100] backdrop-blur-xl"
+                  className="absolute top-full right-0 mt-2 w-32 bg-white dark:bg-zinc-900 border border-zinc-200 dark:border-zinc-800 rounded-xl shadow-2xl overflow-hidden z-[100] backdrop-blur-xl"
                 >
                   {languageOptions.map((opt) => (
                     <button
                       key={opt.code}
                       onClick={() => handleLanguageChange(opt.code)}
-                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-white/5 transition-colors text-xs font-bold ${
-                        activeLang === opt.code ? 'text-theme-primary bg-theme-primary/5' : 'text-zinc-400'
+                      className={`w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-100 dark:hover:bg-white/5 transition-colors text-xs font-bold ${
+                        activeLang === opt.code ? 'text-purple-600 dark:text-theme-primary bg-purple-50 dark:bg-theme-primary/5' : 'text-zinc-500 dark:text-zinc-400'
                       }`}
                     >
                       {opt.icon}

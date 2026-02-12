@@ -61,15 +61,8 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
     return { user_id: authUid, credit_balance: cached };
   });
 
-  // Derived balance calculation: 
-  // 1. Auth/me response (most authoritative/fresh)
-  // 2. Local profile (Firestore watch/fetch)
-  // 3. Fallback fields
-  const currentBalance = (authUser as any)?.credit_balance 
-    ?? profile?.credit_balance 
-    ?? (authUser as any)?.credits 
-    ?? (authUser as any)?.billing?.credits 
-    ?? 0;
+  // Single source of truth: Firestore profile only
+  const currentBalance = profile?.credit_balance ?? 0;
 
   const getCost = React.useCallback(
     (action: CreditActionType) => {
@@ -143,6 +136,14 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
   const executeCreditAction = React.useCallback<CreditsContextValue['executeCreditAction']>(
     async (action, callback) => {
+      console.log('[CreditManager] executeCreditAction called:', { 
+        action, 
+        enabled, 
+        authUid,
+        currentBalance,
+        profile 
+      });
+
       if (!enabled) {
         try {
           const value = await callback();
@@ -154,6 +155,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
       const uid = authUser?.uid || authUid;
       if (!uid) {
+        console.log('[CreditManager] No UID, executing without credit check');
         try {
           const value = await callback();
           return { ok: true, value };
@@ -164,6 +166,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
       const item = pricing[action];
       if (!item || item.is_active === false) {
+        console.log('[CreditManager] Action not active, proceeding without cost');
         try {
           const value = await callback();
           return { ok: true, value };
@@ -174,6 +177,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
       const cost = getCost(action);
       if (cost <= 0) {
+        console.log('[CreditManager] Cost is 0, proceeding without charge');
         try {
           const value = await callback();
           return { ok: true, value };
@@ -181,6 +185,8 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
           return { ok: false, reason: 'error', error: e };
         }
       }
+
+      console.log('[CreditManager] Reserving credits:', { uid, action, cost, currentBalance });
 
       let reservation: { transaction_id: string; new_balance: number } | null = null;
       try {
@@ -195,6 +201,8 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         );
         reservation = (await Promise.race([reservePromise, timeoutPromise])) as any;
         
+        console.log('[CreditManager] Reservation successful:', reservation);
+        
         // Optimistically update local state if using profile fallback
         setProfile((prev) => (prev ? { ...prev, credit_balance: reservation!.new_balance } : prev));
         
@@ -205,11 +213,13 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         
         return { ok: true, value };
       } catch (e: any) {
+        console.error('[CreditManager] Reservation failed:', e);
         const errorMsg = String(e?.message || '');
         const isTimeout = errorMsg.includes('timed out');
         const isConnection = errorMsg.includes('connection') || errorMsg.includes('fetch');
 
         if (isTimeout || isConnection) {
+            console.log('[CreditManager] Timeout/connection error, attempting callback anyway');
             try {
                 const value = await callback();
                 return { ok: true, value };
@@ -219,6 +229,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         }
 
         if (errorMsg === 'INSUFFICIENT_CREDITS') {
+          console.log('[CreditManager] Insufficient credits');
           refresh().catch(() => undefined);
           return { ok: false, reason: 'insufficient' };
         }

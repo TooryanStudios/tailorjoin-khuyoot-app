@@ -104,14 +104,14 @@ export const UploadSection = React.memo(function UploadSection({ onSelect, curre
           traceStep('Click: Add to closet');
           inputRef.current?.click();
         }}
-        className="rounded-xl border border-dashed border-zinc-700 bg-zinc-950 px-3 py-6 text-center hover:border-zinc-600 transition-colors"
+        className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50 px-3 py-6 text-center hover:border-purple-300 transition-colors shadow-sm"
       >
-        <div className="text-sm font-semibold text-zinc-200">رفع صورة القالب</div>
+        <div className="text-sm font-bold text-zinc-800">رفع صورة القالب</div>
         <div className="mt-1 text-[11px] text-zinc-500">لن يتم حفظها قبل الضغط على توليد</div>
       </button>
 
-      <div className="rounded-xl border border-zinc-800 bg-zinc-950 overflow-hidden">
-        <div className="relative w-full aspect-[3/4] bg-zinc-900">
+      <div className="rounded-xl border border-zinc-200 bg-white overflow-hidden shadow-sm">
+        <div className="relative w-full aspect-[3/4] bg-zinc-100">
           {lastPreviewUrl ? (
             <img
               src={lastPreviewUrl}
@@ -121,16 +121,16 @@ export const UploadSection = React.memo(function UploadSection({ onSelect, curre
               decoding="async"
             />
           ) : (
-            <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-500">
+            <div className="absolute inset-0 flex items-center justify-center text-xs text-zinc-400">
               لا يوجد رفع بعد
             </div>
           )}
         </div>
         <div className="p-2">
-          <div className="text-xs font-semibold text-zinc-200 truncate">آخر رفع</div>
+          <div className="text-xs font-bold text-zinc-800 truncate">آخر رفع</div>
           <div className="text-[10px] text-zinc-500 truncate">{lastUpload?.name || '—'}</div>
           {currentId && lastUpload?.id === currentId && (
-            <div className="mt-1 text-[10px] font-semibold text-theme-primary">نشط</div>
+            <div className="mt-1 text-[10px] font-bold text-purple-600">نشط</div>
           )}
         </div>
       </div>

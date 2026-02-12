@@ -52,12 +52,12 @@ export const DesignerCardsRail = React.memo(function DesignerCardsRail() {
   return (
     <div className="relative w-full">
       <div className="flex items-center justify-between px-4 mb-2">
-        <div className="text-[11px] font-black uppercase tracking-wider text-zinc-400">{title}</div>
+        <div className="text-[11px] font-black uppercase tracking-wider text-zinc-500">{title}</div>
       </div>
 
       <div
         ref={scrollerRef}
-        className="flex overflow-x-auto pb-2 overscroll-x-contain scroll-smooth"
+        className="flex overflow-x-auto pb-4 overscroll-x-contain scroll-smooth hide-scrollbar"
         style={{
           WebkitOverflowScrolling: 'touch',
           columnGap: gapPx,
@@ -71,13 +71,13 @@ export const DesignerCardsRail = React.memo(function DesignerCardsRail() {
               key={card.id}
               type="button"
               onClick={() => handleCardClick(card.href)}
-              className="relative shrink-0 overflow-hidden border border-zinc-800/70 bg-zinc-900/70 text-left"
+              className="relative shrink-0 overflow-hidden border border-zinc-200 bg-white text-left shadow-sm ring-1 ring-black/5"
               style={{
                 width: cardWidthPx,
                 borderRadius: cardRadiusPx,
               }}
             >
-              <div className="relative w-full bg-zinc-900" style={{ height: cardHeightPx }}>
+              <div className="relative w-full bg-zinc-100" style={{ height: cardHeightPx }}>
                 {card.type === 'video' ? (
                   <video
                     src={card.mediaUrl}
@@ -96,8 +96,8 @@ export const DesignerCardsRail = React.memo(function DesignerCardsRail() {
                     decoding="async"
                   />
                 )}
-                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/70 to-transparent">
-                  <div className="text-sm font-semibold text-white line-clamp-2">{card.title}</div>
+                <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/60 to-transparent">
+                  <div className="text-sm font-bold text-white line-clamp-2">{card.title}</div>
                 </div>
               </div>
             </button>

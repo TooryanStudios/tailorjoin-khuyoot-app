@@ -100,7 +100,7 @@ export const ProductPageSettings = () => {
         <button
           onClick={handleSave}
           disabled={saving}
-          className="px-4 py-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 text-white rounded-lg font-bold shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          className="px-4 py-2 bg-gradient-to-r from-theme-primary to-theme-primary/90 hover:opacity-90 text-white rounded-lg font-normal shadow-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
         >
           {saving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
           حفظ التغييرات
@@ -110,8 +110,8 @@ export const ProductPageSettings = () => {
       {/* Action Buttons Configuration */}
       <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-6">
         <div className="flex items-center gap-3 mb-6">
-          <div className="p-2 bg-lime-500/10 rounded-lg">
-            <MousePointer2 className="text-lime-500" size={24} />
+          <div className="p-2 bg-theme-primary/10 rounded-lg">
+            <MousePointer2 className="text-theme-primary" size={24} />
           </div>
           <h3 className="text-lg font-bold text-slate-900 dark:text-white">أزرار الإجراءات (Start Tailoring)</h3>
         </div>
@@ -128,7 +128,7 @@ export const ProductPageSettings = () => {
                   checked={config.buttons.tryFabric.enabled}
                   onChange={(e) => updateButton('tryFabric', 'enabled', e.target.checked)}
                 />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-lime-300 dark:peer-focus:ring-lime-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-lime-500"></div>
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
               </label>
             </div>
             
@@ -138,7 +138,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.tryFabric.title}
                 onChange={(e) => updateButton('tryFabric', 'title', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -147,7 +147,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.tryFabric.subtitle}
                 onChange={(e) => updateButton('tryFabric', 'subtitle', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -156,7 +156,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.tryFabric.cta}
                 onChange={(e) => updateButton('tryFabric', 'cta', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -164,7 +164,7 @@ export const ProductPageSettings = () => {
               <select
                 value={config.buttons.tryFabric.mediaType}
                 onChange={(e) => updateButton('tryFabric', 'mediaType', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               >
                 <option value="graphic">رسم توضيحي (SVG)</option>
                 <option value="image">صورة</option>
@@ -183,7 +183,7 @@ export const ProductPageSettings = () => {
                   checked={config.buttons.measurements.enabled}
                   onChange={(e) => updateButton('measurements', 'enabled', e.target.checked)}
                 />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-lime-300 dark:peer-focus:ring-lime-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-lime-500"></div>
+                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-purple-300 dark:peer-focus:ring-purple-800 rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-purple-600"></div>
               </label>
             </div>
             
@@ -193,7 +193,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.measurements.title}
                 onChange={(e) => updateButton('measurements', 'title', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -202,7 +202,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.measurements.subtitle}
                 onChange={(e) => updateButton('measurements', 'subtitle', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -211,7 +211,7 @@ export const ProductPageSettings = () => {
                 type="text"
                 value={config.buttons.measurements.cta}
                 onChange={(e) => updateButton('measurements', 'cta', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               />
             </div>
             <div>
@@ -219,7 +219,7 @@ export const ProductPageSettings = () => {
               <select
                 value={config.buttons.measurements.mediaType}
                 onChange={(e) => updateButton('measurements', 'mediaType', e.target.value)}
-                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-lime-500 focus:border-transparent"
+                className="w-full px-3 py-2 bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-600 rounded-lg focus:ring-2 focus:ring-purple-600 focus:border-transparent"
               >
                 <option value="graphic">رسم توضيحي (SVG)</option>
                 <option value="image">صورة</option>
@@ -302,7 +302,7 @@ export const ProductPageSettings = () => {
                   onClick={() => updateThumbnails('aspectRatio', ratio)}
                   className={`px-3 py-2 rounded-lg text-sm font-medium transition-colors border ${
                     config.thumbnails.aspectRatio === ratio
-                      ? 'bg-blue-500 text-white border-blue-500'
+                      ? 'bg-theme-primary text-white border-theme-primary'
                       : 'bg-white dark:bg-slate-700 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-600'
                   }`}
                 >

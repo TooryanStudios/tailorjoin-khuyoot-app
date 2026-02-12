@@ -453,11 +453,11 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       }}
       title={t('imagePrepTitle')}
       maxWidth="max-w-[540px]"
-      containerClassName={`rounded-xl mx-auto max-h-[85vh] ${isDesignerTheme ? 'bg-zinc-950 border-zinc-800 text-zinc-200' : ''}`}
-      headerClassName={isDesignerTheme ? 'border-zinc-800 bg-zinc-950/95 py-2' : 'py-2'}
-      titleClassName={isDesignerTheme ? 'text-zinc-100 text-base' : 'text-base'}
-      contentClassName={isDesignerTheme ? 'bg-zinc-950 text-zinc-200' : undefined}
-      footerClassName={isDesignerTheme ? 'border-zinc-800 bg-zinc-950' : undefined}
+      containerClassName={`rounded-xl mx-auto max-h-[85vh] ${isDesignerTheme ? 'bg-white border-slate-200 text-black' : ''}`}
+      headerClassName={isDesignerTheme ? 'border-slate-200 bg-white/95 py-2' : 'py-2'}
+      titleClassName={isDesignerTheme ? 'text-black text-sm font-["Tajawal"]' : 'text-base'}
+      contentClassName={isDesignerTheme ? 'bg-white text-black' : undefined}
+      footerClassName={isDesignerTheme ? 'border-slate-200 bg-white' : undefined}
       closeButtonClassName={isDesignerTheme ? 'hidden' : undefined}
       showFooter={false}
       debugId="IMAGE-PREP"
@@ -487,9 +487,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 disabled={isApplying || isMaskingForDisplay}
                 className={`h-11 w-11 rounded-lg transition-all border flex items-center justify-center ${
                   isPrivacyMode
-                    ? 'bg-purple-600 border-purple-600 text-white shadow-sm'
+                    ? 'bg-[var(--theme-primary)] border-[var(--theme-primary)] text-white shadow-sm'
                     : isDesignerTheme
-                      ? 'bg-zinc-900/70 border-zinc-700 text-zinc-200 hover:bg-zinc-900'
+                      ? 'bg-slate-100 border-slate-300 text-slate-700 hover:bg-slate-200'
                       : 'bg-slate-100 dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-200/70 dark:hover:bg-slate-700'
                 } ${isApplying || isMaskingForDisplay ? 'opacity-60 cursor-not-allowed' : 'active:scale-[0.98]'}`}
                 title={isPrivacyMode ? t('imagePrepDisableFaceHide') : t('imagePrepEnableFaceHide')}
@@ -504,14 +504,14 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                 className={`h-11 w-11 rounded-lg transition-all flex items-center justify-center ${
                   !isPrivacyMode || isApplying || isMaskingForDisplay
                     ? isDesignerTheme
-                      ? 'text-zinc-600 cursor-not-allowed'
+                      ? 'text-slate-400 cursor-not-allowed'
                       : 'text-slate-300 dark:text-slate-600 cursor-not-allowed'
                     : showAdvancedSettings
                       ? isDesignerTheme
-                        ? 'bg-zinc-900 text-zinc-100 border border-zinc-700'
+                        ? 'bg-slate-200 text-slate-900 border border-slate-300'
                         : 'bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300'
                       : isDesignerTheme
-                        ? 'text-zinc-400 hover:bg-zinc-900 border border-zinc-800'
+                        ? 'text-slate-600 hover:bg-slate-100 border border-slate-300'
                         : 'text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800'
                 }`}
                 title={isPrivacyMode ? t('imagePrepAdvancedSettings') : t('imagePrepEnableFaceHideToShow')}
@@ -525,7 +525,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           <div className="flex items-center gap-2">
           <button
             type="button"
-            className="h-11 w-11 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center"
+            className="h-11 w-11 rounded-lg bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm hover:shadow active:scale-[0.98] flex items-center justify-center"
             disabled={isApplying}
             onClick={() => void handleApply()}
             title={isApplying ? t('imagePrepProcessing') : t('imagePrepApply')}
@@ -658,11 +658,11 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
           {!isTemplateMode && (
             <div className={`mb-2 rounded-lg border px-3 py-2.5 ${
               isDesignerTheme
-                ? 'border-zinc-700 bg-zinc-900/50'
+                ? 'border-slate-300 bg-slate-100'
                 : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900'
             }`}>
               <div className={`text-[10px] font-semibold uppercase tracking-wide mb-2 ${
-                isDesignerTheme ? 'text-zinc-400' : 'text-slate-500 dark:text-slate-400'
+                isDesignerTheme ? 'text-slate-700' : 'text-slate-500 dark:text-slate-400'
               }`}>
                 {t('imagePrepFabricType')}
               </div>
@@ -688,9 +688,9 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
                       }}
                       className={`flex items-center justify-center gap-1 rounded-md border px-2 py-1.5 text-[11px] transition-all ${
                         isActive
-                          ? 'border-purple-500 bg-purple-500/15 text-purple-600 dark:text-purple-300'
+                          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/15 text-[var(--theme-primary)] font-semibold'
                           : isDesignerTheme
-                            ? 'border-zinc-700 text-zinc-300 hover:bg-zinc-800'
+                            ? 'border-slate-300 text-slate-700 hover:bg-slate-200 hover:border-slate-400'
                             : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800'
                       }`}
                       title={material.label}

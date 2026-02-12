@@ -1,8 +1,97 @@
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Heart, Share2, ArrowLeft, Bookmark, ArrowRight, MoreVertical, Star, MapPin, ShoppingBag, MessageCircle, Layers, Clock, Shirt, Ruler } from 'lucide-react';
+import { Heart, Share2, ArrowLeft, Bookmark, ArrowRight, MoreVertical, Star, MapPin, ShoppingBag, MessageCircle, Layers, Clock, Shirt, Ruler, Play, X, ChevronLeft, Palette, AlertCircle, CheckCircle2, MessageSquare, Save, FolderOpen } from 'lucide-react';
 import { Product, Tailor } from '../../../types';
 import { StableImage } from '../../../components/StableImage';
+
+// Copied VideoDialog from Desktop for synchronization
+const VideoDialog = React.memo(({ isOpen, onClose, videoUrl }: { isOpen: boolean; onClose: () => void; videoUrl: string }) => {
+    if (!isOpen) return null;
+  
+    const getEmbedUrl = (url: string): string => {
+      if (!url) return '';
+      if (url.includes('youtube.com/embed/')) return url;
+      const watchMatch = url.match(/[?&]v=([^&]+)/);
+      if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+      const shortMatch = url.match(/youtu\.be\/([^?]+)/);
+      if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+      return url;
+    };
+  
+    const embedUrl = getEmbedUrl(videoUrl);
+  
+    return createPortal(
+      <div 
+        className="fixed inset-0 z-[11000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
+        onClick={onClose}
+      >
+        <div 
+          className="relative w-full max-w-4xl aspect-video bg-black rounded-3xl overflow-hidden shadow-2xl border border-white/10"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button 
+            onClick={onClose}
+            title="إغلاق"
+            className="absolute top-4 right-4 z-10 w-10 h-10 rounded-full bg-black/50 text-white flex items-center justify-center hover:bg-black/70 transition-all backdrop-blur-sm"
+          >
+            <X size={20} />
+          </button>
+  
+          {embedUrl ? (
+            <iframe
+              src={`${embedUrl}?autoplay=1`}
+              title="Measurement Instructions Video"
+              className="w-full h-full"
+              allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-white/50">
+              <p>الفيديو غير متوفر</p>
+            </div>
+          )}
+        </div>
+      </div>,
+      document.body
+    );
+});
+
+const MobilePointMarker = ({ point, value, onChange }: { point: any, value?: number, onChange: (id: string, val: string) => void, key?: any }) => {
+    const hasValue = value !== undefined && value > 0;
+    const ref = React.useRef<HTMLDivElement>(null);
+
+    React.useEffect(() => {
+        if (ref.current) {
+            ref.current.style.left = `${point.x * 100}%`;
+            ref.current.style.top = `${point.y * 100}%`;
+        }
+    }, [point.x, point.y]);
+
+    return (
+        <div 
+            ref={ref}
+            className="absolute -translate-x-1/2 -translate-y-1/2 flex flex-col items-center z-10 animate-in fade-in zoom-in duration-300 pointer-events-auto"
+        >
+            <div className="px-1.5 py-0.5 rounded bg-black/80 backdrop-blur-md text-[8px] font-normal text-white whitespace-nowrap mb-1 shadow-md border border-white/10 transition-all">
+                {point.label || point.name}
+            </div>
+            <div className="relative group/input" onClick={(e) => e.stopPropagation()}>
+                <input
+                    type="number"
+                    step="0.5"
+                    min="0"
+                    value={value || ''}
+                    onChange={(e) => onChange(point.id, e.target.value)}
+                    placeholder="0"
+                    className={`w-10 h-6 px-1 text-[8px] text-center border-2 rounded-lg shadow-lg transition-all focus:outline-none focus:ring-4 focus:ring-emerald-500/20 focus:w-14 bg-white font-black ${
+                        hasValue ? 'border-emerald-500 text-emerald-600' : 'border-gray-200 text-gray-800'
+                    }`}
+                />
+            </div>
+        </div>
+    );
+};
 
 interface MobileProductDetailsProps {
     product: Product;
@@ -16,6 +105,15 @@ interface MobileProductDetailsProps {
     onStartTailoring: () => void;
     onAddToCart: () => void;
     template?: any;
+    measurementHook?: any;
+    onPlaceOrder?: () => void;
+    measurementError?: string | null;
+    customerComments?: string;
+    setCustomerComments?: (val: string) => void;
+    showCommentsField?: boolean;
+    setShowCommentsField?: (val: boolean) => void;
+    onSaveToProfile?: () => void;
+    onApplyProfile?: () => void;
 }
 
 export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
@@ -29,9 +127,33 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     onBack,
     onStartTailoring,
     onAddToCart,
-    template
+    template,
+    measurementHook,
+    onPlaceOrder,
+    measurementError,
+    customerComments = "",
+    setCustomerComments = (_val: string) => {},
+    showCommentsField = false,
+    setShowCommentsField = (_val: boolean) => {},
+    onSaveToProfile,
+    onApplyProfile
 }) => {
     const navigate = useNavigate();
+    const [showVideoDialog, setShowVideoDialog] = useState(false);
+    const measurementsRef = React.useRef<HTMLDivElement>(null);
+    const carouselRef = React.useRef<HTMLDivElement>(null);
+
+    // Use hook's state if available, otherwise local for safety (though it should always be there now)
+    const measurements = measurementHook?.measurements || {};
+    const handleMeasurementChange = measurementHook?.handleMeasurementChange || (() => {});
+
+    React.useEffect(() => {
+        if (carouselRef.current) {
+            carouselRef.current.style.transform = `translateX(-${currentImageIndex * 100}%)`;
+        }
+    }, [currentImageIndex]);
+
+    const videoUrl = template?.videoUrl || template?.tutorialVideoUrl || 'https://www.youtube.com/watch?v=6eZtn5Du8O4';
 
     const formatOmr = (price: number | string | undefined): string => {
         if (!price) return '0.000';
@@ -71,38 +193,12 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
 
     return (
         <>
-            <div className="min-h-screen bg-white dark:bg-[#0B0A13] pb-20 relative scrollbar-hide flex flex-col">
-                {/* Hero Image Section - Fixed Background */}
-                <div className="fixed inset-0 h-[60vh] z-0">
-                    {/* Main Hero Image */}
-                    {productImages.length > 0 ? (
-                    <div className="absolute inset-0">
-                        <StableImage 
-                            src={productImages[currentImageIndex]} 
-                            alt={product.name}
-                            aspectClass="w-full h-full" 
-                            className="w-full h-full" 
-                            imgClassName="w-full h-full object-cover"
-                        />
-                    </div>
-                ) : (
-                    <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                        <ShoppingBag size={48} className="text-slate-400" />
-                    </div>
-                )}
-                
-                {/* Tempered Glass Overlay (On Top) */}
-                <div className="absolute inset-0 bg-white/30 dark:bg-black/30 backdrop-blur-xl pointer-events-none" />
-                
-                {/* Gradient Overlay */}
-                <div className="absolute inset-0 bg-gradient-to-t from-white via-white/95 via-white/70 via-white/40 via-white/20 to-transparent dark:from-[#0B0A13] dark:via-[#0B0A13]/95 dark:via-[#0B0A13]/70 dark:via-[#0B0A13]/40 dark:via-[#0B0A13]/20 dark:to-transparent pointer-events-none" />
-                </div>
-
-                {/* Main Content Scrollable Area */}
-                <div className="relative z-10 w-full px-10 pt-10">
+            <div className="min-h-screen bg-[#ededed] pb-20 relative flex flex-col">
+                {/* Simplified Header for Mobile */}
+                <div className="relative z-10 w-full px-4 pt-4">
                     {/* Product Images Widget Card */}
                     <div 
-                        className="relative w-full aspect-[9/16] rounded-[26px] overflow-hidden shadow-none border-none ring-0 outline-none mb-2"
+                        className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden shadow-sm border border-black/5 bg-white mb-4"
                         onTouchStart={handleTouchStart}
                         onTouchMove={handleTouchMove}
                         onTouchEnd={handleTouchEnd}
@@ -110,24 +206,24 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                         {/* Main Product Image Slider */}
                         {productImages.length > 0 ? (
                             <div 
+                                ref={carouselRef}
                                 className="flex w-full h-full transition-transform duration-300 ease-out"
-                                style={{ transform: `translateX(-${currentImageIndex * 100}%)` }}
                             >
                                 {productImages.map((img, index) => (
-                                    <div key={index} className="w-full h-full flex-shrink-0">
+                                    <div key={index} className="w-full h-full flex-shrink-0 flex items-center justify-center p-4 bg-[#fbfbfb]">
                                         <StableImage 
                                             src={img} 
                                             alt={`${product.name} - ${index + 1}`}
-                                            aspectClass="w-full h-full" 
-                                            className="w-full h-full" 
-                                            imgClassName="w-full h-full object-cover"
+                                            aspectClass="h-full w-auto" 
+                                            className="h-full w-auto" 
+                                            imgClassName="h-full w-auto object-contain drop-shadow-xl"
                                         />
                                     </div>
                                 ))}
                             </div>
                         ) : (
-                            <div className="w-full h-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center">
-                                <ShoppingBag size={48} className="text-slate-400" />
+                            <div className="w-full h-full bg-[#fbfbfb] flex items-center justify-center">
+                                <ShoppingBag size={48} className="text-gray-300" />
                             </div>
                         )}
 
@@ -135,34 +231,44 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                         <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
                             <button 
                                 onClick={onBack}
-                                className="w-8 h-8 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white transition-transform active:scale-95 border border-white/10"
+                                title="Back"
+                                aria-label="Back"
+                                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-md text-gray-900 shadow-lg border border-gray-100 transition-transform active:scale-95"
                             >
-                                <ArrowLeft size={16} />
+                                <ArrowRight size={20} className="rtl:rotate-180" />
                             </button>
-                            <div className="flex items-center gap-3">
+                            <div className="flex items-center gap-2">
                                 <button 
                                     onClick={onLikeToggle}
-                                    className="w-8 h-8 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white transition-transform active:scale-95 border border-white/10"
+                                    title={isLiked ? "Unlike" : "Like"}
+                                    aria-label={isLiked ? "Unlike" : "Like"}
+                                    className={`w-10 h-10 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-md border border-gray-100 transition-transform active:scale-95 shadow-lg ${isLiked ? 'text-rose-500' : 'text-gray-400'}`}
                                 >
-                                    <Bookmark size={16} className={isLiked ? 'fill-white' : ''} />
+                                    <Heart size={20} className={isLiked ? 'fill-current' : ''} />
                                 </button>
-                                <button className="w-8 h-8 flex items-center justify-center rounded-full bg-black/20 backdrop-blur-md text-white transition-transform active:scale-95 border border-white/10">
-                                    <Share2 size={16} />
+                                <button 
+                                    title="Share"
+                                    aria-label="Share"
+                                    className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-md text-gray-400 border border-gray-100 transition-transform active:scale-95 shadow-lg"
+                                >
+                                    <Share2 size={20} />
                                 </button>
                             </div>
                         </div>
 
                         {/* Image Indicators - Bottom of Card */}
                         {productImages.length > 1 && (
-                            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-10" dir="ltr">
+                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-10" dir="ltr">
                                 {productImages.map((_, index) => (
                                     <button
                                         key={index}
                                         onClick={() => setCurrentImageIndex(index)}
+                                        title={`Go to image ${index + 1}`}
+                                        aria-label={`Go to image ${index + 1}`}
                                         className={`h-1.5 rounded-full transition-all ${
                                             index === currentImageIndex 
-                                                ? 'w-8 bg-white' 
-                                                : 'w-1.5 bg-white/40'
+                                                ? 'w-8 bg-theme-primary' 
+                                                : 'w-2 bg-gray-300'
                                         }`}
                                     />
                                 ))}
@@ -171,22 +277,23 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                     </div>
 
                     {/* Content Section - now flows naturally */}
-                    <div className="w-full flex flex-col items-center gap-2">
+                    <div className="w-full flex flex-col items-center gap-4">
                         
-                        {/* Primary Info Card - "The Big Rownt" */}
-                        <div className="w-full bg-[#1A1A1A] dark:bg-white/5 rounded-2xl p-4 text-right" dir="rtl">
-                            <div className="flex justify-between items-start">
+                        {/* Primary Info Card */}
+                        <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6 text-right" dir="rtl">
+                            <div className="flex justify-between items-start mb-6">
                                 {/* Right Side: Product Details */}
                                 <div className="flex flex-col items-start gap-2">
-                                    <h1 className="text-2xl font-bold text-white leading-tight max-w-[180px]">
+                                    <h1 className="text-2xl font-black text-gray-900 leading-tight">
                                         {product.name}
                                     </h1>
                                     <div className="flex items-center gap-2">
-                                        <span className="text-xl font-medium text-purple-400">
-                                            {formatOmr(product.price)} ر.ع
+                                        <span className="text-3xl font-black text-gray-900">
+                                            {formatOmr(product.price)}
                                         </span>
+                                        <span className="text-sm font-bold text-gray-500 mt-2">ر.ع</span>
                                         {product.originalPrice && (
-                                            <span className="text-xs text-white/40 line-through">
+                                            <span className="text-xs text-gray-400 line-through mt-2">
                                                 {formatOmr(product.originalPrice)}
                                             </span>
                                         )}
@@ -197,164 +304,264 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                                 {tailor && (
                                     <div 
                                         onClick={() => navigate(`/tailor/${tailor.id}`)}
-                                        className="flex flex-col items-end gap-1 cursor-pointer pl-1"
+                                        className="flex flex-col items-end gap-1 cursor-pointer"
                                     >
-                                        <div className="flex items-center gap-2">
-                                            <span className="font-bold text-white text-sm">{tailor.name}</span>
-                                            <div className="w-10 h-10 rounded-full overflow-hidden border border-white/10 bg-white/5">
-                                                {tailor.image ? (
-                                                    <StableImage 
-                                                        src={tailor.image} 
-                                                        alt={tailor.name}
-                                                        aspectClass="h-full w-full" 
-                                                        className="h-full w-full" 
-                                                        imgClassName="object-cover w-full h-full" 
-                                                    />
-                                                ) : (
-                                                    <div className="flex items-center justify-center h-full w-full">
-                                                        <span className="text-xs text-white">?</span>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        </div>
-                                        {tailor.location && (
-                                            <div className="flex items-center gap-1 text-white/50 text-xs">
-                                                <MapPin size={12} />
-                                                {tailor.location}
-                                            </div>
-                                        )}
-                                        <div className="flex items-center gap-1 text-white/50 text-xs mt-0.5">
-                                            <Clock size={12} />
-                                            <span>3-5 أيام</span>
+                                        <div className="w-12 h-12 rounded-2xl overflow-hidden border border-gray-100 shadow-sm mb-1 bg-[#fbfbfb]">
+                                            {tailor.image ? (
+                                                <StableImage 
+                                                    src={tailor.image} 
+                                                    alt={tailor.name}
+                                                    aspectClass="h-full w-full" 
+                                                    className="h-full w-full" 
+                                                    imgClassName="object-cover w-full h-full" 
+                                                />
+                                            ) : (
+                                                <div className="flex items-center justify-center h-full w-full">
+                                                    <span className="text-xs text-gray-300">?</span>
+                                                </div>
+                                            )}
                                         </div>
                                     </div>
                                 )}
                             </div>
-                        </div>
 
-                        {/* Actions Block */}
-                        <style>{`
-                            @keyframes shimmer {
-                                0% { transform: skewX(-12deg) translateX(-150%); }
-                                40% { transform: skewX(-12deg) translateX(150%); }
-                                100% { transform: skewX(-12deg) translateX(150%); }
-                            }
-                        `}</style>
-                        <div className="w-full bg-[#1A1A1A] dark:bg-white/5 rounded-2xl p-2" dir="rtl">
-                            <div className="flex gap-3">
-                                <button 
-                                    onClick={() => navigate(`/designer-v2-1/${product.id}`, { state: { product } })}
-                                    className="flex-1 relative overflow-hidden bg-white text-slate-900 h-12 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform text-sm"
-                                >
-                                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-zinc-400/20 to-transparent" style={{ animation: 'shimmer 3s infinite' }} />
-                                    <div className="relative z-10 flex items-center gap-2">
-                                        <Shirt size={18} />
-                                        تجربة القماش
-                                    </div>
-                                </button>
-                                <button 
-                                    onClick={() => navigate(`/measurements/${product.id}`, { state: { product } })}
-                                    className="flex-1 bg-zinc-800 text-white h-12 rounded-xl font-bold flex items-center justify-center gap-2 shadow-lg active:scale-95 transition-transform text-sm"
-                                >
-                                    <Ruler size={18} />
-                                    أخذ القياسات
-                                </button>
+                            <div className="space-y-3 py-6 border-y border-gray-100 my-4">
+                                <div className="flex flex-col gap-1 mb-1">
+                                    <h3 className="text-lg font-black text-gray-900 uppercase">بدء التفصيل</h3>
+                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">اختر الطريقة المختصرة للبدء</p>
+                                </div>
+                                
+                                <div className="grid grid-cols-1 gap-2">
+                                    <button 
+                                       onClick={() => {
+                                          measurementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                                       }}
+                                       className="group flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 active:border-theme-primary active:bg-emerald-50/10 transition-all text-right shadow-sm active:scale-[0.98]"
+                                    >
+                                        <div className="w-12 h-12 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary shrink-0">
+                                            <Ruler size={24} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="font-black text-gray-900 text-xs mb-0.5 uppercase tracking-wide">أخذ المقاسات</div>
+                                            <p className="text-[9px] text-gray-500 font-medium leading-relaxed">أدخلي مقاساتك مباشرة على الرسم التوضيحي</p>
+                                        </div>
+                                        <ChevronLeft size={16} className="text-gray-300" />
+                                    </button>
+
+                                    <button 
+                                       onClick={() => navigate(`/tryon/${product.id}`)}
+                                       className="group flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 active:border-orange-500 active:bg-orange-50/10 transition-all text-right shadow-sm active:scale-[0.98]"
+                                    >
+                                        <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 shrink-0">
+                                            <Palette size={24} strokeWidth={2.5} />
+                                        </div>
+                                        <div className="flex-1">
+                                            <div className="font-black text-gray-900 text-xs mb-0.5 uppercase tracking-wide">تجربة قماش مختلف</div>
+                                            <p className="text-[9px] text-gray-500 font-medium leading-relaxed">تغيير الأقمشة ورؤية النتيجة في ثوانٍ</p>
+                                        </div>
+                                        <ChevronLeft size={16} className="text-gray-300" />
+                                    </button>
+                                </div>
                             </div>
+
+                            <button 
+                                onClick={onAddToCart}
+                                className="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide active:scale-95"
+                            >
+                                <ShoppingBag size={18} strokeWidth={2.5} />
+                                إضافة إلى السلة
+                            </button>
                         </div>
 
                         {/* Stats Bar */}
-                        <div className="w-full bg-[#1A1A1A] dark:bg-white/5 rounded-2xl p-4 flex items-center justify-between text-white/90">
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-white/10 first:border-0">
-                                <span className="text-xs text-white/50">الفئة</span>
-                                <span className="font-medium text-sm">{product.category || '-'}</span>
+                        <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-4 flex items-center justify-between text-gray-900">
+                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100 first:border-0">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">الفئة</span>
+                                <span className="font-bold text-xs">{product.category || 'تفصيل'}</span>
                             </div>
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-white/10">
-                                <span className="text-xs text-white/50">التقييم</span>
+                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">المدة</span>
                                 <div className="flex items-center gap-1">
-                                    <Star size={12} className="fill-amber-400 text-amber-400" />
-                                    <span className="font-medium text-sm">{product.rating || '0.0'}</span>
+                                    <Clock size={12} className="text-theme-primary" />
+                                    <span className="font-bold text-xs">{product.duration || '7-10 أيام'}</span>
                                 </div>
                             </div>
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-white/10">
-                                <span className="text-xs text-white/50">{product.fabric ? 'القماش' : 'اللون'}</span>
-                                <span className="font-medium text-sm truncate max-w-[80px]">
-                                    {product.fabric || product.color || '-'}
+                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100">
+                                <span className="text-[10px] font-black text-gray-400 uppercase">الخامة</span>
+                                <span className="font-bold text-xs truncate max-w-[80px]">
+                                    {product.fabric || 'قطن ممتاز'}
                                 </span>
                             </div>
                         </div>
                         
                         {/* Measurement Template Preview */}
                         {template && template.points?.length > 0 && (
-                            <div className="w-full bg-[#1A1A1A] dark:bg-white/5 rounded-2xl p-4 mt-2" dir="rtl">
+                            <div ref={measurementsRef} className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6" dir="rtl">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold text-white text-base">توجيهات القياس</h3>
+                                    <h3 className="font-black text-gray-900 text-sm uppercase tracking-wide">توجيهات القياس</h3>
                                     <div className="flex items-center gap-2">
-                                        <Ruler size={14} className="text-purple-400" />
-                                        <span className="text-[10px] font-bold text-purple-400 bg-purple-400/10 px-2 py-1 rounded-full">{template.name}</span>
+                                        <Ruler size={14} className="text-emerald-500" />
+                                        <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">{template.name}</span>
                                     </div>
                                 </div>
+
+                                {/* Instructions Block - Above Diagram */}
+                                <div className="mb-4 p-4 bg-[#ededed] rounded-2xl border border-gray-100 space-y-3">
+                                    <div className="flex flex-col gap-1">
+                                        <p className="text-xs font-black text-gray-900">تعليمات القياس:</p>
+                                        <p className="text-[10px] text-gray-600 leading-relaxed font-bold">
+                                            يرجى إدخال القياسات الصحيحة (بالسنتيمتر) في الخانات الموضحة أدناه. يمكنك النقر مباشرة على الخانة وتعديل الرقم.
+                                        </p>
+                                    </div>
+
+                                    <button 
+                                        onClick={() => setShowVideoDialog(true)}
+                                        className="w-full py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-black text-[10px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+                                    >
+                                        <Play size={14} className="fill-emerald-500 text-emerald-500" />
+                                        <span>مشاهدة فيديو توضيحي</span>
+                                    </button>
+                                </div>
+
+                                {/* Action Buttons - Separate compact block below instructions */}
+                                <div className="grid grid-cols-2 gap-2 mb-6">
+                                    <button 
+                                        onClick={onApplyProfile}
+                                        className="flex items-center justify-center gap-2 py-2.5 bg-[#fbfbfb] border border-gray-100 rounded-xl text-[9px] font-black text-gray-500 hover:text-theme-primary transition-all active:scale-95"
+                                    >
+                                        <FolderOpen size={12} className="text-theme-primary" />
+                                        <span>تحميل مقاس محفوظ</span>
+                                    </button>
+                                    <button 
+                                        onClick={onSaveToProfile}
+                                        className="flex items-center justify-center gap-2 py-2.5 bg-theme-primary/5 text-theme-primary border border-theme-primary/10 rounded-xl text-[9px] font-black hover:bg-theme-primary hover:text-white transition-all active:scale-95"
+                                    >
+                                        <Save size={12} />
+                                        <span>حفظ هذه المقاسات</span>
+                                    </button>
+                                </div>
                                 
-                                <div className="relative w-full aspect-[3/4] bg-white dark:bg-black rounded-2xl border border-white/5 shadow-inner overflow-hidden mb-4">
+                                <div className="relative w-full aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-100 overflow-visible mb-6">
                                     {template.baseImageUrl ? (
                                         <img 
                                             src={template.baseImageUrl} 
                                             alt={template.name}
-                                            className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90"
+                                            className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90 rounded-2xl"
                                             loading="lazy"
                                         />
                                     ) : (
                                         <div className="absolute inset-0 flex items-center justify-center opacity-5">
-                                            <img src="/logo_big.png?v=4" alt="" className="w-24 h-auto grayscale" />
+                                            <img src="/logo_big.png?v=4" alt="" className="w-20 h-auto grayscale" />
                                         </div>
                                     )}
                                     
-                                    {/* Point Overlays */}
-                                    {template.points.map((point: any, idx: number) => {
-                                        const order = point.order || idx + 1;
-                                        return (
-                                            <div 
-                                                key={point.id}
-                                                className="absolute w-5 h-5 -ml-2.5 -mt-2.5 rounded-full bg-purple-600 text-white flex items-center justify-center text-[10px] font-bold shadow-[0_0_8px_rgba(147,51,234,0.4)] ring-1 ring-white/50 z-10"
-                                                style={{ left: `${point.x * 100}%`, top: `${point.y * 100}%` }}
-                                            >
-                                                {order}
-                                            </div>
-                                        );
-                                    })}
-                                </div>
-                                
-                                <div className="grid grid-cols-2 gap-2">
-                                    {template.points.slice(0, 6).map((point: any, idx: number) => (
-                                        <div key={point.id} className="flex items-center gap-2 text-[10px] text-white/60 bg-white/5 p-2 rounded-lg border border-transparent">
-                                            <span className="w-4 h-4 rounded-full bg-purple-600 text-white flex items-center justify-center font-bold text-[8px] shrink-0">
-                                                {point.order || idx + 1}
-                                            </span>
-                                            <span className="truncate">{point.label || point.name}</span>
-                                        </div>
+                                    {/* Arrows from template or default sequential */}
+                                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                        <defs>
+                                            <marker id="arrowhead-mobile-v1" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                                                <path d="M0,0 L0,6 L6,3 z" fill="#10b981" />
+                                            </marker>
+                                        </defs>
+                                        {(template.arrows || []).map((arrow: any) => (
+                                            <line
+                                                key={arrow.id}
+                                                x1={arrow.startX * 100}
+                                                y1={arrow.startY * 100}
+                                                x2={arrow.endX * 100}
+                                                y2={arrow.endY * 100}
+                                                stroke="#10b981"
+                                                strokeWidth={0.45}
+                                                markerEnd="url(#arrowhead-mobile-v1)"
+                                                opacity={0.7}
+                                            />
+                                        ))}
+                                    </svg>
+                                    
+                                    {/* Point Overlays - Interactive Markers */}
+                                    {template.points.map((point: any) => (
+                                        <MobilePointMarker 
+                                            key={point.id} 
+                                            point={point} 
+                                            value={measurements[point.id]} 
+                                            onChange={handleMeasurementChange} 
+                                        />
                                     ))}
-                                    {template.points.length > 6 && (
-                                        <div className="col-span-2 text-center text-[10px] text-white/40 pt-1">
-                                            + {template.points.length - 6} قياسات أخرى
+                                </div>
+
+                                {/* Proceed Button - only shown if measurements are being taken */}
+                                <div className="mt-4 pt-4 border-t border-gray-100">
+                                    {/* Comments Section Mobile */}
+                                    <div className="mb-4">
+                                        {!showCommentsField ? (
+                                            <button 
+                                                onClick={() => setShowCommentsField(true)}
+                                                className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-theme-primary transition-colors"
+                                            >
+                                                <MessageSquare size={12} />
+                                                <span>إضافة ملاحظات إضافية للطلب؟</span>
+                                            </button>
+                                        ) : (
+                                            <div className="space-y-2 animate-in fade-in zoom-in duration-300">
+                                                <div className="flex items-center justify-between">
+                                                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 text-right w-full">ملاحظاتك للخياط</label>
+                                                    <button 
+                                                        onClick={() => {
+                                                            setShowCommentsField(false);
+                                                            setCustomerComments("");
+                                                        }}
+                                                        className="text-[9px] font-bold text-red-400 hover:text-red-500 whitespace-nowrap"
+                                                    >
+                                                        إلغاء
+                                                    </button>
+                                                </div>
+                                                <textarea
+                                                    value={customerComments}
+                                                    onChange={(e) => setCustomerComments(e.target.value)}
+                                                    placeholder="مثلاً: طول اليد، تغيير في شكل الرقبة، الخ..."
+                                                    className="w-full h-20 p-3 text-[10px] bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-theme-primary focus:ring-0 transition-all resize-none font-medium text-gray-700"
+                                                    dir="rtl"
+                                                />
+                                            </div>
+                                        )}
+                                    </div>
+
+                                    {measurementError && (
+                                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-700 text-[10px] font-bold animate-shake">
+                                            <AlertCircle size={14} />
+                                            <span>{measurementError}</span>
                                         </div>
                                     )}
+                                    <button 
+                                        onClick={onPlaceOrder}
+                                        className="w-full h-14 bg-theme-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-theme-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                    >
+                                        <CheckCircle2 size={18} />
+                                        <span>مراجعة الطلب والمتابعة</span>
+                                        <ArrowRight size={18} className="rtl:rotate-180" />
+                                    </button>
                                 </div>
                             </div>
                         )}
+                        
+                        <VideoDialog 
+                            isOpen={showVideoDialog} 
+                            onClose={() => setShowVideoDialog(false)} 
+                            videoUrl={videoUrl} 
+                        />
 
                         {/* Description */}
                         {product.description && (
-                            <div className="w-full mt-2 text-right px-2">
-                                <h3 className="font-bold text-slate-900 dark:text-white mb-2 text-lg">الوصف</h3>
-                                <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
+                            <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6 text-right">
+                                <h3 className="font-black text-gray-900 mb-4 text-sm uppercase tracking-wide">الوصف</h3>
+                                <p className="text-sm text-gray-600 leading-relaxed">
                                     {product.description}
                                 </p>
                             </div>
                         )}
-
-                        {/* Inline Bottom Actions - Removed */}
                     </div>
                 </div>
             </div>
         </>
     );
 };
+

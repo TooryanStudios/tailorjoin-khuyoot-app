@@ -32,12 +32,12 @@ export const FabricPicker = React.memo(function FabricPicker(props: FabricPicker
   return (
     <div className={disabled ? 'opacity-60 pointer-events-none' : ''}>
       <div className="flex items-center justify-between px-1">
-        <div className="text-[11px] font-black tracking-widest text-zinc-400 uppercase">الخامة (Fabric)</div>
+        <div className="text-[11px] font-black tracking-widest text-zinc-600 uppercase">الخامة (Fabric)</div>
       </div>
 
       {/* Upload / Selected */}
       <label className="block mt-2">
-        <div className="relative overflow-hidden rounded-xl border border-zinc-800 bg-zinc-900/50">
+        <div className="relative overflow-hidden rounded-xl border border-zinc-200 bg-white">
           <div className="relative w-full aspect-video">
             {fabricPreviewUrl ? (
               <img
@@ -49,7 +49,7 @@ export const FabricPicker = React.memo(function FabricPicker(props: FabricPicker
               />
             ) : (
               <div className="absolute inset-0 flex items-center justify-center gap-2 text-zinc-500 text-[11px] font-bold">
-                <Upload className="h-4 w-4 text-zinc-400" />
+                <Upload className="h-4 w-4 text-zinc-500" />
                 اضغط لرفع صورة الخامة
               </div>
             )}
@@ -60,14 +60,14 @@ export const FabricPicker = React.memo(function FabricPicker(props: FabricPicker
 
       {/* Pre-made fabric cards */}
       {canShowPalette && (
-        <div className="mt-2 rounded-xl border border-zinc-800 bg-zinc-900/30 p-2">
+        <div className="mt-2 rounded-xl border border-zinc-200 bg-zinc-50 p-2">
           <div className="grid grid-cols-4 gap-2">
             {thumbs!.map((t) => (
               <button
                 key={t.id}
                 type="button"
                 onClick={() => onSelectFromUrl?.(t.url)}
-                className="relative overflow-hidden rounded-lg border border-zinc-800 hover:border-zinc-700 bg-zinc-900 transition-colors"
+                className="relative overflow-hidden rounded-lg border border-zinc-200 hover:border-purple-300 bg-white transition-colors"
                 title={t.label}
               >
                 <div className="relative w-full aspect-square">

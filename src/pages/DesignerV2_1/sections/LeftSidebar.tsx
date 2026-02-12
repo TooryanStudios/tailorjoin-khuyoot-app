@@ -1,12 +1,13 @@
 import React from 'react';
 import { ChevronDown, Loader2, Upload } from 'lucide-react';
-import { TemplateSelectorView } from '../../modules/TemplatePicker';
+import { TFunction } from 'i18next';
+import { TemplateSelectorView } from '../../../modules/TemplatePicker';
 import type { DesignerV2Features, DesignerUIState } from '../types';
 
 export type FabricMaterial = 'silk' | 'cotton' | 'transparent' | 'velvet' | 'linen' | 'wool' | null;
 
 type LeftSidebarProps = {
-  t: (key: string) => string;
+  t: TFunction;
   features: DesignerV2Features;
   uiState: DesignerUIState;
   sidebarHasVisibleContent: boolean;
@@ -285,13 +286,15 @@ export function LeftSidebar(props: LeftSidebarProps) {
             <div className={uiState.uploadsDisabled ? 'opacity-50' : ''}>
               <TemplateSelectorView
                 onSelect={onTemplateSelect}
-                onTabChange={(tab) => {
+                onTabChange={(tab: any) => {
                   setLastActiveTemplateTab(tab);
                   console.log(`[Designer] Tab switched to: ${tab}`);
                 }}
                 currentId={selectedTemplate?.id}
-                shopItems={undefined}
-                closetItems={undefined}
+                shopItems={[]}
+                closetItems={[]}
+                studioItems={[]}
+                forcedTab={undefined}
                 enableUpload
                 isSubscribed={isSubscribed || canAfford('premium_template')}
                 onPremiumClick={() => openUpgradeModal('template_premium_click')}

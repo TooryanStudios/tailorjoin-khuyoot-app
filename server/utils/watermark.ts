@@ -60,39 +60,50 @@ export async function applyWatermark(
     console.log(`[Watermark] Logo path: ${logoPath}`);
     console.log(`[Watermark] Logo exists: ${hasLogo}`);
 
-    // Composite watermark onto image
-    let composited = sharp(imageBuffer).composite([
+    // Build the list of layers to composite
+    const layers: any[] = [
       {
         input: Buffer.from(svgText),
         top: 0,
         left: 0,
       },
-    ]);
+    ];
 
     // Add logo if it exists
     if (hasLogo) {
       try {
         const logoMeta = await sharp(logoPath).metadata();
-        const logoWidth = Math.floor(width * 0.1); // Logo is ~10% of image width
-        const logoHeight = logoMeta.height ? Math.floor((logoMeta.width || 1) > 0 ? (logoWidth * logoMeta.height) / (logoMeta.width || 1) : logoWidth) : logoWidth;
+        const logoWidth = Math.floor(width * 0.25); // Logo is ~25% of image width
+        const logoHeight = logoMeta.height 
+          ? Math.floor((logoWidth * logoMeta.height) / (logoMeta.width || 1)) 
+          : logoWidth;
 
         console.log(`[Watermark] Logo dimensions: ${logoWidth}x${logoHeight}`);
 
-        composited = composited.composite([
-          {
-            input: await sharp(logoPath)
-              .resize(logoWidth, logoHeight, { fit: 'contain', background: { r: 0, g: 0, b: 0, alpha: 0 } })
-              .toBuffer(),
-            gravity: 'southeast',
-            offset: { left: 20, top: 20 },
-          },
-        ]);
+        const logoBuffer = await sharp(logoPath)
+          .resize(logoWidth, logoHeight, { 
+            fit: 'contain', 
+            background: { r: 0, g: 0, b: 0, alpha: 0 } 
+          })
+          .toBuffer();
+
+        // Calculate bottom-right position with 20px padding
+        layers.push({
+          input: logoBuffer,
+          top: height - logoHeight - 20,
+          left: width - logoWidth - 20,
+        });
       } catch (logoErr) {
-        console.warn('[Watermark] Failed to composite logo:', (logoErr as Error).message);
+        console.warn('[Watermark] Failed to prepare logo:', (logoErr as Error).message);
       }
     }
 
-    const result = await composited.toBuffer();
+    // Single pass composition
+    const result = await sharp(imageBuffer)
+      .composite(layers)
+      .jpeg({ quality: 90, mozjpeg: true })
+      .toBuffer();
+      
     console.log(`[Watermark] Applied successfully (${(result.length / 1024).toFixed(1)} KB)`);
     return result;
   } catch (err) {

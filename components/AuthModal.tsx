@@ -88,7 +88,7 @@ export const AuthModal = () => {
   const { isAuthModalOpen, toggleAuthModal, login, register, loading, authModalMode, user, appSettings } = useApp();
   const navigate = useNavigate();
   const [isLogin, setIsLogin] = useState(true);
-  const [showForm, setShowForm] = useState(false);
+  const [showForm, setShowForm] = useState(true);
   // Quick access developer accounts menu removed
   const [submitting, setSubmitting] = useState(false);
   const openedFromAuthRecoveryRef = React.useRef(false);
@@ -369,176 +369,135 @@ export const AuthModal = () => {
   if (!isAuthModalOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4 md:p-6" data-overlay="khuyoot-modal">
-      <div className="absolute inset-0 bg-slate-900/80 backdrop-blur-md transition-opacity" onClick={() => { toggleAuthModal(false); setShowForm(false); }} />
+    <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" data-overlay="khuyoot-modal">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => { toggleAuthModal(false); setShowForm(false); }} />
 
       <div
-        className="relative w-full max-w-md bg-zinc-900/90 text-white rounded-2xl md:rounded-3xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-dashed border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
           onClick={() => { toggleAuthModal(false); setShowForm(false); }}
-          className="absolute top-3 right-3 z-30 w-7 h-7 rounded-full bg-black/40 hover:bg-black/60 text-white flex items-center justify-center transition-colors"
+          className="absolute top-4 left-4 z-30 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-dashed border-slate-300 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors shadow-sm"
           aria-label="إغلاق"
         >
           <X size={14} />
         </button>
 
-        {/* Hero image */}
-        <div className="relative w-full h-48 md:h-56 overflow-visible">
-          <img src="/auth-panel.jpg" alt="Khuyoot Tailoring" className="absolute inset-0 w-full h-full object-cover" />
-          <div className="absolute inset-0 bg-gradient-to-t from-zinc-900 via-zinc-900/60 to-transparent" />
-        </div>
-
-        {/* Title above logo */}
-        <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(14rem - 6rem)' }}>
-          <h2 className="text-sm md:text-base font-semibold text-zinc-100">مرحباً بك في </h2>
-        </div>
-
-        {/* Floating logo */}
-        <div className="absolute left-0 right-0 flex justify-center z-20 pointer-events-none select-none" style={{ top: 'calc(12rem - 4.5rem)' }}>
+        {/* Compact Header with Logo */}
+        <div className="relative p-3 bg-slate-50/50 border-b border-dashed border-slate-200 flex-shrink-0 flex items-center gap-4">
           <img
             src="/logo_big.png"
             alt="Khuyoot"
-            className="w-36 h-36 md:w-44 md:h-44 drop-shadow-2xl pointer-events-none select-none"
+            className="w-14 h-14 flex-shrink-0"
             style={{ imageRendering: 'high-quality', objectFit: 'contain' }}
           />
+          <div className="flex-1 text-right">
+            <h2 className="text-sm font-black text-slate-800 mb-0.5 uppercase tracking-tight">مرحباً بك في خيوط</h2>
+            <p className="text-[10px] text-slate-500 font-medium leading-tight">
+              سجل دخولك للوصول إلى طلباتك ومقاساتك
+            </p>
+          </div>
         </div>
 
-        <div className="p-6 md:p-8 text-center pt-12 md:pt-14">
-          {!showForm ? (
+        <div className="flex-1 overflow-y-auto scrollbar-hide">
+          <div className="p-5 text-center">
             <div className="transition-opacity duration-300">
-              <p className="text-zinc-400 mb-5 md:mb-6 leading-relaxed text-xs md:text-sm">
-                سجل دخولك الآن للوصول إلى طلباتك، مقاساتك، والتواصل مع أمهر الخياطين في المنطقة.
-              </p>
 
-              <div className="space-y-2.5">
-                <div className="grid grid-cols-2 gap-2">
-                  <button
-                    onClick={() => { setIsLogin(true); setShowForm(true); }}
-                    className="py-2.5 bg-indigo-600/90 hover:bg-indigo-500/90 backdrop-blur-xl text-white rounded-lg font-normal text-sm shadow-xl shadow-indigo-900/30 hover:shadow-2xl hover:shadow-indigo-900/40 transition-all duration-300 transform active:scale-[0.98] border border-white/10"
-                  >
-                    تسجيل الدخول
-                  </button>
-                  <button
-                    onClick={() => { if (allowRegistrations) { setIsLogin(false); setShowForm(true); }}}
-                    disabled={!allowRegistrations}
-                    className="py-2.5 bg-zinc-800/90 hover:bg-zinc-700/90 backdrop-blur-xl text-zinc-100 rounded-lg font-normal text-sm shadow-xl hover:shadow-2xl transition-all duration-300 transform active:scale-[0.98] border border-white/10 disabled:opacity-50"
-                  >
-                    حساب جديد
-                  </button>
-                </div>
-
+              <div className="flex gap-1 mb-4 bg-slate-100/50 p-1 rounded-xl border border-dashed border-slate-200">
                 <button
-                  onClick={() => { toggleAuthModal(false); setShowForm(false); navigate('/'); }}
-                  className="w-full py-2.5 bg-transparent text-zinc-400 hover:text-zinc-300 rounded-lg font-normal border border-zinc-700 hover:border-zinc-600 transition-colors text-sm"
-                >
-                  تصفح كزائر
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="transition-opacity duration-300">
-              <button
-                onClick={() => setShowForm(false)}
-                className="mb-4 text-zinc-400 hover:text-white transition-colors flex items-center gap-2 text-sm relative z-30"
-              >
-                <ArrowRight size={16} />
-                رجوع
-              </button>
-
-              <div className="flex gap-1.5 mb-5 bg-zinc-800/50 p-1 rounded-lg">
-                <button
+                  type="button"
                   onClick={() => setIsLogin(true)}
-                  className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${isLogin ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'}`}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${isLogin ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'bg-transparent text-slate-500 hover:text-slate-800'}`}
                 >
                   تسجيل الدخول
                 </button>
                 <button
+                  type="button"
                   onClick={() => { if (allowRegistrations) setIsLogin(false); }}
                   disabled={!allowRegistrations}
-                  className={`flex-1 py-2 rounded-md text-xs font-medium transition-all ${!isLogin ? 'bg-indigo-600 text-white shadow-lg' : 'text-zinc-400 hover:text-white'} ${!allowRegistrations ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${!isLogin ? 'bg-white text-slate-800 shadow-sm border border-slate-200' : 'bg-transparent text-slate-500 hover:text-slate-800'} ${!allowRegistrations ? 'opacity-50 cursor-not-allowed' : ''}`}
                 >
                   حساب جديد
                 </button>
               </div>
 
-              <form onSubmit={handleSubmit} className="space-y-2.5">
+              <form id="auth-form" onSubmit={handleSubmit} className="space-y-2.5">
                 {!isLogin && (
                   <div className="grid grid-cols-2 gap-2">
                     <div className="relative">
-                      <UserIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <UserIcon className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <input
                         type="text"
                         value={name}
                         onChange={(e) => setName(e.target.value)}
                         placeholder="الاسم"
                         required
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                        className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-4 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
                       />
                     </div>
                     <div className="relative">
-                      <Phone className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <Phone className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <input
                         type="tel"
                         value={phone}
                         onChange={(e) => setPhone(e.target.value)}
                         placeholder="الهاتف (اختياري)"
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                        className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-4 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
                       />
                     </div>
                   </div>
                 )}
 
-                <div className="relative">
-                  <Mail className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="البريد الإلكتروني"
-                    required
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
-                  />
-                </div>
+                  <div className="relative">
+                    <Mail className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="البريد الإلكتروني"
+                      required
+                      className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-4 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
+                    />
+                  </div>
 
                 <div className={`grid ${!isLogin ? 'grid-cols-2' : 'grid-cols-1'} gap-2`}>
                   <div className="relative">
-                    <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                    <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                     <input
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
                       placeholder="كلمة المرور"
                       required
-                      className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                      className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-9 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                      className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                     >
-                      {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                      {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                     </button>
                   </div>
 
                   {!isLogin && (
                     <div className="relative">
-                      <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <Lock className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <input
                         type={showConfirmPassword ? 'text' : 'password'}
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         placeholder="تأكيد"
                         required
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-9 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                        className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-9 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
                       />
                       <button
                         type="button"
                         onClick={() => setShowConfirmPassword((v) => !v)}
-                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                        className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
                       >
-                        {showConfirmPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                        {showConfirmPassword ? <EyeOff size={14} /> : <Eye size={14} />}
                       </button>
                     </div>
                   )}
@@ -550,26 +509,26 @@ export const AuthModal = () => {
                       <button
                         type="button"
                         onClick={() => setGender('male')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${gender === 'male' ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border border-dashed transition-all ${gender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
                       >
                         ذكر
                       </button>
                       <button
                         type="button"
                         onClick={() => setGender('female')}
-                        className={`flex-1 py-2 rounded-lg text-xs font-medium border transition-all ${gender === 'female' ? 'border-indigo-600 bg-indigo-600/10 text-indigo-400' : 'border-zinc-700 text-zinc-400 hover:border-zinc-600'}`}
+                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border border-dashed transition-all ${gender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
                       >
                         أنثى
                       </button>
                     </div>
                     <div className="relative">
-                      <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 text-zinc-500" size={16} />
+                      <MapPin className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
                       <input
                         type="text"
                         value={region}
                         onChange={(e) => setRegion(e.target.value)}
                         placeholder="المنطقة (اختياري)"
-                        className="w-full bg-zinc-800 border border-zinc-700 rounded-lg py-2 pr-9 pl-2 text-sm text-white placeholder:text-zinc-500 focus:border-indigo-600 focus:ring-1 focus:ring-indigo-600/20 transition-all"
+                        className="w-full bg-white border border-dashed border-slate-300 rounded-lg py-2 pr-9 pl-4 text-[11px] font-medium text-slate-800 placeholder:text-slate-400 focus:border-[var(--theme-primary)] focus:ring-0 focus:border-solid transition-all"
                       />
                     </div>
                   </div>
@@ -588,10 +547,10 @@ export const AuthModal = () => {
                           key={item.key}
                           type="button"
                           onClick={() => setRole(item.key)}
-                          className={`p-2.5 rounded-lg border transition-all ${active ? 'border-indigo-600 bg-indigo-600/10 text-white' : 'border-zinc-700 hover:border-zinc-600 text-zinc-400'}`}
+                          className={`p-2 rounded-lg border border-dashed transition-all ${active ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-slate-800 border-solid' : 'border-slate-300 hover:border-slate-400 text-slate-500'}`}
                         >
-                          <ActiveIcon className={`mx-auto mb-1 ${active ? 'text-indigo-400' : 'text-zinc-500'}`} size={18} />
-                          <div className="text-xs font-medium">{item.label}</div>
+                          <ActiveIcon className={`mx-auto mb-1 ${active ? 'text-[var(--theme-primary)]' : 'text-slate-400'}`} size={16} />
+                          <div className="text-[10px] font-bold uppercase tracking-tight">{item.label}</div>
                         </button>
                       );
                     })}
@@ -599,29 +558,33 @@ export const AuthModal = () => {
                 )}
 
                 {statusText && (
-                  <div className="flex items-center gap-2 text-sm text-indigo-300 bg-indigo-500/10 border border-indigo-400/30 px-3 py-2 rounded-xl">
+                  <div className="flex items-center gap-2 text-sm text-green-700 bg-green-50 border border-green-200 px-3 py-2 rounded-xl">
                     <CheckCircle size={16} />
                     <span>{statusText}</span>
                   </div>
                 )}
-
-                <button
-                  type="submit"
-                  disabled={submitting}
-                  className="w-full bg-indigo-600 hover:bg-indigo-500 text-white py-2.5 rounded-lg text-sm font-medium transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 mt-1"
-                >
-                  {submitting ? (
-                    <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  ) : (
-                    <>
-                      {isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'}
-                      <ArrowRight size={16} />
-                    </>
-                  )}
-                </button>
               </form>
             </div>
-          )}
+          </div>
+        </div>
+
+        {/* Fixed Footer with Submit Button */}
+        <div className="flex-shrink-0 p-4 bg-slate-50/50 border-t border-dashed border-slate-200">
+          <button
+            type="submit"
+            form="auth-form"
+            disabled={submitting}
+            className="w-full bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white py-2 rounded-lg text-xs font-black uppercase tracking-[0.2em] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 shadow-lg shadow-[var(--theme-primary)]/20"
+          >
+            {submitting ? (
+              <div className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+            ) : (
+              <>
+                {isLogin ? 'تسجيل الدخول' : 'إنشاء الحساب'}
+                <ArrowRight size={14} />
+              </>
+            )}
+          </button>
         </div>
       </div>
     </div>,

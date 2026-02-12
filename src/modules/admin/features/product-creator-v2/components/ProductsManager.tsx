@@ -14,7 +14,7 @@ interface ProductDisplay {
 }
 
 const statusConfig = {
-  published: { label: 'منشور', color: 'bg-lime-400/10 text-lime-400' },
+  published: { label: 'منشور', color: 'bg-theme-primary/10 text-theme-primary' },
   draft: { label: 'مسودة', color: 'bg-amber-400/10 text-amber-400' },
   hidden: { label: 'مخفي', color: 'bg-slate-400/10 text-slate-400' },
 };
@@ -83,7 +83,7 @@ export const ProductsManager: React.FC = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <Loader2 size={32} className="animate-spin text-lime-400" />
+        <Loader2 size={32} className="animate-spin text-theme-primary" />
         <span className="mr-3 text-slate-400">جاري تحميل البيانات...</span>
       </div>
     );
@@ -227,13 +227,13 @@ const ProductCard: React.FC<{ product: ProductDisplay }> = ({ product }) => {
         
         {/* Quick Actions on Hover */}
         <div className="absolute bottom-2 left-2 right-2 flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-          <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
+          <button title="تعديل المنتج" className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
             <Edit2 size={14} />
           </button>
-          <button className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
+          <button title={product.status === 'hidden' ? 'إظهار المنتج' : 'إخفاء المنتج'} className="p-2 rounded-lg bg-white/10 backdrop-blur-sm hover:bg-white/20 text-white transition-colors">
             {product.status === 'hidden' ? <Eye size={14} /> : <EyeOff size={14} />}
           </button>
-          <button className="p-2 rounded-lg bg-red-500/20 backdrop-blur-sm hover:bg-red-500/30 text-red-400 transition-colors">
+          <button title="حذف المنتج" className="p-2 rounded-lg bg-red-500/20 backdrop-blur-sm hover:bg-red-500/30 text-red-400 transition-colors">
             <Trash2 size={14} />
           </button>
         </div>
@@ -255,7 +255,7 @@ const ProductCard: React.FC<{ product: ProductDisplay }> = ({ product }) => {
         </div>
 
         <div className="flex items-center justify-between mt-2">
-          <span className="text-xs font-semibold text-lime-400">{product.price} ر.ع</span>
+          <span className="text-xs font-semibold text-theme-primary">{product.price} ر.ع</span>
           <span className={`px-2 py-0.5 rounded text-[10px] font-medium ${status.color}`}>
             {status.label}
           </span>
@@ -287,3 +287,4 @@ const ProductCard: React.FC<{ product: ProductDisplay }> = ({ product }) => {
 };
 
 export default ProductsManager;
+

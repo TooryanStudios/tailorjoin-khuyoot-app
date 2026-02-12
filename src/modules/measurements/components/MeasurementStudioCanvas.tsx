@@ -190,6 +190,8 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
             0%, 100% { transform: scale(1); }
             50% { transform: scale(1.15); }
           }
+          .animate-shine-sweep { animation: shine-sweep 3s infinite ease-in-out; }
+          .animate-play-pulse { animation: play-pulse 2s infinite ease-in-out; }
         `}</style>
         
         {/* Row: Help Card + Product Thumbnail (separate blocks) - Desktop Only */}
@@ -213,16 +215,14 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
                   <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
                     {/* Shine Effect */}
                     <div 
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
-                      style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full animate-shine-sweep" 
                     />
                     
                     {/* Play Arrow */}
                     <svg 
-                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5" 
+                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5 animate-play-pulse" 
                       fill="currentColor" 
                       viewBox="0 0 24 24"
-                      style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
                     >
                       <path d="M7 5l12 7-12 7V5z" />
                     </svg>
@@ -233,16 +233,14 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
                   <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
                     {/* Shine Effect */}
                     <div 
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
-                      style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full animate-shine-sweep" 
                     />
                     
                     {/* Play Arrow */}
                     <svg 
-                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5" 
+                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5 animate-play-pulse" 
                       fill="currentColor" 
                       viewBox="0 0 24 24"
-                      style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
                     >
                       <path d="M7 5l12 7-12 7V5z" />
                     </svg>
@@ -297,13 +295,11 @@ export const MeasurementStudioCanvas: React.FC<MeasurementStudioCanvasProps> = (
               ? 'bg-[color:var(--theme-primary)] hover:bg-[color:var(--theme-primary)]/90 border-[color:var(--theme-primary)] cursor-pointer hover:scale-[1.02] active:scale-[0.98]'
               : 'bg-[#1a1a1a] border-white/10 text-white/40 cursor-not-allowed'
           }`}
-          aria-disabled={!isComplete}
           title={isComplete ? t('measurements:startStitching') : t('measurements:fillAllMeasurements')}
         >
           {isComplete && (
             <div 
-              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full opacity-0 group-hover:opacity-100 transition-opacity" 
-              style={{ animation: 'shine-sweep 3s infinite ease-in-out' }} 
+              className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full opacity-0 group-hover:opacity-100 transition-opacity animate-shine-sweep" 
             />
           )}
           <span className={`text-sm font-bold relative z-10 ${isComplete ? 'text-white' : 'text-white/40'}`}>{t('measurements:startStitching')}</span>

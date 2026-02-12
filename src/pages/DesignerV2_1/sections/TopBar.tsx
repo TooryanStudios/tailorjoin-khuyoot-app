@@ -1,9 +1,9 @@
 import React from 'react';
 import { TFunction } from 'i18next';
 import { Trash2 } from 'lucide-react';
-import { DesignerHeader } from '../../modules/navigation/DesignerHeader';
-import { CreditBadge } from '../../modules/CreditManager';
-import type { User } from '../../../types';
+import { DesignerHeader } from '../../../modules/navigation/DesignerHeader';
+import { CreditBadge } from '../../../modules/CreditManager';
+import type { User } from '../../../../types';
 
 export type TopBarProps = {
   t: TFunction<'common'>;

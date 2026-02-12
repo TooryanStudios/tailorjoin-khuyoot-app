@@ -18,7 +18,7 @@ export const PublishButton: React.FC = () => {
         <button
           onClick={publishProduct}
           disabled={loading}
-          className="w-full rounded-lg bg-lime-400 px-4 py-2 text-slate-950 font-semibold text-xs transition-colors hover:bg-lime-300 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+          className="w-full rounded-lg bg-theme-primary px-4 py-2 text-white font-semibold text-xs transition-colors hover:bg-theme-primary/90 disabled:bg-slate-700 disabled:text-slate-400 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
         >
           {loading ? (
             <>
@@ -45,3 +45,4 @@ export const PublishButton: React.FC = () => {
     </div>
   );
 };
+

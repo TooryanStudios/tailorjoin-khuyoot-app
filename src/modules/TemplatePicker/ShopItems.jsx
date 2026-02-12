@@ -12,8 +12,8 @@ export const ShopItems = React.memo(function ShopItems({
 }) {
   if (!items?.length) {
     return (
-      <div className="col-span-2 rounded-xl border border-zinc-800 bg-zinc-950 p-3 text-xs text-zinc-400">
-        No Shop templates available.
+      <div className="col-span-2 rounded-xl border border-zinc-200 bg-zinc-50 p-4 text-xs text-zinc-500 text-center font-bold">
+        لا توجد قوالب متوفرة في المتجر حالياً.
       </div>
     );
   }

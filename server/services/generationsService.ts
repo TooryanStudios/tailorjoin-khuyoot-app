@@ -253,6 +253,10 @@ export async function saveGeneration(opts: {
   creditsUsed?: number;
   userAgent?: string;
   generationVersion?: string;
+
+  // Background context
+  isBackground?: boolean;
+  jobId?: string;
 }): Promise<{ 
   jobId: string; 
   fullImageUrl: string; 
@@ -260,169 +264,99 @@ export async function saveGeneration(opts: {
   templateUrl?: string;
   fabricUrl?: string;
 }> {
-  try {
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('[DEBUG] [GenerationsService] saveGeneration() called');
-    console.log('[DEBUG] [GenerationsService] userId:', opts.userId);
-    console.log('[DEBUG] [GenerationsService] model:', opts.model);
-    console.log('[DEBUG] [GenerationsService] Has imageBase64:', !!opts.imageBase64, '(', opts.imageBase64?.length, 'chars)');
-    console.log('[DEBUG] [GenerationsService] Has templateBase64:', !!opts.templateBase64);
-    console.log('[DEBUG] [GenerationsService] Has fabricBase64:', !!opts.fabricBase64);
-    
-    // Generate unique jobId
-    const jobId = uuidv4();
+  const jobId = opts.jobId || uuidv4();
+  const app = getFirebaseAdminApp();
+  const bucketName = app.storage().bucket().name;
 
-    console.log(`[DEBUG] [GenerationsService] Generated jobId: ${jobId}`);
+  const resultFileName = `${jobId}_result.png`;
+  const thumbFileName = `${jobId}_thumb.webp`;
+  const templateFileName = opts.templateMimeType ? `${jobId}_template.${opts.templateMimeType.split('/')[1] || 'png'}` : null;
+  const fabricFileName = opts.fabricMimeType ? `${jobId}_fabric.${opts.fabricMimeType.split('/')[1] || 'png'}` : null;
 
-    // Generate thumbnail in parallel with full image upload
-    const [thumbnailBase64] = await Promise.all([
-      generateThumbnail(opts.imageBase64),
-    ]);
+  const fullImageUrl = `https://storage.googleapis.com/${bucketName}/generations/${opts.userId}/${resultFileName}`;
+  const thumbnailUrl = `https://storage.googleapis.com/${bucketName}/generations/${opts.userId}/${thumbFileName}`;
+  const templateUrl = templateFileName ? `https://storage.googleapis.com/${bucketName}/generations/${opts.userId}/${templateFileName}` : undefined;
+  const fabricUrl = fabricFileName ? `https://storage.googleapis.com/${bucketName}/generations/${opts.userId}/${fabricFileName}` : undefined;
 
-    console.log(`[GenerationsService] Thumbnail generated, uploading to storage...`);
+  const responseUrls = {
+    jobId,
+    fullImageUrl,
+    thumbnailUrl,
+    templateUrl,
+    fabricUrl,
+  };
 
-    // Upload result and thumbnail, plus optional template and fabric images
-    const uploadPromises: Promise<string>[] = [
-      uploadToFirebaseStorage(
-        opts.imageBase64,
-        opts.userId,
+  const executeWork = async () => {
+    try {
+      console.log(`[GenerationsService] [${jobId}] Processing storage and database...`);
+      
+      const imageData = opts.imageBase64.replace(/^data:.*;base64,/, '');
+      const imageBuffer = Buffer.from(imageData, 'base64');
+
+      const [metadata, thumbnailBuffer] = await Promise.all([
+        sharp(imageBuffer).metadata(),
+        sharp(imageBuffer)
+          .resize(200, 300, { fit: 'cover', position: 'center' })
+          .webp({ quality: 80 })
+          .toBuffer()
+      ]);
+
+      const uploads = [
+        uploadToFirebaseStorage(opts.imageBase64, opts.userId, jobId, resultFileName, 'image/png'),
+        uploadToFirebaseStorage(thumbnailBuffer.toString('base64'), opts.userId, jobId, thumbFileName, 'image/webp'),
+      ];
+
+      if (opts.templateBase64 && templateFileName) {
+        uploads.push(uploadToFirebaseStorage(opts.templateBase64, opts.userId, jobId, templateFileName, opts.templateMimeType!));
+      }
+      if (opts.fabricBase64 && fabricFileName) {
+        uploads.push(uploadToFirebaseStorage(opts.fabricBase64, opts.userId, jobId, fabricFileName, opts.fabricMimeType!));
+      }
+
+      await Promise.all(uploads);
+
+      const record: GenerationRecord = {
+        userId: opts.userId,
         jobId,
-        `${jobId}_result.png`,
-        'image/png'
-      ),
-      uploadToFirebaseStorage(
-        `data:image/webp;base64,${thumbnailBase64}`,
-        opts.userId,
-        jobId,
-        `${jobId}_thumb.webp`,
-        'image/webp'
-      ),
-    ];
+        createdAt: new Date(),
+        fullImageUrl,
+        thumbnailUrl,
+        templateUrl,
+        fabricUrl,
+        templateId: opts.templateId,
+        fabricId: opts.fabricId,
+        settings: {
+          model: opts.model,
+          upscaleEnabled: opts.upscaleEnabled || false,
+          refinementPrompt: opts.refinementPrompt,
+          outputFit: opts.outputFit,
+          preserveFace: opts.preserveFace,
+          preservePose: opts.preservePose,
+          shouldWatermark: opts.shouldWatermark,
+          strength: opts.strength,
+        },
+        imageDimensions: { width: metadata.width || 0, height: metadata.height || 0 },
+        processingTimeMs: opts.processingTimeMs,
+        creditsUsed: opts.creditsUsed,
+        originalTemplateFilename: opts.originalTemplateFilename,
+        originalFabricFilename: opts.originalFabricFilename,
+        generationVersion: opts.generationVersion || '2.1',
+        userAgent: opts.userAgent,
+      };
 
-    // Upload template if provided (non-blocking for speed)
-    if (opts.templateBase64 && opts.templateMimeType) {
-      const templateData = opts.templateBase64.startsWith('data:')
-        ? opts.templateBase64
-        : `data:${opts.templateMimeType};base64,${opts.templateBase64}`;
-      const templateExt = opts.templateMimeType.split('/')[1] || 'png';
-      uploadPromises.push(
-        uploadToFirebaseStorage(
-          templateData,
-          opts.userId,
-          jobId,
-          `${jobId}_template.${templateExt}`,
-          opts.templateMimeType
-        )
-      );
+      await saveGenerationRecord(record);
+      console.log(`[GenerationsService] [${jobId}] ✅ Successfully saved.`);
+    } catch (err) {
+      console.error(`[GenerationsService] [${jobId}] ❌ Background work failed:`, err);
     }
+  };
 
-    // Upload fabric if provided
-    if (opts.fabricBase64 && opts.fabricMimeType) {
-      const fabricData = opts.fabricBase64.startsWith('data:')
-        ? opts.fabricBase64
-        : `data:${opts.fabricMimeType};base64,${opts.fabricBase64}`;
-      const fabricExt = opts.fabricMimeType.split('/')[1] || 'png';
-      uploadPromises.push(
-        uploadToFirebaseStorage(
-          fabricData,
-          opts.userId,
-          jobId,
-          `${jobId}_fabric.${fabricExt}`,
-          opts.fabricMimeType
-        )
-      );
-    }
-
-    const uploadResults = await Promise.all(uploadPromises);
-    const fullImageUrl = uploadResults[0];
-    const thumbnailUrl = uploadResults[1];
-    const templateUrl = uploadResults[2]; // Will be undefined if not uploaded
-    const fabricUrl = uploadResults[3];   // Will be undefined if not uploaded
-
-    console.log(`[GenerationsService] Images uploaded, extracting metadata...`);
-
-    // Get result image dimensions
-    const imageBuffer = Buffer.from(
-      opts.imageBase64.replace(/^data:.*;base64,/, ''),
-      'base64'
-    );
-    const metadata = await sharp(imageBuffer).metadata();
-
-    console.log(`[GenerationsService] Images uploaded, saving to Firestore...`);
-
-    // Create Firestore record with all metadata
-    const record: GenerationRecord = {
-      userId: opts.userId,
-      jobId,
-      createdAt: new Date(),
-      
-      // Image URLs
-      templateUrl,
-      fabricUrl,
-      fullImageUrl,
-      thumbnailUrl,
-      
-      // References
-      templateId: opts.templateId,
-      fabricId: opts.fabricId,
-      
-      // Settings
-      settings: {
-        model: opts.model,
-        upscaleEnabled: opts.upscaleEnabled || false,
-        strength: opts.strength,
-        refinementPrompt: opts.refinementPrompt,
-        outputFit: opts.outputFit,
-        preserveFace: opts.preserveFace,
-        preservePose: opts.preservePose,
-        shouldWatermark: opts.shouldWatermark,
-      },
-      
-      // File Metadata
-      originalTemplateFilename: opts.originalTemplateFilename,
-      originalFabricFilename: opts.originalFabricFilename,
-      imageDimensions: {
-        width: metadata.width || 0,
-        height: metadata.height || 0,
-      },
-      
-      // Performance & Billing
-      processingTimeMs: opts.processingTimeMs,
-      creditsUsed: opts.creditsUsed,
-      
-      // Defaults for sharing and organization
-      isPublic: false,
-      isFavorite: false,
-      wasUpscaled: false,
-      viewCount: 0,
-      likeCount: 0,
-      tags: [],
-      
-      // System
-      generationVersion: opts.generationVersion || 'v2.1.0',
-      userAgent: opts.userAgent,
-    };
-
-    console.log('[DEBUG] [GenerationsService] Saving record to Firestore...');
-    await saveGenerationRecord(record);
-    console.log('[DEBUG] [GenerationsService] ✅ Record saved to Firestore');
-
-    console.log('[DEBUG] [GenerationsService] Generation complete:', jobId);
-    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-
-    return {
-      jobId,
-      fullImageUrl,
-      thumbnailUrl,
-      templateUrl,
-      fabricUrl,
-    };
-  } catch (error) {
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('[DEBUG] [GenerationsService] ❌ ERROR in saveGeneration()');
-    console.error('[DEBUG] [GenerationsService] Error:', error);
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    throw error;
+  if (opts.isBackground) {
+    executeWork(); // Fire and forget
+    return responseUrls;
+  } else {
+    await executeWork();
+    return responseUrls;
   }
 }
 
@@ -497,7 +431,10 @@ export async function getUserGenerations(userId: string, limit: number = 12): Pr
     });
 
     // Sort in memory to avoid requiring a composite index in the Firestore emulator/local dev
-    generations.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0)); return generations.slice(0, limit);  } catch (error) {    console.error('[GenerationsService] Failed to fetch user generations:', error);
+    generations.sort((a, b) => (b.createdAt?.getTime() || 0) - (a.createdAt?.getTime() || 0));
+    return generations.slice(0, limit);
+  } catch (error) {
+    console.error('[GenerationsService] Failed to fetch user generations:', error);
     throw new Error('Failed to fetch generation history');
   }
 }

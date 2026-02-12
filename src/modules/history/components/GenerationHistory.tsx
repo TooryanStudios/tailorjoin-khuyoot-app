@@ -17,7 +17,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
   return (
     <div className="space-y-3 px-4">
       <div className="flex items-center justify-between px-1">
-        <h3 className="text-[11px] font-black text-zinc-400 uppercase tracking-widest flex items-center gap-2">
+        <h3 className="text-[11px] font-black text-zinc-600 uppercase tracking-widest flex items-center gap-2">
           <Clock size={14} className="text-zinc-500" />
           التصاميم السابقة
         </h3>
@@ -31,7 +31,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
           [1, 2, 3].map((i) => (
             <div 
               key={`skeleton-${i}`}
-              className="aspect-[3/4] w-24 shrink-0 rounded-lg bg-zinc-900 border border-zinc-800 animate-pulse"
+              className="aspect-[3/4] w-24 shrink-0 rounded-lg bg-zinc-100 border border-zinc-200 animate-pulse"
             />
           ))
         )}
@@ -46,10 +46,10 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
               key={item.jobId ?? item.clientId ?? idx}
               onClick={() => !isPending && onSelect?.(item)}
               disabled={isPending}
-              className={`relative aspect-[3/4] w-24 shrink-0 rounded-lg bg-zinc-900 border-2 overflow-hidden transition-all snap-start ${
+              className={`relative aspect-[3/4] w-24 shrink-0 rounded-lg bg-white border-2 overflow-hidden transition-all snap-start ${
                 isActive 
-                  ? 'border-white shadow-[0_0_15px_rgba(255,255,255,0.3)]' 
-                  : 'border-zinc-800 hover:border-zinc-700'
+                  ? 'border-purple-500 shadow-[0_0_15px_rgba(168,85,247,0.25)]' 
+                  : 'border-zinc-200 hover:border-zinc-300'
               }`}
             >
               {thumbUrl ? (
@@ -60,14 +60,14 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
                   loading="lazy"
                 />
               ) : (
-                <div className="w-full h-full bg-gradient-to-br from-zinc-500/5 to-transparent flex items-center justify-center">
-                  <HistoryIcon size={18} className="text-zinc-800" />
+                <div className="w-full h-full bg-gradient-to-br from-zinc-100 to-white flex items-center justify-center">
+                  <HistoryIcon size={18} className="text-zinc-400" />
                 </div>
               )}
 
               {isPending && (
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <Loader2 size={16} className="text-white animate-spin" />
+                  <Loader2 size={16} className="text-zinc-700 animate-spin" />
                 </div>
               )}
             </button>
@@ -76,7 +76,7 @@ export const GenerationHistory: React.FC<GenerationHistoryProps> = ({
 
         {!isLoading && items.length === 0 && (
           <div className="w-full py-4 text-center">
-            <p className="text-[9px] text-zinc-600 font-medium italic">
+            <p className="text-[9px] text-zinc-500 font-medium italic">
               سيتم عرض تصاميمك الأخيرة هنا بمجرد البدء في التوليد
             </p>
           </div>

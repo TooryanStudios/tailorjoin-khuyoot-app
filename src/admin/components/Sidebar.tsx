@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle, Star } from 'lucide-react';
+import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle, Star, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 type SidebarItemProps = {
@@ -113,6 +113,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </div>
         
         <div className="flex-1 overflow-y-auto py-6 px-3" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 128px)' }}>
+          <button 
+            onClick={() => navigate('/')} 
+            className="flex items-center gap-3 w-full px-4 py-3 mb-6 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary/20 transition-all border border-theme-primary/20 group"
+          >
+            <Home size={18} className="group-hover:scale-110 transition-transform" />
+            <div className="text-left">
+              <p className="text-xs font-bold leading-none">عرض الموقع</p>
+              <p className="text-[9px] opacity-60 mt-1">الخروج من لوحة الإدارة</p>
+            </div>
+          </button>
+
           <p className="px-4 text-[9px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">الرئيسية</p>
           <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />

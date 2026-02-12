@@ -50,7 +50,11 @@ export const FabricSourceTile = React.memo(function FabricSourceTile(props: {
 
   const internalProductUrl = props.productId ? `/product/${props.productId}` : undefined;
   const shopUrl = meta?.fabric_url || internalProductUrl;
-  const thumbnailUrl = meta?.thumbnail_url || props.fallbackThumbnailUrl || undefined;
+  
+  // Prioritize live previews (data/blob URLs) for tiling/uploads over historical debug data
+  const thumbnailUrl = (props.fallbackThumbnailUrl?.startsWith('data:') || props.fallbackThumbnailUrl?.startsWith('blob:'))
+    ? props.fallbackThumbnailUrl
+    : (meta?.thumbnail_url || props.fallbackThumbnailUrl || undefined);
 
   if (!shopUrl && !thumbnailUrl) return null;
 

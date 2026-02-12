@@ -1073,6 +1073,7 @@ export const ClientMeasurements = () => {
           <button
             onClick={() => navigate(-1)}
             className="p-2 hover:bg-zinc-900 rounded-lg transition-colors"
+            title="رجوع"
           >
             <ChevronLeft size={24} className="text-zinc-300" />
           </button>
@@ -1316,6 +1317,7 @@ export const ClientMeasurements = () => {
                       className={`absolute transform -translate-x-1/2 -translate-y-1/2 transition-all cursor-pointer hover:scale-110 ${isActive ? 'scale-125 z-10' : ''}`}
                       style={{ left, top }}
                       type="button"
+                      title={fieldLabel}
                     >
                       <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg relative ${
                         hasValue 
@@ -1334,7 +1336,7 @@ export const ClientMeasurements = () => {
                   );
                 })
               ) : (
-                MEASUREMENT_MARKERS.map(({ key, top, left, number }) => (
+                MEASUREMENT_MARKERS.map(({ key, top, left, number, label }) => (
                   <button
                     key={key}
                     onClick={() => {
@@ -1346,6 +1348,7 @@ export const ClientMeasurements = () => {
                     }`}
                     style={{ top, left }}
                     type="button"
+                    title={label || `قياس ${number}`}
                   >
                     <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shadow-lg ${
                       activeMeasurement === key 

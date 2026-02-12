@@ -26,34 +26,34 @@ export const InsufficientCreditsModal: React.FC<{
     <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-md" onClick={onClose} />
 
-      <div className="relative w-full max-w-md mx-4 border border-zinc-800 rounded-2xl bg-zinc-950 overflow-hidden">
+      <div className="relative w-full max-w-md mx-4 border border-zinc-200 rounded-2xl bg-white overflow-hidden shadow-2xl">
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-200 transition-colors z-10"
+          className="absolute top-4 right-4 p-2 text-zinc-400 hover:text-zinc-600 transition-colors z-10"
         >
           <X className="w-5 h-5" />
         </button>
 
         <div className="px-6 pt-8 pb-4 text-center">
-          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-amber-500/15 border border-amber-500/30">
-            <AlertTriangle className="w-4 h-4 text-amber-400" />
-            <span className="text-xs font-bold text-amber-200">LOW CREDITS</span>
+          <div className="inline-flex items-center gap-2 mb-4 px-3 py-1 rounded-full bg-amber-50 border border-amber-200">
+            <AlertTriangle className="w-4 h-4 text-amber-500" />
+            <span className="text-xs font-bold text-amber-600">رصيد منخفض</span>
           </div>
-          <h2 className="text-xl font-bold text-white mb-2">Insufficient Credits</h2>
-          <p className="text-sm text-zinc-400">
-            {actionLabel ? `${actionLabel} requires ` : 'This action requires '}<span className="text-zinc-200 font-semibold">{required}</span> credits.
+          <h2 className="text-xl font-bold text-zinc-900 mb-2">رصيد غير كافٍ</h2>
+          <p className="text-sm text-zinc-500 text-center px-4">
+            {actionLabel ? `${actionLabel} يتطلب ` : 'هذا الإجراء يتطلب '}<span className="text-zinc-900 font-bold">{required}</span> نقطة رصيد.
           </p>
         </div>
 
         <div className="px-6 pb-6">
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/30 p-4 text-sm text-zinc-300">
+          <div className="rounded-xl border border-zinc-100 bg-zinc-50 p-4 text-sm text-zinc-600">
             <div className="flex items-center justify-between">
-              <span className="text-zinc-400">Your balance</span>
-              <span className="font-semibold">{balance}</span>
+              <span className="text-zinc-500">رصيدك الحالي</span>
+              <span className="font-bold text-zinc-900">{balance}</span>
             </div>
             <div className="flex items-center justify-between mt-2">
-              <span className="text-zinc-400">Needed</span>
-              <span className="font-semibold">{required}</span>
+              <span className="text-zinc-500">المطلوب</span>
+              <span className="font-bold text-zinc-900">{required}</span>
             </div>
           </div>
 
@@ -65,16 +65,16 @@ export const InsufficientCreditsModal: React.FC<{
                 try { setIsUpgradeModalOpen(true); } catch {}
                 onClose();
               }}
-              className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-500 text-white font-semibold rounded-lg transition-colors"
+              className="w-full px-4 py-3 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-purple-100 active:scale-95"
             >
-              Refill Credits
+              شحن الرصيد
             </button>
             <button
               type="button"
               onClick={onClose}
-              className="w-full px-4 py-3 bg-zinc-800 text-zinc-200 font-semibold rounded-lg hover:bg-zinc-700 transition-colors"
+              className="w-full px-4 py-3 bg-zinc-100 text-zinc-600 font-bold rounded-xl hover:bg-zinc-200 transition-all active:scale-95"
             >
-              OK
+              حسناً
             </button>
           </div>
         </div>

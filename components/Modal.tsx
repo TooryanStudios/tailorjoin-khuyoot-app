@@ -100,8 +100,8 @@ export const Modal: React.FC<ModalProps> = ({
   const showDebug = !!debugId && !!import.meta?.env?.DEV;
 
   const backdropClass = modeless 
-    ? "fixed inset-0 z-[1000] flex items-center justify-center p-4 pb-20 pointer-events-none"
-    : "fixed inset-0 z-[1000] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
+    ? "fixed inset-0 z-[10001] flex items-center justify-center p-4 pb-20 pointer-events-none"
+    : "fixed inset-0 z-[10001] flex items-center justify-center p-4 pb-20 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200";
 
   const modalUi = (
     <div
@@ -158,7 +158,7 @@ export const Modal: React.FC<ModalProps> = ({
               </button>
               <button
                 onClick={onConfirm || onClose}
-                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-gradient-to-r from-indigo-600 to-purple-600 rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-all flex items-center justify-center gap-2"
+                className="flex-1 px-4 py-2.5 text-sm font-medium text-white bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] rounded-xl transition-all flex items-center justify-center gap-2"
               >
                 <Check size={16} />
                 {confirmText}

@@ -26,7 +26,7 @@ interface FeatureCardProps {
 }
 
 const badgeColors = {
-  new: 'bg-lime-400 text-slate-900',
+  new: 'bg-theme-primary text-white',
   top: 'bg-pink-500 text-white',
   hot: 'bg-orange-500 text-white',
   custom: '',
@@ -93,3 +93,4 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 };
 
 export default FeatureCard;
+

@@ -12,6 +12,7 @@ export interface Category {
   parentId: string | null; // null للأقسام الرئيسية
   level: number; // 0 = رئيسي، 1 = فرعي، 2 = فرعي ثانوي
   categoryType: CategoryType; // fashion للملابس (تحتاج قياسات)، other للباقي
+  gender?: string | null; // 'male', 'female', or null for both
   image: string;
   icon?: string; // أيقونة اختيارية
   order: number; // ترتيب العرض
@@ -44,6 +45,7 @@ export interface CategoryFormData {
   slug?: string; // اختياري، يتم توليده تلقائياً
   parentId?: string | null;
   categoryType: CategoryType;
+  gender?: string | null; // 'male', 'female', or null for both
   image: string;
   icon?: string;
   descriptionAr?: string;

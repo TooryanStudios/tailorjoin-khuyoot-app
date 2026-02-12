@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { LogIn, LogOut, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download, User, ChevronDown, SquareSplitHorizontal } from 'lucide-react';
+import { LogIn, LogOut, Moon, Sun, Scissors, ShoppingCart, Package, ClipboardList, Store, PackageOpen, Box, Menu, X, Bell, Download, User, ChevronDown, SquareSplitHorizontal, LayoutDashboard } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useApp } from '../../../context/AppContext';
 import { designService } from '../../../services/designService';
@@ -278,20 +278,15 @@ const HeaderComponent = () => {
       ],
       user: [
         { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
-        { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'collections', labelKey: 'navCollections', path: '/collections', icon: Package },
-        { id: 'shops', labelKey: 'navShops', path: '/shops', icon: null },
+        { id: 'tracking', labelKey: 'navTrackingOrders', path: '/orders', icon: ClipboardList },
         { id: 'tailors', labelKey: 'navTailors', path: '/tailors', icon: null },
-        
       ],
       tailor: [
         { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
-        { id: 'pageB', labelKey: 'navPageB', path: '/page-b', icon: null },
         { id: 'myProducts', labelKey: 'navMyProducts', path: '/tailor/collections', icon: Scissors },
         { id: 'orders', labelKey: 'orders', path: '/tailor/orders', icon: ClipboardList, badge: () => (ordersCount ?? 0) },
-        { id: 'materials', labelKey: 'navMaterials', path: '/tailor-materials', icon: null },
-        { id: 'dashboard', labelKey: 'navDashboard', path: '/tailor-dashboard', icon: null },
-        
+        { id: 'dashboard', labelKey: 'navDashboard', path: '/tailor-dashboard', icon: LayoutDashboard },
       ],
       boutique: [
         { id: 'designer', labelKey: 'navDesigner', path: '/designer-v2-1', icon: SquareSplitHorizontal },
@@ -596,25 +591,48 @@ const HeaderComponent = () => {
               <div className="relative" ref={userMenuRef}>
                 <button
                   onClick={() => setUserMenuOpen((v) => !v)}
-                  className="h-8 px-3 rounded-full border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors text-xs font-bold inline-flex items-center gap-2"
+                  className="h-8 flex items-center gap-2 pr-1 rounded-full border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-900 overflow-hidden hover:bg-slate-50 dark:hover:bg-slate-800 transition-all focus:outline-none focus:ring-2 focus:ring-blue-500"
                   aria-label="User menu"
                   aria-haspopup="menu"
                   aria-expanded={userMenuOpen}
                 >
-                  <User size={14} />
-                  <span className="truncate max-w-[100px]">{user.name || 'User'}</span>
-                  <ChevronDown size={12} className={userMenuOpen ? 'rotate-180 transition-transform' : 'transition-transform'} />
+                  <img 
+                    src={user.profileImage || user.avatar || '/placeholders/avatar.svg'} 
+                    alt={user.name}
+                    className="w-7 h-7 rounded-full object-cover border border-slate-100 dark:border-white/10"
+                  />
+                  <span className="hidden sm:inline text-xs font-bold text-slate-700 dark:text-slate-200 truncate max-w-[80px]">
+                    {user.name || 'User'}
+                  </span>
+                  <ChevronDown size={12} className={`mr-1 text-slate-400 transition-transform ${userMenuOpen ? 'rotate-180' : ''}`} />
                 </button>
 
                 {userMenuOpen && (
                   <div
                     role="menu"
-                    className="absolute left-0 z-[1100] mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0b1020] shadow-xl overflow-hidden"
+                    className="absolute left-0 z-[1100] mt-2 w-48 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-[#0b1020] shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
                   >
-                    <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700">
+                    <div className="px-3 py-2 border-b border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-white/5">
                       <p className="text-xs font-semibold text-slate-900 dark:text-slate-100 truncate">{user.name}</p>
                       <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{user.email}</p>
                     </div>
+
+                    {/* Quick Access Control Panel Link */}
+                    <button
+                      onClick={() => {
+                        const path = user.role === 'admin' ? '/admin' : 
+                                    user.role === 'tailor' ? '/tailor-dashboard' : 
+                                    user.role === 'boutique' ? '/boutique-account' :
+                                    user.role === 'shop' ? '/shop-account' : '/account';
+                        navigate(path);
+                        setUserMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 text-xs font-semibold text-right text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-slate-800"
+                    >
+                      <Store size={14} className="text-blue-500" />
+                      <span>{user.role === 'admin' ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
+                    </button>
+
                     <button
                       type="button"
                       role="menuitem"

@@ -1,0 +1,495 @@
+﻿import React, { useState, useEffect } from 'react';
+import { Order, OrderStatus } from '../types';
+import { 
+  Check, 
+  X, 
+  MessageCircle, 
+  AlertCircle, 
+  DollarSign, 
+  RefreshCw, 
+  Info, 
+  ChevronDown, 
+  ChevronUp, 
+  Ruler, 
+  User as UserIcon, 
+  FileText,
+  Clock,
+  ExternalLink,
+  Target,
+  Search,
+  LayoutGrid,
+  Filter,
+  Calendar
+} from 'lucide-react';
+import { Button } from '../components/Button';
+import { StableImage } from '../components/StableImage';
+import { createNotification } from '../utils/notificationHelpers';
+import { useApp } from '../context/AppContext';
+import { 
+  getTailorOrders, 
+  acceptOrder as acceptOrderService, 
+  rejectOrder as rejectOrderService,
+  updateOrderProgress,
+  sendNoteToCustomer
+} from '../services/orderService';
+import { MontHeader } from '../src/components/MontHeader';
+
+export const TailorOrders = () => {
+  const { user, appSettings } = useApp();
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [noteModal, setNoteModal] = useState<{ orderId: string; show: boolean }>({ orderId: '', show: false });
+  const [note, setNote] = useState('');
+  const [sendingNote, setSendingNote] = useState(false);
+  const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+  
+  // Theme from appSettings or default to home page theme colors (Lime/Sage mix)
+  const theme = {
+    primary: '#63498b', // Custom Home Purple
+    accent: '#CFFF04',  // Khuyoot Lime
+    bg: '#ededed'
+  };
+
+  useEffect(() => {
+    if (user?.id) {
+      loadOrders();
+    }
+  }, [user]);
+
+  const loadOrders = async () => {
+    if (!user?.id) return;
+    
+    try {
+      setLoading(true);
+      const tailorOrders = await getTailorOrders(user.id);
+      setOrders(tailorOrders);
+    } catch (error) {
+      console.error(' Error loading orders:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRefresh = async () => {
+    setRefreshing(true);
+    await loadOrders();
+    setTimeout(() => setRefreshing(false), 500);
+  };
+
+  const filteredOrders = orders.filter(o => 
+    o.customerName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.productName?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    o.id.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const stats = {
+    pending: orders.filter(o => o.status === 'pending').length,
+    active: orders.filter(o => !['pending', 'cancelled', 'delivered', 'rejected'].includes(o.status)).length,
+    completed: orders.filter(o => o.status === 'delivered').length
+  };
+
+  const updateStatus = async (id: string, newStatus: OrderStatus) => {
+    try {
+      await updateOrderProgress(id, newStatus);
+      setOrders(prev => prev.map(o => o.id === id ? { ...o, status: newStatus } : o));
+      
+      const order = orders.find(o => o.id === id);
+      if (order) {
+        createNotification(
+          order.userId,
+          'order',
+          'تحديث حالة طلبك',
+          `تم تحديث حالة طلبك إلى: ${getStatusLabel(newStatus)}`,
+          order.id
+        );
+      }
+    } catch (error) {
+      alert('فشل تحديث حالة الطلب');
+    }
+  };
+
+  const handleNegotiation = async (id: string, accepted: boolean) => {
+    const order = orders.find(o => o.id === id);
+    if (!order) return;
+
+    try {
+      if (accepted) {
+        await updateOrderProgress(id, 'pending', `تم قبول السعر المقترح: ${order.requestedPrice} ر.ع`);
+        setOrders(prev => prev.map(o => 
+          o.id === id 
+            ? { ...o, price: o.requestedPrice || o.price, negotiationStatus: 'accepted' }
+            : o
+        ));
+        
+        createNotification(
+          order.userId,
+          'order',
+          'تم قبول سعرك المقترح',
+          `وافق الخياط على السعر ${order.requestedPrice} ر.ع`,
+          order.id
+        );
+      } else {
+        await sendNoteToCustomer(id, 'عذرا لا يمكننا قبول السعر المقترح', false);
+        setOrders(prev => prev.map(o => 
+          o.id === id 
+            ? { ...o, negotiationStatus: 'rejected' }
+            : o
+        ));
+      }
+    } catch (error) {
+      alert('فشل معالجة التفاوض');
+    }
+  };
+
+  const acceptOrder = async (id: string) => {
+    try {
+      await acceptOrderService(id);
+      await loadOrders();
+      alert('تم قبول الطلب بنجاح');
+    } catch (error) {
+      alert('فشل قبول الطلب');
+    }
+  };
+
+  const rejectOrder = async (id: string) => {
+    const reason = prompt('يرجى إدخال سبب رفض الطلب:');
+    if (!reason) return;
+    try {
+      await rejectOrderService(id, reason);
+      await loadOrders();
+      alert('تم رفض الطلب');
+    } catch (error) {
+      alert('فشل رفض الطلب');
+    }
+  };
+
+  const handleSendNote = async () => {
+    if (!note.trim() || !noteModal.orderId) return;
+    try {
+      setSendingNote(true);
+      await sendNoteToCustomer(noteModal.orderId, note, false);
+      setNoteModal({ orderId: '', show: false });
+      setNote('');
+      alert('تم إرسال الملاحظة');
+    } catch (error) {
+      alert('فشل إرسال الملاحظة');
+    } finally {
+      setSendingNote(false);
+    }
+  };
+
+  const getStatusLabel = (status: OrderStatus): string => {
+    const labels: Record<OrderStatus, string> = {
+      pending: 'قيد الانتظار',
+      measuring: 'أخذ المقاسات',
+      cutting: 'قص',
+      sewing: 'خياطة',
+      ready: 'جاهز',
+      delivered: 'تم التسليم',
+      cancelled: 'ملغي',
+      rejected: 'مرفوض'
+    };
+    return labels[status] || status;
+  };
+
+  if (!user || user.role !== 'tailor') {
+    return (
+      <div className="min-h-screen bg-[#ededed] flex items-center justify-center p-6">
+        <div className="text-center">
+          <h2 className="text-2xl font-bold text-gray-800 mb-2">غير مصرح</h2>
+          <p className="text-gray-600">هذه الصفحة متاحة للخياطين فقط</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+      <div className="sticky top-0 z-50">
+        <MontHeader />
+      </div>
+      
+      <div className="flex-1 overflow-y-auto">
+      {/* --- HERO / BANNER SECTION --- */}
+      <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
+        <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+          {/* Decorative Elements matching Homepage */}
+          <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+          <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+          
+          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4" dir="rtl">
+            <div className="space-y-1">
+              <h1 className="text-xl md:text-2xl font-bold text-white leading-tight">الطلبات الواردة</h1>
+              <p className="text-white/70 text-xs md:text-sm font-normal max-w-sm">إدارة طلبات التفصيل الخاصة بك بكفاءة ومتابعة التقدم مع العملاء.</p>
+            </div>
+            
+            <div className="flex gap-3">
+               <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xl font-bold text-[#CFFF04]">{stats.pending}</span>
+                  <span className="text-[9px] font-medium text-white/60">طلب جديد</span>
+               </div>
+               <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                  <span className="text-xl font-bold text-white">{stats.active}</span>
+                  <span className="text-[9px] font-medium text-white/60">قيد التنفيذ</span>
+               </div>
+               <button 
+                onClick={handleRefresh}
+                title="تحديث البيانات"
+                className="w-12 h-12 bg-[#CFFF04] rounded-lg flex items-center justify-center text-[#63498b] hover:bg-[#CFFF04]/90 transition-all"
+               >
+                 <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
+               </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* --- CONTENT SECTION --- */}
+      <main className="px-4 md:px-8 py-4 max-w-[1400px] mx-auto pb-8">
+        {/* Search and Filters Bar */}
+        <div className="flex flex-col md:flex-row gap-3 mb-6" dir="rtl">
+           <div className="relative flex-1">
+              <input 
+                type="text"
+                placeholder="ابحث برقم الطلب أو اسم العميل..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-11 bg-white rounded-lg border border-gray-200 px-4 pr-10 text-sm font-medium shadow-sm focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all"
+              />
+              <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+           </div>
+           <div className="flex gap-2">
+              <button className="h-11 px-5 bg-white rounded-lg font-medium text-xs flex items-center gap-2 shadow-sm hover:bg-slate-50 transition-colors border border-gray-200">
+                <Filter size={14} />
+                تصفية
+              </button>
+              <button className="h-11 px-5 bg-white rounded-lg font-medium text-xs flex items-center gap-2 shadow-sm hover:bg-slate-50 transition-colors border border-gray-200">
+                <Calendar size={14} />
+                التاريخ
+              </button>
+           </div>
+        </div>
+
+        {loading && !refreshing ? (
+          <div className="flex flex-col items-center justify-center py-20 grayscale opacity-20">
+             <div className="w-12 h-12 border-4 border-[#63498b] border-t-transparent rounded-full animate-spin mb-4"></div>
+             <p className="font-black text-xs uppercase tracking-widest">جاري التحميل...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-20 text-center" dir="rtl">
+             <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center mb-4 shadow-sm border border-gray-100">
+               <LayoutGrid size={32} className="text-slate-300" />
+             </div>
+             <h3 className="text-lg font-bold text-slate-500">لا توجد طلبات لعرضها</h3>
+             <p className="text-sm text-slate-400 font-normal mt-1">حاول تغيير كلمة البحث أو انتظر طلبات جديدة</p>
+          </div>
+        ) : (
+          <div className="space-y-4" dir="rtl">
+            {filteredOrders.map((order) => (
+              <div 
+                key={order.id} 
+                className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-slate-100 hover:shadow-xl hover:shadow-slate-200/50 transition-all group overflow-hidden flex flex-col"
+              >
+                {/* Order Header */}
+                <div className="flex items-start justify-between mb-4">
+                   <div className="flex gap-3">
+                      <div className="w-14 h-16 bg-slate-50 rounded-lg border border-slate-200 p-2 shrink-0">
+                        <img 
+                          src={order.productImage} 
+                          className="w-full h-full object-contain drop-shadow-md" 
+                          alt={order.productName} 
+                        />
+                      </div>
+                      <div className="min-w-0">
+                         <h4 className="text-xs font-black text-slate-900 line-clamp-1 uppercase tracking-tight">{order.productName}</h4>
+                         <p className="text-[10px] font-bold text-slate-400 mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
+                         <div className="mt-2 flex items-center gap-1.5">
+                            <span className={`px-2 py-1 text-[9px] font-bold rounded-md ${
+                              order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
+                              order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
+                              'bg-purple-100 text-[#63498b]'
+                            }`}>
+                              {getStatusLabel(order.status)}
+                            </span>
+                         </div>
+                      </div>
+                   </div>
+                   <div className="flex flex-col items-end gap-1">
+                      <span className="text-sm font-bold text-slate-900">{order.price?.toFixed(3)} ر.ع</span>
+                      <span className="text-[10px] font-medium text-slate-400 flex items-center gap-1">
+                        <Calendar size={9} />
+                        {new Date(order.orderDate).toLocaleDateString('ar-OM', { day: 'numeric', month: 'short' })}
+                      </span>
+                   </div>
+                </div>
+
+                <div className="h-px bg-slate-100 w-full mb-4"></div>
+
+                {/* Details Footer */}
+                <div className="space-y-3">
+                   <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                         <div className="w-7 h-7 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-500">
+                            <UserIcon size={12} />
+                         </div>
+                         <div className="min-w-0">
+                            <p className="text-[10px] font-medium text-slate-400 leading-none">العميل</p>
+                            <p className="text-xs font-semibold text-slate-900 truncate">{order.customerName || 'عميل مجهول'}</p>
+                         </div>
+                      </div>
+                      <button 
+                        onClick={() => setExpandedOrderId(expandedOrderId === order.id ? null : order.id)}
+                        className="flex items-center gap-1 text-[10px] font-semibold text-[#63498b] hover:underline"
+                      >
+                         {expandedOrderId === order.id ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                         {expandedOrderId === order.id ? 'إخفاء' : 'التفاصيل'}
+                      </button>
+                   </div>
+
+                   {/* Expandable Area */}
+                   {expandedOrderId === order.id && (
+                     <div className="pt-2 space-y-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                        {/* Compact Measurements Grid */}
+                        <div className="bg-slate-50 rounded-lg p-3 border border-slate-200">
+                           <div className="flex items-center justify-between mb-3">
+                              <span className="text-[9px] font-black uppercase text-slate-400 tracking-widest flex items-center gap-1.5">
+                                 <Ruler size={10} /> المقاسات
+                              </span>
+                              <span className="text-[9px] font-bold text-slate-300">انش</span>
+                           </div>
+                           <div className="grid grid-cols-2 gap-2">
+                              {order.templatePoints?.map((p) => (
+                                <div key={p.id} className="flex items-center justify-between bg-white px-2 py-1.5 rounded-lg border border-slate-100/50">
+                                   <span className="text-[9px] font-bold text-slate-500 truncate max-w-[60px]">{p.label || p.name}</span>
+                                   <span className="text-[10px] font-black text-slate-900">{order.measurements?.[p.id] || ''}</span>
+                                </div>
+                              ))}
+                           </div>
+                        </div>
+
+                        {/* Visual Map Mini */}
+                        {order.templateUrl && (
+                          <div className="relative aspect-[3/4] bg-slate-50 rounded-lg overflow-hidden border border-slate-200">
+                             <img src={order.templateUrl} className="w-full h-full object-contain opacity-40 grayscale" alt="" />
+                             {order.templatePoints?.map((p, idx) => {
+                                 const val = order.measurements?.[p.id];
+                                 if (!val) return null;
+                                 return (
+                                   <div 
+                                    key={idx}
+                                    style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+                                    className="absolute w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#63498b] shadow-lg border border-white"
+                                   ></div>
+                                 );
+                             })}
+                             <div className="absolute inset-x-0 bottom-0 p-3 bg-gradient-to-t from-black/20 to-transparent">
+                                <p className="text-[8px] font-bold text-white uppercase tracking-widest text-center">خريطة القياسات المحفوظة</p>
+                             </div>
+                          </div>
+                        )}
+
+                        {/* Quick Notes */}
+                        {(order.comments || order.customerNote) && (
+                           <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
+                              <p className="text-[10px] text-slate-600 leading-relaxed italic">"{order.comments || order.customerNote}"</p>
+                           </div>
+                        )}
+
+                        <div className="flex flex-col gap-2">
+                           <a 
+                             href={`/product/${order.productId}`}
+                             target="_blank"
+                             rel="noopener noreferrer"
+                             className="flex items-center justify-center gap-2 w-full py-2 px-4 bg-slate-100 hover:bg-slate-200 rounded-xl text-[10px] font-black uppercase text-slate-500 transition-colors"
+                           >
+                             <ExternalLink size={12} />
+                             صفحة المنتج
+                           </a>
+                        </div>
+                     </div>
+                   )}
+
+                   {/* Action Buttons */}
+                   <div className="pt-3 flex gap-2">
+                      {order.status === 'pending' ? (
+                        <>
+                          <button 
+                            onClick={() => acceptOrder(order.id)}
+                            className="flex-1 h-10 bg-[#CFFF04] text-[#63498b] rounded-lg font-semibold text-xs hover:bg-[#CFFF04]/90 transition-all"
+                          >
+                             قبول الطلب
+                          </button>
+                          <button 
+                            onClick={() => rejectOrder(order.id)}
+                            title="رفض الطلب"
+                            className="w-10 h-10 bg-red-50 text-red-500 rounded-lg flex items-center justify-center hover:bg-red-100 transition-colors border border-red-200"
+                          >
+                             <X size={16} />
+                          </button>
+                        </>
+                      ) : (
+                        order.status !== 'cancelled' && (
+                          <div className="flex-1 flex gap-2">
+                             <select 
+                                value={order.status} 
+                                onChange={(e) => updateStatus(order.id, e.target.value as OrderStatus)}
+                                className="flex-1 h-10 bg-white border border-gray-200 rounded-lg px-3 text-xs font-medium focus:ring-2 focus:ring-[#63498b] focus:border-transparent"
+                             >
+                               <option value="measuring">أخذ المقاسات</option>
+                               <option value="cutting">قص</option>
+                               <option value="sewing">خياطة</option>
+                               <option value="ready">جاهز</option>
+                               <option value="delivered">تم التسليم</option>
+                             </select>
+                             <button 
+                              onClick={() => setNoteModal({ orderId: order.id, show: true })}
+                              title="إرسال ملاحظة"
+                              className="w-10 h-10 bg-white text-slate-500 border border-gray-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors"
+                             >
+                               <MessageCircle size={16} />
+                             </button>
+                          </div>
+                        )
+                      )}
+                   </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </main>
+
+      {/* Note Modal */}
+      {noteModal.show && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" onClick={() => setNoteModal({ orderId: '', show: false })}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full animate-in zoom-in duration-300" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center gap-3 mb-4">
+               <div className="w-9 h-9 rounded-full bg-[#63498b]/10 flex items-center justify-center text-[#63498b]">
+                  <MessageCircle size={18} />
+               </div>
+               <h3 className="text-lg font-bold text-slate-900">إرسال ملاحظة</h3>
+            </div>
+            <textarea
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="اكتب ملاحظتك للعميل هنا..."
+              className="w-full h-32 px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 text-sm font-normal resize-none focus:outline-none focus:border-[#63498b] transition-all"
+            />
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleSendNote}
+                disabled={!note.trim() || sendingNote}
+                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg font-semibold text-sm hover:bg-[#63498b]/90 disabled:opacity-50 transition-all"
+              >
+                {sendingNote ? 'جاري الإرسال...' : 'إرسال الملاحظة'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+};

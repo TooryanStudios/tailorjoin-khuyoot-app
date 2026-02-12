@@ -6,10 +6,12 @@ import { Trash2 } from 'lucide-react';
 import { MeasurementStudioCanvas } from './components/MeasurementStudioCanvas';
 import { firebaseService } from '../../services/firebase';
 import { useApp } from '../../../context/AppContext';
+import { useAuth } from '../../auth/useAuth';
 import { measurementService, MeasurementTemplate } from './services/measurementService';
 
 // ✅ WRAPPED IN React.memo: Component has 811 lines and heavy computations
 const ClientMeasurementsV2Component: React.FC = () => {
+  const { user } = useAuth();
   const { appSettings } = useApp();
   const { t, i18n } = useTranslation(['measurements', 'common']);
   const isAr = i18n.language === 'ar';
@@ -90,18 +92,18 @@ const ClientMeasurementsV2Component: React.FC = () => {
 
   const handleSaveTemplate = () => {
     if (!templateName.trim()) {
-      alert(t('common:templateName') || 'Please enter a template name');
+      alert(t('common:templateNameRequired') || (isAr ? 'يرجى إدخال اسم النموذج' : 'Please enter a template name'));
       return;
     }
 
     if (!isMeasurementsComplete) {
-      alert(t('measurements:fillAllMeasurements') || 'Please fill all measurements with valid numbers before saving');
+      alert(t('measurements:fillAllMeasurements') || (isAr ? 'يرجى ملء جميع القياسات بأرقام صحيحة قبل الحفظ' : 'Please fill all measurements with valid numbers before saving'));
       return;
     }
     
     // Check if name already exists and add numbering
     let finalName = templateName.trim();
-    const existingNames = Object.values(savedTemplates).map(t => t.name);
+    const existingNames = (Object.values(savedTemplates) as any[]).map(t => t.name);
     
     if (existingNames.includes(finalName)) {
       let counter = 2;
@@ -128,7 +130,17 @@ const ClientMeasurementsV2Component: React.FC = () => {
   const handleLoadTemplate = (templateId: string) => {
     const template = savedTemplates[templateId];
     if (template) {
-      setMeasurements(template.measurements);
+      // Only apply measurements that exist in the active template to prevent data pollution
+      const activePointIds = new Set(activeTemplate?.points?.map((p: any) => p.id) || []);
+      const filteredMeasurements: Record<string, string> = {};
+      
+      Object.entries(template.measurements || {}).forEach(([id, val]) => {
+        if (activePointIds.has(id)) {
+          filteredMeasurements[id] = val as string;
+        }
+      });
+      
+      setMeasurements(filteredMeasurements);
       setShowTemplateModal(false);
     }
   };
@@ -318,24 +330,24 @@ const ClientMeasurementsV2Component: React.FC = () => {
 
   return (
     <div
-      className="h-full bg-[#0a0a0a] text-white overflow-x-hidden"
+      className="h-full bg-white text-zinc-900 overflow-x-hidden"
       style={
         {
           // Match Khuyoot logo palette (teal).
-          ['--theme-primary' as any]: '#2FB8B3',
-          ['--theme-secondary' as any]: '#1E9E9B',
+          ['--theme-primary' as any]: '#7c3aed', // Purple-600
+          ['--theme-secondary' as any]: '#6d28d9', // Purple-700
         } as React.CSSProperties
       }
     >
       <style>{`
         /* Ensure stable layout on load - prevent CLS */
         html, body {
-          background: #0a0a0a;
-          color: white;
+          background: white;
+          color: #18181b;
         }
         /* Reserve space for main container to prevent layout shift */
         #root {
-          background: #0a0a0a;
+          background: white;
         }
       `}</style>
       {/* Top Navigation Bar Removed */}
@@ -343,37 +355,37 @@ const ClientMeasurementsV2Component: React.FC = () => {
       {/* Main Content: Single Block with Side-by-Side Layout */}
       <div className="h-full">
         {isLoading ? (
-          <div className="bg-[#1a1a1a] overflow-hidden shadow-2xl min-h-screen sm:min-h-96 h-full">
+          <div className="bg-white overflow-hidden shadow-2xl min-h-screen sm:min-h-96 h-full">
             {/* Mobile Loading State */}
             <div className="sm:hidden space-y-3 p-3">
               {/* Video Help Skeleton */}
-              <div className="bg-[#252525] border border-white/5 rounded-lg p-4 animate-pulse">
+              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-4 animate-pulse">
                 <div className="flex items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-white/5 flex-shrink-0"></div>
+                  <div className="w-16 h-16 rounded-full bg-zinc-100 flex-shrink-0"></div>
                   <div className="flex-1 space-y-2">
-                    <div className="h-3 bg-white/5 rounded w-full"></div>
-                    <div className="h-2 bg-white/5 rounded w-3/4"></div>
+                    <div className="h-3 bg-zinc-100 rounded w-full"></div>
+                    <div className="h-2 bg-zinc-100 rounded w-3/4"></div>
                   </div>
                 </div>
               </div>
 
               {/* Template Selector Skeleton */}
-              <div className="rounded-2xl border border-white/10 bg-white/5 p-4 animate-pulse">
-                <div className="h-4 bg-white/5 rounded w-1/2 mb-3"></div>
-                <div className="h-8 bg-white/5 rounded"></div>
+              <div className="rounded-2xl border border-zinc-100 bg-zinc-50 p-4 animate-pulse">
+                <div className="h-4 bg-zinc-100 rounded w-1/2 mb-3"></div>
+                <div className="h-8 bg-zinc-100 rounded"></div>
               </div>
 
               {/* Preview Skeleton */}
-              <div className="flex flex-col items-center bg-[#0f0f0f] border-b border-white/5 p-3">
-                <div className="w-full max-w-md aspect-[3/4] bg-[#252525] rounded-2xl border border-white/5 animate-pulse"></div>
+              <div className="flex flex-col items-center bg-white border-b border-zinc-50 p-3">
+                <div className="w-full max-w-md aspect-[3/4] bg-zinc-100 rounded-2xl border border-zinc-100 animate-pulse"></div>
               </div>
 
               {/* Measurement Grid Skeleton */}
-              <div className="p-3 bg-[#1a1a1a] space-y-3">
-                <div className="h-4 bg-white/5 rounded w-1/3 animate-pulse"></div>
+              <div className="p-3 bg-white space-y-3">
+                <div className="h-4 bg-zinc-100 rounded w-1/3 animate-pulse"></div>
                 <div className="grid grid-cols-4 gap-2">
                   {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
-                    <div key={i} className="h-20 bg-white/5 rounded animate-pulse"></div>
+                    <div key={i} className="h-20 bg-zinc-100 rounded animate-pulse"></div>
                   ))}
                 </div>
               </div>
@@ -382,25 +394,25 @@ const ClientMeasurementsV2Component: React.FC = () => {
             {/* Desktop Loading State */}
             <div className="hidden sm:flex items-center justify-center h-96">
               <div className="text-center space-y-4">
-                <div className="w-12 h-12 rounded-full border-2 border-white/20 border-t-[color:var(--theme-primary)] animate-spin mx-auto"></div>
-                <p className="text-white/60">{t('measurements:loadingProductData')}</p>
+                <div className="w-12 h-12 rounded-full border-2 border-zinc-200 border-t-[color:var(--theme-primary)] animate-spin mx-auto"></div>
+                <p className="text-zinc-500">{t('measurements:loadingProductData')}</p>
               </div>
             </div>
           </div>
         ) : error ? (
-          <div className="rounded-3xl border border-red-500/30 bg-red-500/10 p-6">
+          <div className="rounded-3xl border border-red-200 bg-red-50 p-6">
             <div className="text-center space-y-2">
-              <p className="text-red-400 font-semibold">{t('measurements:errorLoadingProduct')}</p>
-              <p className="text-red-300/80 text-sm">{error}</p>
+              <p className="text-red-600 font-semibold">{t('measurements:errorLoadingProduct')}</p>
+              <p className="text-red-500/80 text-sm">{error}</p>
               {!effectiveProductId && (
-                <p className="text-white/50 text-xs mt-4">
+                <p className="text-zinc-400 text-xs mt-4">
                     {t('measurements:noProductId')}
                 </p>
               )}
             </div>
           </div>
         ) : (
-          <div className="bg-[#1a1a1a] overflow-hidden h-full">
+          <div className="bg-white overflow-hidden h-full">
             <style>{`
               @keyframes shine-sweep {
                 0% { transform: translateX(-150%) skewX(-45deg); }
@@ -413,29 +425,29 @@ const ClientMeasurementsV2Component: React.FC = () => {
               }
             `}</style>
             {/* MOBILE ONLY: Top Section (Video + Template Selector) */}
-            <div className="sm:hidden bg-[#1a1a1a] space-y-1.5 border-b border-white/5">
+            <div className="sm:hidden bg-white space-y-1.5 border-b border-zinc-100">
               {/* Video Help Button */}
-              <div className="bg-[#252525] border border-white/5 rounded-lg p-4">
+              <div className="bg-zinc-50 border border-zinc-100 rounded-lg p-4">
                 <button
                   type="button"
                   onClick={() => setShowVideoModal(true)}
                   className="w-full flex items-center gap-4 text-left hover:opacity-80 transition-all group"
                 >
                   <div className="flex-1 text-right">
-                    <p className="text-sm font-semibold text-white">
+                    <p className="text-sm font-semibold text-zinc-900">
                       {t('measurements:howToTakeMeasurements')}
                     </p>
-                    <p className="text-xs text-white/50">
+                    <p className="text-xs text-zinc-500">
                       {t('common:watchVideo')}
                     </p>
                   </div>
-                  <div className="relative w-16 h-16 rounded-full bg-[color:var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0 group-hover:bg-[color:var(--theme-primary)]/20 transition-all border-2 border-[color:var(--theme-primary)]/20 overflow-hidden">
+                  <div className="relative w-16 h-16 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0 group-hover:bg-purple-200 transition-all border-2 border-purple-200/50 overflow-hidden">
                     <div 
-                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent w-full h-full" 
+                      className="absolute inset-0 bg-gradient-to-r from-transparent via-white/50 to-transparent w-full h-full" 
                       style={{ animation: 'shine-sweep 3s infinite ease-in-out' }}
                     />
                     <svg 
-                      className="w-8 h-8 text-[color:var(--theme-primary)] relative z-10 translate-x-0.5" 
+                      className="w-8 h-8 text-purple-600 relative z-10 translate-x-0.5" 
                       fill="currentColor" 
                       viewBox="0 0 24 24"
                       style={{ animation: 'play-pulse 2s infinite ease-in-out' }}
@@ -453,16 +465,16 @@ const ClientMeasurementsV2Component: React.FC = () => {
             </div>
 
             {/* MOBILE ONLY: Preview Section */}
-            <div className="sm:hidden flex flex-col items-center bg-[#0f0f0f] border-b border-white/5">
+            <div className="sm:hidden flex flex-col items-center bg-zinc-50 border-b border-zinc-100">
               <div className="w-full max-w-md flex items-start justify-center">
                   {/* Priority: matchedTemplate image > product image > placeholder */}
                   <div
-                    className="relative w-full aspect-[3/4] bg-[#1a1a1a] rounded-2xl border border-white/5 overflow-hidden"
+                    className="relative w-full aspect-[3/4] bg-white rounded-2xl border border-zinc-200 overflow-hidden"
                     onPointerDown={() => setDismissedPreviewHint(true)}
                   >
                     {showPreviewHint && (
                       <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
-                        <div className="px-5 py-3 rounded-2xl bg-black/60 backdrop-blur-sm border border-white/10 text-white/90 text-sm sm:text-base font-semibold shadow-lg">
+                        <div className="px-5 py-3 rounded-2xl bg-white/80 backdrop-blur-sm border border-zinc-200 text-zinc-900 text-sm sm:text-base font-semibold shadow-lg">
                           {t('measurements:tapCirclesToStart')}
                         </div>
                       </div>
@@ -575,6 +587,16 @@ const ClientMeasurementsV2Component: React.FC = () => {
                   onGenerate={async (vals) => {
                     try {
                       setIsStitching(true);
+
+                      // Create a mapping of measurement point IDs to labels for the tailor
+                      const measurementLabels: Record<string, string> = {};
+                      const filteredMeasurements: Record<string, number> = {};
+                      activeTemplate?.points?.forEach((p: any) => {
+                        measurementLabels[p.id] = p.label || p.name || p.id;
+                        if (vals[p.id] !== undefined) {
+                          filteredMeasurements[p.id] = vals[p.id];
+                        }
+                      });
                       
                       // Create order in Firebase
                       const orderData = {
@@ -587,11 +609,22 @@ const ClientMeasurementsV2Component: React.FC = () => {
                         tailorName: (productData as any)?.tailorName || '',
                         tailorLocation: (productData as any)?.location || (productData as any)?.region || '',
                         region: (productData as any)?.region || (productData as any)?.location || '',
-                        measurements: vals,
+                        measurements: filteredMeasurements,
+                        measurementLabels: measurementLabels,
+                        templateId: activeTemplate?.id,
+                        templateUrl: activeTemplate?.imageUrl || activeTemplate?.baseImageUrl,
+                        templatePoints: activeTemplate?.points || [],
+                        templateArrows: activeTemplate?.arrows || [],
                         productImage: coverImageUrl || '',
+                        price: productData?.price || 0,
                         status: 'pending',
+                        orderDate: new Date().toISOString(),
                         createdAt: new Date().toISOString(),
-                        customerId: 'guest', // TODO: Replace with actual user ID when auth is implemented
+                        customerName: user?.displayName || (user as any)?.name || 'عميل خيوط',
+                        customerEmail: user?.email || '',
+                        customerPhone: (user as any)?.phoneNumber || (user as any)?.phone || '',
+                        userId: user?.uid || (user as any)?.id || 'guest',
+                        customerId: user?.uid || (user as any)?.id || 'guest',
                       };
                       
                       const orderId = await firebaseService.createOrder(orderData);
@@ -599,7 +632,7 @@ const ClientMeasurementsV2Component: React.FC = () => {
                       // Navigate to order summary
                       navigate(`/order-summary/${orderId}`);
                     } catch (error) {
-                      alert('Failed to create order. Please try again.');
+                      alert(isAr ? 'فشل في إنشاء الطلب. يرجى المحاولة مرة أخرى.' : 'Failed to create order. Please try again.');
                       setIsStitching(false);
                     }
                   }}
@@ -731,11 +764,13 @@ const ClientMeasurementsV2Component: React.FC = () => {
                 <div className="w-full max-w-md mt-4">
                   <button
                     onClick={() => setShowSliders(!showSliders)}
-                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-[#252525] border border-white/5 hover:bg-[#2a2a2a] transition-colors mb-2"
+                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg bg-zinc-100 dark:bg-zinc-800 border border-zinc-200 dark:border-white/5 hover:bg-zinc-200 dark:hover:bg-zinc-700 transition-colors mb-2"
                   >
-                    <span className="text-xs font-semibold text-white/70">Visual Controls</span>
+                    <span className="text-xs font-semibold text-zinc-900 dark:text-white/70">
+                      {isAr ? 'أدوات التحكم البصرية' : 'Visual Controls'}
+                    </span>
                     <svg
-                      className={`w-4 h-4 text-white/50 transition-transform ${showSliders ? 'rotate-180' : ''}`}
+                      className={`w-4 h-4 text-zinc-500 dark:text-white/50 transition-transform ${showSliders ? 'rotate-180' : ''}`}
                       fill="none"
                       stroke="currentColor"
                       viewBox="0 0 24 24"
@@ -747,42 +782,44 @@ const ClientMeasurementsV2Component: React.FC = () => {
                   {showSliders && (
                     <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
-                      Point Scale: {pointScale.toFixed(1)}
+                    <label className="text-[10px] font-semibold text-zinc-500 dark:text-white/50 mb-1.5 block pb-1">
+                      {isAr ? 'حجم النقاط' : 'Point Scale'}: {pointScale.toFixed(1)}
                     </label>
-                    <div className="rounded-lg bg-[#252525] border border-white/5 p-2">
+                    <div className="rounded-lg bg-zinc-100 dark:bg-[#252525] border border-zinc-200 dark:border-white/5 p-2 pb-3">
                       <input
                         type="range"
                         min="0.5"
                         max="1.5"
                         step="0.1"
                         value={pointScale}
+                        title="Point Scale Control"
                         onChange={(e) => setPointScale(parseFloat(e.target.value))}
                         className="w-full h-1 rounded-lg appearance-none cursor-pointer"
                         dir="ltr"
                         style={{
-                          background: `linear-gradient(to right, var(--theme-primary) ${((pointScale - 0.5) / 1.0) * 100}%, rgba(255,255,255,0.1) ${((pointScale - 0.5) / 1.0) * 100}%)`
+                          background: `linear-gradient(to right, #7c3aed ${((pointScale - 0.5) / 1.0) * 100}%, rgba(0,0,0,0.1) ${((pointScale - 0.5) / 1.0) * 100}%)`
                         }}
                       />
                     </div>
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-semibold text-white/50 mb-1.5 block">
-                      Line Thickness: {lineThickness.toFixed(1)}
+                    <label className="text-[10px] font-semibold text-zinc-500 dark:text-white/50 mb-1.5 block pb-1">
+                      {isAr ? 'سمك الخطوط' : 'Line Thickness'}: {lineThickness.toFixed(1)}
                     </label>
-                    <div className="rounded-lg bg-[#252525] border border-white/5 p-2">
+                    <div className="rounded-lg bg-zinc-100 dark:bg-[#252525] border border-zinc-200 dark:border-white/5 p-2 pb-3">
                       <input
                         type="range"
                         min="0.5"
                         max="1.5"
                         step="0.1"
                         value={lineThickness}
+                        title="Line Thickness Control"
                         onChange={(e) => setLineThickness(parseFloat(e.target.value))}
                         className="w-full h-1 rounded-lg appearance-none cursor-pointer"
                         dir="ltr"
                         style={{
-                          background: `linear-gradient(to right, var(--theme-primary) ${((lineThickness - 0.5) / 1.0) * 100}%, rgba(255,255,255,0.1) ${((lineThickness - 0.5) / 1.0) * 100}%)`
+                          background: `linear-gradient(to right, #7c3aed ${((lineThickness - 0.5) / 1.0) * 100}%, rgba(0,0,0,0.1) ${((lineThickness - 0.5) / 1.0) * 100}%)`
                         }}
                       />
                     </div>
@@ -805,23 +842,25 @@ const ClientMeasurementsV2Component: React.FC = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-[#1a1a1a] border border-[color:var(--theme-primary)]/30 rounded-2xl p-6 w-[90%] max-w-4xl shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
+          <div className="bg-white dark:bg-[#1a1a1a] border border-purple-600/30 rounded-2xl p-6 w-[90%] max-w-4xl shadow-2xl relative" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-xl font-bold text-white">{t('measurements:howToTakeMeasurements')}</h3>
+              <h3 className="text-xl font-bold text-zinc-900 dark:text-white">{t('measurements:howToTakeMeasurements')}</h3>
               <button
                 onClick={() => setShowVideoModal(false)}
-                className="w-8 h-8 rounded-lg bg-white/10 hover:bg-white/20 flex items-center justify-center text-white transition-colors"
+                className="w-8 h-8 rounded-lg bg-zinc-100 dark:bg-white/10 hover:bg-zinc-200 dark:hover:bg-white/20 flex items-center justify-center text-zinc-600 dark:text-white transition-colors font-bold"
               >
                 ✕
               </button>
             </div>
             {videoUrl ? (
-              <div className="rounded-xl overflow-hidden border border-white/10 bg-black aspect-video relative">
+              <div className="rounded-xl overflow-hidden border border-zinc-200 dark:border-white/10 bg-black aspect-video relative">
                 {videoLoading && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-black z-10">
+                  <div className="absolute inset-0 flex items-center justify-center bg-zinc-50 dark:bg-black z-10">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="w-12 h-12 rounded-full border-4 border-white/10 border-t-[color:var(--theme-primary)] animate-spin" />
-                      <p className="text-sm text-white/50">Loading video...</p>
+                      <div className="w-12 h-12 rounded-full border-4 border-zinc-200 dark:border-white/10 border-t-purple-600 animate-spin" />
+                      <p className="text-sm text-zinc-500 dark:text-white/50">
+                        {isAr ? 'جاري تحميل الفيديو...' : 'Loading video...'}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -838,8 +877,8 @@ const ClientMeasurementsV2Component: React.FC = () => {
                 />
               </div>
             ) : (
-              <div className="rounded-xl border border-white/10 bg-[#252525] p-8 text-center">
-                <p className="text-white/60">{t('measurements:noVideoGuide')}</p>
+              <div className="rounded-xl border border-zinc-200 dark:border-white/10 bg-zinc-50 dark:bg-[#252525] p-8 text-center">
+                <p className="text-zinc-500 dark:text-white/60">{t('measurements:noVideoGuide')}</p>
               </div>
             )}
           </div>
@@ -855,24 +894,27 @@ const ClientMeasurementsV2Component: React.FC = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-[#1a1a1a] border border-[color:var(--theme-primary)]/30 rounded-2xl p-8 w-96 shadow-2xl">
-            <h3 className="text-lg font-bold text-white mb-4">
+          <div className="bg-white dark:bg-[#1a1a1a] border border-purple-600/30 rounded-2xl p-8 w-96 shadow-2xl">
+            <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-4">
               {activeTemplate?.points?.find(p => p.id === activePointId)?.label || t('measurements:enterMeasurement')}
             </h3>
             <div className="space-y-4">
+              <label htmlFor="point-measurement-input" className="sr-only">{activeTemplate?.points?.find(p => p.id === activePointId)?.label || t('measurements:enterMeasurement')}</label>
               <input
+                id="point-measurement-input"
                 type="number"
                 value={pointInputValue}
                 onChange={(e) => setPointInputValue(e.target.value)}
                 onKeyDown={handlePointKeyDown}
                 placeholder={t('measurements:enterNumber')}
-                className="w-full px-4 py-3 bg-[#252525] border border-[color:var(--theme-primary)]/40 rounded-lg text-white placeholder-white/40 focus:outline-none focus:border-[color:var(--theme-primary)]/90 transition-colors"
+                title={t('measurements:enterMeasurement')}
+                className="w-full px-4 py-3 bg-zinc-50 dark:bg-[#252525] border border-purple-600/40 rounded-lg text-zinc-900 dark:text-white placeholder-zinc-400 dark:placeholder-white/40 focus:outline-none focus:border-purple-600 dark:focus:border-[color:var(--theme-primary)]/90 transition-colors"
                 autoFocus
               />
               <div className="flex gap-3 pt-4">
                 <button
                   onClick={handlePointConfirm}
-                  className="flex-1 px-4 py-2 bg-[#2fb8b3] hover:bg-[#2fb8b3]/90 text-white font-bold rounded-lg transition-colors"
+                  className="flex-1 px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white font-bold rounded-lg transition-colors"
                 >
                   {t('measurements:confirm')}
                 </button>
@@ -881,12 +923,12 @@ const ClientMeasurementsV2Component: React.FC = () => {
                     setActivePointId(null);
                     setPointInputValue('');
                   }}
-                  className="flex-1 px-4 py-2 bg-white/10 border border-white/20 text-white font-bold rounded-lg hover:bg-white/20 transition-colors"
+                  className="flex-1 px-4 py-2 bg-zinc-100 dark:bg-white/10 border border-zinc-200 dark:border-white/20 text-zinc-900 dark:text-white font-bold rounded-lg hover:bg-zinc-200 dark:hover:bg-white/20 transition-colors"
                 >
                   {t('measurements:cancel')}
                 </button>
               </div>
-              <p className="text-xs text-white/50 text-center">{t('measurements:pressEnterOrEscape')}</p>
+              <p className="text-xs text-zinc-500 dark:text-white/50 text-center">{t('measurements:pressEnterOrEscape')}</p>
             </div>
           </div>
         </div>,
@@ -897,12 +939,12 @@ const ClientMeasurementsV2Component: React.FC = () => {
         <div className="max-w-7xl mx-auto px-6 pb-2">
           <div className="mt-10 rounded-3xl border border-blue-500/30 bg-blue-500/5 overflow-hidden shadow-lg">
           <div className="bg-blue-500/10 border-b border-blue-500/30 px-6 py-4 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-blue-400">DEBUG: Product & Navigation Data</h3>
+            <h3 className="text-sm font-bold text-blue-400">{isAr ? 'تصحيح الأخطاء: بيانات المنتج والتنقل' : 'DEBUG: Product & Navigation Data'}</h3>
             <button
               onClick={() => setShowDebug((prev) => !prev)}
               className="px-3 py-1 rounded-lg bg-blue-500/20 hover:bg-blue-500/30 text-blue-300 text-xs font-semibold transition-all"
             >
-              {showDebug ? 'Hide' : 'Show'}
+              {showDebug ? (isAr ? 'إخفاء' : 'Hide') : (isAr ? 'إظهار' : 'Show')}
             </button>
           </div>
           {showDebug && (
@@ -910,35 +952,35 @@ const ClientMeasurementsV2Component: React.FC = () => {
               {/* Loaded Product Data */}
               {productData && (
                 <div className="bg-[#1a1a1a] border border-white/5 rounded-lg p-4">
-                  <h4 className="text-xs font-semibold text-white/70 mb-3">Loaded Product Data:</h4>
-                  <div className="space-y-2 text-[10px]">
-                    <p><span className="text-white/50">ID:</span> <span className="text-white/80 break-all">{productData.id || 'N/A'}</span></p>
-                    <p><span className="text-white/50">Name:</span> <span className="text-white/80">{productData.name || 'N/A'}</span></p>
-                    <p><span className="text-white/50">Category:</span> <span className="text-white/80">{productData.category || 'N/A'}</span></p>
-                    <p><span className="text-white/50">Description:</span> <span className="text-white/80">{productData.description?.substring(0, 50) || 'N/A'}...</span></p>
-                    <p><span className="text-white/50">Price:</span> <span className="text-white/80">{productData.price || 'N/A'}</span></p>
-                    <p><span className="text-white/50">Image:</span> <span className="text-white/80">{productData.imageUrl ? 'Present' : 'Missing'}</span></p>
-                    <p><span className="text-white/50">Category ID:</span> <span className="text-white/80">{productData.categoryId || 'N/A'}</span></p>
+                  <h4 className="text-xs font-semibold text-white/70 mb-3">{isAr ? 'بيانات المنتج المحملة:' : 'Loaded Product Data:'}</h4>
+                  <div className="space-y-2 text-[10px] text-right" dir={isAr ? 'rtl' : 'ltr'}>
+                    <p><span className="text-white/50">{isAr ? 'المعرف:' : 'ID:'}</span> <span className="text-white/80 break-all">{productData.id || 'N/A'}</span></p>
+                    <p><span className="text-white/50">{isAr ? 'الاسم:' : 'Name:'}</span> <span className="text-white/80">{productData.name || 'N/A'}</span></p>
+                    <p><span className="text-white/50">{isAr ? 'الفئة:' : 'Category:'}</span> <span className="text-white/80">{productData.category || 'N/A'}</span></p>
+                    <p><span className="text-white/50">{isAr ? 'الوصف:' : 'Description:'}</span> <span className="text-white/80">{productData.description?.substring(0, 50) || 'N/A'}...</span></p>
+                    <p><span className="text-white/50">{isAr ? 'السعر:' : 'Price:'}</span> <span className="text-white/80">{productData.price || 'N/A'}</span></p>
+                    <p><span className="text-white/50">{isAr ? 'الصورة:' : 'Image:'}</span> <span className="text-white/80">{productData.imageUrl ? (isAr ? 'متوفرة' : 'Present') : (isAr ? 'غير متوفرة' : 'Missing')}</span></p>
+                    <p><span className="text-white/50">{isAr ? 'معرف الفئة:' : 'Category ID:'}</span> <span className="text-white/80">{productData.categoryId || 'N/A'}</span></p>
                   </div>
                 </div>
               )}
 
               {/* URL & Route Info */}
               <div className="bg-[#1a1a1a] border border-white/5 rounded-lg p-4">
-                <h4 className="text-xs font-semibold text-white/70 mb-2">URL & Route Info:</h4>
-                <div className="space-y-1 text-[10px]">
-                  <p><span className="text-white/50">Product ID (effective):</span> <span className="text-white/80">{effectiveProductId || 'None'}</span></p>
-                  <p><span className="text-white/50">Current Path:</span> <span className="text-white/80 break-all">{window.location.pathname}</span></p>
-                  <p><span className="text-white/50">Loading:</span> <span className="text-white/80">{isLoading ? 'Yes' : 'No'}</span></p>
-                  <p><span className="text-white/50">Error:</span> <span className="text-white/80">{error || 'None'}</span></p>
+                <h4 className="text-xs font-semibold text-white/70 mb-2">{isAr ? 'معلومات الرابط والمسار:' : 'URL & Route Info:'}</h4>
+                <div className="space-y-1 text-[10px] text-right" dir={isAr ? 'rtl' : 'ltr'}>
+                  <p><span className="text-white/50">{isAr ? 'معرف المنتج (فعلي):' : 'Product ID (effective):'}</span> <span className="text-white/80">{effectiveProductId || 'None'}</span></p>
+                  <p><span className="text-white/50">{isAr ? 'المسار الحالي:' : 'Current Path:'}</span> <span className="text-white/80 break-all">{window.location.pathname}</span></p>
+                  <p><span className="text-white/50">{isAr ? 'قيد التحميل:' : 'Loading:'}</span> <span className="text-white/80">{isLoading ? (isAr ? 'نعم' : 'Yes') : (isAr ? 'لا' : 'No')}</span></p>
+                  <p><span className="text-white/50">{isAr ? 'خطأ:' : 'Error:'}</span> <span className="text-white/80">{error || 'None'}</span></p>
                 </div>
               </div>
 
               {/* Location State */}
               {state && (
                 <div className="bg-[#1a1a1a] border border-white/5 rounded-lg p-4">
-                  <h4 className="text-xs font-semibold text-white/70 mb-2">Location State:</h4>
-                  <pre className="text-[10px] text-white/60 overflow-auto max-h-40 bg-[#0a0a0a] p-2 rounded border border-white/5">
+                  <h4 className="text-xs font-semibold text-white/70 mb-2">{isAr ? 'حالة الموقع (Location State):' : 'Location State:'}</h4>
+                  <pre className="text-[10px] text-white/60 overflow-auto max-h-40 bg-[#0a0a0a] p-2 rounded border border-white/5" dir="ltr">
                     {JSON.stringify(state, null, 2)}
                   </pre>
                 </div>
@@ -957,33 +999,33 @@ const ClientMeasurementsV2Component: React.FC = () => {
           role="dialog"
           aria-modal="true"
         >
-          <div className="bg-zinc-900 rounded-2xl border border-white/10 max-w-md w-full p-6 space-y-4 shadow-2xl">
+          <div className="bg-white rounded-2xl border border-zinc-200 max-w-md w-full p-6 space-y-4 shadow-2xl">
             <div className="flex items-center justify-between">
-              <h3 className="text-lg font-bold text-white">
+              <h3 className="text-lg font-bold text-zinc-900">
                 {templateModalMode === 'save' 
                   ? t('measurements:saveMeasurements') 
                   : t('measurements:loadSavedMeasurements')}
               </h3>
-              <button onClick={() => { setShowTemplateModal(false); setTemplateName(''); }} className="text-white/50 hover:text-white transition-colors">
+              <button onClick={() => { setShowTemplateModal(false); setTemplateName(''); }} className="text-zinc-400 hover:text-zinc-600 transition-colors">
                 ✕
               </button>
             </div>
 
             {/* Save New Template Section */}
             {templateModalMode === 'save' && (
-              <div className="space-y-4 border-b border-white/10 pb-6">
+              <div className="space-y-4 border-b border-zinc-100 pb-6">
                 <div className="flex gap-2">
                   <input
                     type="text"
                     value={templateName}
                     onChange={(e) => setTemplateName(e.target.value)}
                     placeholder={t('common:templateName') || 'Template name...'}
-                    className="flex-1 bg-zinc-800 border border-white/10 rounded-lg px-3 py-2 text-white placeholder-white/30 text-sm focus:outline-none focus:border-emerald-500"
+                    className="flex-1 bg-zinc-50 border border-zinc-200 rounded-lg px-3 py-2 text-zinc-900 placeholder-zinc-400 text-sm focus:outline-none focus:border-purple-500"
                     onKeyDown={(e) => e.key === 'Enter' && handleSaveTemplate()}
                   />
                   <button
                     onClick={handleSaveTemplate}
-                    className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
+                    className="px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white rounded-lg text-sm font-semibold transition-colors flex items-center gap-2"
                   >
                     {t('common:save')}
                   </button>
@@ -994,24 +1036,24 @@ const ClientMeasurementsV2Component: React.FC = () => {
             {/* Load Template Section */}
             <div className="space-y-2">
               {templateModalMode === 'save' && (
-                <label className="text-sm font-semibold text-white/70">{t('measurements:loadSavedMeasurements')}</label>
+                <label className="text-sm font-semibold text-zinc-500">{t('measurements:loadSavedMeasurements')}</label>
               )}
               <div className="max-h-64 overflow-y-auto space-y-2">
                 {Object.entries(savedTemplates).length === 0 ? (
-                  <p className="text-white/40 text-sm text-center py-4">{t('common:noSavedTemplates')}</p>
+                  <p className="text-zinc-400 text-sm text-center py-4">{t('common:noSavedTemplates')}</p>
                 ) : (
                   Object.entries(savedTemplates).map(([id, template]) => (
-                    <div key={id} className="flex items-center justify-between bg-zinc-800 rounded-lg p-3 hover:bg-zinc-700 transition-colors">
+                    <div key={id} className="flex items-center justify-between bg-zinc-50 rounded-lg p-3 hover:bg-zinc-100 transition-colors border border-zinc-100">
                       <button
                         onClick={() => handleLoadTemplate(id)}
                         className="flex-1 text-left"
                       >
-                        <p className="text-white font-medium text-sm">{template.name}</p>
-                        <p className="text-white/40 text-xs">{Object.keys(template.measurements).length} {t('common:measurements')}</p>
+                        <p className="text-zinc-900 font-bold text-sm">{(template as any).name}</p>
+                        <p className="text-zinc-500 text-xs tracking-tight">{Object.keys((template as any).measurements || {}).length} {t('common:measurements')}</p>
                       </button>
                       <button
                         onClick={() => handleDeleteTemplate(id)}
-                        className="text-red-400 hover:text-red-300 transition-colors p-2"
+                        className="text-red-500 hover:text-red-600 transition-colors p-2"
                         title={t('common:delete')}
                       >
                         <Trash2 size={18} />
