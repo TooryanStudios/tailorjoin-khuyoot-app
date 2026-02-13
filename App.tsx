@@ -397,8 +397,6 @@ const AppContent: React.FC = () => {
                {/* Jank sandbox without ClientLayout (no header/footer) */}
                <Route path="/jank-sandbox" element={<JankSandbox />} />
                  <Route path="/visualizer" element={<VisualizerPage />} />
-               <Route path="/transaction-history" element={<TransactionHistory />} />
-
                {/* Homepage / Studio Shell with Persistent Header */}
                <Route element={<AppLayout />}>
                  <Route path="/" element={<DemoShellLayout />}>
@@ -440,6 +438,7 @@ const AppContent: React.FC = () => {
                  <Route path="/shop-account" element={<ShopAccount />} />
                  {/* Fabric store removed in new role model */}
                  <Route path="/account/*" element={<Account />} />
+                 <Route path="/transaction-history" element={<TransactionHistory />} />
                  <Route path="/family-measurements" element={<FamilyMeasurements />} />
                  <Route path="/checkout" element={<Checkout />} />
                  <Route path="/measurements-old" element={<Measurements />} />
@@ -535,6 +534,9 @@ const RootModalPortal: React.FC = () => {
       window.dispatchEvent(new CustomEvent('khuyoot:credits-updated', { 
         detail: { balance: newBalance } 
       }));
+      
+      // Also refresh user profile to update TryOn page
+      window.dispatchEvent(new CustomEvent('khuyoot:refresh-user-data'));
     } catch (error: any) {
       throw new Error(error?.message || 'فشل في إضافة الرصيد');
     }

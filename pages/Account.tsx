@@ -1,17 +1,156 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useOrderDetails } from '../src/context/OrderDetailsContext';
+import { useModalStore } from '../src/store/useModalStore';
 import { 
    LogOut, Ruler, ShoppingBag, Edit2, Crown, 
    Package, Wallet, User as UserIcon, ArrowRight, Phone, RefreshCw, AlertTriangle, X,
    Camera, Save, Mail, MapPin, Calendar, LayoutGrid, List, Shield, Scissors, Users, Trash2
 } from 'lucide-react';
-import { Order, FamilyMember } from '../types';
+import { Order, FamilyMember, GarmentType } from '../types';
 import { getUserOrders } from '../services/orderService';
 import { firebaseService } from '../services/firebase';
 import { uploadAvatar } from '../services/storageService';
 import { MontHeader } from '../src/components/MontHeader';
+
+// Measurement templates for different garment types
+const measurementTemplates: Record<GarmentType, { label: string; fields: { key: string; label: string; unit: string }[] }> = {
+  dishdasha: {
+    label: 'دشداشة / ثوب',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'كم اليد', unit: 'سم' },
+      { key: 'neck', label: 'الرقبة', unit: 'سم' },
+      { key: 'armhole', label: 'حجر الإبط', unit: 'سم' },
+    ]
+  },
+  thobe: {
+    label: 'ثوب',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'كم اليد', unit: 'سم' },
+      { key: 'neck', label: 'الرقبة', unit: 'سم' },
+    ]
+  },
+  abaya: {
+    label: 'عباية',
+    fields: [
+      { key: 'length', label: 'الطول الكلي', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'bust', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'hips', label: 'الأرداف', unit: 'سم' },
+      { key: 'sleeve', label: 'طول الكم', unit: 'سم' },
+      { key: 'armhole', label: 'حجر الإبط', unit: 'سم' },
+    ]
+  },
+  dress: {
+    label: 'فستان',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'bust', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'hips', label: 'الأرداف', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'sleeve', label: 'طول الكم', unit: 'سم' },
+    ]
+  },
+  omani: {
+    label: 'لباس عماني',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'كم اليد', unit: 'سم' },
+      { key: 'neck', label: 'الرقبة', unit: 'سم' },
+    ]
+  },
+  dhofari: {
+    label: 'لباس ظفاري',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'كم اليد', unit: 'سم' },
+    ]
+  },
+  suri: {
+    label: 'لباس صوري',
+    fields: [
+      { key: 'length', label: 'الطول', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'كم اليد', unit: 'سم' },
+    ]
+  },
+  shirt: {
+    label: 'قميص',
+    fields: [
+      { key: 'neck', label: 'الرقبة', unit: 'سم' },
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'sleeve', label: 'طول الكم', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'length', label: 'الطول', unit: 'سم' },
+    ]
+  },
+  suit: {
+    label: 'بدلة',
+    fields: [
+      { key: 'chest', label: 'الصدر', unit: 'سم' },
+      { key: 'waist', label: 'الوسط', unit: 'سم' },
+      { key: 'shoulder', label: 'الكتف', unit: 'سم' },
+      { key: 'sleeve', label: 'طول الكم', unit: 'سم' },
+      { key: 'jacketLength', label: 'طول الجاكيت', unit: 'سم' },
+      { key: 'pantsLength', label: 'طول البنطلون', unit: 'سم' },
+      { key: 'inseam', label: 'الداخلية', unit: 'سم' },
+    ]
+  },
+  other: {
+    label: 'أخرى',
+    fields: [
+      { key: 'measurement1', label: 'مقاس 1', unit: 'سم' },
+      { key: 'measurement2', label: 'مقاس 2', unit: 'سم' },
+      { key: 'measurement3', label: 'مقاس 3', unit: 'سم' },
+      { key: 'measurement4', label: 'مقاس 4', unit: 'سم' },
+    ]
+  },
+};
+
+// Helper to normalize type - converts Arabic labels to English keys
+const normalizeGarmentType = (type: string): GarmentType => {
+  // If already a valid English key, return it
+  if (measurementTemplates[type as GarmentType]) {
+    return type as GarmentType;
+  }
+  
+  // Map Arabic labels to English keys
+  const arabicToEnglish: Record<string, GarmentType> = {
+    'دشداشة / ثوب': 'dishdasha',
+    'دشداشة': 'dishdasha',
+    'ثوب': 'thobe',
+    'عباية': 'abaya',
+    'فستان': 'dress',
+    'لباس عماني': 'omani',
+    'لباس ظفاري': 'dhofari',
+    'لباس صوري': 'suri',
+    'قميص': 'shirt',
+    'بدلة': 'suit',
+    'أخرى': 'other',
+  };
+  
+  return arabicToEnglish[type] || 'dishdasha';
+};
 
 // Helper function to get Arabic role label
 const getRoleLabel = (role?: string) => {
@@ -25,14 +164,18 @@ const getRoleLabel = (role?: string) => {
 
 type TabType = 'orders' | 'measurements' | 'family' | 'wallet';
 
+const MONT_HEADER_ID = 'khuyoot-mont-header';
+const DEFAULT_HEADER_SPACER_HEIGHT = 72;
+
 export const Account = () => {
   const { user, logout, loading, updateLocalUser, refreshUser } = useApp();
   const { showOrderDetails } = useOrderDetails();
   const navigate = useNavigate();
   const location = useLocation();
+  const setIsUpgradeModalOpen = useModalStore((s) => s.setIsUpgradeModalOpen);
   const [orders, setOrders] = useState<Order[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'cancelled' | 'all'>('all');
+  const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'cancelled' | 'completed' | 'all'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -53,6 +196,19 @@ export const Account = () => {
   const [activeTab, setActiveTab] = useState<TabType>(getTabFromPath());
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [showFamilyDialog, setShowFamilyDialog] = useState(false);
+  const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
+  const [measurements, setMeasurements] = useState<any[]>([]);
+  const [loadingMeasurements, setLoadingMeasurements] = useState(false);
+  const [editingMeasurement, setEditingMeasurement] = useState<any | null>(null);
+  const [editMeasurementForm, setEditMeasurementForm] = useState<{
+    name: string;
+    type: GarmentType;
+    metrics: Record<string, number>;
+    notes: string;
+  }>({ name: '', type: 'dishdasha', metrics: {}, notes: '' });
+  const [savingMeasurement, setSavingMeasurement] = useState(false);
+  const [deletingMeasurement, setDeletingMeasurement] = useState<any | null>(null);
+  const [isDeletingMeasurement, setIsDeletingMeasurement] = useState(false);
   
   // Edit form states
   const [editName, setEditName] = useState('');
@@ -79,11 +235,31 @@ export const Account = () => {
     setActiveTab(getTabFromPath());
   }, [location.pathname, navigate]);
 
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const updateHeaderHeight = () => {
+      const headerEl = document.getElementById(MONT_HEADER_ID);
+      if (!headerEl) return;
+      const measuredHeight = headerEl.getBoundingClientRect().height;
+      if (measuredHeight > 0) {
+        setHeaderHeight(measuredHeight);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => {
+      window.removeEventListener('resize', updateHeaderHeight);
+    };
+  }, []);
+
   // Load orders on mount
   useEffect(() => {
     if (user) {
       loadOrders();
       loadFamilyMembers();
+      loadMeasurements();
     }
   }, [user]);
 
@@ -104,6 +280,82 @@ export const Account = () => {
       setFamilyMembers(members || []);
     } catch (error) {
       console.error('Error loading family members:', error);
+    }
+  };
+
+  const loadMeasurements = async () => {
+    if (!user?.id) return;
+    setLoadingMeasurements(true);
+    try {
+      const userMeasurements = await firebaseService.getMeasurements(user.id);
+      setMeasurements(userMeasurements || []);
+    } catch (error) {
+      console.error('Error loading measurements:', error);
+    } finally {
+      setLoadingMeasurements(false);
+    }
+  };
+
+  const handleEditMeasurement = (measurement: any) => {
+    console.log('=== Editing measurement ===');
+    console.log('Raw measurement data:', JSON.stringify(measurement, null, 2));
+    console.log('Type:', measurement.type);
+    console.log('Metrics:', measurement.metrics);
+    
+    const normalizedType = normalizeGarmentType(measurement.type || 'dishdasha');
+    console.log('Normalized type:', normalizedType);
+    console.log('Template fields:', measurementTemplates[normalizedType]?.fields);
+    
+    setEditingMeasurement(measurement);
+    setEditMeasurementForm({
+      name: measurement.name || '',
+      type: normalizedType,
+      metrics: measurement.metrics || {},
+      notes: measurement.notes || ''
+    });
+    
+    console.log('Edit form set with metrics:', measurement.metrics);
+  };
+
+  const handleSaveMeasurement = async () => {
+    if (!user || !editingMeasurement) return;
+    setSavingMeasurement(true);
+    try {
+      const updatedMeasurement = {
+        ...editingMeasurement,
+        ...editMeasurementForm,
+        userId: user.id,
+        updatedAt: new Date().toISOString()
+      };
+      
+      await firebaseService.saveMeasurement(updatedMeasurement);
+      await loadMeasurements();
+      setEditingMeasurement(null);
+    } catch (error) {
+      console.error('Error saving measurement:', error);
+      alert('فشل حفظ التعديلات');
+    } finally {
+      setSavingMeasurement(false);
+    }
+  };
+
+  const handleCancelEditMeasurement = () => {
+    setEditingMeasurement(null);
+    setEditMeasurementForm({ name: '', type: 'dishdasha', metrics: {}, notes: '' });
+  };
+
+  const handleDeleteMeasurement = async () => {
+    if (!deletingMeasurement || !user?.id) return;
+    setIsDeletingMeasurement(true);
+    try {
+      await firebaseService.deleteMeasurement(deletingMeasurement.id, user.id);
+      await loadMeasurements();
+      setDeletingMeasurement(null);
+    } catch (error) {
+      console.error('Error deleting measurement:', error);
+      alert('فشل حذف القياس');
+    } finally {
+      setIsDeletingMeasurement(false);
     }
   };
 
@@ -217,6 +469,7 @@ export const Account = () => {
       if (statusFilter === 'active') return !['pending', 'cancelled', 'delivered'].includes(order.status);
       if (statusFilter === 'pending') return order.status === 'pending';
       if (statusFilter === 'cancelled') return order.status === 'cancelled';
+      if (statusFilter === 'completed') return order.status === 'delivered';
       return true;
   }).sort((a, b) => {
       const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
@@ -285,11 +538,16 @@ export const Account = () => {
   // --- Authenticated User View ---
   return (
     <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
-      <div className="sticky top-0 z-50">
-        <MontHeader />
-      </div>
-      
-      <div className="flex-1 overflow-y-auto">
+      <MontHeader />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none"
+        style={{ height: headerHeight }}
+      />
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ scrollPaddingTop: headerHeight }}
+      >
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
           <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
@@ -539,6 +797,16 @@ export const Account = () => {
                     الملغية
                   </button>
                   <button
+                    onClick={() => setStatusFilter('completed')}
+                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
+                      statusFilter === 'completed'
+                        ? 'bg-[#63498b] text-white'
+                        : 'text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    المكتملة
+                  </button>
+                  <button
                     onClick={() => setStatusFilter('all')}
                     className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                       statusFilter === 'all'
@@ -598,19 +866,21 @@ export const Account = () => {
                   <div
                     key={order.id}
                     onClick={() => showOrderDetails(order)}
-                    className="bg-white rounded-lg p-5 shadow-sm border border-slate-100 hover:shadow-md transition-all group overflow-hidden flex gap-4 cursor-pointer"
+                    className={`bg-white rounded-lg p-5 shadow-sm hover:shadow-md transition-all group overflow-hidden flex gap-4 cursor-pointer ${
+                      order.status === 'delivered' ? 'border-2 border-green-500' : 'border border-slate-100'
+                    }`}
                   >
-                    <div className="w-20 h-24 bg-slate-50 rounded-lg border border-slate-200 p-2 shrink-0">
+                    <div className="w-20 h-24 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden shrink-0">
                       {order.items && order.items[0]?.image ? (
                         <img
                           src={order.items[0].image}
-                          className="w-full h-full object-contain drop-shadow-md"
+                          className="w-full h-full object-cover"
                           alt={order.items[0].name || order.productName}
                         />
                       ) : order.productImage ? (
                         <img
                           src={order.productImage}
-                          className="w-full h-full object-contain drop-shadow-md"
+                          className="w-full h-full object-cover"
                           alt={order.productName}
                         />
                       ) : (
@@ -627,6 +897,12 @@ export const Account = () => {
                             {order.items && order.items[0]?.name ? order.items[0].name : order.productName || "طلب تفصيل"}
                           </h4>
                           <p className="text-xs text-[#63498b] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
+                          {(order.tailorShop || order.tailorName) && (
+                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+                              <Scissors size={10} />
+                              {order.tailorShop || order.tailorName}
+                            </p>
+                          )}
                         </div>
                         <span className={`px-2.5 py-1 text-xs rounded-md shrink-0 ${
                           order.status === 'delivered' ? 'bg-[#63498b]/10 text-[#63498b]' :
@@ -648,7 +924,7 @@ export const Account = () => {
                         </div>
                         <span className="text-xs text-slate-400 flex items-center gap-1">
                           <Calendar size={11} />
-                          {order.createdAt?.toDate?.() ? new Date(order.createdAt.toDate()).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' }) : new Date(order.orderDate).toLocaleDateString('ar-SA', { day: 'numeric', month: 'short' })}
+                          {order.createdAt?.toDate?.() ? new Date(order.createdAt.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(order.orderDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
                         </span>
                       </div>
                     </div>
@@ -664,12 +940,118 @@ export const Account = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3" dir="rtl">
               <h3 className="text-base text-slate-900 font-bold">قياساتي</h3>
+              <button
+                onClick={() => navigate('/measurements')}
+                className="flex items-center gap-2 px-4 py-2 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all"
+              >
+                <Ruler size={16} />
+                إضافة قياس جديد
+              </button>
             </div>
-            <div className="bg-white rounded-lg p-6 shadow-sm border border-slate-100">
-              <div className="text-center text-slate-600 text-sm">
-                سيتم عرض القياسات المحفوظة هنا
+            
+            {loadingMeasurements ? (
+              <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100">
+                <div className="flex items-center justify-center gap-3">
+                  <RefreshCw size={20} className="text-[#63498b] animate-spin" />
+                  <span className="text-slate-600 text-sm">جاري تحميل القياسات...</span>
+                </div>
               </div>
-            </div>
+            ) : measurements.length === 0 ? (
+              <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100 text-center">
+                <div className="w-16 h-16 mx-auto mb-4 rounded-lg bg-slate-50 flex items-center justify-center">
+                  <Ruler size={28} className="text-slate-400" />
+                </div>
+                <h4 className="text-lg text-slate-900 font-bold mb-2">لا توجد قياسات محفوظة</h4>
+                <p className="text-sm text-slate-600 mb-6">
+                  احفظ قياساتك لاستخدامها في الطلبات المستقبلية
+                </p>
+                <button
+                  onClick={() => navigate('/measurements')}
+                  className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all inline-flex items-center gap-2"
+                >
+                  <Ruler size={16} />
+                  إضافة قياس جديد
+                </button>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {measurements.map((measurement) => {
+                  const normalizedType = normalizeGarmentType(measurement.type);
+                  const template = measurementTemplates[normalizedType];
+                  const metrics = measurement.metrics || {};
+                  
+                  return (
+                  <div
+                    key={measurement.id}
+                    className="bg-white rounded-lg p-4 shadow-sm border border-slate-100 hover:shadow-md transition-all"
+                  >
+                    {/* Header */}
+                    <div className="flex items-start justify-between gap-3 mb-3" dir="rtl">
+                      <div className="flex items-start gap-3 flex-1">
+                        <div className="w-10 h-10 rounded-lg bg-[#63498b]/10 flex items-center justify-center flex-shrink-0">
+                          <Ruler size={20} className="text-[#63498b]" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <h4 className="text-sm font-bold text-slate-900 truncate">
+                            {measurement.name || 'قياس بدون اسم'}
+                          </h4>
+                          <p className="text-xs text-slate-600">
+                            {template?.label || measurement.type || 'نوع غير محدد'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1 flex-shrink-0">
+                        <button
+                          onClick={() => handleEditMeasurement(measurement)}
+                          className="p-2 text-[#63498b] hover:bg-[#63498b]/10 rounded-lg transition-all"
+                          title="تعديل القياسات"
+                        >
+                          <Edit2 size={16} />
+                        </button>
+                        <button
+                          onClick={() => setDeletingMeasurement(measurement)}
+                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                          title="حذف"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Measurements */}
+                    <div className="space-y-1.5 mb-3" dir="rtl">
+                      {template?.fields.map((field) => {
+                        const value = metrics[field.key];
+                        if (value === undefined || value === null) return null;
+                        
+                        return (
+                          <div key={field.key} className="flex items-center justify-between text-xs">
+                            <span className="text-slate-600">{field.label}</span>
+                            <span className="font-medium text-slate-900">{value} {field.unit}</span>
+                          </div>
+                        );
+                      })}
+                      {Object.keys(metrics).length === 0 && (
+                        <p className="text-xs text-slate-400 italic">لا توجد قياسات مُدخلة</p>
+                      )}
+                    </div>
+
+                    {/* Date */}
+                    <div className="pt-3 border-t border-slate-100">
+                      <p className="text-xs text-slate-500 flex items-center gap-1" dir="rtl">
+                        <Calendar size={10} />
+                        {new Date(measurement.createdAt).toLocaleDateString('ar-SA', {
+                          year: 'numeric',
+                          month: 'short',
+                          day: 'numeric'
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
           )}
 
@@ -772,16 +1154,16 @@ export const Account = () => {
               </div>
               <div className="flex gap-3 justify-center">
                 <button
-                  onClick={() => navigate('/wallet')}
+                  onClick={() => setIsUpgradeModalOpen(true)}
                   className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all"
                 >
                   شراء رصيد
                 </button>
                 <button
-                  onClick={() => navigate('/wallet')}
+                  onClick={() => navigate('/transaction-history')}
                   className="px-6 py-3 bg-slate-100 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-200 transition-all"
                 >
-                  عرض التفاصيل
+                  سجل المعاملات
                 </button>
               </div>
             </div>
@@ -955,6 +1337,187 @@ export const Account = () => {
             >
               إغلاق
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Measurement Dialog */}
+      {editingMeasurement && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10001] overflow-y-auto" onClick={handleCancelEditMeasurement}>
+          <div className="bg-white rounded-xl p-5 max-w-xl w-full my-8 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            {/* Header */}
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+              <h3 className="text-base font-bold text-slate-900">تعديل القياسات</h3>
+              <button
+                onClick={handleCancelEditMeasurement}
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"
+                aria-label="إغلاق"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            {/* Name and Type in one row */}
+            <div className="grid grid-cols-2 gap-3 mb-3">
+              {/* Name Field */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
+                <input
+                  type="text"
+                  value={editMeasurementForm.name}
+                  onChange={(e) => setEditMeasurementForm({ ...editMeasurementForm, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
+                  placeholder="مثال: قياسي الشخصي"
+                />
+              </div>
+
+              {/* Type Field - Read Only */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">نوع الملبس</label>
+                <div className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-600">
+                  {measurementTemplates[editMeasurementForm.type]?.label || editMeasurementForm.type}
+                </div>
+              </div>
+            </div>
+
+            {/* Measurement Fields */}
+            <div className="mb-3">
+              <label className="block text-xs font-medium text-slate-700 mb-2">المقاسات</label>
+              {!measurementTemplates[editMeasurementForm.type] && (
+                <div className="text-xs text-red-500 mb-2">
+                  نوع القياس غير معروف: {editMeasurementForm.type}
+                </div>
+              )}
+              {measurementTemplates[editMeasurementForm.type] && (
+                <>
+                  <div className="grid grid-cols-2 gap-2">
+                    {measurementTemplates[editMeasurementForm.type].fields.map((field) => (
+                      <div key={field.key}>
+                        <label className="block text-xs text-slate-600 mb-1">
+                          {field.label} ({field.unit})
+                        </label>
+                        <input
+                          type="number"
+                          step="0.1"
+                          min="0"
+                          value={editMeasurementForm.metrics[field.key] || ''}
+                          onChange={(e) => {
+                            const inputValue = e.target.value;
+                            const value = inputValue === '' ? undefined : parseFloat(inputValue);
+                            const newMetrics = { ...editMeasurementForm.metrics };
+                            
+                            if (value === undefined) {
+                              delete newMetrics[field.key];
+                            } else {
+                              newMetrics[field.key] = value;
+                            }
+                            
+                            setEditMeasurementForm({
+                              ...editMeasurementForm,
+                              metrics: newMetrics
+                            });
+                          }}
+                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
+                          placeholder="0"
+                        />
+                      </div>
+                    ))}
+                  </div>
+                  <div className="mt-2 text-xs text-slate-400">
+                    عدد الحقول: {measurementTemplates[editMeasurementForm.type].fields.length}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Notes Field */}
+            <div className="mb-4">
+              <label className="block text-xs font-medium text-slate-700 mb-1.5">ملاحظات (اختياري)</label>
+              <textarea
+                value={editMeasurementForm.notes}
+                onChange={(e) => setEditMeasurementForm({ ...editMeasurementForm, notes: e.target.value })}
+                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
+                rows={2}
+                placeholder="أي ملاحظات إضافية..."
+              />
+            </div>
+
+            {/* Action Buttons */}
+            <div className="flex gap-2 pt-3 border-t border-slate-200">
+              <button
+                onClick={handleCancelEditMeasurement}
+                disabled={savingMeasurement}
+                className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleSaveMeasurement}
+                disabled={savingMeasurement || !editMeasurementForm.name.trim()}
+                className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {savingMeasurement ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    جاري الحفظ...
+                  </>
+                ) : (
+                  <>
+                    <Save size={14} />
+                    حفظ
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Delete Measurement Confirmation Dialog */}
+      {deletingMeasurement && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10002]" onClick={() => setDeletingMeasurement(null)}>
+          <div className="bg-white rounded-xl p-6 max-w-md w-full" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="flex items-start gap-4 mb-4">
+              <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center flex-shrink-0">
+                <AlertTriangle size={24} className="text-red-600" />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-bold text-slate-900 mb-2">حذف القياس</h3>
+                <p className="text-sm text-slate-600 mb-1">
+                  هل أنت متأكد من حذف القياس "<strong>{deletingMeasurement.name}</strong>"؟
+                </p>
+                <p className="text-xs text-slate-500">
+                  لن تتمكن من استرجاع هذا القياس بعد الحذف.
+                </p>
+              </div>
+            </div>
+            
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeletingMeasurement(null)}
+                disabled={isDeletingMeasurement}
+                className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={handleDeleteMeasurement}
+                disabled={isDeletingMeasurement}
+                className="flex-1 h-10 bg-red-600 text-white rounded-lg text-sm font-medium hover:bg-red-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                {isDeletingMeasurement ? (
+                  <>
+                    <RefreshCw size={14} className="animate-spin" />
+                    جاري الحذف...
+                  </>
+                ) : (
+                  <>
+                    <Trash2 size={14} />
+                    حذف نهائي
+                  </>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       )}
