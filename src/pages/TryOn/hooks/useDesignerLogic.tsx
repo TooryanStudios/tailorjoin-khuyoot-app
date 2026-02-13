@@ -1379,8 +1379,9 @@ export const useDesignerLogic = () => {
 
         if ((res as any)?.debug) setLastResponseDebug((res as any).debug);
 
-        setAfterImage(res.imageDataUrl);
-        setBeforeUpscaleImage(res.imageDataUrl); // Store for upscale button
+        const generatedAfterImage = res.imageDataUrl || res.fullImageUrl || res.thumbnailUrl || null;
+        setAfterImage(generatedAfterImage);
+        setBeforeUpscaleImage(res.imageDataUrl ?? null); // Store base64 for upscale button
         persistActiveResult(res.fullImageUrl || res.imageDataUrl || null);
 
         if (pendingClientId && res.jobId) {
@@ -1601,8 +1602,10 @@ export const useDesignerLogic = () => {
         if (result?.debug) setLastResponseDebug(result.debug);
 
         // Update comparison: before = generated, after = upscaled
+        const upscaleAfterImage = result.imageDataUrl || result.fullImageUrl || result.thumbnailUrl || null;
         setSourceForComparison(beforeUpscaleImage);
-        setAfterImage(result.imageDataUrl);
+        setAfterImage(upscaleAfterImage);
+        setBeforeUpscaleImage(result.imageDataUrl ?? null);
         setSliderPos(50); // Position slider in middle to show both
 
         setTimeout(() => {

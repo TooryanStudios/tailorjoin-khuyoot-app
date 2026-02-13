@@ -2102,7 +2102,11 @@ export const firebaseService = {
       
       const measurements: any[] = [];
       snapshot.forEach(doc => {
-        measurements.push({ id: doc.id, ...doc.data() });
+        const data = doc.data();
+        // Filter out soft-deleted measurements
+        if (!data.deleted) {
+          measurements.push({ id: doc.id, ...data });
+        }
       });
       
       return measurements;

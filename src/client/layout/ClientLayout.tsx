@@ -1,7 +1,9 @@
 import React from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
-import { Header } from '../components/Header';
+import { MontHeader } from '../../components/MontHeader';
 import { Footer } from '../components/Footer';
+
+const MONT_HEADER_ID = 'khuyoot-mont-header';
 
 function useIsMobile(maxWidthPx = 640) {
   const [isMobile, setIsMobile] = React.useState(() => {
@@ -28,16 +30,20 @@ function useIsMobile(maxWidthPx = 640) {
 }
 
 export const ClientLayout: React.FC = () => {
-  const headerRef = React.useRef<HTMLDivElement | null>(null);
   const location = useLocation();
   const pathname = location.pathname;
   const isDesignerRoute = pathname.startsWith('/designer-v2-1');
   const isMobile = useIsMobile();
+  const isTailorOrdersRoute = pathname.startsWith('/tailor/orders');
+  const isTailorCollectionsRoute = pathname.startsWith('/tailor/collections');
+  const isTailorDashboardRoute = pathname.startsWith('/tailor-dashboard');
+  const isTransactionHistoryRoute = pathname.startsWith('/transaction-history');
+  const isFamilyMeasurementsRoute = pathname.startsWith('/family-measurements');
 
   // Check if we are on the tailor profile page (e.g. /tailor/123) but NOT on tailor admin pages
   const isTailorProfile = pathname.startsWith('/tailor/') && 
-    !pathname.startsWith('/tailor/collections') && 
-    !pathname.startsWith('/tailor/orders') && 
+    !isTailorCollectionsRoute && 
+    !isTailorOrdersRoute && 
     !pathname.startsWith('/tailor/product');
 
   // Check if we are on the product details page
@@ -47,8 +53,8 @@ export const ClientLayout: React.FC = () => {
   // For mobile tailor profile and product details, hide only the header but keep the footer
   // UPDATED: Hide header on ALL mobile pages
   // ALSO: Hide header for Tailor Orders and Account as they use MontHeader
-  const hideHeader = isMobile || isDesignerRoute || pathname === '/tailor/orders' || pathname === '/tailor/collections' || pathname === '/tailor-dashboard' || pathname === '/account';
-  const hideChrome = pathname.startsWith('/designer-v2-1') || pathname === '/tailor/orders' || pathname === '/tailor/collections' || pathname === '/account';
+  const hideHeader = isMobile || isDesignerRoute || isTailorOrdersRoute || isTailorCollectionsRoute || isTailorDashboardRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute;
+  const hideChrome = pathname.startsWith('/designer-v2-1') || isTailorOrdersRoute || isTailorCollectionsRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute;
 
   React.useLayoutEffect(() => {
     if (hideHeader) {
@@ -56,21 +62,16 @@ export const ClientLayout: React.FC = () => {
       return;
     }
 
-    const el = headerRef.current;
-    if (!el) return;
-
     const setHeaderHeight = () => {
-      const h = Math.ceil(el.getBoundingClientRect().height || 0);
+      const headerEl = document.getElementById(MONT_HEADER_ID);
+      if (!headerEl) return;
+      const h = Math.ceil(headerEl.getBoundingClientRect().height || 0);
       document.documentElement.style.setProperty('--header-height', `${h}px`);
     };
 
     setHeaderHeight();
-    const ro = new ResizeObserver(setHeaderHeight);
-    ro.observe(el);
-
     window.addEventListener('resize', setHeaderHeight);
     return () => {
-      ro.disconnect();
       window.removeEventListener('resize', setHeaderHeight);
     };
   }, [hideHeader]);
@@ -78,9 +79,10 @@ export const ClientLayout: React.FC = () => {
   return (
     <div className="app-shell">
       {!hideHeader && (
-        <div ref={headerRef}>
-          <Header />
-        </div>
+        <>
+          <MontHeader />
+          <div aria-hidden="true" className="pointer-events-none shrink-0 h-[var(--header-height)]" />
+        </>
       )}
 
       <main

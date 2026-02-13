@@ -436,7 +436,7 @@ export const ProductList = () => {
       
       {/* Scrollable Content Container */}
       <div 
-        className="flex-1 overflow-y-auto pb-24 custom-scrollbar pt-4 h-[calc(100vh-72px)]"
+        className="flex-1 overflow-y-auto pb-24 custom-scrollbar pt-4"
         dir="rtl"
       >
         <div className="max-w-[1400px] mx-auto px-2 md:px-8">

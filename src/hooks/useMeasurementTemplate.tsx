@@ -38,12 +38,13 @@ export const useMeasurementTemplate = ({ template, initialMeasurements = {} }: M
   };
 };
 
-interface MeasurementTemplateContentProps {
+export interface MeasurementTemplateContentProps {
   template: any;
   measurements: Record<string, number>;
   onMeasurementChange: (pointId: string, value: string) => void;
   onShowVideo: () => void;
   PointMarkerComponent: React.ComponentType<any>;
+  toolbar?: React.ReactNode;
 }
 
 export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProps> = ({
@@ -52,6 +53,8 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
   onMeasurementChange,
   onShowVideo,
   PointMarkerComponent
+  ,
+  toolbar
 }) => {
   if (!template || !template.points?.length) return null;
 
@@ -77,6 +80,8 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
           <span>مشاهدة فيديو توضيحي لطريقة أخذ القياس</span>
         </button>
       </div>
+
+      {toolbar}
 
       {/* Interactive Measurement Diagram */}
       <div className="relative w-full aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-200 overflow-visible">

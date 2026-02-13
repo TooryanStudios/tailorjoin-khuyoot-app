@@ -235,7 +235,7 @@ export function DemoShellLayout() {
   return (
     <div className="flex h-screen bg-[#ededed] font-sans overflow-hidden">
       {/* 🚀 Main Content area - Scrollable */}
-      <main className="flex-1 bg-[#ededed] overflow-y-auto overflow-x-hidden h-screen w-full">
+      <main className="flex-1 bg-[#ededed] overflow-y-auto overflow-x-hidden mt-[72px] h-[calc(100vh-72px)] w-full">
         {/* 🚀 UNIFIED BLOB LAYER: These images stay mounted so blobs remain valid & cached */}
         <div className="sr-only" aria-hidden="true">
           {allImageUrls.map((url) => (

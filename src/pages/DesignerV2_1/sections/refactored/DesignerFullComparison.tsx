@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { ChevronDown, ChevronUp } from 'lucide-react';
 
 interface FullComparisonProps {
   features: any;
@@ -10,11 +11,22 @@ interface FullComparisonProps {
 export const DesignerFullComparison: React.FC<FullComparisonProps> = React.memo((props) => {
   const { t } = useTranslation(['designer']);
   const { features, sourceForComparison, afterImage } = props;
+  const [isCollapsed, setIsCollapsed] = useState(true);
 
   if (!features.showFullComparison) return null;
 
   return (
-    <div className="border-t border-zinc-100 bg-white p-6 shadow-sm" dir="ltr">
+    <div className="border border-zinc-100 bg-white shadow-sm rounded-xl overflow-hidden" dir="ltr">
+      <button 
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="w-full px-6 py-4 flex items-center justify-between hover:bg-zinc-50 transition-colors"
+      >
+        <span className="text-sm font-medium text-zinc-700">{t('fullComparison')}</span>
+        {isCollapsed ? <ChevronDown size={20} /> : <ChevronUp size={20} />}
+      </button>
+      
+      {!isCollapsed && (
+        <div className="p-6 pt-0">
       <div className="grid grid-cols-2 gap-6 max-w-7xl mx-auto min-h-[420px]">
         {/* Source Image */}
         <div className="space-y-2 flex flex-col">
@@ -54,6 +66,8 @@ export const DesignerFullComparison: React.FC<FullComparisonProps> = React.memo(
           </div>
         </div>
       </div>
+        </div>
+      )}
     </div>
   );
 });

@@ -167,62 +167,43 @@ const MeasurementInstructionsCollapsible = React.memo(({
 
   return (
     <div>
-      <div className="flex items-center justify-between py-2">
+        <div className="flex items-center justify-between py-2">
         <button
           onClick={toggle}
-          className="flex items-center gap-2 text-xs font-black text-gray-500 uppercase tracking-widest hover:text-gray-900 transition-colors"
+          className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-widest hover:text-gray-900 transition-colors"
         >
-          <span>توجيهات القياس</span>
+          <span className="font-bold font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</span>
           <Ruler size={14} className="text-emerald-500" />
         </button>
       </div>
 
       {isOpen && (
         <div className="mt-3 pb-3 border-b border-gray-100">
-          {/* Instructions Block - Desktop */}
-          <div className="mb-4 p-5 bg-[#fbfbfb] rounded-2xl border border-gray-100 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="text-sm font-black text-gray-900 mb-1">تعليمات القياس</h4>
-                  <p className="text-[11px] text-gray-500 font-bold max-w-md leading-relaxed">
-                    يرجى اتباع الرسم التوضيحي أدناه لإدخال مقاساتك بدقة. جميع المقاسات يفضل أن تكون بالسنتيمتر.
-                  </p>
-                </div>
-                <button 
-                  onClick={() => measurementHook.setShowVideoDialog(true)}
-                  className="flex items-center gap-2 px-4 py-2.5 bg-white border border-gray-200 rounded-xl text-xs font-bold text-gray-700 hover:bg-gray-50 transition-all shadow-sm active:scale-95"
-                >
-                  <Play size={14} className="fill-emerald-500 text-emerald-500" />
-                  <span>فيديو توضيحي</span>
-                </button>
-              </div>
-          </div>
-
-          {/* Action Toolbar - Below Instructions */}
-          <div className="flex items-center justify-end gap-2 mb-6">
-             <button 
+         <MeasurementTemplateContent
+          template={template}
+          measurements={measurementHook.measurements}
+          onMeasurementChange={measurementHook.handleMeasurementChange}
+          onShowVideo={() => measurementHook.setShowVideoDialog(true)}
+          PointMarkerComponent={PointMarker}
+          toolbar={
+            <div className="flex items-center justify-end gap-2 mb-6">
+              <button 
                 onClick={onApplyProfile}
                 className="flex items-center gap-1.5 px-3 py-2 bg-[#f5f5f5] border border-gray-100 rounded-xl text-[10px] font-bold text-gray-600 hover:text-theme-primary transition-all active:scale-95 shadow-sm"
-             >
+              >
                 <FolderOpen size={14} className="text-theme-primary" />
                 <span>تحميل مقاس محفوظ</span>
-             </button>
-             <button 
+              </button>
+              <button 
                 onClick={onSaveToProfile}
                 className="flex items-center gap-1.5 px-3 py-2 bg-theme-primary/10 text-theme-primary border border-theme-primary/10 rounded-xl text-[10px] font-bold hover:bg-theme-primary hover:text-white transition-all active:scale-95 shadow-sm"
-             >
+              >
                 <Save size={14} />
                 <span>حفظ هذه المقاسات</span>
-             </button>
-          </div>
-
-          <MeasurementTemplateContent
-            template={template}
-            measurements={measurementHook.measurements}
-            onMeasurementChange={measurementHook.handleMeasurementChange}
-            onShowVideo={() => measurementHook.setShowVideoDialog(true)}
-            PointMarkerComponent={PointMarker}
-          />
+              </button>
+            </div>
+          }
+         />
         </div>
       )}
 
@@ -312,6 +293,127 @@ const SavedMeasurementsSheet = React.memo(({
     );
 });
 
+  const MeasurementSaveDialog = React.memo(({
+      isOpen,
+      name,
+      error,
+      isSaving,
+      onChange,
+      onCancel,
+      onConfirm
+    }: {
+      isOpen: boolean;
+      name: string;
+      error?: string;
+      isSaving: boolean;
+      onChange: (val: string) => void;
+      onCancel: () => void;
+      onConfirm: () => void;
+    }) => {
+      if (!isOpen) return null;
+      return createPortal(
+        <div className="fixed inset-0 z-[14000] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl border border-gray-200 p-6 space-y-4">
+            <h3 className="text-lg font-bold text-gray-900">حفظ المقاسات</h3>
+            <p className="text-[11px] text-gray-500">سيساعدك الاسم في التعرف على هذه المجموعة لاحقاً.</p>
+            <input
+              value={name}
+              onChange={(e) => onChange(e.target.value)}
+              className="w-full px-4 py-3 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-theme-primary focus:border-theme-primary text-sm"
+              placeholder="أسم المقاس"
+            />
+            {error && <p className="text-xs text-rose-500">{error}</p>}
+            <div className="flex items-center justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                onClick={onCancel}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={onConfirm}
+                disabled={isSaving}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full bg-theme-primary text-white disabled:bg-theme-primary/40"
+              >
+                حفظ
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      );
+    });
+
+  const ConfirmationDialog = React.memo(({
+      isOpen,
+      title,
+      description,
+      onCancel,
+      onConfirm
+    }: {
+      isOpen: boolean;
+      title: string;
+      description: string;
+      onCancel: () => void;
+      onConfirm: () => void;
+    }) => {
+      if (!isOpen) return null;
+      return createPortal(
+        <div className="fixed inset-0 z-[14000] flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-gray-200 p-6 space-y-3">
+            <h3 className="text-lg font-bold text-gray-900">{title}</h3>
+            <p className="text-sm text-gray-600 leading-relaxed">{description}</p>
+            <div className="flex justify-end gap-3 pt-2 border-t border-gray-100">
+              <button
+                onClick={onCancel}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest text-gray-500 rounded-full border border-gray-200 hover:bg-gray-100 transition"
+              >
+                إلغاء
+              </button>
+              <button
+                onClick={onConfirm}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full bg-theme-primary text-white"
+              >
+                تطبيق
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      );
+    });
+
+const InfoDialog = React.memo(({
+      isOpen,
+      title,
+      message,
+      onClose
+    }: {
+      isOpen: boolean;
+      title?: string;
+      message: string;
+      onClose: () => void;
+    }) => {
+      if (!isOpen) return null;
+      return createPortal(
+        <div className="fixed inset-0 z-[14000] flex items-center justify-center bg-black/40 p-4">
+          <div className="w-full max-w-sm bg-white rounded-3xl shadow-2xl border border-gray-200 p-6 space-y-3">
+            {title && <h3 className="text-lg font-bold text-gray-900">{title}</h3>}
+            <p className="text-sm text-gray-600 leading-relaxed">{message}</p>
+            <div className="flex justify-end">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-xs font-bold uppercase tracking-widest rounded-full border border-gray-200 hover:bg-gray-100 transition"
+              >
+                حسنًا
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      );
+    });
+
 const MeasurementTemplatePreview = React.memo(({ 
   template, 
   measurements, 
@@ -337,7 +439,7 @@ const MeasurementTemplatePreview = React.memo(({
   return (
     <div className="mt-8 pt-8 border-t border-gray-200">
        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xs font-black text-gray-500 uppercase tracking-widest">توجيهات القياس</h3>
+         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</h3>
           <div className="flex items-center gap-2">
              <Ruler size={14} className="text-emerald-500" />
              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">{template.name}</span>
@@ -974,6 +1076,22 @@ export const ProductDetails = ({
 
   const product = productQuery.data ?? null;
   const measurementHook = useMeasurementTemplate({ template });
+  const productType = product?.category || product?.type;
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
+  const [saveDialogName, setSaveDialogName] = useState('');
+  const [saveDialogError, setSaveDialogError] = useState('');
+  const [pendingProfileToApply, setPendingProfileToApply] = useState<any | null>(null);
+  const [showApplyConfirmation, setShowApplyConfirmation] = useState(false);
+  const [infoDialog, setInfoDialog] = useState<{ title?: string; message: string } | null>(null);
+  const filteredMeasurementProfiles = useMemo(() => {
+    if (!product) return [];
+    return savedMeasurementProfiles.filter((profile) => {
+      if (product?.id && profile.productId) {
+        return profile.productId === product.id;
+      }
+      return profile.type === productType;
+    });
+  }, [savedMeasurementProfiles, product?.id, productType]);
 
   // --- Fetch Saved Measurements ---
   useEffect(() => {
@@ -982,27 +1100,59 @@ export const ProductDetails = ({
     }
   }, [user?.uid]);
 
-  const handleSaveToProfile = async () => {
+  const handleSaveToProfile = () => {
     if (!user?.uid) {
-       alert("يرجى تسجيل الدخول لحفظ المقاسات");
+       setInfoDialog({ message: "يرجى تسجيل الدخول لحفظ المقاسات" });
        return;
     }
 
     const hasData = Object.keys(measurementHook.measurements).length > 0;
     if (!hasData) {
-       alert("يرجى إدخال المقاسات أولاً");
+       setInfoDialog({ message: "يرجى إدخال المقاسات أولاً" });
        return;
     }
 
-    const profileName = prompt("أدخل اسماً لهذا المقاس (مثلاً: مقاسي الخاص، مقاس للدوام):", `مقاس ${product?.name || ''}`);
-    if (!profileName) return;
+    setSaveDialogError('');
+    setSaveDialogName(`مقاس ${product?.name || ''}`.trim());
+    setShowSaveDialog(true);
+  };
+
+  const handleConfirmSave = async () => {
+    const saved = await handleSaveMeasurement(saveDialogName);
+    if (saved) {
+      setShowSaveDialog(false);
+      setSaveDialogName('');
+      setSaveDialogError('');
+    }
+  };
+
+  const handleCancelSaveDialog = () => {
+    setShowSaveDialog(false);
+    setSaveDialogError('');
+  };
+
+  const handleCancelApply = () => {
+    setShowApplyConfirmation(false);
+    setPendingProfileToApply(null);
+  };
+
+  const handleInfoDismiss = () => setInfoDialog(null);
+
+  const handleSaveMeasurement = async (name: string) => {
+    if (!user?.uid) return;
+    const trimmedName = name.trim();
+    if (!trimmedName) {
+      setSaveDialogError('يرجى إدخال اسماً صالحاً للمقاس');
+      return false;
+    }
 
     setIsSavingMeasurement(true);
     try {
       const newProfile = {
         userId: user.uid,
-        name: profileName,
-        type: product?.category || 'dress',
+        productId: product?.id,
+        name: trimmedName,
+        type: product?.category || product?.type || 'dress',
         metrics: measurementHook.measurements,
         notes: customerComments,
         createdAt: new Date().toISOString(),
@@ -1011,13 +1161,28 @@ export const ProductDetails = ({
       
       const profileId = await firebaseService.saveMeasurement(newProfile);
       setSavedMeasurementProfiles(prev => [{ ...newProfile, id: profileId }, ...prev]);
-      alert("تم حفظ المقاس بنجاح في ملفك الشخصي");
+      setInfoDialog({ title: 'تم الحفظ', message: 'تم حفظ المقاسات في ملفك الشخصي بنجاح.' });
+      return true;
     } catch (error) {
       console.error("Error saving measurement profile:", error);
-      alert("حدث خطأ أثناء حفظ المقاس");
+      setInfoDialog({ message: "حدث خطأ أثناء حفظ المقاس" });
+      return false;
     } finally {
       setIsSavingMeasurement(false);
     }
+  };
+
+  const handleProfileSelect = (profile: any) => {
+    setPendingProfileToApply(profile);
+    setShowSavedMeasurementsModal(false);
+    setShowApplyConfirmation(true);
+  };
+
+  const handleApplyConfirmation = () => {
+    if (!pendingProfileToApply) return;
+    handleApplyProfile(pendingProfileToApply);
+    setPendingProfileToApply(null);
+    setShowApplyConfirmation(false);
   };
 
   const handleApplyProfile = (profile: any) => {
@@ -1041,6 +1206,7 @@ export const ProductDetails = ({
       setShowSavedMeasurementsModal(false);
     }
   };
+
 
   // --- Persistence Logic ---
   const storageKey = useMemo(() => {
@@ -1531,8 +1697,30 @@ export const ProductDetails = ({
       <SavedMeasurementsSheet 
          isOpen={showSavedMeasurementsModal}
          onClose={() => setShowSavedMeasurementsModal(false)}
-         profiles={savedMeasurementProfiles}
-         onSelect={handleApplyProfile}
+        profiles={filteredMeasurementProfiles}
+        onSelect={handleProfileSelect}
+      />
+      <MeasurementSaveDialog
+        isOpen={showSaveDialog}
+        name={saveDialogName}
+        error={saveDialogError}
+        isSaving={isSavingMeasurement}
+        onChange={setSaveDialogName}
+        onCancel={handleCancelSaveDialog}
+        onConfirm={handleConfirmSave}
+      />
+      <ConfirmationDialog
+        isOpen={showApplyConfirmation && !!pendingProfileToApply}
+        title="تحميل المقاس المحفوظ"
+        description="هل ترغب في تطبيق هذا المقاس على المنتج الحالي؟"
+        onCancel={handleCancelApply}
+        onConfirm={handleApplyConfirmation}
+      />
+      <InfoDialog
+        isOpen={!!infoDialog}
+        title={infoDialog?.title}
+        message={infoDialog?.message || ''}
+        onClose={handleInfoDismiss}
       />
     </div>
   );

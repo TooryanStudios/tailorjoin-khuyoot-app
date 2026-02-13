@@ -6,6 +6,27 @@ import { ProcessingOverlay } from '../../../../modules/canvas/components/Process
 import { FabricSourceTile } from '../../../../modules/results/FabricSourceTile';
 import { HistoryFilmstrip } from '../../components/HistoryFilmstrip';
 
+const createObjectUrlFromDataUrl = (dataUrl: string): string | null => {
+  const commaIndex = dataUrl.indexOf(',');
+  if (commaIndex === -1) return null;
+  const metadata = dataUrl.slice(0, commaIndex);
+  const base64 = dataUrl.slice(commaIndex + 1);
+  const mimeMatch = metadata.match(/data:([^;]+);base64/i);
+  const mimeType = mimeMatch?.[1] || 'image/png';
+
+  try {
+    const binary = atob(base64);
+    const len = binary.length;
+    const buffer = new Uint8Array(len);
+    for (let i = 0; i < len; i += 1) {
+      buffer[i] = binary.charCodeAt(i);
+    }
+    return URL.createObjectURL(new Blob([buffer], { type: mimeType }));
+  } catch (error) {
+    console.warn('DesignerViewport: failed to convert data URL to blob', error);
+    return null;
+  }
+};
 interface ViewportProps {
   features: any;
   uiState: any;
@@ -48,14 +69,59 @@ export const DesignerViewport: React.FC<ViewportProps> = (props) => {
     deletingItemId, isLoading, productId, handleClearSelections
   } = props;
 
+  const afterDisplayUrlRef = React.useRef<string | null>(null);
+  const [afterDisplayUrl, setAfterDisplayUrl] = React.useState<string | null>(null);
+
+  React.useEffect(() => {
+    const prevUrl = afterDisplayUrlRef.current;
+
+    if (!afterImage) {
+      if (prevUrl) {
+        URL.revokeObjectURL(prevUrl);
+        afterDisplayUrlRef.current = null;
+      }
+      setAfterDisplayUrl(null);
+      return;
+    }
+
+    if (afterImage.startsWith('data:')) {
+      const objectUrl = createObjectUrlFromDataUrl(afterImage);
+      if (objectUrl) {
+        if (prevUrl && prevUrl !== objectUrl) {
+          URL.revokeObjectURL(prevUrl);
+        }
+        afterDisplayUrlRef.current = objectUrl;
+        setAfterDisplayUrl(objectUrl);
+        return () => {
+          if (afterDisplayUrlRef.current === objectUrl) {
+            URL.revokeObjectURL(objectUrl);
+            afterDisplayUrlRef.current = null;
+          }
+        };
+      }
+      if (prevUrl) {
+        URL.revokeObjectURL(prevUrl);
+        afterDisplayUrlRef.current = null;
+      }
+      setAfterDisplayUrl(null);
+      return;
+    }
+
+    if (prevUrl) {
+      URL.revokeObjectURL(prevUrl);
+      afterDisplayUrlRef.current = null;
+    }
+    setAfterDisplayUrl(null);
+  }, [afterImage]);
+
   return (
-    <div className="p-2 pb-4 bg-white select-none">
-      <div className="relative rounded-2xl border border-zinc-800 bg-white overflow-hidden shadow-2xl">
+    <div className="p-2 pb-4 bg-[#e5e5e5] select-none">
+      <div className="relative rounded-2xl border border-zinc-800 bg-white overflow-hidden">
         {features.showComparisonSlider ? (
           <div className="relative" dir="ltr">
             <ImageSlider
               before={sourceForComparison}
-              after={afterImage}
+              after={afterDisplayUrl || afterImage || ''}
               mode="fabric"
               fabricMaterial={fabricMaterial}
               onFabricMaterialChange={setFabricMaterial}

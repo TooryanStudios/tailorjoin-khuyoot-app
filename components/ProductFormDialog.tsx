@@ -109,7 +109,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
 
   return (
     <div
-      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4"
+      className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[11000] p-4"
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           handleClose();
@@ -139,8 +139,9 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         {/* Content - Scrollable */}
         <form
           onSubmit={isEditing ? callbacks.handleUpdateProduct : callbacks.handleAddProduct}
-          className="flex-1 overflow-y-auto p-4 md:p-5 space-y-4 bg-white dark:bg-white"
+          className="flex-1 overflow-y-auto bg-white dark:bg-white"
         >
+          <div className="p-4 md:p-5 space-y-4 pb-24">
           {/* Section 1: Category */}
           <div className="space-y-3 pb-4 border-b border-slate-100 bg-[#f6f2fb] rounded-xl p-3">
             <div className="flex items-center justify-between">
@@ -476,9 +477,10 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </div>
             )}
           </div>
+          </div>
 
           {/* Footer - Sticky */}
-          <div className="sticky bottom-0 border-t border-slate-100 bg-white p-4 md:p-5 flex gap-2 shrink-0">
+          <div className="sticky bottom-0 border-t border-slate-100 bg-white/95 backdrop-blur-sm px-4 md:px-5 py-3 flex gap-2 shrink-0">
           {!isEditing ? (
             <>
               <button

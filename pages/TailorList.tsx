@@ -55,17 +55,21 @@ export const TailorList = () => {
   });
 
   return (
-    <div className="pb-24 pt-4 px-4 md:px-6 lg:px-8">
+    <div className="h-full flex flex-col bg-[#ededed] font-['Tajawal'] text-[#1a1a1a] selection:bg-[var(--theme-primary)] selection:text-white">
+      <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar pt-4" dir="rtl">
+      <div className="max-w-[1400px] mx-auto px-2 md:px-8">
       {/* Header */}
       <div className="mb-8">
         <div className="flex items-center gap-4 mb-4">
            <button 
              onClick={() => navigate(-1)}
-             className="w-10 h-10 rounded-full bg-[var(--studio-surface)] flex items-center justify-center text-[var(--studio-text-muted)] hover:text-[var(--studio-text)] transition-colors"
+             aria-label="الرجوع"
+             title="الرجوع"
+             className="w-10 h-10 rounded-full bg-white border border-zinc-200 flex items-center justify-center text-zinc-500 hover:text-black transition-colors"
            >
              <ArrowRight size={20} />
            </button>
-           <h1 className="text-2xl font-bold text-[var(--studio-text)]">نخبة الخياطين</h1>
+           <h1 className="text-xl md:text-2xl font-bold text-black">نخبة الخياطين</h1>
         </div>
 
         {/* Active Filter Banner */}
@@ -127,9 +131,9 @@ export const TailorList = () => {
               placeholder="ابحث باسم الخياط أو التخصص..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full bg-[var(--studio-card)] border border-[var(--studio-card-border)] rounded-full py-4 pl-12 pr-6 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                className="w-full bg-white border border-zinc-200 rounded-full py-4 pl-12 pr-6 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-all"
            />
-           <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-4 text-[var(--studio-text-muted)]" />
+              <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-4 text-zinc-400" />
         </div>
 
         {/* Region Filter */}
@@ -139,10 +143,10 @@ export const TailorList = () => {
               <button
                 key={region.id}
                 onClick={() => setActiveRegion(region.id)}
-                className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                className={`px-4 py-2 rounded-full text-[13px] font-medium whitespace-nowrap transition-colors ${
                   activeRegion === region.id 
-                  ? 'bg-blue-600 text-white shadow-md' 
-                  : 'bg-[var(--studio-card)] text-[var(--studio-text-muted)] border border-[var(--studio-card-border)] hover:border-blue-500/50'
+                  ? 'bg-black text-white shadow-sm' 
+                  : 'bg-white text-zinc-500 border border-zinc-200 hover:border-zinc-400 hover:text-black'
                 }`}
               >
                 {region.name}
@@ -151,13 +155,13 @@ export const TailorList = () => {
           </div>
           
           {/* View Mode Toggle */}
-          <div className="flex items-center gap-1 bg-[var(--studio-surface)] rounded-lg p-1 mr-2">
+          <div className="flex items-center gap-1 bg-white border border-zinc-200 rounded-lg p-1 mr-2">
             <button
               onClick={() => setViewMode('grid')}
               className={`p-2 rounded-md transition-colors ${
                 viewMode === 'grid'
-                  ? 'bg-[var(--studio-card)] text-blue-600 shadow-sm'
-                  : 'text-[var(--studio-text-muted)] hover:text-[var(--studio-text)]'
+                  ? 'bg-black text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-black'
               }`}
               aria-label="عرض شبكي"
             >
@@ -167,8 +171,8 @@ export const TailorList = () => {
               onClick={() => setViewMode('list')}
               className={`p-2 rounded-md transition-colors ${
                 viewMode === 'list'
-                  ? 'bg-[var(--studio-card)] text-blue-600 shadow-sm'
-                  : 'text-[var(--studio-text-muted)] hover:text-[var(--studio-text)]'
+                  ? 'bg-black text-white shadow-sm'
+                  : 'text-zinc-500 hover:text-black'
               }`}
               aria-label="عرض قائمة"
             >
@@ -179,24 +183,25 @@ export const TailorList = () => {
       </div>
 
       {/* List */}
+      <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm">
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'grid grid-cols-1 gap-4'}>
         {filteredTailors.map(tailor => (
            <div 
              key={tailor.id}
              onClick={() => navigate(`/tailor/${tailor.id}`)}
-             className="bg-[var(--studio-card)] rounded-xl p-4 border border-[var(--studio-card-border)] hover:shadow-lg transition-all cursor-pointer flex gap-4"
+             className="bg-white rounded-xl p-4 border border-zinc-200 hover:shadow-md transition-all cursor-pointer flex gap-4"
            >
               {tailor.image ? (
                 <StableImage
                   src={tailor.image}
                   alt={tailor.name}
                   aspectClass="aspect-square"
-                  className="w-20 h-20 rounded-xl border border-[var(--studio-card-border)]"
+                  className="w-20 h-20 rounded-xl border border-zinc-200"
                   imgClassName="object-cover"
                 />
               ) : (
-                <div className="w-20 h-20 rounded-xl bg-[var(--studio-surface)] flex items-center justify-center border border-[var(--studio-card-border)]">
-                  <span className="text-2xl font-bold text-[var(--studio-text-muted)]">
+                <div className="w-20 h-20 rounded-xl bg-zinc-100 flex items-center justify-center border border-zinc-200">
+                  <span className="text-2xl font-bold text-zinc-400">
                     {tailor.name.charAt(0)}
                   </span>
                 </div>
@@ -204,7 +209,7 @@ export const TailorList = () => {
               <div className="flex-1">
                  <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
-                      <h3 className="font-bold text-[var(--studio-text)]">{tailor.name}</h3>
+                      <h3 className="text-[15px] font-bold text-black">{tailor.name}</h3>
                       {tailor.tailorGender && (
                         <span className={`text-xs px-2 py-0.5 rounded-full ${
                           tailor.tailorGender === 'male' 
@@ -219,9 +224,9 @@ export const TailorList = () => {
                        <Star size={10} fill="currentColor" /> {tailor.rating}
                     </div>
                  </div>
-                 <p className="text-sm text-[var(--studio-text-muted)] mb-2">{getSpecializationLabel(tailor.specialization)}</p>
+                 <p className="text-[13px] text-zinc-500 mb-2">{getSpecializationLabel(tailor.specialization)}</p>
                  
-                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-[var(--studio-text-muted)]">
+                 <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-zinc-500">
                     <div className="flex items-center gap-1">
                        <MapPin size={12} /> {tailor.location}
                     </div>
@@ -233,10 +238,13 @@ export const TailorList = () => {
            </div>
         ))}
         {filteredTailors.length === 0 && (
-           <div className="col-span-full text-center py-12 text-[var(--studio-text-muted)]">
+            <div className="col-span-full text-center py-12 text-zinc-500">
              لا يوجد خياطين مطابقين للبحث
            </div>
         )}
+      </div>
+      </div>
+      </div>
       </div>
     </div>
   );

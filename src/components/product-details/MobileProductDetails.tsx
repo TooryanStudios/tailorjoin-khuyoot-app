@@ -398,7 +398,7 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                         {template && template.points?.length > 0 && (
                             <div ref={measurementsRef} className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6" dir="rtl">
                                 <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-black text-gray-900 text-sm uppercase tracking-wide">توجيهات القياس</h3>
+                                    <h3 className="font-bold text-gray-900 text-base uppercase tracking-wide font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</h3>
                                     <div className="flex items-center gap-2">
                                         <Ruler size={14} className="text-emerald-500" />
                                         <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">{template.name}</span>

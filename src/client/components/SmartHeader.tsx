@@ -11,6 +11,7 @@ export const SmartHeader: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { t } = useTranslation('common');
+  const isTryOnRoute = location.pathname.startsWith('/tryon');
   const [isMenuOpen, setIsMenuOpen] = useState(false);
 
   // Close menu on route change
@@ -67,9 +68,9 @@ export const SmartHeader: React.FC = () => {
               {t('navHome') || 'Home'}
             </button>
             <button 
-               onClick={() => navigate('/designer-v2-1')}
+               onClick={() => navigate('/tryon')}
                className={`text-sm font-medium transition-colors hover:text-emerald-500 ${
-                location.pathname.includes('designer') ? 'text-emerald-500 font-bold' : 'text-slate-600 dark:text-slate-300'
+                isTryOnRoute ? 'text-emerald-500 font-bold' : 'text-slate-600 dark:text-slate-300'
                }`}
             >
               {t('navDesigner') || 'Try On'}
@@ -145,7 +146,7 @@ export const SmartHeader: React.FC = () => {
               {t('navHome') || 'Home'}
             </button>
              <button 
-              onClick={() => navigate('/designer-v2-1')}
+              onClick={() => navigate('/tryon')}
               className="flex items-center gap-3 rounded-xl p-3 text-left font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">

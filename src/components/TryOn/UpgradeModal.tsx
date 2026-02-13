@@ -133,31 +133,35 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
         {/* Header with Badge */}
         <div className="px-6 pt-8 pb-4 text-center">
-          <h2 className="text-2xl font-black text-zinc-900 mb-2">{t('upgradeTitle')}</h2>
-          <p className="text-sm text-zinc-500 font-medium">{t('upgradeSubtitle')}</p>
+          <h2 className="text-2xl font-black text-theme-primary mb-2">{t('upgradeTitle')}</h2>
+          <p className="text-sm text-zinc-600 font-medium">{t('upgradeSubtitle')}</p>
         </div>
 
         {/* Features List */}
-        <div className="px-8 py-4 space-y-3">
+        <div className="px-8 py-4 grid grid-cols-2 gap-3">
           <div className="flex items-center gap-3 text-sm">
-            <div className="w-6 h-6 rounded-full bg-purple-50 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="w-6 h-6 rounded-full bg-theme-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
             </div>
             <span className="text-zinc-700 font-medium">{t('upgradeFeatureRemoveWatermark')}</span>
           </div>
           <div className="flex items-center gap-3 text-sm">
-            <div className="w-6 h-6 rounded-full bg-purple-50 flex items-center justify-center">
-              <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="w-6 h-6 rounded-full bg-theme-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
             </div>
             <span className="text-zinc-700 font-medium">{t('upgradeFeature4k')}</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeaturePriority')}</span>
+          <div className="flex items-center gap-3 text-sm">
+            <div className="w-6 h-6 rounded-full bg-theme-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
+            <span className="text-zinc-700 font-medium">{t('upgradeFeaturePriority')}</span>
           </div>
-          <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-400 flex-shrink-0" />
-            <span className="text-zinc-300">{t('upgradeFeatureAdvancedModels')}</span>
+          <div className="flex items-center gap-3 text-sm">
+            <div className="w-6 h-6 rounded-full bg-theme-primary/10 flex items-center justify-center flex-shrink-0">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
+            <span className="text-zinc-700 font-medium">{t('upgradeFeatureAdvancedModels')}</span>
           </div>
         </div>
 
@@ -169,7 +173,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               onClick={() => setActiveTab('onetime')}
               className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                 activeTab === 'onetime'
-                  ? 'bg-purple-600 text-white shadow-md'
+                  ? 'bg-theme-primary text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
@@ -179,7 +183,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               onClick={() => setActiveTab('monthly')}
               className={`flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all ${
                 activeTab === 'monthly'
-                  ? 'bg-purple-600 text-white shadow-md'
+                  ? 'bg-theme-primary text-white shadow-md'
                   : 'text-zinc-500 hover:text-zinc-900'
               }`}
             >
@@ -190,18 +194,18 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           {/* One-Time Packs */}
           {activeTab === 'onetime' && (
             <div className="space-y-2 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-purple-600 mb-3 font-bold uppercase tracking-widest">{t('upgradeCreditsNeverExpire')}</div>
+              <div className="text-[10px] text-center text-theme-primary mb-3 font-bold uppercase tracking-widest">{t('upgradeCreditsNeverExpire')}</div>
               {import.meta.env.DEV && (
                 <button
                   onClick={() => setSelectedOneTime('test')}
                   className={`w-full flex items-center justify-between text-xs py-3 px-4 rounded-2xl border-2 border-dashed transition-all ${
                     selectedOneTime === 'test'
-                      ? 'bg-purple-50 border-purple-600 shadow-sm'
-                      : 'border-zinc-200 hover:border-purple-300 bg-white'
+                      ? 'bg-theme-primary/10 border-theme-primary shadow-sm'
+                      : 'border-zinc-200 hover:border-theme-primary/30 bg-white'
                   }`}
                 >
                   <div className="flex flex-col items-start">
-                    <span className="text-purple-600 font-bold uppercase tracking-widest text-[9px]">UAT TEST PACK</span>
+                    <span className="text-theme-primary font-bold uppercase tracking-widest text-[9px]">UAT TEST PACK</span>
                     <span className="text-xs text-zinc-900 font-bold">1 Generation (10 Credits)</span>
                   </div>
                   <span className="text-zinc-900 font-black">0.1 OMR</span>
@@ -211,8 +215,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 onClick={() => setSelectedOneTime('starter')}
                 className={`w-full flex items-center justify-between text-xs py-3 px-4 rounded-2xl border transition-all ${
                   selectedOneTime === 'starter'
-                    ? 'bg-purple-50 border-purple-600 shadow-sm'
-                    : 'bg-white border-zinc-200 hover:border-purple-200'
+                    ? 'bg-theme-primary/10 border-theme-primary shadow-sm'
+                    : 'bg-white border-zinc-200 hover:border-theme-primary/20'
                 }`}
               >
                 <div className="flex flex-col items-start">
@@ -225,8 +229,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 onClick={() => setSelectedOneTime('value')}
                 className={`w-full flex items-center justify-between text-xs py-3 px-4 rounded-2xl border transition-all ${
                   selectedOneTime === 'value'
-                    ? 'bg-purple-50 border-purple-600 shadow-sm'
-                    : 'bg-white border-zinc-200 hover:border-purple-200'
+                    ? 'bg-theme-primary/10 border-theme-primary shadow-sm'
+                    : 'bg-white border-zinc-200 hover:border-theme-primary/20'
                 }`}
               >
                 <div className="flex flex-col items-start">
@@ -239,8 +243,8 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 onClick={() => setSelectedOneTime('pro')}
                 className={`w-full flex items-center justify-between text-xs py-3 px-4 rounded-2xl border transition-all ${
                   selectedOneTime === 'pro'
-                    ? 'bg-purple-50 border-purple-600 shadow-sm'
-                    : 'bg-white border-zinc-200 hover:border-purple-200'
+                    ? 'bg-theme-primary/10 border-theme-primary shadow-sm'
+                    : 'bg-white border-zinc-200 hover:border-theme-primary/20'
                 }`}
               >
                 <div className="flex flex-col items-start">
@@ -312,11 +316,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           <button
             onClick={handleUpgradeClick}
             disabled={phase !== 'idle'}
-            className={`w-full h-14 text-base text-white font-black rounded-2xl transition-all shadow-xl shadow-purple-600/10 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-tight ${
+            className={`w-full h-14 text-base text-white font-black rounded-2xl transition-all shadow-xl shadow-theme-primary/10 active:scale-95 flex items-center justify-center gap-2 uppercase tracking-tight ${
               phase === 'idle'
-                ? 'bg-purple-600 hover:bg-purple-700'
+                ? 'bg-gradient-to-r from-theme-primary to-[#7a5fa3] hover:from-[#7a5fa3] hover:to-theme-primary'
                 : phase === 'progress'
-                  ? 'bg-purple-800 cursor-wait'
+                  ? 'bg-gradient-to-r from-[#4e3a6d] to-theme-primary cursor-wait'
                   : 'bg-emerald-600'
             }`}
           >
@@ -349,15 +353,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
         {/* Footer Note */}
         <div className="px-6 pb-6 text-center space-y-4">
-          <p className="text-xs text-zinc-500 leading-relaxed font-medium">
-            {t('upgradeTrialNote')}
-          </p>
-
           {/* Development Test Link - Visible for now */}
           <div className="pt-4 border-t border-zinc-100">
             <a 
               href="/__dev/payment-test"
-              className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-purple-600 hover:text-purple-700 transition-colors"
+              className="inline-flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-theme-primary hover:opacity-80 transition-opacity"
             >
               <Shield size={14} />
               <span>Test Payment Fulfillment</span>

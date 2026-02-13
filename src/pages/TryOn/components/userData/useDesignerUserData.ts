@@ -21,6 +21,18 @@ export const useDesignerUserData = () => {
   const [closetItems, setClosetItems] = useState<any[]>([]);
   const [closetLoading, setClosetLoading] = useState(false);
   const [closetError, setClosetError] = useState<string | null>(null);
+  
+  // Listen for credit updates and refresh user profile
+  useEffect(() => {
+    const handleCreditsUpdate = () => {
+      refreshProfile();
+    };
+    
+    window.addEventListener('khuyoot:credits-updated', handleCreditsUpdate);
+    return () => {
+      window.removeEventListener('khuyoot:credits-updated', handleCreditsUpdate);
+    };
+  }, [refreshProfile]);
 
   const fetchHistory = async () => {
     if (!user && status !== 'authenticated') return;

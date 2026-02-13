@@ -1,10 +1,13 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package } from 'lucide-react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package, Home } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
+
+const MONT_HEADER_ID = 'khuyoot-mont-header';
 
 export const MontHeader = React.memo(function MontHeader() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const { user, loading, logout, toggleAuthModal, cartCount, ordersCount } = useApp();
@@ -51,7 +54,7 @@ export const MontHeader = React.memo(function MontHeader() {
 
     const links = {
       admin: [
-        { id: 'admin', label: 'لوحتي', path: '/admin', icon: LayoutDashboard },
+        { id: 'admin', label: 'الحساب', path: '/account', icon: LayoutDashboard },
         { id: 'shop', label: 'المنتجات', path: '/female', icon: ShoppingBag },
         { id: 'orders', label: 'طلباتي', path: '/orders', icon: Package, badge: ordersCount },
         { id: 'account', label: 'حسابي', path: '/account', icon: User },
@@ -59,15 +62,15 @@ export const MontHeader = React.memo(function MontHeader() {
       tailor: [
         { id: 'products', label: 'منتجاتي', path: '/tailor/collections', icon: Scissors },
         { id: 'orders', label: 'الطلبات', path: '/tailor/orders', icon: ClipboardList, badge: ordersCount },
-        { id: 'dashboard', label: 'لوحتي', path: '/tailor-dashboard', icon: LayoutDashboard },
+        { id: 'dashboard', label: 'الحساب', path: '/account', icon: LayoutDashboard },
       ],
       boutique: [
         { id: 'orders', label: 'طلباتي', path: '/boutique/orders', icon: Package, badge: ordersCount },
-        { id: 'dashboard', label: 'لوحتي', path: '/boutique-account', icon: Store },
+        { id: 'dashboard', label: 'الحساب', path: '/account', icon: Store },
       ],
       shop: [
         { id: 'orders', label: 'طلباتي', path: '/shop/orders', icon: Store, badge: ordersCount },
-        { id: 'dashboard', label: 'لوحتي', path: '/shop-account', icon: Store },
+        { id: 'dashboard', label: 'الحساب', path: '/account', icon: Store },
       ],
       user: [
         { id: 'tracking', label: 'طلباتي', path: '/orders', icon: Package },
@@ -84,9 +87,20 @@ export const MontHeader = React.memo(function MontHeader() {
     return result;
   }, [user, ordersCount]);
 
+  const isLinkActive = (path: string) => {
+    const pathname = location.pathname;
+    if (path === '/') return pathname === '/';
+    return pathname === path || pathname.startsWith(`${path}/`);
+  };
+
+  const isHomeLandingRoute = () => {
+    const pathname = location.pathname.replace(/\/+$/, '') || '/';
+    return pathname === '/' || pathname === '/male' || pathname === '/female';
+  };
+
   return (
     <>
-      <nav className="fixed top-0 left-0 right-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-[#ededed] z-[10000]">
+      <nav id={MONT_HEADER_ID} className="fixed top-0 left-0 right-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-[#ededed] border-b border-black/5 z-[10000] font-['Tajawal']">
         <div className="max-w-[1400px] mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-4 md:gap-8">
             <button className="md:hidden text-black/80 hover:text-black transition-colors" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>
@@ -95,14 +109,29 @@ export const MontHeader = React.memo(function MontHeader() {
             
             <div className="text-xl md:text-2xl font-black tracking-tighter uppercase cursor-pointer text-black" onClick={() => navigate('/')}>KHUYOOT</div>
             <div className="hidden md:flex items-center gap-6 text-[11px] font-bold text-black">
-              <button onClick={() => navigate('/')} className="hover:text-black transition-colors">الرئيسية</button>
+              <button
+                onClick={() => navigate('/')}
+                className={`transition-colors ${
+                  isHomeLandingRoute()
+                    ? 'bg-[var(--theme-primary)] text-white rounded-md px-2 py-1'
+                    : 'text-black hover:text-black rounded-md px-2 py-1'
+                }`}
+                title="الرئيسية"
+                aria-label="الرئيسية"
+              >
+                <Home size={16} />
+              </button>
               
               {/* Dynamic Role Links */}
               {roleLinks.map(link => (
                 <button 
                   key={link.id} 
                   onClick={() => navigate(link.path)} 
-                  className="hover:text-black transition-colors flex items-center gap-1"
+                  className={`transition-colors flex items-center gap-1 ${
+                    isLinkActive(link.path)
+                      ? 'bg-[var(--theme-primary)] text-white rounded-md px-3 py-1.5'
+                      : 'text-black hover:text-black rounded-md px-3 py-1.5'
+                  }`}
                 >
                   {link.label}
                   {link.badge && link.badge > 0 ? (
@@ -113,8 +142,16 @@ export const MontHeader = React.memo(function MontHeader() {
                 </button>
               ))}
 
-              <button onClick={() => navigate('/tailors')} className="hover:text-black transition-colors">الخياطون</button>
-              <button onClick={() => {}} className="hover:text-black transition-colors">تواصل</button>
+              <button
+                onClick={() => navigate('/tailors')}
+                className={`transition-colors ${
+                  isLinkActive('/tailors')
+                    ? 'bg-[var(--theme-primary)] text-white rounded-md px-3 py-1.5'
+                    : 'text-black hover:text-black rounded-md px-3 py-1.5'
+                }`}
+              >
+                الخياطون
+              </button>
             </div>
           </div>
           <div className="flex items-center gap-2 md:gap-4">
@@ -299,9 +336,6 @@ export const MontHeader = React.memo(function MontHeader() {
             )}
         </div>
       )}
-
-      {/* Spacer for fixed header */}
-      <div className="h-[72px]" />
     </>
   );
 });

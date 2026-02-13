@@ -87,16 +87,10 @@
             document.documentElement.classList.add('dark');
           }
 
-          // Apply theme colors early to avoid flash
-          let primary = '#63498b';
-          let secondary = '#b5e58d';
-          if (appSettings) {
-            try {
-              const settings = JSON.parse(appSettings);
-              if (settings?.themeColors?.primary) primary = settings.themeColors.primary;
-              if (settings?.themeColors?.secondary) secondary = settings.themeColors.secondary;
-            } catch (e) {}
-          }
+          // Apply theme colors early to avoid flash (ENFORCED - Purple theme)
+          const primary = '#63498b';  // Royal Purple - ENFORCED
+          const secondary = '#b5e58d'; // Lime Green - ENFORCED
+          
           document.documentElement.style.setProperty('--theme-primary', primary);
           document.documentElement.style.setProperty('--theme-secondary', secondary);
         } catch (e) {
@@ -217,16 +211,16 @@
             colors: {
               brand: {
                 dark: '#050817',
-                primary: 'var(--theme-primary)',
-                secondary: 'var(--theme-secondary)',
+                primary: '#63498b',
+                secondary: '#b5e58d',
                 accent: '#fbbf24',
                 surface: '#1e293b'
               },
               theme: {
-                primary: 'var(--theme-primary)',
-                secondary: 'var(--theme-secondary)',
-                master: 'var(--theme-master)',
-                surface: 'var(--theme-surface-lavender)',
+                primary: '#63498b',
+                secondary: '#b5e58d',
+                master: '#63498b',
+                surface: '#c2b7d3',
               },
               boutique: {
                 dark: '#0F051D',
@@ -296,20 +290,6 @@
         filter: none !important;
         background-color: #27272a !important;
         color: white !important;
-      }
-      
-      /* Ensure all input fields have consistent background */
-      input[type="text"],
-      input[type="email"],
-      input[type="password"],
-      input[type="tel"] {
-        background-color: #27272a !important;
-        color: white !important;
-      }
-      
-      /* Override any browser default styling */
-      input {
-        color-scheme: dark;
       }
       
       body {

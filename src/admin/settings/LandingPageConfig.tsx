@@ -12,6 +12,7 @@ interface GenderCard {
   label: string;
   imageUrl: string;
   gradientColor?: string;
+  enabled?: boolean;
 }
 
 interface HeroSection {
@@ -89,12 +90,14 @@ const DEFAULT_CONFIG: LandingPageConfig = {
     maleCard: {
       label: 'ملابس رجالية',
       imageUrl: '',
-      gradientColor: '#000000'
+      gradientColor: '#000000',
+      enabled: true
     },
     femaleCard: {
       label: 'ملابس نسائية',
       imageUrl: '',
-      gradientColor: '#000000'
+      gradientColor: '#000000',
+      enabled: true
     }
   },
   promotion: {
@@ -697,12 +700,25 @@ export const LandingPageConfig: React.FC = () => {
                     <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-3xl space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-black uppercase text-zinc-400">بطاقة الرجال</span>
-                        <input
-                          type="color"
-                          value={config.hero.maleCard.gradientColor || '#000000'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, maleCard: { ...prev.hero.maleCard, gradientColor: e.target.value }}}))}
-                          className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
-                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConfig(prev => ({ ...prev, hero: { ...prev.hero, maleCard: { ...prev.hero.maleCard, enabled: !(prev.hero.maleCard.enabled ?? true) }}}))}
+                            className={`p-1 rounded-lg transition-colors ${
+                              config.hero.maleCard.enabled ?? true
+                                ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                            }`}
+                            title={config.hero.maleCard.enabled ?? true ? 'مفعّل' : 'معطّل'}
+                          >
+                            {config.hero.maleCard.enabled ?? true ? <Eye size={12} /> : <EyeOff size={12} />}
+                          </button>
+                          <input
+                            type="color"
+                            value={config.hero.maleCard.gradientColor || '#000000'}
+                            onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, maleCard: { ...prev.hero.maleCard, gradientColor: e.target.value }}}))}
+                            className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
+                          />
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <CompactImage 
@@ -723,12 +739,25 @@ export const LandingPageConfig: React.FC = () => {
                     <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-3xl space-y-3">
                       <div className="flex items-center justify-between">
                         <span className="text-[9px] font-black uppercase text-zinc-400">بطاقة النساء</span>
-                        <input
-                          type="color"
-                          value={config.hero.femaleCard.gradientColor || '#000000'}
-                          onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, femaleCard: { ...prev.hero.femaleCard, gradientColor: e.target.value }}}))}
-                          className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
-                        />
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => setConfig(prev => ({ ...prev, hero: { ...prev.hero, femaleCard: { ...prev.hero.femaleCard, enabled: !(prev.hero.femaleCard.enabled ?? true) }}}))}
+                            className={`p-1 rounded-lg transition-colors ${
+                              config.hero.femaleCard.enabled ?? true
+                                ? 'bg-green-500/20 text-green-600 dark:text-green-400'
+                                : 'bg-red-500/20 text-red-600 dark:text-red-400'
+                            }`}
+                            title={config.hero.femaleCard.enabled ?? true ? 'مفعّل' : 'معطّل'}
+                          >
+                            {config.hero.femaleCard.enabled ?? true ? <Eye size={12} /> : <EyeOff size={12} />}
+                          </button>
+                          <input
+                            type="color"
+                            value={config.hero.femaleCard.gradientColor || '#000000'}
+                            onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, femaleCard: { ...prev.hero.femaleCard, gradientColor: e.target.value }}}))}
+                            className="w-4 h-4 rounded-full border-none p-0 cursor-pointer"
+                          />
+                        </div>
                       </div>
                       <div className="flex items-center gap-3">
                         <CompactImage 

@@ -286,7 +286,7 @@ const MontLandingPage = () => {
     );
   }
   return (
-    <div className="min-h-screen bg-[#ededed] text-[#1a1a1a] font-['Tajawal'] overflow-x-hidden selection:bg-[var(--theme-primary)] selection:text-white" style={{
+    <div className="bg-[#ededed] text-[#1a1a1a] font-['Tajawal'] overflow-x-hidden selection:bg-[var(--theme-primary)] selection:text-white" style={{
         '--theme-primary': theme.primary,
         '--theme-secondary': theme.secondary,
         '--theme-border': theme.border,
@@ -332,73 +332,82 @@ const MontLandingPage = () => {
           {/* Content Container */}
           <div className="relative flex flex-col md:flex-row items-center min-h-[190px] md:min-h-[280px]">
             {/* Hero Right: Gender Category Cards - Desktop: Absolute positioned, Mobile: Below content */}
-            <div className="absolute right-0 top-1/2 -translate-y-1/2 md:right-6 flex flex-col items-center gap-1.5 md:gap-3 z-10 px-2 md:px-0">
-              <span className="text-white/60 text-[10px] md:text-xs uppercase font-normal tracking-widest mb-1 hidden md:block">حدد ما تريد تصفحه</span>
-              <div className="flex flex-col md:flex-row gap-1.5 md:gap-4">
-              {/* Female Card */}
-              <div 
-                onClick={() => navigate('/female')}
-                className={`relative w-[60px] md:w-[140px] h-[60px] md:h-[180px] rounded-xl md:rounded-2xl overflow-hidden group cursor-pointer transition-all ${
-                  genderFilter === 'female' ? 'ring-1 md:ring-2 ring-[var(--theme-primary)]' : ''
-                }`}
-              >
-                <img 
-                  src={config?.hero?.femaleCard?.imageUrl || "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400&auto=format&fit=crop"} 
-                  alt={config?.hero?.femaleCard?.label || "ملابس نسائية"} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="eager"
-                />
-                <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 hidden md:block">
-                  <h3 className={`text-xs md:text-sm uppercase tracking-tighter px-2 py-0.5 inline-block ${
-                    genderFilter === 'female' ? 'bg-[var(--theme-primary)] text-white' : 'bg-[#ededed] text-black'
-                  }`}>{config?.hero?.femaleCard?.label || "ملابس نسائية"}</h3>
-                </div>
-                {/* Mobile Label */}
-                <div className="md:hidden absolute inset-0 flex items-center justify-center bg-[var(--theme-primary)]/40">
-                  <span className="text-[10px] font-normal text-white">نساء</span>
-                </div>
-                
-                {genderFilter === 'female' && (
-                  <div className="absolute top-1 right-1 md:top-2 md:right-2 bg-[var(--theme-primary)] text-white w-2 h-2 md:w-auto md:h-auto md:px-2 md:py-1 rounded-full text-[10px] font-normal uppercase z-20">
-                    <span className="hidden md:block">نشط</span>
+            {((config?.hero?.femaleCard?.enabled ?? true) || (config?.hero?.maleCard?.enabled ?? true)) && (
+              <div className="absolute right-0 top-1/2 -translate-y-1/2 md:right-6 flex flex-col items-center gap-1.5 md:gap-3 z-10 px-2 md:px-0">
+                <div className="flex flex-col md:flex-row gap-1.5 md:gap-4">
+                {/* Female Card */}
+                {(config?.hero?.femaleCard?.enabled ?? true) && (
+                  <div 
+                    onClick={() => navigate('/female')}
+                    className={`relative w-[60px] md:w-[140px] h-[60px] md:h-[180px] rounded-xl md:rounded-2xl overflow-hidden group cursor-pointer transition-all ${
+                      genderFilter === 'female' ? 'ring-1 md:ring-2 ring-[var(--theme-primary)]' : ''
+                    }`}
+                  >
+                    <img 
+                      src={config?.hero?.femaleCard?.imageUrl || "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400&auto=format&fit=crop"} 
+                      alt={config?.hero?.femaleCard?.label || "ملابس نسائية"} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      loading="eager"
+                    />
+                    <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 hidden md:block">
+                      <h3 className={`text-xs md:text-sm uppercase tracking-tighter px-2 py-0.5 inline-block ${
+                        genderFilter === 'female' ? 'bg-[var(--theme-primary)] text-white' : 'bg-[#ededed] text-black'
+                      }`}>{config?.hero?.femaleCard?.label || "ملابس نسائية"}</h3>
+                    </div>
+                    {/* Mobile Label */}
+                    <div className="md:hidden absolute inset-0 flex items-center justify-center bg-[var(--theme-primary)]/40">
+                      <span className="text-[10px] font-normal text-white">نساء</span>
+                    </div>
+                    
+                    {genderFilter === 'female' && (
+                      <div className="absolute top-1 right-1 md:top-2 md:right-2 bg-[var(--theme-primary)] text-white w-2 h-2 md:w-auto md:h-auto md:px-2 md:py-1 rounded-full text-[10px] font-normal uppercase z-20">
+                        <span className="hidden md:block">نشط</span>
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
 
-              {/* Male Card */}
-              <div 
-                onClick={() => navigate('/male')}
-                className={`relative w-[60px] md:w-[140px] h-[60px] md:h-[180px] rounded-xl md:rounded-2xl overflow-hidden group cursor-pointer transition-all ${
-                  genderFilter === 'male' ? 'ring-1 md:ring-2 ring-[var(--theme-primary)]' : ''
-                }`}
-              >
-                <img 
-                  src={config?.hero?.maleCard?.imageUrl || "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=400&auto=format&fit=crop"} 
-                  alt={config?.hero?.maleCard?.label || "ملابس رجالية"} 
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
-                  loading="eager"
-                />
-                <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 hidden md:block">
-                  <h3 className={`text-xs md:text-sm uppercase tracking-tighter px-2 py-0.5 inline-block ${
-                    genderFilter === 'male' ? 'bg-[var(--theme-primary)] text-white' : 'bg-[#ededed] text-black'
-                  }`}>{config?.hero?.maleCard?.label || "ملابس رجالية"}</h3>
-                </div>
-                {/* Mobile Label */}
-                <div className="md:hidden absolute inset-0 flex items-center justify-center bg-[var(--theme-primary)]/40">
-                  <span className="text-[10px] font-normal text-white">رجال</span>
-                </div>
+                {/* Male Card */}
+                {(config?.hero?.maleCard?.enabled ?? true) && (
+                  <div 
+                    onClick={() => navigate('/male')}
+                    className={`relative w-[60px] md:w-[140px] h-[60px] md:h-[180px] rounded-xl md:rounded-2xl overflow-hidden group cursor-pointer transition-all ${
+                      genderFilter === 'male' ? 'ring-1 md:ring-2 ring-[var(--theme-primary)]' : ''
+                    }`}
+                  >
+                    <img 
+                      src={config?.hero?.maleCard?.imageUrl || "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=400&auto=format&fit=crop"} 
+                      alt={config?.hero?.maleCard?.label || "ملابس رجالية"} 
+                      className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                      loading="eager"
+                    />
+                    <div className="absolute bottom-3 md:bottom-4 right-3 md:right-4 hidden md:block">
+                      <h3 className={`text-xs md:text-sm uppercase tracking-tighter px-2 py-0.5 inline-block ${
+                        genderFilter === 'male' ? 'bg-[var(--theme-primary)] text-white' : 'bg-[#ededed] text-black'
+                      }`}>{config?.hero?.maleCard?.label || "ملابس رجالية"}</h3>
+                    </div>
+                    {/* Mobile Label */}
+                    <div className="md:hidden absolute inset-0 flex items-center justify-center bg-[var(--theme-primary)]/40">
+                      <span className="text-[10px] font-normal text-white">رجال</span>
+                    </div>
 
-                {genderFilter === 'male' && (
-                  <div className="absolute top-1 right-1 md:top-2 md:right-2 bg-[var(--theme-primary)] text-white w-2 h-2 md:w-auto md:h-auto md:px-2 md:py-1 rounded-full text-[10px] font-normal uppercase z-20">
-                    <span className="hidden md:block">نشط</span>
+                    {genderFilter === 'male' && (
+                      <div className="absolute top-1 right-1 md:top-2 md:right-2 bg-[var(--theme-primary)] text-white w-2 h-2 md:w-auto md:h-auto md:px-2 md:py-1 rounded-full text-[10px] font-normal uppercase z-20">
+                        <span className="hidden md:block">نشط</span>
+                      </div>
+                    )}
                   </div>
                 )}
+                </div>
               </div>
-              </div>
-            </div>
+            )}
 
             {/* Hero Left: Content */}
-            <div className="w-full md:w-1/2 mr-auto p-4 md:p-10 text-white space-y-2 md:space-y-4 flex flex-col justify-center order-1 md:order-2 pr-[80px] md:pr-0" dir="rtl">
+            <div className={`w-full text-white space-y-2 md:space-y-4 flex flex-col justify-center order-1 md:order-2 transition-all ${
+              (config?.hero?.femaleCard?.enabled ?? true) || (config?.hero?.maleCard?.enabled ?? true)
+                ? 'md:w-1/2 mr-auto p-4 md:p-10 pr-[80px] md:pr-0'
+                : 'md:w-full p-4 md:px-20 md:py-10'
+            }`} dir="rtl">
             <h1 className="text-2xl md:text-4xl uppercase tracking-tighter leading-[0.9] text-right">
               {config?.hero?.title?.split('\\n').map((line: string, i: number) => (
                 <React.Fragment key={i}>
@@ -408,7 +417,7 @@ const MontLandingPage = () => {
               )) || (<>ننسج <br /> تجربة <br /> الخياطة</>)}
             </h1>
 
-            <p className="hidden md:block text-zinc-400 text-xs md:text-sm max-w-[200px] md:max-w-xs leading-relaxed text-right">
+            <p className="hidden md:block text-white bg-[var(--theme-primary)] px-4 py-2 rounded-lg text-xs md:text-sm max-w-[200px] md:max-w-xs leading-relaxed text-right">
               {config?.hero?.description || "نحول أحلامك إلى واقع بخياطة فاخرة ومخصصة."}
             </p>
             <div className="w-full h-1 bg-zinc-800 rounded-full mt-6 relative overflow-hidden">
@@ -457,7 +466,7 @@ const MontLandingPage = () => {
           <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-8 relative z-10 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0">
              {[
                { icon: <LayoutGrid size={20} />, title: "تصفح الموديلات", desc: "اختر تصميمك المفضل من تشكيلتنا" },
-               { icon: <Palette size={20} />, title: "جرب قماشك", desc: "شاهد القماش على الموديل فوراً" },
+               { icon: <Palette size={20} />, title: "جرب القماش/ أدخل المقاسات", desc: "شاهد القماش على الموديل فوراً" },
                { icon: <Scissors size={20} />, title: "اطلب خياطك", desc: "تنفيذ بجودة عالية وتوصيل لبابك" }
              ].map((item, i) => (
                 <div key={i} className="shrink-0 w-[180px] md:w-auto snap-center group relative bg-[#fcfcfc] border-2 border-dashed border-[var(--theme-border)] p-4 md:p-8 rounded-2xl md:rounded-3xl hover:bg-[var(--theme-primary)] transition-all duration-500 hover:shadow-xl cursor-default h-full">
@@ -862,7 +871,7 @@ const MontLandingPage = () => {
             </ul>
           </div>
         </div>
-        <div className="mt-6 md:mt-20 pt-6 md:pt-10 border-t text-center text-zinc-400 text-[10px] md:text-xs font-normal uppercase tracking-widest" dir="ltr">
+        <div className="mt-6 md:mt-8 pt-6 md:pt-8 border-t text-center text-zinc-400 text-[10px] md:text-xs font-normal uppercase tracking-widest" dir="ltr">
           Copyright © KHUYOOT. All Rights Reserved.
         </div>
       </footer>

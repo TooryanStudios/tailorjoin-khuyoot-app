@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
 import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, Sparkles } from 'lucide-react';
@@ -38,6 +38,9 @@ type SaveJob = {
   items: UploadItem[];
   message?: string;
 };
+
+const MONT_HEADER_ID = 'khuyoot-mont-header';
+const DEFAULT_HEADER_SPACER_HEIGHT = 72;
 
 
 export const TailorCollections = () => {
@@ -130,6 +133,33 @@ export const TailorCollections = () => {
   const [uploadJobs, setUploadJobs] = useState<SaveJob[]>([]);
   const [isImageDragOver, setIsImageDragOver] = useState(false);
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
+  const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
+
+  const normalizeGenderValue = React.useCallback((value?: string): 'male' | 'female' | null => {
+    if (!value) return null;
+    const v = value.toLowerCase().trim();
+
+    if (v === 'male' || v === 'males' || v === 'men') return 'male';
+    if (v === 'female' || v === 'females' || v === 'women') return 'female';
+    return null;
+  }, []);
+
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const updateHeaderHeight = () => {
+      const headerEl = document.getElementById(MONT_HEADER_ID);
+      if (!headerEl) return;
+      const measuredHeight = headerEl.getBoundingClientRect().height;
+      if (measuredHeight > 0) {
+        setHeaderHeight(measuredHeight);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
 
   const groupedCategoryOptions = React.useMemo(() => {
     const groups = new Map<string, Array<{ id: string; nameAr: string; image?: string }>>();
@@ -171,34 +201,26 @@ export const TailorCollections = () => {
       const { collection, query, where, getDocs } = await import('firebase/firestore');
       const { db } = await import('../services/firebase');
       
-      // تحديد جنس الخياط من user (تحقق من tailorGender أولاً ثم تخصص/جنس كبديل)
-      let tailorGender: 'male' | 'female' = 'female'; // الافتراضي (لحسابات الخياطين النسائية)
-      const isFemaleValue = (value?: string) => {
-        if (!value) return false;
-        const v = value.toLowerCase();
-        return v.includes('female') || v.includes('نسائي') || v.includes('women') || v.includes('woman');
-      };
-      const isMaleValue = (value?: string) => {
-        if (!value) return false;
-        const v = value.toLowerCase();
-        return v.includes('male') || v.includes('رجالي') || v.includes('men') || v.includes('man');
-      };
+      // تحديد الجنس/التخصص من بيانات المستخدم المخزنة فقط (بدون تخمينات نصية)
+      let tailorGender: 'male' | 'female' | null = null;
 
-      if (user?.tailorGender) {
-        tailorGender = user.tailorGender;
-      } else if (user?.specialization && (isFemaleValue(user.specialization) || isMaleValue(user.specialization))) {
-        tailorGender = isFemaleValue(user.specialization) ? 'female' : 'male';
-      } else if (Array.isArray(user?.specializations) && user.specializations.length > 0) {
-        const joined = user.specializations.join(' ');
-        if (isFemaleValue(joined) || isMaleValue(joined)) {
-          tailorGender = isFemaleValue(joined) ? 'female' : 'male';
-        }
-      } else if (user?.gender && (user.gender === 'female' || user.gender === 'male')) {
-        tailorGender = user.gender;
-      } else {
-        const lastGender = localStorage.getItem('khuyoot:lastGender');
-        if (lastGender === 'male' || lastGender === 'men') tailorGender = 'male';
-        if (lastGender === 'female' || lastGender === 'women') tailorGender = 'female';
+      const detectedFromTailorGender = normalizeGenderValue(user?.tailorGender);
+      const detectedFromSpecialization = normalizeGenderValue(user?.specialization);
+      const detectedFromSpecializations = Array.isArray(user?.specializations)
+        ? (user.specializations
+            .map((s: string) => normalizeGenderValue(s))
+            .find((v): v is 'male' | 'female' => Boolean(v)) || null)
+        : null;
+      const detectedFromGender = normalizeGenderValue(user?.gender);
+
+      if (detectedFromTailorGender) {
+        tailorGender = detectedFromTailorGender;
+      } else if (detectedFromSpecialization) {
+        tailorGender = detectedFromSpecialization;
+      } else if (detectedFromSpecializations) {
+        tailorGender = detectedFromSpecializations;
+      } else if (detectedFromGender) {
+        tailorGender = detectedFromGender;
       }
       
       console.log('🔍 [TailorCollections] Loading categories for gender:', tailorGender);
@@ -206,10 +228,8 @@ export const TailorCollections = () => {
       console.log('   tailorGender field:', user?.tailorGender);
       console.log('   specialization field:', user?.specialization);
       
-      if (!user?.tailorGender && !user?.specialization && !user?.specializations?.length && !user?.gender) {
-        console.warn('⚠️ لم يتم تحديد جنس الخياط، سيتم استخدام آخر اختيار أو الافتراضي النسائي');
-      } else if (!user?.tailorGender && user?.specialization) {
-        console.warn('⚠️ استخدام حقل specialization كبديل لـ tailorGender');
+      if (!tailorGender) {
+        console.warn('⚠️ لا يوجد gender/specialization صالح في ملف المستخدم، سيتم عرض جميع تصنيفات الأزياء');
       }
       
       const categoriesRef = collection(db, 'productCategories');
@@ -225,20 +245,41 @@ export const TailorCollections = () => {
       
       console.log('📦 Found', level1Snapshot.size, 'Level 1 categories');
       
+      const matchesCategoryGender = (data: any, targetGender: 'male' | 'female' | null) => {
+        if (!targetGender) return true;
+
+        const rawCandidates: string[] = [];
+        if (typeof data?.tailorGender === 'string') rawCandidates.push(data.tailorGender);
+        if (typeof data?.gender === 'string') rawCandidates.push(data.gender);
+        if (typeof data?.targetGender === 'string') rawCandidates.push(data.targetGender);
+        if (typeof data?.audienceGender === 'string') rawCandidates.push(data.audienceGender);
+        if (typeof data?.forGender === 'string') rawCandidates.push(data.forGender);
+        if (typeof data?.specialization === 'string') rawCandidates.push(data.specialization);
+        if (Array.isArray(data?.genders)) {
+          data.genders.forEach((g: any) => {
+            if (typeof g === 'string') rawCandidates.push(g);
+          });
+        }
+
+        if (rawCandidates.length === 0) return true;
+
+        const normalized = rawCandidates
+          .map((v) => normalizeGenderValue(v))
+          .filter((v): v is 'male' | 'female' => Boolean(v));
+
+        if (normalized.length === 0) return true;
+        return normalized.includes(targetGender);
+      };
+
       level1Snapshot.docs.forEach(doc => {
         const data = doc.data();
-        const nameAr = data.nameAr;
         
-        console.log('  - Checking category:', nameAr);
+        console.log('  - Checking category:', data.nameAr || data.nameEn || doc.id);
         
-        // فلترة حسب جنس الخياط
-        if (tailorGender === 'male' && nameAr === 'الملابس النسائية') {
-          console.log('    ❌ Skipped (female category for male tailor)');
-          return; // تجاهل التصنيفات النسائية للخياط الرجالي
-        }
-        if (tailorGender === 'female' && nameAr === 'الملابس الرجالية') {
-          console.log('    ❌ Skipped (male category for female tailor)');
-          return; // تجاهل التصنيفات الرجالية للخياط النسائي
+        // فلترة مبنية على حقول الجندر المخزنة في قاعدة البيانات
+        if (!matchesCategoryGender(data, tailorGender)) {
+          console.log('    ❌ Skipped (DB gender mismatch)');
+          return;
         }
         
         console.log('    ✅ Included');
@@ -324,7 +365,7 @@ export const TailorCollections = () => {
     if (user?.id) {
       loadCategories();
     }
-  }, [user?.id]);
+  }, [user?.id, user?.tailorGender, user?.specialization, JSON.stringify(user?.specializations || []), user?.gender, normalizeGenderValue]);
 
   // تحميل صور المكتبة عند فتح modal
   useEffect(() => {
@@ -996,11 +1037,16 @@ export const TailorCollections = () => {
 
   return (
     <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
-      <div className="sticky top-0 z-50">
-        <MontHeader />
-      </div>
-      
-      <div className="flex-1 overflow-y-auto">
+      <MontHeader />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none"
+        style={{ height: headerHeight }}
+      />
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ scrollPaddingTop: headerHeight }}
+      >
         {/* --- HERO / BANNER SECTION --- */}
         <section className="px-4 md:px-6 lg:px-8 py-3 max-w-[1400px] mx-auto">
         <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">

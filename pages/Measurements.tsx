@@ -206,6 +206,18 @@ export const Measurements = () => {
     run();
   }, [state]);
 
+  // Handle edit mode from Account page navigation
+  useEffect(() => {
+    const editId = state?.editId;
+    if (!editId || measurements.length === 0) return;
+    
+    const measurementToEdit = measurements.find(m => m.id === editId);
+    if (measurementToEdit) {
+      handleEdit(measurementToEdit);
+      console.log('[DEBUG Measurements.tsx] Auto-editing measurement:', editId);
+    }
+  }, [state?.editId, measurements]);
+
   // Match template by strict rule: Template.id === Product.categoryId
   useEffect(() => {
     const categoryId = product?.categoryId;

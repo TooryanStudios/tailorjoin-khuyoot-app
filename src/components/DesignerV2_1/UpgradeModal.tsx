@@ -23,11 +23,11 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   onUpgradeClick,
 }) => {
   const { t } = useTranslation(['designer']);
-  const { idToken } = useAuth();
+  const { idToken, user } = useAuth();
   const [phase, setPhase] = React.useState<'idle' | 'progress' | 'done'>('idle');
   const [error, setError] = React.useState<string>('');
   const [activeTab, setActiveTab] = React.useState<'onetime' | 'monthly'>('onetime');
-  const [selectedOneTime, setSelectedOneTime] = React.useState<'starter' | 'value' | 'pro'>('pro');
+  const [selectedOneTime, setSelectedOneTime] = React.useState<'starter' | 'value' | 'pro'>('starter');
   const [selectedMonthly, setSelectedMonthly] = React.useState<'basic' | 'standard' | 'plus'>('plus');
   const timeoutsRef = React.useRef<number[]>([]);
 
@@ -35,7 +35,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     setPhase('idle');
     setError('');
     setActiveTab('onetime');
-    setSelectedOneTime('pro');
+    setSelectedOneTime('starter');
     setSelectedMonthly('plus');
 
     // Prevent global overlay cleanup from removing this modal
@@ -68,40 +68,31 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
     setPhase('progress');
     try {
-      // 1. Create Thawani Session
-      const resp = await fetch('http://localhost:8788/api/payments/thawani/create-session', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          // Pass token if we have it in localStorage (App.tsx sets it)
-          'Authorization': `Bearer ${idToken || window.localStorage.getItem('khuyoot:auth:token') || ''}`
-        },
-        body: JSON.stringify({
-          amount: packageInfo.price_omr,
+      // DEMO MODE: Simulate adding credits directly without payment gateway
+      await new Promise(resolve => setTimeout(resolve, 800)); // Simulate API delay
+      
+      // Call the onUpgradeClick prop if provided (for parent components to handle)
+      if (onUpgradeClick) {
+        await onUpgradeClick({
+          packageType: selectedPackageId as PackageType,
           packageName: packageInfo.name,
-          successUrl: window.location.origin + '/designer?payment=success',
-          cancelUrl: window.location.origin + '/designer?payment=cancel',
-          metadata: {
-            credits: packageInfo.credits,
-            packageName: packageInfo.name
-          }
-        })
-      });
-
-      if (!resp.ok) {
-        const errData = await resp.json();
-        throw new Error(errData.error || 'Failed to initiate payment');
+          credits: packageInfo.credits,
+          price: packageInfo.price_omr,
+          isSubscription: activeTab === 'monthly'
+        });
       }
-
-      const { checkout_url } = await resp.json();
       
-      // 2. Redirect to Thawani
-      window.location.href = checkout_url;
+      setPhase('done');
       
-      // Note: setPhase('done') is usually not reachable because of redirect, 
-      // but we handle success state on return to /designer?payment=success
+      // Auto-close modal after showing success briefly
+      setTimeout(() => {
+        onClose();
+        // Reset to idle after closing
+        setTimeout(() => setPhase('idle'), 300);
+      }, 1000);
+      
     } catch (e: any) {
-      console.error('[Upgrade] Thawani Error:', e);
+      console.error('[Upgrade] Error:', e);
       setPhase('idle');
       setError(e?.message || t('upgradeFailed'));
     }
@@ -111,7 +102,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center">
+    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ fontFamily: 'Tajawal, sans-serif' }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md"
@@ -133,26 +124,34 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
         {/* Header with Badge */}
         <div className="px-5 pt-5 pb-3 text-center">
-          <h2 className="text-xl font-bold text-zinc-900 mb-1">{t('upgradeTitle')}</h2>
+          <h2 className="text-xl font-bold text-theme-primary mb-1">{t('upgradeTitle')}</h2>
           <p className="text-xs text-zinc-500">{t('upgradeSubtitle')}</p>
         </div>
 
         {/* Features List */}
-        <div className="px-5 py-3 space-y-1.5">
+        <div className="px-5 py-3 grid grid-cols-2 gap-3">
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="p-1 rounded-md bg-theme-primary/10">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
             <span className="text-zinc-700">{t('upgradeFeatureRemoveWatermark')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="p-1 rounded-md bg-theme-primary/10">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
             <span className="text-zinc-700">{t('upgradeFeature4k')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="p-1 rounded-md bg-theme-primary/10">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
             <span className="text-zinc-700">{t('upgradeFeaturePriority')}</span>
           </div>
           <div className="flex items-center gap-2 text-xs">
-            <Sparkles className="w-3.5 h-3.5 text-purple-600 flex-shrink-0" />
+            <div className="p-1 rounded-md bg-theme-primary/10">
+              <Sparkles className="w-3.5 h-3.5 text-theme-primary flex-shrink-0" />
+            </div>
             <span className="text-zinc-700">{t('upgradeFeatureAdvancedModels')}</span>
           </div>
         </div>
@@ -165,7 +164,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
               onClick={() => setActiveTab('onetime')}
               className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${
                 activeTab === 'onetime'
-                  ? 'bg-purple-600 text-white shadow-lg shadow-purple-500/30'
+                  ? 'bg-theme-primary text-white shadow-lg shadow-theme-primary/30'
                   : 'bg-zinc-200 text-zinc-600 hover:bg-zinc-300'
               }`}
             >
@@ -186,33 +185,17 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           {/* One-Time Packs */}
           {activeTab === 'onetime' && (
             <div className="space-y-1.5 animate-in fade-in duration-200">
-              <div className="text-[10px] text-center text-purple-600 mb-2 font-medium">{t('upgradeCreditsNeverExpire')}</div>
-              {import.meta.env.DEV && (
-                <button
-                  onClick={() => setSelectedOneTime('test')}
-                  className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg border-2 border-dashed transition-all ${
-                    selectedOneTime === 'test'
-                      ? 'bg-purple-50 border-purple-500/60 ring-1 ring-purple-400/50'
-                      : 'border-zinc-200 hover:border-purple-500/30 bg-purple-50/50'
-                  }`}
-                >
-                  <div className="flex flex-col items-start">
-                    <span className="text-purple-600 font-bold uppercase tracking-widest text-[9px]">UAT TEST PACK</span>
-                    <span className="text-xs text-zinc-900">1 Generation (10 Credits)</span>
-                  </div>
-                  <span className="text-zinc-900 font-black">0.1 OMR</span>
-                </button>
-              )}
+              <div className="text-[10px] text-center text-theme-primary mb-2 font-medium">{t('upgradeCreditsNeverExpire')}</div>
               <button
                 onClick={() => setSelectedOneTime('starter')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'starter'
-                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    ? 'bg-theme-primary/10 border border-theme-primary/40 ring-1 ring-theme-primary/50'
                     : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'starter' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackStarter')}</span>
+                  <span className={selectedOneTime === 'starter' ? 'text-theme-primary font-medium' : 'text-zinc-700'}>{t('upgradePackStarter')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackStarterCredits')}</span>
                 </div>
                 <span className={selectedOneTime === 'starter' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>2 {t('currencyOmr')}</span>
@@ -221,12 +204,12 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 onClick={() => setSelectedOneTime('value')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'value'
-                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    ? 'bg-theme-primary/10 border border-theme-primary/40 ring-1 ring-theme-primary/50'
                     : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'value' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackValue')}</span>
+                  <span className={selectedOneTime === 'value' ? 'text-theme-primary font-medium' : 'text-zinc-700'}>{t('upgradePackValue')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackValueCredits')}</span>
                 </div>
                 <span className={selectedOneTime === 'value' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>5 {t('currencyOmr')}</span>
@@ -235,12 +218,12 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
                 onClick={() => setSelectedOneTime('pro')}
                 className={`w-full flex items-center justify-between text-xs py-2 px-2.5 rounded-lg transition-all ${
                   selectedOneTime === 'pro'
-                    ? 'bg-purple-50 border border-purple-500/40 ring-1 ring-purple-400/50'
+                    ? 'bg-theme-primary/10 border border-theme-primary/40 ring-1 ring-theme-primary/50'
                     : 'hover:bg-white border border-transparent'
                 }`}
               >
                 <div className="flex flex-col items-start">
-                  <span className={selectedOneTime === 'pro' ? 'text-purple-700 font-medium' : 'text-zinc-700'}>{t('upgradePackPro')}</span>
+                  <span className={selectedOneTime === 'pro' ? 'text-theme-primary font-medium' : 'text-zinc-700'}>{t('upgradePackPro')}</span>
                   <span className="text-[10px] text-zinc-500">{t('upgradePackProCredits')}</span>
                 </div>
                 <span className={selectedOneTime === 'pro' ? 'text-zinc-900 font-bold' : 'text-zinc-900 font-semibold'}>10 {t('currencyOmr')}</span>
@@ -308,12 +291,12 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
           <button
             onClick={handleUpgradeClick}
             disabled={phase !== 'idle'}
-            className={`w-full px-4 py-2.5 text-sm text-white font-semibold rounded-lg transition-all shadow-lg shadow-purple-500/20 active:scale-95 flex items-center justify-center gap-2 ${
+            className={`w-full px-4 py-2.5 text-sm text-white font-semibold rounded-lg transition-all shadow-lg shadow-theme-primary/20 active:scale-95 flex items-center justify-center gap-2 bg-gradient-to-r ${
               phase === 'idle'
-                ? 'bg-purple-600 hover:bg-purple-700'
+                ? 'from-theme-primary to-[#7a5fa3] hover:from-theme-primary/90 hover:to-[#7a5fa3]/90'
                 : phase === 'progress'
-                  ? 'bg-purple-400 cursor-wait'
-                  : 'bg-emerald-600'
+                  ? 'from-theme-primary/60 to-[#7a5fa3]/60 cursor-wait'
+                  : 'from-emerald-600 to-emerald-700'
             }`}
           >
             {phase === 'idle' && t('upgradeNow')}
@@ -345,20 +328,18 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
 
         {/* Footer Note */}
         <div className="px-5 pb-3 text-center space-y-3">
-          <p className="text-xs text-zinc-500">
-            {t('upgradeTrialNote')}
-          </p>
-
-          {/* Development Test Link - Visible for now */}
-          <div className="pt-2 border-t border-zinc-100">
-            <a 
-              href="/__dev/payment-test"
-              className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-purple-600 hover:text-purple-500 transition-colors"
-            >
-              <Shield size={12} />
-              <span>Test Payment Fulfillment</span>
-            </a>
-          </div>
+          {/* Development Test Link - Admin Only */}
+          {user?.role === 'admin' && (
+            <div className="pt-2 border-t border-zinc-100">
+              <a 
+                href="/__dev/payment-test"
+                className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-theme-primary hover:text-theme-primary/80 transition-colors"
+              >
+                <Shield size={12} />
+                <span>Test Payment Fulfillment</span>
+              </a>
+            </div>
+          )}
         </div>
       </div>
     </div>,

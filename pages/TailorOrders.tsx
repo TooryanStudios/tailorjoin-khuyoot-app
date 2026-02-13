@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Order, OrderStatus } from '../types';
 import { 
   Check, 
@@ -43,6 +43,9 @@ interface CommunicationMessage {
   type: 'note' | 'clarification' | 'status' | 'acceptance' | 'rejection';
 }
 
+const MONT_HEADER_ID = 'khuyoot-mont-header';
+const DEFAULT_HEADER_SPACER_HEIGHT = 72;
+
 export const TailorOrders = () => {
   const { user, appSettings } = useApp();
   const { showOrderDetails } = useOrderDetails();
@@ -65,6 +68,7 @@ export const TailorOrders = () => {
   const [isRejecting, setIsRejecting] = useState(false);
   const [statusFilter, setStatusFilter] = useState<'all' | 'pending' | 'active' | 'completed' | 'cancelled'>('all');
   const [pendingStatusChanges, setPendingStatusChanges] = useState<Record<string, OrderStatus>>({});
+  const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
   
   const theme = {
     primary: '#63498b',
@@ -77,6 +81,23 @@ export const TailorOrders = () => {
       loadOrders();
     }
   }, [user]);
+
+  useLayoutEffect(() => {
+    if (typeof document === 'undefined') return;
+
+    const updateHeaderHeight = () => {
+      const headerEl = document.getElementById(MONT_HEADER_ID);
+      if (!headerEl) return;
+      const measuredHeight = headerEl.getBoundingClientRect().height;
+      if (measuredHeight > 0) {
+        setHeaderHeight(measuredHeight);
+      }
+    };
+
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    return () => window.removeEventListener('resize', updateHeaderHeight);
+  }, []);
 
   const loadOrders = async () => {
     if (!user?.id) return;
@@ -403,12 +424,17 @@ export const TailorOrders = () => {
   }
 
   return (
-    <div className="h-screen bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
-      <div className="shrink-0">
-        <MontHeader />
-      </div>
-      
-      <div className="flex-1 overflow-y-auto">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+      <MontHeader />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none"
+        style={{ height: headerHeight }}
+      />
+      <div
+        className="flex-1 overflow-y-auto"
+        style={{ scrollPaddingTop: headerHeight }}
+      >
       {/* --- HERO / BANNER SECTION --- */}
       <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
         <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
