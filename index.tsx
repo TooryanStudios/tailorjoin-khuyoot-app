@@ -13,16 +13,19 @@ import './src/i18n/i18n';
 // PWA Service Worker registration (production only)
 // - Forces immediate activation on deploy (paired with workbox.skipWaiting/clientsClaim)
 // - Forces a reload when an updated SW is ready so users don't stay on stale bundles
-if (import.meta.env.PROD) {
+// CRITICAL: Skip in private browsing mode where service workers are blocked
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   try {
     // IMPORTANT: Do NOT import `virtual:pwa-register` from here.
     // Vite will try to resolve it during dev transforms and throw 500s.
     // Instead, dynamically import a local production-only module.
     import('./src/pwa/registerProd').then(({ registerProdServiceWorker }) => {
       registerProdServiceWorker();
+    }).catch((err) => {
+      console.warn('[PWA] Service worker registration failed (likely private browsing):', err);
     });
-  } catch {
-    // ignore
+  } catch (err) {
+    console.warn('[PWA] Service worker not available:', err);
   }
 }
 

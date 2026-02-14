@@ -80,6 +80,34 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 
+// Detect private browsing mode where IndexedDB/localStorage might be blocked
+function isPrivateBrowsingMode(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    
+    // Test localStorage access
+    const testKey = '__pb_test__';
+    try {
+      localStorage.setItem(testKey, '1');
+      localStorage.removeItem(testKey);
+    } catch {
+      // localStorage is blocked or throws - likely private browsing
+      return true;
+    }
+
+    // Test IndexedDB access (more reliable for Safari Private)
+    if (!window.indexedDB) {
+      return true;
+    }
+
+    return false;
+  } catch {
+    return true; // If detection fails, assume private browsing
+  }
+}
+
+const PRIVATE_BROWSING_MODE = isPrivateBrowsingMode();
+
 function isPersistenceDisabledByQuery(): boolean {
   try {
     if (typeof window === 'undefined') return false;
@@ -90,7 +118,7 @@ function isPersistenceDisabledByQuery(): boolean {
   }
 }
 
-const PERSISTENCE_DISABLED = isPersistenceDisabledByQuery();
+const PERSISTENCE_DISABLED = isPersistenceDisabledByQuery() || PRIVATE_BROWSING_MODE;
 
 function getTestMode(): string | null {
   try {
@@ -116,6 +144,12 @@ const DIAG_AUTH_PERSISTENCE_KEY = 'khuyoot:diag:authPersistence';
 function getAuthPersistenceMode(): 'local' | 'session' | 'memory' {
   try {
     if (typeof window === 'undefined') return import.meta.env.PROD ? 'local' : 'session';
+
+    // CRITICAL: Force memory persistence in private browsing mode
+    if (PRIVATE_BROWSING_MODE) {
+      console.warn('[Firebase] Private browsing detected - using in-memory auth persistence');
+      return 'memory';
+    }
 
     const host = window.location?.hostname || '';
     const isLocalHost = host === 'localhost' || host === '127.0.0.1';
@@ -308,7 +342,8 @@ try {
     try {
       if (PERSISTENCE_DISABLED || TEST_MODE === 'D') {
         db = getFirestore(app);
-        console.warn('[Firebase] Firestore persistence disabled (Test Mode D or persistence=0)');
+        const reason = PRIVATE_BROWSING_MODE ? 'Private Browsing Mode' : (TEST_MODE === 'D' ? 'Test Mode D' : 'persistence=0');
+        console.warn(`[Firebase] Firestore persistence disabled (${reason})`);
       } else {
         db = initializeFirestore(app, {
           localCache: persistentLocalCache({
