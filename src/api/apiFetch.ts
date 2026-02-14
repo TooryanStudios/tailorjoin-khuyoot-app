@@ -57,16 +57,23 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
 
   if (res.status === 401) {
     if (!retryOnUnauthorized) throw new ApiUnauthorizedError();
-    if (snapshot.status === 'authenticated') {
+    
+    // Retry if authenticated OR if we have a token (even if loading from cache)
+    if (snapshot.status === 'authenticated' || (snapshot.status === 'loading' && hasToken)) {
       try {
+        // Wait for Firebase to be ready if it's not (up to 2s)
+        if (!firebaseService.auth?.currentUser) {
+           await firebaseService.waitForAuth?.(2000);
+        }
+
         const fresh = await firebaseService.auth?.currentUser?.getIdToken(true);
         if (fresh) {
           headers.set('Authorization', `Bearer ${fresh}`);
           setAuthTokenSnapshot({ ...snapshot, idToken: fresh });
           res = await exec();
         }
-      } catch {
-        // ignore
+      } catch (e) {
+        console.warn('[apiFetch] Token refresh failed during 401 retry', e);
       }
     }
     if (res.status === 401) throw new ApiUnauthorizedError();
