@@ -1504,6 +1504,27 @@ export const Account = () => {
           </div>
           )}
 
+          {/* Version Footer */}
+          <div className="px-4 py-6 mt-8 border-t border-slate-200">
+            <div className="max-w-[1400px] mx-auto">
+              <div className="text-center text-xs text-slate-400 space-y-1">
+                <div className="font-mono">
+                  Build: {new Date().toLocaleString('ar-SA', { 
+                    year: 'numeric', 
+                    month: '2-digit', 
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: true
+                  })}
+                </div>
+                <div className="text-slate-300">
+                  Version: 2.14.2026 • Deployed ✓
+                </div>
+              </div>
+            </div>
+          </div>
+
         </main>
       </div>
 
