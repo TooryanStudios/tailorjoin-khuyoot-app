@@ -643,13 +643,13 @@ export async function handleTryOnFabric(body: any, ctx: HandlerContext): Promise
         if (sharp && templateWidth && templateHeight) {
           const templatePng = await (sharp as any)(templateImg.buffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
           const generatedPng = await (sharp as any)(outBuffer).rotate().resize(templateWidth, templateHeight, { fit: 'fill' }).png().toBuffer();
-          outBuffer = await compositePreservingTemplateBackground({
+          outBuffer = (await compositePreservingTemplateBackground({
             sharp,
             templatePng,
             generatedPng,
             width: templateWidth,
             height: templateHeight,
-          });
+          })) as Buffer;
         }
       } catch (e) {
         console.warn('Failed to post-process try-on output with background-preserving composite:', e);
