@@ -178,7 +178,7 @@ function clearOldSliderPositions(keepIds: string[]): void {
   }
 }
 export const useDesignerLogic = () => {
-  const { t } = useTranslation(['designer']);
+  const { t, i18n } = useTranslation(['designer']);
 
 
 
@@ -441,21 +441,21 @@ export const useDesignerLogic = () => {
   // Track which tab was last used to determine active preview state
   const [lastActiveTemplateTab, setLastActiveTemplateTab] = React.useState<'Studio' | 'Shop' | 'Closet'>('Closet');
 
-  // Convenience getters for current active preview based on last tab
-  const sourcePreviewUrl =
+  // Convenience getters for current active preview based on last tab - Memoized to prevent cascading re-renders
+  const sourcePreviewUrl = React.useMemo(() =>
     lastActiveTemplateTab === 'Shop' ? shopPreviewUrl :
     lastActiveTemplateTab === 'Closet' ? closetPreviewUrl :
-    studioPreviewUrl;
+    studioPreviewUrl, [lastActiveTemplateTab, shopPreviewUrl, closetPreviewUrl, studioPreviewUrl]);
 
-  const sourceImageBase64 =
+  const sourceImageBase64 = React.useMemo(() =>
     lastActiveTemplateTab === 'Shop' ? shopImageBase64 :
     lastActiveTemplateTab === 'Closet' ? closetImageBase64 :
-    studioImageBase64;
+    studioImageBase64, [lastActiveTemplateTab, shopImageBase64, closetImageBase64, studioImageBase64]);
 
-  const sourceImageMimeType =
+  const sourceImageMimeType = React.useMemo(() =>
     lastActiveTemplateTab === 'Shop' ? shopImageMimeType :
     lastActiveTemplateTab === 'Closet' ? closetImageMimeType :
-    studioImageMimeType;
+    studioImageMimeType, [lastActiveTemplateTab, shopImageMimeType, closetImageMimeType, studioImageMimeType]);
 
   // Setters that update the correct state based on active tab
   const setSourcePreviewUrl = React.useCallback((url: string | null) => {
@@ -1450,11 +1450,15 @@ export const useDesignerLogic = () => {
   }, [addPendingGeneration, addToCloset, executeCreditAction, features.showHistoryFilmstrip, finalizePendingGeneration, freeGenerationsUsed, getApiPayload, incrementFreeGenerationsUsed, isProcessing, isSubscribed, navigate, refreshHistory, removePendingGeneration, revealSlider, selectedModel, setActiveId, setIsUpgradeModalOpen, showError, sourceImageMimeType, sourcePreviewUrl, fabricPreviewUrl, fabricImageMimeType, user?.uid, urlTaskId]);
 
   // Directive 4: lighting buttons trigger generation
+  const handleLightingTrigger = React.useCallback((preset: LightingPreset) => {
+    void handleFabricSwap({ lightingPreset: preset });
+  }, [handleFabricSwap]);
+
   const lightingGenerator = useLightingGenerator({
     value: lightingPreset,
     setValue: setLightingPreset,
     canTrigger: !uiState.generationDisabled && !isProcessing,
-    triggerGeneration: (preset) => handleFabricSwap({ lightingPreset: preset }),
+    triggerGeneration: handleLightingTrigger,
   });
 
   const setBeforeFromHistory = React.useCallback(async (item: any) => {
@@ -2131,8 +2135,13 @@ export const useDesignerLogic = () => {
     };
   }, [handleFabricSwap, isProcessing, uiState.generationDisabled, uiState.inputsDisabled]);
 
-  return {
-    t, navigate, taskId: urlTaskId, user, isAdminUser,
+  /** 
+   * PERFORMANCE OPTIMIZATION: Split the returned logic into "stable" and "volatile" parts.
+   * "Stable" props are ones that shouldn't trigger re-renders of the sidebar (e.g. handlers).
+   * "Volatile" props are ones that change frequently (e.g. slider position).
+   */
+  const stable = React.useMemo(() => ({
+    t, i18n, navigate, taskId: urlTaskId, user, isAdminUser,
     features, setFeatures, uiState,        
     selectedModel, setSelectedModel, refinementPrompt, setRefinementPrompt,
     sourcePreviewUrl, setSourcePreviewUrl, sourceImageBase64, setSourceImageBase64, sourceImageMimeType, setSourceImageMimeType,
@@ -2152,7 +2161,6 @@ export const useDesignerLogic = () => {
     productTemplates, setProductTemplates, isLoadingProduct, setIsLoadingProduct,
     lastRequestDebug, setLastRequestDebug, lastResponseDebug, setLastResponseDebug,
     lightingPreset, setLightingPreset,
-    sliderPos, setSliderPos,
     errorMessage, setErrorMessage, errorModalOpen, setErrorModalOpen,
     sourceImageDimensions, setSourceImageDimensions, afterImageDimensions, setAfterImageDimensions,
     copiedUrl, setCopiedUrl, shareUrlCopied, setShareUrlCopied, currentTaskId, setCurrentTaskId,
@@ -2172,5 +2180,51 @@ export const useDesignerLogic = () => {
     isHistoryCollapsed, setIsHistoryCollapsed,
     userImagePrepOpen, userImagePrepFile,
     fabricPrepOpen, fabricPrepFile
-  };
+  }), [
+    t, i18n, navigate, urlTaskId, user, isAdminUser,
+    features, setFeatures, uiState,        
+    selectedModel, setSelectedModel, refinementPrompt, setRefinementPrompt,
+    sourcePreviewUrl, setSourcePreviewUrl, sourceImageBase64, setSourceImageBase64, sourceImageMimeType, setSourceImageMimeType,
+    fabricPreviewUrl, setFabricPreviewUrl, fabricImageBase64, setFabricImageBase64, fabricImageMimeType, setFabricImageMimeType,
+    fabricMaterial, setFabricMaterial, fabricTilingOpen, setFabricTilingOpen,
+    fabricScale, setFabricScale, originalFabricData, setOriginalFabricData,
+    isProcessingTemplate, setIsProcessingTemplate, isProcessingFabric, setIsProcessingFabric,
+    upscaleEngine, setUpscaleEngine, outputFit, setOutputFit, isUpscaling, setIsUpscaling, upscaleProgress, setUpscaleProgress,
+    deleteModalOpen, setDeleteModalOpen, deletingJobId, setDeletingJobId, deletingItemId, setDeletingItemId,
+    debugPanelOpen, setDebugPanelOpen, isWatermarkEnabled, setIsWatermarkEnabled, isSubscribed, setIsSubscribed,
+    canAfford, creditsEnabled, generationCost, upscaleCost, openUpgradeModal,
+    handlePlanSelect, handleUpgrade,
+    history, isLoading, activeId, setActiveId, refreshHistory, deleteHistoryItem,
+    afterImage, setAfterImage, sourceForComparison, setSourceForComparison,
+    isLoadingHistoryImage, setIsLoadingHistoryImage,
+    productTemplates, setProductTemplates, isLoadingProduct, setIsLoadingProduct,
+    lastRequestDebug, setLastRequestDebug, lastResponseDebug, setLastResponseDebug,
+    lightingPreset, setLightingPreset,
+    errorMessage, setErrorMessage, errorModalOpen, setErrorModalOpen,
+    sourceImageDimensions, setSourceImageDimensions, afterImageDimensions, setAfterImageDimensions,
+    copiedUrl, setCopiedUrl, shareUrlCopied, setShareUrlCopied, currentTaskId, setCurrentTaskId,
+    isMobile,
+    navigateHome, navigateProfile, showError,
+    handleTemplateSelect, setLastActiveTemplateTab,
+    openFabricPrep, closeFabricPrep, openUserImagePrep, closeUserImagePrep,
+    handleFabricSwap, handleUpscale, handleSelectHistory,
+    handleDeleteSlot, confirmDelete, cancelDelete, handleShareTask,
+    handleClearSelections, copyToClipboard,
+    setPrivacyMode, isPrivacyMode, maskingStyle, setMaskingStyle, blurStrength, setBlurStrength,
+    selectedEmoji, setSelectedEmoji, isProcessingPrivacy,
+    selectedTemplate, lightingGenerator,
+    setBeforeFromHistory, setAfterFromHistory,
+    onPickSource, onPickFabric,
+    isSidebarCollapsed, setIsSidebarCollapsed,
+    isHistoryCollapsed, setIsHistoryCollapsed,
+    userImagePrepOpen, userImagePrepFile,
+    fabricPrepOpen, fabricPrepFile
+  ]);
+
+  return React.useMemo(() => ({
+    ...stable,
+    sliderPos,
+    setSliderPos,
+    _stable: stable,
+  }), [stable, sliderPos, setSliderPos]);
 };

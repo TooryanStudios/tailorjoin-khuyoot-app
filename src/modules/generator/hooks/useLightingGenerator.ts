@@ -24,8 +24,8 @@ export function useLightingGenerator(args: UseLightingGeneratorArgs) {
     [canTrigger, setValue, triggerGeneration]
   );
 
-  return {
+  return React.useMemo(() => ({
     value,
     onSelectPreset,
-  };
+  }), [value, onSelectPreset]);
 }

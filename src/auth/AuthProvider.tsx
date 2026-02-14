@@ -77,14 +77,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     try {
       const snapshot = getAuthStateSnapshot();
 
-      // Avoid unnecessary calls when we are already unauthenticated.
-      if (snapshot.status === 'unauthenticated' && !snapshot.idToken) {
-        return;
-      }
-
       // Prevent tight 401 retry loops caused by multiple refresh triggers.
       const now = Date.now();
-      if (!forceWait && lastUnauthorizedAtRef.current && now - lastUnauthorizedAtRef.current < 5000) {
+      if (
+        !forceWait &&
+        snapshot.status === 'unauthenticated' &&
+        lastUnauthorizedAtRef.current &&
+        now - lastUnauthorizedAtRef.current < 5000
+      ) {
         return;
       }
       
@@ -92,13 +92,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // If we have a cookie, this will succeed even before Firebase SDK is ready.
       let userData;
       try {
+        // If we are on a fresh load and have no cached reason to believe a session exists,
+        // we can optionally wait for Firebase to avoid a noisy 401 in the console.
+        const currentSnap = getAuthStateSnapshot();
+        const hasSessionEvidence = !!currentSnap.user || !!localStorage.getItem('khuyoot:has_session');
+        
+        if (!forceWait && currentSnap.status === 'loading' && !hasSessionEvidence) {
+          // No evidence of session, wait for Firebase SDK to resolve first
+          const fbUser = await firebaseService.waitForAuth(1000);
+          if (!fbUser && !localStorage.getItem('khuyoot:has_session')) {
+            // Still no session evidence after waiting, skip the noisy API call
+            return;
+          }
+        }
+
         // Disable internal retry to avoid fighting with AuthProvider state updates
         userData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
+        if (userData) {
+          localStorage.setItem('khuyoot:has_session', 'true');
+        }
       } catch (err: any) {
         // If it failed and we are still loading, wait for Firebase to be sure
         if ((forceWait || snapshot.status === 'loading') && err.status !== 401) {
           await firebaseService.waitForAuth(1500);
           userData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
+          if (userData) {
+            localStorage.setItem('khuyoot:has_session', 'true');
+          }
         } else {
           throw err;
         }
@@ -157,9 +177,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     } catch (err: any) {
       if (err.status === 401) {
         lastUnauthorizedAtRef.current = Date.now();
+
+        // If Firebase already has a signed-in user, this is often a cookie-sync race.
+        // Keep current auth state and let token/cookie sync settle instead of hard-logging out.
+        const currentSnapshot = getAuthStateSnapshot();
+        if (firebaseService.auth?.currentUser || currentSnapshot.idToken) {
+          setState(prev => {
+            if (!prev.user) return prev;
+            return { ...prev, status: 'authenticated' };
+          });
+          return;
+        }
+
         const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
         setAuthStateSnapshot(unauthenticated);
         localStorage.removeItem(UI_CACHE_KEY);
+        localStorage.removeItem('khuyoot:has_session');
         setState(prev => {
           if (prev.status === 'unauthenticated' && !prev.user && !prev.idToken) return prev;
           return unauthenticated;
@@ -190,6 +223,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     const handleBypassLogout = () => {
       const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
       localStorage.removeItem(UI_CACHE_KEY);
+      localStorage.removeItem('khuyoot:has_session');
       setState(unauthenticated);
       setAuthStateSnapshot(unauthenticated);
     };
@@ -231,15 +265,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             body: JSON.stringify({ token: state.idToken }),
             headers: { 'Content-Type': 'application/json' }
           });
-          // console.log('[AuthProvider] Cookie sync successful');
-          // Removed refreshProfile() from here to prevent infinite update loops
+          
+          // Trigger a profile refresh once cookie is established to get full user data.
+          // This avoids the 401 race condition where components call /api/auth/me before the cookie is set.
+          refreshProfile(true);
         } catch (err) {
           console.warn('[AuthProvider] Cookie sync failed:', err);
         }
       }
     };
     syncCookie();
-  }, [state.idToken, state.status]); // Removed refreshProfile from dependencies as it's stable and shouldn't trigger this anyway
+  }, [state.idToken, state.status, refreshProfile]);
 
   React.useEffect(() => {
     const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
@@ -263,10 +299,10 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               const idToken = await fbUser.getIdToken(false);
               
               setState(prev => {
-                // If we already have rich data for this user, don't overwrite it with basic data
-                if (prev.status === 'authenticated' && prev.user?.uid === fbUser.uid) {
-                  if (prev.idToken === idToken) return prev;
-                  return { ...prev, idToken };
+                // If we already have a user with the same UID, preserve their data (especially rich profile data)
+                if (prev.user?.uid === fbUser.uid) {
+                  if (prev.status === 'authenticated' && prev.idToken === idToken) return prev;
+                  return { ...prev, status: 'authenticated', idToken };
                 }
 
                 const user: any = {

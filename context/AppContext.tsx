@@ -351,7 +351,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 } catch (apiError) {
                     const isUnauthorized = (apiError as any)?.status === 401;
                     if (isUnauthorized) {
-                        console.warn('[AppContext] /api/auth/me returned 401, skipping Firebase fallback for this cycle');
+                        console.warn('[AppContext] /api/auth/me returned 401, using auth snapshot fallback for this cycle');
+                        if (!cancelled) {
+                            setUser(normalizeUser(authUser));
+                        }
                         return;
                     }
                     console.warn('[AppContext] /api/auth/me failed, falling back to Firebase:', apiError);
@@ -470,35 +473,58 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     const addToCart = (product: Product) => setCart(prev => [...prev, product]);
     const clearCart = () => { setCart([]); localStorage.removeItem('khuyoot.cart.v1'); };
     
-    return (
-        <AppContext.Provider value={{
-            user, loading, settingsLoaded: true, cart, cartCount: cart.length, ordersCount,
-            isAuthModalOpen, authModalMode, isPrivacyModalOpen, isTermsModalOpen, isReturnPolicyModalOpen,
-            theme, appSettings, login, register, logout, refreshUser: refreshProfile,
-            addToCart, clearCart, toggleAuthModal: (isOpen, mode) => { 
-                if (mode) setAuthModalMode(mode); 
-                setIsAuthModalOpen(isOpen); 
-            },
-            togglePrivacyModal: setIsPrivacyModalOpen,
-            toggleTermsModal: setIsTermsModalOpen,
-            toggleReturnPolicyModal: setIsReturnPolicyModalOpen,
-            toggleTheme,
-            setTheme,
-            updateAppSettings: (s) => setAppSettings(prev => ({ ...prev, ...s })),
-            saveAppSettings: async (s) => { setAppSettings(s); },
-            debugSetRole: (role) => { if (user) setUser({ ...user, role }); },
-            updateLocalUser: (data) => {
-                if (user) {
-                    const next = { ...user, ...data };
-                    setUser(next);
-                    const cacheKey = `khuyoot:user-profile:${user.uid}`;
-                    try { localStorage.setItem(cacheKey, JSON.stringify(next)); } catch {}
-                    
-                    // Sync with AuthProvider
-                    window.dispatchEvent(new CustomEvent('khuyoot:update-user-state', { detail: data }));
-                }
+    const contextValue = React.useMemo(() => ({
+        user,
+        loading,
+        settingsLoaded: true,
+        cart,
+        cartCount: cart.length,
+        ordersCount,
+        isAuthModalOpen,
+        authModalMode,
+        isPrivacyModalOpen,
+        isTermsModalOpen,
+        isReturnPolicyModalOpen,
+        theme,
+        appSettings,
+        login,
+        register,
+        logout,
+        refreshUser: refreshProfile,
+        addToCart,
+        clearCart,
+        toggleAuthModal: (isOpen: boolean, mode?: 'login' | 'register') => {
+            if (mode) setAuthModalMode(mode);
+            setIsAuthModalOpen(isOpen);
+        },
+        togglePrivacyModal: setIsPrivacyModalOpen,
+        toggleTermsModal: setIsTermsModalOpen,
+        toggleReturnPolicyModal: setIsReturnPolicyModalOpen,
+        toggleTheme,
+        setTheme,
+        updateAppSettings: (s: Partial<AppSettings>) => setAppSettings(prev => ({ ...prev, ...s })),
+        saveAppSettings: async (s: AppSettings) => { setAppSettings(s); },
+        debugSetRole: (role: UserRole) => { if (user) setUser({ ...user, role }); },
+        updateLocalUser: (data: Partial<User>) => {
+            if (user) {
+                const next = { ...user, ...data };
+                setUser(next);
+                const cacheKey = `khuyoot:user-profile:${user.uid}`;
+                try { localStorage.setItem(cacheKey, JSON.stringify(next)); } catch {}
+
+                // Sync with AuthProvider
+                window.dispatchEvent(new CustomEvent('khuyoot:update-user-state', { detail: data }));
             }
-        }}>
+        }
+    }), [
+        user, loading, cart, ordersCount, isAuthModalOpen, authModalMode,
+        isPrivacyModalOpen, isTermsModalOpen, isReturnPolicyModalOpen,
+        theme, appSettings, login, register, logout, refreshProfile,
+        addToCart, clearCart, toggleTheme, setTheme
+    ]);
+
+    return (
+        <AppContext.Provider value={contextValue}>
             {children}
         </AppContext.Provider>
     );

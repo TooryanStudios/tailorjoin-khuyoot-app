@@ -128,7 +128,7 @@ export const TryOn: React.FC = () => {
       )}
 
       <main className="flex-1 flex overflow-hidden">
-        <Sidebar {...logic} />
+        <Sidebar {...(logic as any)._stable || logic} />
 
         <div className="flex-1 flex overflow-hidden bg-[#e5e5e5]">
           <div className="flex-1 flex flex-col min-w-0 relative overflow-y-scroll custom-scrollbar border-l border-zinc-200 pb-6">
@@ -158,7 +158,7 @@ export const TryOn: React.FC = () => {
         </div>
       </main>
 
-      <DesignerModals {...logic} />
+      <DesignerModals {...(logic as any)._stable || logic} />
 
       <MeasurementsModal
         isOpen={logic.isMeasurementsModalOpen}

@@ -71,8 +71,9 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
           const user = await firebaseService.waitForAuth?.(2000);
           if (!user) {
             console.warn('[apiFetch] waitForAuth returned null - no Firebase session exists');
-            // Clear stale cache
+            // Clear stale cache and notify AuthProvider to update its React state
             setAuthTokenSnapshot({ status: 'unauthenticated', user: null, idToken: null });
+            window.dispatchEvent(new CustomEvent('auth-bypass-logout'));
             throw new ApiUnauthorizedError();
           }
         }

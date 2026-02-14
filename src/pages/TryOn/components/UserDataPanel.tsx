@@ -2,12 +2,14 @@
 import { apiJson } from '../../../api/apiFetch';
 import { RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
 import { useCredits } from '../../../modules/CreditManager/CreditProvider';
+import { useAuth } from '../../../auth/useAuth';
 
 interface UserDataPanelProps {
   className?: string;
 }
 
 export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) => {
+  const { status } = useAuth();
   const { currentBalance, refresh: refreshCredits } = useCredits();
     const [serverUser, setServerUser] = React.useState<any>(() => { try { const cached = sessionStorage.getItem("designer_user_cache"); return cached ? JSON.parse(cached) : null; } catch (e) { return null; } }); const [generationHistory, setGenerationHistory] = React.useState<any[]>(() => { try { const cached = sessionStorage.getItem("designer_history_cache"); return cached ? JSON.parse(cached) : []; } catch (e) { return []; } }); const [closetItems, setClosetItems] = React.useState<any[]>(() => { try { const cached = sessionStorage.getItem("designer_closet_cache"); return cached ? JSON.parse(cached) : []; } catch (e) { return []; } }); const [historyLoading, setHistoryLoading] = React.useState(false); const [closetLoading, setClosetLoading] = React.useState(false);
   const [userLoading, setUserLoading] = React.useState(false);
@@ -18,9 +20,10 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
   const [showCredits, setShowCredits] = React.useState(true);
 
   const fetchUserData = async () => {
+    if (status !== 'authenticated') return;
     setUserLoading(true);
     try {
-      const data = await apiJson<any>('/api/auth/me');
+      const data = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
       setServerUser(data); sessionStorage.setItem("designer_user_cache", JSON.stringify(data));
     } catch (err: any) {
       console.error('Failed to fetch user data:', err);
@@ -30,9 +33,10 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
   };
 
   const fetchHistory = async () => {
+    if (status !== 'authenticated') return;
     if (generationHistory.length === 0) setHistoryLoading(true);
     try {
-      const data = await apiJson<any>('/api/designer-v2-1/history?limit=20');
+      const data = await apiJson<any>('/api/designer-v2-1/history?limit=20', { retryOnUnauthorized: false });
       const historyData = data.generations || data || []; setGenerationHistory(historyData); sessionStorage.setItem("designer_history_cache", JSON.stringify(historyData));
     } catch (err: any) {
       console.error('Failed to fetch generation history:', err);
@@ -59,13 +63,19 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
   };
 
   React.useEffect(() => {
-    fetchUserData();
+    if (status === 'authenticated') {
+      fetchUserData();
+    }
     
     // Global event listener to allow other components to trigger a silent refresh
-    const handleRefresh = () => { fetchUserData(); refreshCredits(); };
+    const handleRefresh = () => {
+      if (status !== 'authenticated') return;
+      fetchUserData();
+      refreshCredits();
+    };
     window.addEventListener('khuyoot:refresh-user-data', handleRefresh);
     return () => window.removeEventListener('khuyoot:refresh-user-data', handleRefresh);
-  }, []);
+  }, [status, refreshCredits]);
 
   React.useEffect(() => {
     if (serverUser) {

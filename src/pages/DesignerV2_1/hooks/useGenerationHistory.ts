@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { fetchGenerationHistory, type GenerationRecord } from '../../../services/fabricSwapService';
 import { apiFetch } from '../../../api/apiFetch';
 import { ApiUnauthorizedError, AuthRequiredError } from '../../../api/httpErrors';
@@ -228,7 +228,7 @@ export const useGenerationHistory = (userId: string | undefined, status: AuthSta
     refreshHistory();
   }, [userId, status, refreshHistory]);
 
-  return {
+  return useMemo(() => ({
     history,
     isLoading,
     activeId,
@@ -239,5 +239,15 @@ export const useGenerationHistory = (userId: string | undefined, status: AuthSta
     finalizePendingGeneration,
     removePendingGeneration,
     markGenerationAsError,
-  };
+  }), [
+    history,
+    isLoading,
+    activeId,
+    refreshHistory,
+    deleteHistoryItem,
+    addPendingGeneration,
+    finalizePendingGeneration,
+    removePendingGeneration,
+    markGenerationAsError,
+  ]);
 };

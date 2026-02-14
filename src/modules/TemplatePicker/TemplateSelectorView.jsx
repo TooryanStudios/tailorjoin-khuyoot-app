@@ -17,7 +17,7 @@ const TAB_LABELS_AR = {
   [TABS.CLOSET]: 'الخزانة',
 };
 
-export const TemplateSelectorView = ({
+export const TemplateSelectorView = React.memo(({
   onSelect,
   currentId,
   studioItems,
@@ -165,4 +165,4 @@ export const TemplateSelectorView = ({
       </div>
     </div>
   );
-};
+});

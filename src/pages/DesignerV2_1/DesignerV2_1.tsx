@@ -76,17 +76,17 @@ export const DesignerV2_1: React.FC = () => {
       )}
 
       <main className="flex-1 flex overflow-hidden">
-        <Sidebar {...logic} />
+        <Sidebar {...(logic as any)._stable || logic} />
 
         <div className="flex-1 flex overflow-hidden bg-white">
           <div className="flex-1 flex flex-col min-w-0 relative overflow-y-auto custom-scrollbar border-l border-zinc-200">
             <DesignerViewport {...logic} />
             
             {features.showFullComparison && (
-              <DesignerFullComparison {...logic} />
+              <DesignerFullComparison {...(logic as any)._stable || logic} />
             )}
 
-            <DesignerMetadataPanel {...logic} />
+            <DesignerMetadataPanel {...(logic as any)._stable || logic} />
           </div>
 
           {features.showHistoryFilmstrip && (
@@ -106,7 +106,7 @@ export const DesignerV2_1: React.FC = () => {
         </div>
       </main>
 
-      <DesignerModals {...logic} />
+      <DesignerModals {...(logic as any)._stable || logic} />
     </div>
   );
 };

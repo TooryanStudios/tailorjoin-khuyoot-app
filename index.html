@@ -86,7 +86,12 @@
             } catch (e) {}
           }
           
-          if (theme === 'dark') {
+          let isDark = theme === 'dark';
+          if (theme === 'system') {
+            isDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+          }
+          
+          if (isDark) {
             document.documentElement.classList.add('dark');
           }
 

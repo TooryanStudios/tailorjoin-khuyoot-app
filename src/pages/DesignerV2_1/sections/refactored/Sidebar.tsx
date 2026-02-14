@@ -123,7 +123,7 @@ interface SidebarProps {
   productId?: string;
 }
 
-export const Sidebar: React.FC<SidebarProps> = (props) => {
+export const Sidebar: React.FC<SidebarProps> = React.memo((props) => {
   const { t } = useTranslation(['designer']);
   const {
     features, uiState, user, isAdminUser, isSubscribed, canAfford, openUpgradeModal,
@@ -1039,5 +1039,5 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
       </AnimatePresence>
     </motion.aside>
   );
-};
+});
 

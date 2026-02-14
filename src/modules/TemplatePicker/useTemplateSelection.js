@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useState, useMemo } from 'react';
 
 /**
  * @typedef {{ premium?: boolean; label?: string; source?: 'studio'|'shop'|'closet' }} TemplateMeta
@@ -19,5 +19,5 @@ export const useTemplateSelection = (initialTemplate = null) => {
     setSelectedTemplate(templateData);
   }, []);
 
-  return { selectedTemplate, selectTemplate };
+  return useMemo(() => ({ selectedTemplate, selectTemplate }), [selectedTemplate, selectTemplate]);
 };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react';
 import { FaceDetector, FilesetResolver } from '@mediapipe/tasks-vision';
 
 /** @typedef {'feathered-blur'|'pixelate'|'emoji'} MaskingStyle */
@@ -237,7 +237,7 @@ export const usePrivacyShield = () => {
     [blurStrength, ensureDetector, isEnabled, maskingStyle, selectedEmoji]
   );
 
-  return {
+  return useMemo(() => ({
     isPrivacyMode: isEnabled,
     setPrivacyMode: setIsEnabled,
     maskingStyle,
@@ -250,5 +250,14 @@ export const usePrivacyShield = () => {
     isProcessingPrivacy: isProcessing,
     isDetectorReady,
     detectorError,
-  };
+  }), [
+    isEnabled,
+    maskingStyle,
+    blurStrength,
+    selectedEmoji,
+    processImage,
+    isProcessing,
+    isDetectorReady,
+    detectorError
+  ]);
 };

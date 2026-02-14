@@ -1,11 +1,13 @@
 import React from "react";
 import { apiJson } from "../../../api/apiFetch";
+import { useAuth } from '../../../auth/useAuth';
 
 interface GenerationHistoryBlockProps {
   className?: string;
 }
 
 export const GenerationHistoryBlock: React.FC<GenerationHistoryBlockProps> = ({ className = "" }) => {
+  const { status } = useAuth();
   const [generationHistory, setGenerationHistory] = React.useState<any[]>(() => {
     try {
       const cached = sessionStorage.getItem("designer_history_full_cache");
@@ -18,10 +20,11 @@ export const GenerationHistoryBlock: React.FC<GenerationHistoryBlockProps> = ({ 
   const [historyError, setHistoryError] = React.useState("");
 
   const fetchHistory = async () => {
+    if (status !== 'authenticated') return;
     setHistoryLoading(true);
     setHistoryError("");
     try {
-      const data = await apiJson<any>("/api/designer-v2-1/history?limit=20");
+      const data = await apiJson<any>("/api/designer-v2-1/history?limit=20", { retryOnUnauthorized: false });
       const historyData = data.generations || data || [];
       setGenerationHistory(historyData);
       sessionStorage.setItem("designer_history_full_cache", JSON.stringify(historyData));
@@ -35,13 +38,16 @@ export const GenerationHistoryBlock: React.FC<GenerationHistoryBlockProps> = ({ 
   };
 
   React.useEffect(() => {
-    fetchHistory();
+    if (status === 'authenticated') {
+      fetchHistory();
+    }
     const handleRefresh = () => {
+      if (status !== 'authenticated') return;
       fetchHistory();
     };
     window.addEventListener("khuyoot:refresh-user-data", handleRefresh);
     return () => window.removeEventListener("khuyoot:refresh-user-data", handleRefresh);
-  }, []);
+  }, [status]);
 
   return (
     <div className={"bg-slate-900/60 border border-slate-800 p-4 rounded-lg shadow-lg " + className} style={{ minHeight: "100px", display: "block", visibility: "visible", opacity: 1 }}>

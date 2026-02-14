@@ -26,7 +26,7 @@ interface ModalsProps {
   setFabricMaterial: (val: any) => void;
 }
 
-export const DesignerModals: React.FC<ModalsProps> = (props) => {
+export const DesignerModals: React.FC<ModalsProps> = React.memo((props) => {
   const { t } = useTranslation(['designer']);
   const {
     deleteModalOpen, confirmDelete, cancelDelete,
@@ -88,4 +88,4 @@ export const DesignerModals: React.FC<ModalsProps> = (props) => {
       />
     </>
   );
-};
+});
