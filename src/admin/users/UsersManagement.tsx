@@ -82,7 +82,9 @@ export const UsersManagement = () => {
         const storage = getStorage();
         const path = `users/${selectedUser.id}/${imagePrepType}_${Date.now()}`;
         const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, processedFile);
+        await uploadBytes(storageRef, processedFile, {
+          cacheControl: 'public, max-age=31536000'
+        });
         const url = await getDownloadURL(storageRef);
         if (imagePrepType === 'profile') {
           setEditForm(prev => ({ ...prev, profileImage: url }));
@@ -500,7 +502,9 @@ export const UsersManagement = () => {
       const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
       const path = `users/${selectedUser.id}/products/${p.id}/${fileId}.jpg`;
       const storageRef = ref(storage, path);
-      await uploadBytes(storageRef, compressedFile);
+      await uploadBytes(storageRef, compressedFile, {
+        cacheControl: 'public, max-age=31536000'
+      });
       const url = await getDownloadURL(storageRef);
       const imgs = normalizedImages(p);
       const newImages = [...imgs, url];
@@ -536,7 +540,9 @@ export const UsersManagement = () => {
         const fileId = `${Date.now()}_${Math.random().toString(36).slice(2,8)}`;
         const path = `users/${selectedUser.id}/products/${p.id}/${fileId}.jpg`;
         const storageRef = ref(storage, path);
-        await uploadBytes(storageRef, compressedFile);
+        await uploadBytes(storageRef, compressedFile, {
+          cacheControl: 'public, max-age=31536000'
+        });
         return await getDownloadURL(storageRef);
       });
 

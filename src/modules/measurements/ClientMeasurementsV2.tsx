@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useLocation, useParams, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { Trash2 } from 'lucide-react';
+import { Trash2, X } from 'lucide-react';
 import { MeasurementStudioCanvas } from './components/MeasurementStudioCanvas';
 import { firebaseService } from '../../services/firebase';
 import { useApp } from '../../../context/AppContext';
@@ -10,7 +10,14 @@ import { useAuth } from '../../auth/useAuth';
 import { measurementService, MeasurementTemplate } from './services/measurementService';
 
 // ✅ WRAPPED IN React.memo: Component has 811 lines and heavy computations
-const ClientMeasurementsV2Component: React.FC = () => {
+interface ClientMeasurementsV2Props {
+  productId?: string;
+  isModal?: boolean;
+  onClose?: () => void;
+}
+
+const ClientMeasurementsV2Component: React.FC<ClientMeasurementsV2Props> = (props) => {
+  const { productId: propProductId, isModal, onClose } = props;
   const { user } = useAuth();
   const { appSettings } = useApp();
   const { t, i18n } = useTranslation(['measurements', 'common']);
@@ -25,10 +32,12 @@ const ClientMeasurementsV2Component: React.FC = () => {
       // Support Designer 2.1 template IDs like: product-<productId>-<index>
       const m = /^product-(.+)-(\d+)$/.exec(value);
       if (m?.[1]) return m[1];
-      return undefined;
+      // Also support raw task IDs or template IDs if needed
+      return value;
     };
 
     return (
+      propProductId ||
       productIdParam ||
       state?.productId ||
       state?.productID ||
@@ -329,16 +338,27 @@ const ClientMeasurementsV2Component: React.FC = () => {
   };
 
   return (
-    <div
-      className="h-full bg-white text-zinc-900 overflow-x-hidden"
-      style={
-        {
-          // Match Khuyoot logo palette (teal).
-          ['--theme-primary' as any]: '#7c3aed', // Purple-600
-          ['--theme-secondary' as any]: '#6d28d9', // Purple-700
-        } as React.CSSProperties
-      }
-    >
+    <>
+      <div 
+        className={isModal 
+          ? "h-full bg-white text-zinc-900 rounded-2xl flex flex-col relative overflow-hidden" 
+          : "min-h-screen h-full bg-white text-zinc-900 overflow-x-hidden"}
+        dir={isAr ? 'rtl' : 'ltr'}
+        style={{
+          ['--theme-primary' as any]: '#7c3aed',
+          ['--theme-secondary' as any]: '#6d28d9',
+        } as React.CSSProperties}
+      >
+        {isModal && onClose && (
+          <button 
+            type="button"
+            onClick={onClose}
+            className="absolute top-4 left-4 z-50 p-2 bg-white/90 hover:bg-zinc-100 rounded-full shadow-md text-zinc-500 hover:text-red-500 transition-colors border border-black/5"
+            aria-label={t('common:close')}
+          >
+            <X size={20} />
+          </button>
+        )}
       <style>{`
         /* Ensure stable layout on load - prevent CLS */
         html, body {
@@ -352,10 +372,12 @@ const ClientMeasurementsV2Component: React.FC = () => {
       `}</style>
       {/* Top Navigation Bar Removed */}
 
-      {/* Main Content: Single Block with Side-by-Side Layout */}
-      <div className="h-full">
+      <div className={isModal ? "h-full overflow-y-auto custom-scrollbar" : "h-full"}>
         {isLoading ? (
-          <div className="bg-white overflow-hidden shadow-2xl min-h-screen sm:min-h-96 h-full">
+          <div className={isModal ? "bg-white h-full flex items-center justify-center" : "bg-white overflow-hidden shadow-2xl min-h-screen sm:min-h-96 h-full"}>
+            {isModal && (<div className="w-12 h-12 border-4 border-purple-500 border-t-transparent rounded-full animate-spin"></div>)}
+            {!isModal && (
+            <>
             {/* Mobile Loading State */}
             <div className="sm:hidden space-y-3 p-3">
               {/* Video Help Skeleton */}
@@ -398,6 +420,8 @@ const ClientMeasurementsV2Component: React.FC = () => {
                 <p className="text-zinc-500">{t('measurements:loadingProductData')}</p>
               </div>
             </div>
+            </>
+            )}
           </div>
         ) : error ? (
           <div className="rounded-3xl border border-red-200 bg-red-50 p-6">
@@ -1069,6 +1093,7 @@ const ClientMeasurementsV2Component: React.FC = () => {
       )}
 
     </div>
+    </>
   );
 };
 

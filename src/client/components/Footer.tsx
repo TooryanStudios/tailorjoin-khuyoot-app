@@ -53,7 +53,7 @@ const FooterNavItem = React.memo(function FooterNavItem({
   if (isCenter) {
     return (
       <button onClick={onClick} className="group relative -top-6 flex flex-col items-center justify-center p-1">
-        <div className="relative overflow-hidden flex h-14 w-14 items-center justify-center rounded-full bg-theme-primary text-white shadow-xl shadow-black/20 ring-[6px] ring-[#ededed] dark:ring-[#1a1a1a] transition-transform duration-200 active:scale-95">
+        <div className="relative overflow-hidden flex h-14 w-14 items-center justify-center rounded-full bg-theme-primary text-white shadow-xl shadow-black/20 ring-[6px] ring-[#ededed] transition-transform duration-200 active:scale-95">
           <Icon size={24} strokeWidth={2.5} className="relative transition-transform duration-300 group-hover:rotate-12" />
         </div>
         <span className="absolute -bottom-6 text-[10px] font-normal text-zinc-500 bg-white/80 px-2 rounded-full backdrop-blur-sm shadow-sm md:hidden">
@@ -68,10 +68,10 @@ const FooterNavItem = React.memo(function FooterNavItem({
       onClick={onClick}
       className="group flex items-center justify-center transition-all duration-200 active:scale-95 px-1"
     >
-      <div className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-300 ${
+      <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 ${
         active 
-          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white scale-105 shadow-md' 
-          : 'border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-black'
+            ? 'bg-[var(--theme-primary)] text-white scale-105 shadow-lg shadow-[var(--theme-primary)]/25' 
+            : 'text-zinc-500 hover:bg-[var(--theme-primary)]/10 hover:text-[var(--theme-primary)]'
       }`}>
         <Icon
           size={24}
@@ -80,7 +80,7 @@ const FooterNavItem = React.memo(function FooterNavItem({
         />
         {/* Active Indicator inside the button */}
         {active && (
-           <span className="absolute bottom-2 w-1 h-1 rounded-full bg-white animate-pulse"></span>
+           <span className="absolute -bottom-1 w-8 h-1 rounded-full bg-white/50 blur-sm"></span>
         )}
       </div>
     </button>
@@ -99,30 +99,25 @@ const FooterAccountItem = React.memo(function FooterAccountItem({
   user: any;
 }) {
   const { t } = useTranslation('common');
-  const badge = roleBadge(user?.role, t);
 
   return (
     <button
       onClick={onClick}
       className="group flex items-center justify-center transition-all duration-200 active:scale-95 px-1"
     >
-      <div className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-300 ${
+      <div className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 overflow-hidden ${
         active 
-          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white scale-105 shadow-md' 
-          : 'border-transparent text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-black'
+            ? 'bg-[var(--theme-primary)] text-white scale-105 shadow-lg shadow-[var(--theme-primary)]/25' 
+            : 'text-zinc-500 hover:bg-[var(--theme-primary)]/10 hover:text-[var(--theme-primary)]'
       }`}>
-        {user?.profileImage ? (
-          <img src={user.profileImage} alt={t('accountImageAlt')} className="h-full w-full rounded-full object-cover border border-zinc-200" />
-        ) : (
-          <User
-            size={24}
-            strokeWidth={active ? 2.5 : 2}
-            className={`transition-colors duration-300`}
-          />
-        )}
+        <User
+          size={24}
+          strokeWidth={active ? 2.5 : 2}
+          className={`transition-colors duration-300`}
+        />
         {/* Active Indicator inside the button */}
-        {active && !user?.profileImage && (
-           <span className="absolute bottom-2 w-1 h-1 rounded-full bg-white animate-pulse"></span>
+        {active && (
+           <span className="absolute -bottom-1 w-8 h-1 rounded-full bg-white/50 blur-sm"></span>
         )}
       </div>
     </button>
@@ -149,9 +144,9 @@ const FooterPlaceOrderCTA = React.memo(function FooterPlaceOrderCTA({
     >
       <div
         className={
-          'relative w-full max-w-[140px] h-9 rounded-full px-3 text-[12px] font-bold text-white shadow-md overflow-hidden flex items-center justify-center ring-[2px] ring-white/90 dark:ring-[#1a1a1a] transition-[box-shadow,transform] duration-200 ' +
+          'relative w-full max-w-[140px] h-9 rounded-full px-3 text-[12px] font-bold text-white shadow-md overflow-hidden flex items-center justify-center ring-[2px] ring-white/90 transition-[box-shadow,transform] duration-200 ' +
           (disabled
-            ? 'bg-slate-400/60 dark:bg-slate-700/60'
+            ? 'bg-slate-400/60'
             : 'bg-gradient-to-r from-emerald-500 via-teal-500 to-cyan-500 shadow-emerald-500/25')
         }
       >
@@ -231,8 +226,11 @@ export function Footer() {
   return (
     // Fixed bottom navigation bar
     <div
-      className="bottom-nav fixed bottom-0 left-0 right-0 z-50 bg-white dark:bg-zinc-900 border-t border-zinc-100 dark:border-zinc-800 shadow-[0_-5px_20px_rgba(0,0,0,0.03)] pb-4 md:pb-0"
-      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom) + 16px)' }}
+      className="bottom-nav fixed bottom-0 left-0 right-0 z-50 !bg-white backdrop-blur-xl border border-zinc-300/70 ring-1 ring-zinc-200/90 shadow-[0_-10px_40px_rgba(0,0,0,0.04)] pb-1 md:pb-0 rounded-t-3xl"
+      style={{
+        paddingBottom: 'calc(env(safe-area-inset-bottom) + 4px)',
+        backgroundColor: '#ffffff',
+      }}
     >
       {/* Container - stretch items completely with standard mobile tab bar spacing */}
       <div className="flex items-center justify-around h-16 w-full max-w-md mx-auto px-2">
@@ -241,15 +239,15 @@ export function Footer() {
         {!user && (
           <div className={`flex items-center justify-around w-full ${isRTL ? 'flex-row-reverse' : ''}`}>
             <button
-              onClick={() => navigate('/')}              title="حسابي"              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 ${
+              onClick={() => navigate('/')}              title="حسابي"              className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200 ${
                 isActive('/')
-                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
-                  : 'border-transparent text-zinc-400 hover:bg-zinc-100 hover:text-black'
+                    ? 'bg-[var(--theme-primary)] text-white shadow-lg shadow-[var(--theme-primary)]/25'
+                    : 'text-zinc-500 hover:bg-[var(--theme-primary)]/10 hover:text-[var(--theme-primary)]'
               }`}
             >
               <Home size={24} strokeWidth={isActive('/') ? 2.5 : 2} />
               {isActive('/') && (
-                <span className="absolute bottom-2 w-1 h-1 rounded-full bg-black animate-pulse"></span>
+                <span className="absolute -bottom-1 w-8 h-1 rounded-full bg-white/50 blur-sm"></span>
               )}
             </button>
 
@@ -257,25 +255,25 @@ export function Footer() {
               onClick={() => {
                 requestLoginPrompt('user_action');
               }}
-              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 ${
+              className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200 ${
                 isActive('/account')
-                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
-                  : 'border-transparent text-zinc-400 hover:bg-zinc-100 hover:text-black'
+                    ? 'bg-[var(--theme-primary)] text-white shadow-lg shadow-[var(--theme-primary)]/25'
+                    : 'text-zinc-500 hover:bg-[var(--theme-primary)]/10 hover:text-[var(--theme-primary)]'
               }`}
             >
               <User size={24} strokeWidth={isActive('/account') ? 2.5 : 2} />
               {isActive('/account') && (
-                <span className="absolute bottom-2 w-1 h-1 rounded-full bg-black animate-pulse"></span>
+                <span className="absolute -bottom-1 w-8 h-1 rounded-full bg-white/50 blur-sm"></span>
               )}
             </button>
 
             <button
               onClick={() => navigate('/tryon')}
               title="المصمم"
-              className={`relative flex h-12 w-12 items-center justify-center rounded-full border transition-all duration-200 overflow-hidden ${
+              className={`relative flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-200 overflow-hidden ${
                 isActive('/designer') || isActive('/designer-v2-1') || isActive('/tryon')
-                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-black shadow-md'
-                  : 'border-transparent bg-zinc-100 text-zinc-500 hover:bg-zinc-200 hover:text-black'
+                    ? 'bg-[var(--theme-primary)] text-white shadow-lg shadow-[var(--theme-primary)]/25'
+                    : 'bg-[var(--theme-primary)]/5 text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/15'
               }`}
             >
               <span

@@ -12,6 +12,7 @@ import { useDesignerUserData } from './components/userData/useDesignerUserData';
 import { FeatureToggleBar } from './components/FeatureToggleBar';
 import { MobileDesignerV2 } from '../../modules/designer/mobile';
 import { HistoryFilmstrip } from './components/HistoryFilmstrip';
+import { MeasurementsModal } from './components/MeasurementsModal';
 import './DesignerV2_1.module.css';
 
 export const TryOn: React.FC = () => {
@@ -158,6 +159,12 @@ export const TryOn: React.FC = () => {
       </main>
 
       <DesignerModals {...logic} />
+
+      <MeasurementsModal
+        isOpen={logic.isMeasurementsModalOpen}
+        onClose={logic.closeMeasurementsModal}
+        productId={logic.activeId || logic.currentTaskId || undefined}
+      />
     </div>
   );
 };

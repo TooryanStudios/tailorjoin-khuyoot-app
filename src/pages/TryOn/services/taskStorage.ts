@@ -73,7 +73,7 @@ export function generateTaskId(): string {
  */
 export function getTaskUrl(taskId: string): string {
   const base = window.location.origin;
-  return `${base}/designer-v2-1/design/${taskId}`;
+  return `${base}/tryon/design/${taskId}`;
 }
 
 /**

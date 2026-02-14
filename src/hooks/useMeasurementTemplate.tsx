@@ -21,7 +21,20 @@ export const useMeasurementTemplate = ({ template, initialMeasurements = {} }: M
     }
   };
 
-  const videoUrl = template?.videoUrl || template?.tutorialVideoUrl || 'https://www.youtube.com/watch?v=6eZtn5Du8O4';
+  const getEmbedUrl = (url: string) => {
+    if (!url) return '';
+    if (url.includes('youtube.com/watch?v=')) {
+      return url.replace('watch?v=', 'embed/');
+    }
+    if (url.includes('youtu.be/')) {
+        return url.replace('youtu.be/', 'youtube.com/embed/');
+    }
+    return url;
+  };
+
+  const rawVideoUrl = template?.videoUrl || template?.tutorialVideoUrl || 'https://www.youtube.com/watch?v=6eZtn5Du8O4';
+  const videoUrl = getEmbedUrl(rawVideoUrl);
+
   const ordered = template?.points ? [...template.points].sort((a: any, b: any) => (a.order || 0) - (b.order || 0)) : [];
   const showFallbackBg = !template?.baseImageUrl;
 

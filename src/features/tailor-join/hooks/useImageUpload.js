@@ -87,7 +87,9 @@ export function useImageUpload() {
         const compressedFile = await compressImage(file);
         const storageRef = ref(storage, path);
         
-        await uploadBytesResumable(storageRef, compressedFile);
+        await uploadBytesResumable(storageRef, compressedFile, {
+          cacheControl: 'public, max-age=31536000'
+        });
         return await getDownloadURL(storageRef);
       });
 

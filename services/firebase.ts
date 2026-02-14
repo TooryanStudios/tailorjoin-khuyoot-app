@@ -2180,8 +2180,11 @@ export const firebaseService = {
       });
       
       return members;
-    } catch (error) {
-      console.error("Error fetching family members:", error);
+    } catch (error: any) {
+      // Suppress permission errors specifically (common for non-customer roles or rule mismatches)
+      if (error?.code !== 'permission-denied') {
+        console.error("Error fetching family members:", error);
+      }
       return [];
     }
   },

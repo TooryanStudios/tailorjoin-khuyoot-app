@@ -39,8 +39,13 @@ const LOAD_MORE_INCREMENT = 12;
 // ----------------------------------------------------------------------------
 const ProductCard = React.memo(({ product }: { product: Product }) => {
   const navigate = useNavigate();
-  const images = product.images || (product.image ? [product.image] : []);
+  // Include product.imageUrl fallback
+  const allImages = product.images || (product.image ? [product.image] : product.imageUrl ? [product.imageUrl] : []);
+  // Filter out non-http images (relative paths from bad uploads)
+  const images = allImages.filter(img => img && (img.startsWith('http') || img.startsWith('blob:')));
+  
   const [index, setIndex] = React.useState(0);
+  const [imgError, setImgError] = React.useState(false);
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
   const handleClick = React.useCallback(() => {
@@ -72,7 +77,7 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
         onMouseEnter={startSlideshow}
         onMouseLeave={stopSlideshow}
       >
-        {images.length > 0 ? (
+        {images.length > 0 && !imgError ? (
           images.map((img: string, i: number) => (
             <img 
               key={`${product.id}-${i}`}
@@ -84,7 +89,11 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
               loading="lazy"
               decoding="async"
               fetchPriority={i === 0 ? "high" : "low"}
-              crossOrigin="anonymous"
+              onError={(e) => {
+                console.error('Image load failed:', img);
+                // If the main image fails, we might want to hide the whole card image or show placeholder
+                if (i === 0) setImgError(true);
+              }}
             />
           ))
         ) : (

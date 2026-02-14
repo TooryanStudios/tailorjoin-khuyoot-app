@@ -240,7 +240,7 @@ export const AuthModal = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
-    setStatusText('جاري فحص الاتصال بخوادم تسجيل الدخول...');
+    setStatusText('جاري التحقق من بيانات الاعتماد...');
     
     try {
       if (isLogin) {
@@ -257,7 +257,7 @@ export const AuthModal = () => {
         }
 
         if (!identityV1?.ok) {
-          setStatusText('تعذر الوصول إلى خادم تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
+          setStatusText('تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
           setSubmitting(false);
           return;
         }
@@ -276,7 +276,7 @@ export const AuthModal = () => {
         }
 
         if (!diag.secureToken.ok) {
-          setStatusText('تحذير: خادم الجلسة غير متاح حالياً. قد يفشل تجديد الجلسة لاحقاً.');
+          setStatusText('تحذير: خدمة الجلسة غير متاحة حالياً. قد يفشل تجديد الجلسة لاحقاً.');
         } else {
           setStatusText('جاري تسجيل الدخول...');
         }
@@ -332,7 +332,7 @@ export const AuthModal = () => {
       const isNetwork = error?.code === 'auth/network-request-failed';
 
       if (isTimeout || isNetwork) {
-        setStatusText('تعذر الاتصال بخوادم تسجيل الدخول. جاري فحص الاتصال...');
+        setStatusText('تعذر الاتصال. جاري فحص الشبكة...');
         const diag = await firebaseService.diagnoseAuthConnectivity();
         console.log('[AuthModal] Auth diagnostics after failure:', diag);
 
@@ -346,7 +346,7 @@ export const AuthModal = () => {
         if (!diag.online) {
           setStatusText('لا يوجد اتصال بالإنترنت. تأكد من الشبكة ثم أعد المحاولة.');
         } else if (!identityV1?.ok) {
-          setStatusText('تعذر الوصول إلى خادم تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
+          setStatusText('تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
         } else if (identityBlocked) {
           setStatusText(
             'تم حظر تسجيل الدخول من Google (403). هذا يشير غالباً إلى أن API key عليه قيود API تمنع Identity Toolkit / Firebase Auth.\n' +
@@ -356,7 +356,7 @@ export const AuthModal = () => {
           // Common case: www.googleapis.com blocked or returning non-CORS error pages, which the SDK can surface as network-request-failed.
           setStatusText('يبدو أن الشبكة تمنع www.googleapis.com (خدمة تسجيل الدخول). جرّب تعطيل مانع الإعلانات/الجدار الناري أو أضف http://localhost/* إلى قيود API key ثم أعد المحاولة.');
         } else {
-          setStatusText('خادم تسجيل الدخول متاح لكن الاتصال عبر SDK معلّق. جرّب إعادة التحميل أو تعطيل مانع الإعلانات.');
+          setStatusText('نظام تسجيل الدخول متاح لكن الاتصال عبر SDK معلّق. جرّب إعادة التحميل أو تعطيل مانع الإعلانات.');
         }
       } else {
         setStatusText('فشل تسجيل الدخول. تحقق من البريد/كلمة المرور.');

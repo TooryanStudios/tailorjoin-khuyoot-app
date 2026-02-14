@@ -20,10 +20,10 @@ import {
   Plus,
   Share2,
   Download,
-  ZoomIn,
-  Maximize2,
   X,
-  Check
+  Check,
+  Link as LinkIcon,
+  Smartphone
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TemplateSelectorView } from '../../../../modules/TemplatePicker';
@@ -121,6 +121,9 @@ interface SidebarProps {
   setFabricImageMimeType: (val: string | null) => void;
   persistFabricSelection: (selection: any) => void;
   lightingGenerator: any;
+  openMeasurementsModal: () => void;
+  hasActiveProduct: boolean;
+  afterImage?: string | null;
 }
 
 export const Sidebar: React.FC<SidebarProps> = (props) => {
@@ -157,6 +160,9 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     persistFabricSelection,
     fabricTilingOpen,
     lightingGenerator,
+    openMeasurementsModal,
+    hasActiveProduct,
+    afterImage,
   } = props;
 
   const { logout } = useAuth();
@@ -273,6 +279,62 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     setFabricTilingOpen(false);
     setFabricScale(1);
     tilingStartPreviewRef.current = null;
+  };
+
+  const handleDownload = async () => {
+    if (!afterImage) return;
+    
+    try {
+      // Create a temporary anchor for the download
+      const link = document.createElement('a');
+      link.download = `khuyoot-design-${currentTaskId || Date.now()}.png`;
+
+      // If it's a data URL or blob URL, we can download directly
+      if (afterImage.startsWith('data:') || afterImage.startsWith('blob:')) {
+        link.href = afterImage;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        return;
+      }
+
+      // For remote URLs, fetch as blob to force download (avoids opening in new tab)
+      const response = await fetch(afterImage);
+      const blob = await response.blob();
+      const blobUrl = URL.createObjectURL(blob);
+      
+      link.href = blobUrl;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(blobUrl), 100);
+    } catch (err) {
+      console.error('Download failed:', err);
+      // Fallback: try opening in new tab if fetch fails
+      window.open(afterImage, '_blank');
+    }
+  };
+  
+  const handleNativeShare = async () => {
+    if (!currentTaskId) return;
+    const url = `${window.location.origin}/tryon/design/${currentTaskId}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Khuyoot Design',
+          text: 'Check out my design on Khuyoot!',
+          url: url,
+        });
+      } catch (err) {
+        // Fallback to copy if share fails or cancelled
+        handleShareTask();
+      }
+    } else {
+      // Fallback for browsers without native share
+      handleShareTask();
+    }
   };
 
   const creditsEnabled = true;
@@ -479,7 +541,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                 {/* 2. Transactions History (Perfectly Centered) */}
                 <div className="flex-shrink-0 border-l border-zinc-200 pl-2 mx-1.5">
                   <button 
-                    onClick={() => navigate('/account/billing')}
+                    onClick={() => window.open('/transaction-history', '_blank')}
                     className="p-1.5 rounded-lg text-zinc-500 hover:bg-zinc-100 hover:text-zinc-700 transition-all active:scale-90"
                     title="Transaction History"
                   >
@@ -740,60 +802,58 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
               </div>
 
               {/* Tailor It Button - New Row */}
-              <button
-                type="button"
-                onClick={() => {
-                  const idToUse = currentTaskId || 'default';
-                  window.location.href = `/studio/measurements/${idToUse}`;
-                }}
-                disabled={!currentTaskId && !sourcePreviewUrl}
-                className={`w-full py-3 rounded-xl text-white font-normal text-[11px] uppercase tracking-widest transition-all shadow-sm ${
-                  !currentTaskId && !sourcePreviewUrl
-                    ? 'bg-gradient-to-r from-zinc-300 to-zinc-400 cursor-not-allowed opacity-50'
-                    : 'bg-gradient-to-r from-[#63498b] to-[#7a5fa3] hover:from-[#7a5fa3] hover:to-[#63498b] active:scale-95'
-                }`}
-              >
-                إبدأ التفصيل
-              </button>
+              {hasActiveProduct && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    openMeasurementsModal();
+                  }}
+                  disabled={!currentTaskId && !sourcePreviewUrl}
+                  className={`w-full py-3 rounded-xl text-white font-normal text-[11px] uppercase tracking-widest transition-all shadow-sm ${
+                    !currentTaskId && !sourcePreviewUrl
+                      ? 'bg-gradient-to-r from-zinc-300 to-zinc-400 cursor-not-allowed opacity-50'
+                      : 'bg-gradient-to-r from-[#63498b] to-[#7a5fa3] hover:from-[#7a5fa3] hover:to-[#63498b] active:scale-95'
+                  }`}
+                >
+                  إبدأ التفصيل
+                </button>
+              )}
 
-              {/* 2. TOOLS GROUP - Share, Download, Zoom, Maximize */}
-              <div className="p-2 rounded-2xl border border-zinc-200 bg-white shadow-sm flex items-center justify-around gap-1">
+              {/* 2. TOOLS GROUP - Share, Download */}
+              <div className="p-2 rounded-2xl border border-zinc-200 bg-white shadow-sm flex items-center justify-around gap-2">
+                
+                {/* SHARE BUTTON - With Copy Link Fallback */}
                 <button
                   type="button"
                   title={shareUrlCopied ? t('shareLinkCopied') : t('shareDesign')}
-                  onClick={handleShareTask}
+                  onClick={handleNativeShare}
                   disabled={!currentTaskId}
-                  className={`p-2.5 rounded-xl border transition-all flex-1 flex justify-center ${
+                  className={`p-2.5 rounded-xl border transition-all flex-1 flex items-center justify-center gap-2 ${
                     shareUrlCopied
-                      ? 'border-green-500/60 bg-green-500/10 text-green-400'
-                      : 'border-zinc-200 bg-white text-zinc-600 hover:border-purple-400 hover:bg-purple-50'
-                  } ${!currentTaskId ? 'opacity-30 cursor-not-allowed' : 'active:scale-90'}`}
+                      ? 'border-green-500/60 bg-green-500/10 text-green-600'
+                      : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-600'
+                  } ${!currentTaskId ? 'opacity-40 cursor-not-allowed' : 'active:scale-95'}`}
                 >
-                  <Share2 size={16} />
+                  {shareUrlCopied ? <LinkIcon size={16} className="text-green-600" /> : <Share2 size={16} />}
+                  <span className="text-[10px] font-medium uppercase tracking-wider">
+                    {shareUrlCopied ? 'Copied' : 'Share'}
+                  </span>
                 </button>
 
+                {/* DOWNLOAD BUTTON */}
                 <button
                   type="button"
                   title={t('download')}
-                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
+                  onClick={handleDownload}
+                  disabled={!afterImage}
+                  className={`p-2.5 rounded-xl border transition-all flex-1 flex items-center justify-center gap-2 ${
+                    !afterImage
+                      ? 'border-zinc-200 bg-zinc-50 text-zinc-300 cursor-not-allowed'
+                      : 'border-zinc-200 bg-zinc-50 text-zinc-600 hover:border-purple-400 hover:bg-purple-50 hover:text-purple-600 active:scale-95'
+                  }`}
                 >
                   <Download size={16} />
-                </button>
-
-                <button
-                  type="button"
-                  title={t('zoomIn')}
-                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
-                >
-                  <ZoomIn size={16} />
-                </button>
-
-                <button
-                  type="button"
-                  title={t('fullscreen')}
-                  className="p-2.5 rounded-xl border border-zinc-200 bg-white/50 text-zinc-600 hover:border-purple-400 hover:text-purple-600 transition-all flex-1 flex justify-center active:scale-90"
-                >
-                  <Maximize2 size={16} />
+                  <span className="text-[10px] font-medium uppercase tracking-wider">Save</span>
                 </button>
               </div>
 

@@ -12,6 +12,9 @@ import { Order, FamilyMember, GarmentType } from '../types';
 import { getUserOrders } from '../services/orderService';
 import { firebaseService } from '../services/firebase';
 import { uploadAvatar } from '../services/storageService';
+import { useMeasurementTemplate, MeasurementTemplateContent } from '@/src/hooks/useMeasurementTemplate';
+import { PointMarker } from '@/src/components/Measurements/PointMarker';
+import { measurementService, MeasurementTemplate } from '@/src/modules/measurements/services/measurementService';
 import { MontHeader } from '../src/components/MontHeader';
 
 // Measurement templates for different garment types
@@ -164,6 +167,267 @@ const getRoleLabel = (role?: string) => {
 
 type TabType = 'orders' | 'measurements' | 'family' | 'wallet';
 
+
+const MeasurementEditorDialog = ({
+  isOpen,
+  onClose,
+  initialData,
+  onSave
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  initialData?: { name?: string; type?: string; metrics?: Record<string, number>; notes?: string };
+  onSave: (data: { name: string; type: string; metrics: Record<string, number>; notes: string }) => Promise<void>;
+}) => {
+  const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [name, setName] = useState('');
+  const [notes, setNotes] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  
+  const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+  const measurementHook = useMeasurementTemplate({ 
+    template: selectedTemplate,
+    initialMeasurements: initialData?.metrics
+  });
+
+  useEffect(() => {
+    if (isOpen) {
+        setIsLoadingTemplates(true);
+        measurementService.getTemplates().then(data => {
+            setTemplates(data);
+            setIsLoadingTemplates(false);
+            
+            // If editing existing, try to match garment type to template
+            if (initialData?.type) {
+                const match = data.find(t => 
+                    t.productType === initialData.type || 
+                    t.name === initialData.type ||
+                    t.id === initialData.type 
+                );
+                if (match) setSelectedTemplateId(match.id);
+                // Fallback: try to normalize
+                else {
+                    const norm = normalizeGarmentType(initialData.type);
+                    const matchNorm = data.find(t => t.productType === norm);
+                    if (matchNorm) setSelectedTemplateId(matchNorm.id);
+                    else if (data.length > 0) setSelectedTemplateId(data[0].id);
+                }
+            } else if (data.length > 0 && !selectedTemplateId) {
+                setSelectedTemplateId(data[0].id);
+            }
+        });
+
+        if (initialData) {
+            setName(initialData.name || '');
+            setNotes(initialData.notes || '');
+            if (initialData.metrics) {
+                measurementHook.setMeasurements(initialData.metrics);
+            }
+        } else {
+            setName('');
+            setNotes('');
+            measurementHook.setMeasurements({});
+        }
+    }
+  }, [isOpen, initialData]);
+
+  const handleSave = async () => {
+    if (!name.trim()) return;
+    setIsSaving(true);
+    try {
+        await onSave({
+            name,
+            type: selectedTemplate?.productType || selectedTemplate?.name || 'dishdasha',
+            metrics: measurementHook.measurements,
+            notes
+        });
+        onClose();
+    } catch (e) {
+        console.error(e);
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10001] overflow-y-auto" onClick={onClose}>
+      <div className="bg-white rounded-xl p-5 max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+        {/* Header */}
+        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+          <h3 className="text-base font-bold text-slate-900">
+            {initialData ? 'تعديل القياسات' : 'إضافة قياس جديد'}
+          </h3>
+          <button
+            onClick={onClose}
+            className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"
+            aria-label="إغلاق"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
+            <div className="space-y-4">
+                 {/* Name Field */}
+                <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
+                    <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm mb-4"
+                    placeholder="مثال: قياسي الشخصي"
+                    />
+                </div>
+
+                {isLoadingTemplates ? (
+                    <div className="py-10 text-center"><RefreshCw className="animate-spin mx-auto text-slate-400" /></div>
+                ) : (
+                    <div className="mb-4">
+                        <label className="block text-xs font-medium text-slate-700 mb-1.5">نوع الملبس</label>
+                        <div className="flex gap-2 flex-wrap">
+                            {templates.map(t => (
+                                <button
+                                    key={t.id}
+                                    onClick={() => setSelectedTemplateId(t.id)}
+                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                                        selectedTemplateId === t.id 
+                                        ? 'bg-[#63498b] text-white border-[#63498b]' 
+                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                                    }`}
+                                >
+                                    {t.name}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                )}
+                 
+                {/* Visual Editor */}
+                {selectedTemplate && (
+                    <MeasurementTemplateContent
+                        template={selectedTemplate}
+                        measurements={measurementHook.measurements}
+                        onMeasurementChange={measurementHook.handleMeasurementChange}
+                        onShowVideo={() => measurementHook.setShowVideoDialog(true)}
+                        PointMarkerComponent={PointMarker}
+                    />
+                )}
+            </div>
+
+            <div className="flex flex-col h-full"> 
+                 {/* Notes Field */}
+                <div className="mb-4">
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">ملاحظات (اختياري)</label>
+                    <textarea
+                        value={notes}
+                        onChange={(e) => setNotes(e.target.value)}
+                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
+                        rows={3}
+                        placeholder="أي ملاحظات إضافية..."
+                    />
+                </div>
+                
+                 {/* Text Inputs Summary (Optional, if users prefer typing) */}
+                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex-1 overflow-y-auto mb-4">
+                    <h4 className="text-xs font-bold text-slate-700 mb-3">قائمة القياسات</h4>
+                    {selectedTemplate ? (
+                        <div className="space-y-2">
+                             {selectedTemplate.points.map(p => (
+                                 <div key={p.id} className="flex justify-between items-center text-xs">
+                                     <span className="text-slate-600">{p.label || p.name}</span>
+                                     <div className="flex items-center gap-2">
+                                         <input 
+                                            type="number" 
+                                            value={measurementHook.measurements[p.id] || ''}
+                                            onChange={(e) => measurementHook.handleMeasurementChange(p.id, e.target.value)}
+                                            className="w-16 px-2 py-1 rounded border border-slate-200 text-center"
+                                            placeholder="0"
+                                         />
+                                         <span className="text-slate-400 w-6">سم</span>
+                                     </div>
+                                 </div>
+                             ))}
+                        </div>
+                    ) :  (
+                        <p className="text-xs text-slate-400 italic text-center py-4">اختر نوع الملبس لعرض القياسات</p>
+                    )}
+                 </div>
+
+                 {/* Action Buttons */}
+                <div className="flex gap-2 pt-3 border-t border-slate-200 mt-auto">
+                    <button
+                        onClick={onClose}
+                        disabled={isSaving}
+                        className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
+                    >
+                        إلغاء
+                    </button>
+                    <button
+                        onClick={handleSave}
+                        disabled={isSaving || !name.trim()}
+                        className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                        {isSaving ? (
+                        <>
+                            <RefreshCw size={14} className="animate-spin" />
+                            جاري الحفظ...
+                        </>
+                        ) : (
+                        <>
+                            <Save size={14} />
+                            حفظ
+                        </>
+                        )}
+                    </button>
+                </div>
+            </div>
+        </div>
+      </div>
+
+       <div className='z-[10002]'>
+            {measurementHook.showVideoDialog && (
+                   <div 
+                       className="fixed inset-0 z-[11000] bg-black/80 flex items-center justify-center"
+                       onClick={(e) => {
+                           e.stopPropagation();
+                           measurementHook.setShowVideoDialog(false);
+                       }}
+                   >
+                        <div 
+                            className="relative w-full max-w-4xl aspect-video bg-black rounded-xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                             <button 
+                                 onClick={(e) => {
+                                     e.stopPropagation();
+                                     measurementHook.setShowVideoDialog(false);
+                                 }} 
+                                 className="absolute top-4 right-4 text-white p-2 bg-black/50 hover:bg-black/70 rounded-full z-10 transition-all"
+                                 title="Close Video"
+                                 aria-label="Close Video"
+                             >
+                                 <X size={20} />
+                             </button>
+                             <iframe 
+                                 src={measurementHook.videoUrl} 
+                                 title="Tutorial Video"
+                                 className="w-full h-full" 
+                                 allowFullScreen 
+                                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                             ></iframe>
+                        </div>
+                   </div>
+            )}
+       </div>
+    </div>
+  );
+};
+
 const MONT_HEADER_ID = 'khuyoot-mont-header';
 const DEFAULT_HEADER_SPACER_HEIGHT = 72;
 
@@ -183,7 +447,9 @@ export const Account = () => {
   const [deleteAccountRequested, setDeleteAccountRequested] = useState(false);
   const [deleteReason, setDeleteReason] = useState('');
   const [isDeleting, setIsDeleting] = useState(false);
+  const [isRefreshingCredits, setIsRefreshingCredits] = useState(false);
   
+
   // Get active tab from URL
   const getTabFromPath = (): TabType => {
     const path = location.pathname;
@@ -199,17 +465,13 @@ export const Account = () => {
   const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
   const [measurements, setMeasurements] = useState<any[]>([]);
   const [loadingMeasurements, setLoadingMeasurements] = useState(false);
-  const [editingMeasurement, setEditingMeasurement] = useState<any | null>(null);
-  const [editMeasurementForm, setEditMeasurementForm] = useState<{
-    name: string;
-    type: GarmentType;
-    metrics: Record<string, number>;
-    notes: string;
-  }>({ name: '', type: 'dishdasha', metrics: {}, notes: '' });
-  const [savingMeasurement, setSavingMeasurement] = useState(false);
   const [deletingMeasurement, setDeletingMeasurement] = useState<any | null>(null);
   const [isDeletingMeasurement, setIsDeletingMeasurement] = useState(false);
   
+  // New Editor State
+  const [isEditorOpen, setIsEditorOpen] = useState(false);
+  const [editorInitialData, setEditorInitialData] = useState<any>(null);
+
   // Edit form states
   const [editName, setEditName] = useState('');
   const [editPhone, setEditPhone] = useState('');
@@ -258,7 +520,9 @@ export const Account = () => {
   useEffect(() => {
     if (user) {
       loadOrders();
-      loadFamilyMembers();
+      if (user.role === 'customer') {
+        loadFamilyMembers();
+      }
       loadMeasurements();
     }
   }, [user]);
@@ -297,52 +561,34 @@ export const Account = () => {
   };
 
   const handleEditMeasurement = (measurement: any) => {
-    console.log('=== Editing measurement ===');
-    console.log('Raw measurement data:', JSON.stringify(measurement, null, 2));
-    console.log('Type:', measurement.type);
-    console.log('Metrics:', measurement.metrics);
-    
-    const normalizedType = normalizeGarmentType(measurement.type || 'dishdasha');
-    console.log('Normalized type:', normalizedType);
-    console.log('Template fields:', measurementTemplates[normalizedType]?.fields);
-    
-    setEditingMeasurement(measurement);
-    setEditMeasurementForm({
-      name: measurement.name || '',
-      type: normalizedType,
-      metrics: measurement.metrics || {},
-      notes: measurement.notes || ''
-    });
-    
-    console.log('Edit form set with metrics:', measurement.metrics);
+    setEditorInitialData(measurement);
+    setIsEditorOpen(true);
   };
 
-  const handleSaveMeasurement = async () => {
-    if (!user || !editingMeasurement) return;
-    setSavingMeasurement(true);
+  const handleSaveDialog = async (data: any) => {
+    if (!user) return;
     try {
-      const updatedMeasurement = {
-        ...editingMeasurement,
-        ...editMeasurementForm,
-        userId: user.id,
+      const payload: any = {
+        userId: user.id || (user as any).uid,
+        ...data,
         updatedAt: new Date().toISOString()
       };
       
-      await firebaseService.saveMeasurement(updatedMeasurement);
+      if (editorInitialData && editorInitialData.id) {
+         payload.id = editorInitialData.id;
+         payload.createdAt = editorInitialData.createdAt || new Date().toISOString();
+      } else {
+         payload.createdAt = new Date().toISOString();
+      }
+
+      await firebaseService.saveMeasurement(payload);
       await loadMeasurements();
-      setEditingMeasurement(null);
     } catch (error) {
-      console.error('Error saving measurement:', error);
-      alert('فشل حفظ التعديلات');
-    } finally {
-      setSavingMeasurement(false);
+       console.error('Error saving measurement:', error);
+       throw error;
     }
   };
 
-  const handleCancelEditMeasurement = () => {
-    setEditingMeasurement(null);
-    setEditMeasurementForm({ name: '', type: 'dishdasha', metrics: {}, notes: '' });
-  };
 
   const handleDeleteMeasurement = async () => {
     if (!deletingMeasurement || !user?.id) return;
@@ -377,6 +623,26 @@ export const Account = () => {
     }
   };
 
+  const handleRefreshCredits = async () => {
+    if (!user) return;
+    setIsRefreshingCredits(true);
+    try {
+      // Force fetch latest user data which includes credits
+      await refreshUser();
+    } catch (error) {
+       console.error("Credit refresh failed:", error);
+    } finally {
+      setIsRefreshingCredits(false);
+    }
+  };
+
+  // Auto-refresh credits when entering wallet tab
+  useEffect(() => {
+    if (activeTab === 'wallet') {
+      handleRefreshCredits();
+    }
+  }, [activeTab]);
+
   const handleSaveProfile = async () => {
     if (!user) return;
     setSavingProfile(true);
@@ -400,6 +666,13 @@ export const Account = () => {
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
+
+    // Check pre-upload for very large files that might crash compression
+    // Note: The actual upload limit is 1MB compressed, but we allow larger inputs as they will be compressed.
+    if (file.size > 10 * 1024 * 1024) {
+       alert('حجم الصورة كبير جداً (أكبر من 10 ميجابايت). يرجى اختيار صورة أصغر.');
+       return;
+    }
     
     setUploadingImage(true);
     try {
@@ -412,9 +685,13 @@ export const Account = () => {
         avatar: avatarUrl, 
         profileImage: avatarUrl 
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error uploading avatar:', error);
-      alert('فشل رفع الصورة');
+      if (error.code === 'storage/unauthorized' || error.message?.includes('403')) {
+        alert('حدث خطأ أثناء رفع الصورة. الصورة كبيرة جداً أو لا تملك الصلاحية. يرجى اختيار صورة أصغر حجماً (أقل من 1 ميجابايت بعد الضغط).');
+      } else {
+        alert('فشل رفع الصورة. يرجى المحاولة مرة أخرى.');
+      }
     } finally {
       setUploadingImage(false);
     }
@@ -941,7 +1218,10 @@ export const Account = () => {
             <div className="flex items-center justify-between gap-3" dir="rtl">
               <h3 className="text-base text-slate-900 font-bold">قياساتي</h3>
               <button
-                onClick={() => navigate('/measurements')}
+                onClick={() => {
+                   setEditorInitialData(null);
+                   setIsEditorOpen(true);
+                }}
                 className="flex items-center gap-2 px-4 py-2 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all"
               >
                 <Ruler size={16} />
@@ -966,7 +1246,10 @@ export const Account = () => {
                   احفظ قياساتك لاستخدامها في الطلبات المستقبلية
                 </p>
                 <button
-                  onClick={() => navigate('/measurements')}
+                  onClick={() => {
+                     setEditorInitialData(null);
+                     setIsEditorOpen(true);
+                  }}
                   className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all inline-flex items-center gap-2"
                 >
                   <Ruler size={16} />
@@ -1141,15 +1424,32 @@ export const Account = () => {
           <div className="space-y-4">
             <div className="flex items-center justify-between gap-3" dir="rtl">
               <h3 className="text-base text-slate-900 font-bold">المحفظة</h3>
+              <button 
+                onClick={handleRefreshCredits} 
+                disabled={isRefreshingCredits}
+                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+                  isRefreshingCredits 
+                    ? 'bg-[#63498b]/10 text-[#63498b]' 
+                    : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                <RefreshCw size={14} className={isRefreshingCredits ? 'animate-spin' : ''} />
+                {isRefreshingCredits ? 'جاري التحديث...' : 'تحديث الرصيد'}
+              </button>
             </div>
             <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100">
               <div className="text-center mb-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[#63498b]/10 flex items-center justify-center">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[#63498b]/10 flex items-center justify-center relative">
                   <Wallet size={32} className="text-[#63498b]" />
+                  {isRefreshingCredits && (
+                    <div className="absolute inset-0 rounded-full border-2 border-[#63498b] border-t-transparent animate-spin"></div>
+                  )}
                 </div>
-                <h4 className="text-2xl text-slate-900 font-bold mb-2">{user?.credits || 0} رصيد</h4>
+                <h4 className="text-2xl text-slate-900 font-bold mb-2 flex items-center justify-center gap-2">
+                  {user?.credits || 0} رصيد
+                </h4>
                 <p className="text-sm text-slate-600">
-                  رصيدك الحالي في المحفظة
+                  {isRefreshingCredits ? 'جاري تحديث الرصيد...' : 'رصيدك الحالي في المحفظة'}
                 </p>
               </div>
               <div className="flex gap-3 justify-center">
@@ -1174,26 +1474,20 @@ export const Account = () => {
           {user.role === 'tailor' && (
           <div className="space-y-4">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-3" dir="rtl">
-              <h3 className="text-base text-slate-900 font-bold">لوحة التحكم</h3>
+              <h3 className="text-base text-slate-900 font-bold">مجموعاتي</h3>
             </div>
             <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100 text-center">
               <div className="w-20 h-20 mx-auto mb-4 rounded-lg bg-blue-50 flex items-center justify-center">
                 <Scissors size={32} className="text-blue-600" />
               </div>
-              <h4 className="text-lg text-slate-900 font-bold mb-2">إدارة متجرك</h4>
+              <h4 className="text-lg text-slate-900 font-bold mb-2">إدارة المجموعات</h4>
               <p className="text-sm text-slate-600 mb-6">
-                استخدم لوحة التحكم الخاصة بك لإدارة منتجاتك وطلبات عملائك والعروض الترويجية.
+                قم بإدارة مجموعات التصاميم الخاصة بك وإضافة تصاميم جديدة لعملائك.
               </p>
               <div className="flex flex-col sm:flex-row gap-3 justify-center">
                 <button
-                  onClick={() => navigate('/tailor-dashboard')}
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all"
-                >
-                  الذهاب إلى لوحة التحكم
-                </button>
-                <button
                   onClick={() => navigate('/tailor/collections')}
-                  className="px-6 py-3 bg-slate-100 text-slate-700 rounded-lg text-sm font-bold hover:bg-slate-200 transition-all"
+                  className="px-6 py-3 bg-blue-600 text-white rounded-lg text-sm font-bold hover:bg-blue-700 transition-all"
                 >
                   مجموعاتي
                 </button>
@@ -1341,137 +1635,13 @@ export const Account = () => {
         </div>
       )}
 
-      {/* Edit Measurement Dialog */}
-      {editingMeasurement && (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10001] overflow-y-auto" onClick={handleCancelEditMeasurement}>
-          <div className="bg-white rounded-xl p-5 max-w-xl w-full my-8 max-h-[85vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
-            {/* Header */}
-            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
-              <h3 className="text-base font-bold text-slate-900">تعديل القياسات</h3>
-              <button
-                onClick={handleCancelEditMeasurement}
-                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"
-                aria-label="إغلاق"
-              >
-                <X size={18} />
-              </button>
-            </div>
-
-            {/* Name and Type in one row */}
-            <div className="grid grid-cols-2 gap-3 mb-3">
-              {/* Name Field */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
-                <input
-                  type="text"
-                  value={editMeasurementForm.name}
-                  onChange={(e) => setEditMeasurementForm({ ...editMeasurementForm, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
-                  placeholder="مثال: قياسي الشخصي"
-                />
-              </div>
-
-              {/* Type Field - Read Only */}
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1.5">نوع الملبس</label>
-                <div className="w-full px-3 py-2 border border-slate-200 rounded-lg bg-slate-50 text-sm text-slate-600">
-                  {measurementTemplates[editMeasurementForm.type]?.label || editMeasurementForm.type}
-                </div>
-              </div>
-            </div>
-
-            {/* Measurement Fields */}
-            <div className="mb-3">
-              <label className="block text-xs font-medium text-slate-700 mb-2">المقاسات</label>
-              {!measurementTemplates[editMeasurementForm.type] && (
-                <div className="text-xs text-red-500 mb-2">
-                  نوع القياس غير معروف: {editMeasurementForm.type}
-                </div>
-              )}
-              {measurementTemplates[editMeasurementForm.type] && (
-                <>
-                  <div className="grid grid-cols-2 gap-2">
-                    {measurementTemplates[editMeasurementForm.type].fields.map((field) => (
-                      <div key={field.key}>
-                        <label className="block text-xs text-slate-600 mb-1">
-                          {field.label} ({field.unit})
-                        </label>
-                        <input
-                          type="number"
-                          step="0.1"
-                          min="0"
-                          value={editMeasurementForm.metrics[field.key] || ''}
-                          onChange={(e) => {
-                            const inputValue = e.target.value;
-                            const value = inputValue === '' ? undefined : parseFloat(inputValue);
-                            const newMetrics = { ...editMeasurementForm.metrics };
-                            
-                            if (value === undefined) {
-                              delete newMetrics[field.key];
-                            } else {
-                              newMetrics[field.key] = value;
-                            }
-                            
-                            setEditMeasurementForm({
-                              ...editMeasurementForm,
-                              metrics: newMetrics
-                            });
-                          }}
-                          className="w-full px-3 py-1.5 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
-                          placeholder="0"
-                        />
-                      </div>
-                    ))}
-                  </div>
-                  <div className="mt-2 text-xs text-slate-400">
-                    عدد الحقول: {measurementTemplates[editMeasurementForm.type].fields.length}
-                  </div>
-                </>
-              )}
-            </div>
-
-            {/* Notes Field */}
-            <div className="mb-4">
-              <label className="block text-xs font-medium text-slate-700 mb-1.5">ملاحظات (اختياري)</label>
-              <textarea
-                value={editMeasurementForm.notes}
-                onChange={(e) => setEditMeasurementForm({ ...editMeasurementForm, notes: e.target.value })}
-                className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
-                rows={2}
-                placeholder="أي ملاحظات إضافية..."
-              />
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-2 pt-3 border-t border-slate-200">
-              <button
-                onClick={handleCancelEditMeasurement}
-                disabled={savingMeasurement}
-                className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
-              >
-                إلغاء
-              </button>
-              <button
-                onClick={handleSaveMeasurement}
-                disabled={savingMeasurement || !editMeasurementForm.name.trim()}
-                className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {savingMeasurement ? (
-                  <>
-                    <RefreshCw size={14} className="animate-spin" />
-                    جاري الحفظ...
-                  </>
-                ) : (
-                  <>
-                    <Save size={14} />
-                    حفظ
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Measurement Editor Dialog - New reusable component */}
+      <MeasurementEditorDialog
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        initialData={editorInitialData}
+        onSave={handleSaveDialog}
+      />
 
       {/* Delete Measurement Confirmation Dialog */}
       {deletingMeasurement && (

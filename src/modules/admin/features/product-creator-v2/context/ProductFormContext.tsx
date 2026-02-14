@@ -168,7 +168,9 @@ export const ProductFormProvider: React.FC<{ children: ReactNode }> = ({ childre
         const compressedFile = await imageCompression(file, options);
         const uniqueId = `${Date.now()}_${pendingIndex - 1}_${Math.random().toString(36).substring(7)}`;
         const storageRef = ref(storage, `products/${user.id}/${uniqueId}_${file.name}`);
-        await uploadBytes(storageRef, compressedFile);
+        await uploadBytes(storageRef, compressedFile, {
+          cacheControl: 'public, max-age=31536000'
+        });
         const uploadedUrl = await getDownloadURL(storageRef);
         finalUrls.push(uploadedUrl);
         await new Promise(resolve => setTimeout(resolve, 100));

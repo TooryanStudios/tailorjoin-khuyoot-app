@@ -7,7 +7,9 @@ const storage = getStorage();
 export const uploadFile = async (file, path) => {
     const storageRef = ref(storage, path);
     try {
-        await uploadBytes(storageRef, file);
+        await uploadBytes(storageRef, file, {
+            cacheControl: 'public, max-age=31536000'
+        });
         const downloadURL = await getDownloadURL(storageRef);
         return downloadURL;
     } catch (error) {

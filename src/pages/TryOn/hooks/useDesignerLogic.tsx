@@ -256,7 +256,14 @@ export const useDesignerLogic = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { taskId: urlTaskId, productId } = useParams<{ taskId?: string; productId?: string }>();
-  const locationState = location.state as { product?: any };
+  // Also check if we have a state-passed product (e.g. from navigation)
+  const locationState = location.state as { product?: any; productId?: string } | null;
+  
+  // Determine if this is a real store product (tailor shop) vs a generic user session
+  // If the product is "uploaded by the user", we assume it implies NO VALID STORE PRODUCT ID is present.
+  const hasActiveProduct = React.useMemo(() => {
+    return !!productId || !!locationState?.product || !!locationState?.productId;
+  }, [productId, locationState]);
 
   // ========== AUTH & ADMIN ==========
   const { user, toggleAuthModal } = useApp();
@@ -335,6 +342,17 @@ export const useDesignerLogic = () => {
   const [sourceImageDimensions, setSourceImageDimensions] = React.useState<{ width: number; height: number } | null>(null);
   const [afterImageDimensions, setAfterImageDimensions] = React.useState<{ width: number; height: number } | null>(null);
   const [copiedUrl, setCopiedUrl] = React.useState<string | null>(null);
+
+  // ========== MEASUREMENTS MODAL ==========
+  const [isMeasurementsModalOpen, setIsMeasurementsModalOpen] = React.useState(false);
+
+  const openMeasurementsModal = React.useCallback(() => {
+    setIsMeasurementsModalOpen(true);
+  }, []);
+
+  const closeMeasurementsModal = React.useCallback(() => {
+    setIsMeasurementsModalOpen(false);
+  }, []);
 
   // ========== PRIVACY SHIELD (FACE BLUR) ==========
   const { 
@@ -1382,14 +1400,15 @@ export const useDesignerLogic = () => {
         const generatedAfterImage = res.imageDataUrl || res.fullImageUrl || res.thumbnailUrl || null;
         setAfterImage(generatedAfterImage);
         setBeforeUpscaleImage(res.imageDataUrl ?? null); // Store base64 for upscale button
-        persistActiveResult(res.fullImageUrl || res.imageDataUrl || null);
+        // Prefer base64 for immediate feedback, fallback to URL
+        persistActiveResult(res.imageDataUrl || res.fullImageUrl || null);
 
         if (pendingClientId && res.jobId) {
           finalizePendingGeneration(pendingClientId, {
             jobId: res.jobId,
             createdAt: new Date().toISOString(),
-            fullImageUrl: res.fullImageUrl || res.imageDataUrl,
-            thumbnailUrl: res.thumbnailUrl || res.fullImageUrl || res.imageDataUrl,
+            fullImageUrl: res.imageDataUrl || res.fullImageUrl,
+            thumbnailUrl: res.thumbnailUrl || res.imageDataUrl || res.fullImageUrl,
             templateUrl: res.templateUrl,
             fabricUrl: res.fabricUrl,
             templateId: undefined,
@@ -1441,8 +1460,8 @@ export const useDesignerLogic = () => {
             outputFit: payload.outputFit,
           },
           results: {
-            thumbnail: res.thumbnailUrl || res.fullImageUrl,
-            highRes: res.fullImageUrl || res.imageDataUrl,
+            thumbnail: res.thumbnailUrl || res.imageDataUrl || res.fullImageUrl,
+            highRes: res.imageDataUrl || res.fullImageUrl,
             jobId: res.jobId,
             templateUrl: res.templateUrl,
             fabricUrl: res.fabricUrl,
@@ -1453,7 +1472,7 @@ export const useDesignerLogic = () => {
 
         // Update URL if not already there
         if (!urlTaskId || urlTaskId !== newTaskId) {
-          navigate(`/designer-v2-1/design/${newTaskId}`, { replace: true });
+          navigate(`/tryon/design/${newTaskId}`, { replace: true });
         }
 
         setTimeout(() => {
@@ -2039,7 +2058,7 @@ export const useDesignerLogic = () => {
         const tasks = await taskStorage.listTasks(user?.uid);
         const matchingTask = tasks.find(t => t.results?.jobId === jobId);
         if (matchingTask) {
-          navigate(`/designer-v2-1/design/${matchingTask.taskId}`);
+          navigate(`/tryon/design/${matchingTask.taskId}`);
         }
       } catch {
         // ignore
@@ -2079,7 +2098,7 @@ export const useDesignerLogic = () => {
       const tasks = await taskStorage.listTasks(user?.uid);
       const matchingTask = tasks.find(t => t.results?.jobId === jobId);
       if (matchingTask) {
-        navigate(`/designer-v2-1/design/${matchingTask.taskId}`);
+        navigate(`/tryon/design/${matchingTask.taskId}`);
         return;
       }
     } catch {
@@ -2239,7 +2258,9 @@ export const useDesignerLogic = () => {
     navigateHome, navigateProfile, showError,
     handleTemplateSelect, setLastActiveTemplateTab,
     openFabricPrep, closeFabricPrep, openUserImagePrep, closeUserImagePrep,
+    openMeasurementsModal, closeMeasurementsModal, isMeasurementsModalOpen,
     handleFabricSwap, handleUpscale, handleSelectHistory,
+    hasActiveProduct,
     handleDeleteSlot, confirmDelete, cancelDelete, handleShareTask,
     handleClearSelections, copyToClipboard,
     setPrivacyMode, isPrivacyMode, maskingStyle, setMaskingStyle, blurStrength, setBlurStrength,
