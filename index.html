@@ -6,6 +6,27 @@
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     
+    <!-- CRITICAL: EARLY ERROR LOGGING (before any modules load) -->
+    <script>
+      window.__earlyErrors = [];
+      window.addEventListener('error', (e) => {
+        window.__earlyErrors.push({
+          message: e.message,
+          filename: e.filename,
+          lineno: e.lineno,
+          stack: e.error?.stack
+        });
+        console.error('[EARLY ERROR]', e.message, e.filename, e.lineno);
+      }, true);
+      window.addEventListener('unhandledrejection', (e) => {
+        window.__earlyErrors.push({
+          message: 'Unhandled Promise: ' + (e.reason?.message || e.reason),
+          stack: e.reason?.stack
+        });
+        console.error('[UNHANDLED REJECTION]', e.reason);
+      }, true);
+    </script>
+    
     <!-- 🎨 Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -465,13 +486,28 @@
 
     <!-- Failsafe: Force remove splash after 3 seconds if React fails to mount -->
     <script>
+      console.log('[BOOT] Starting app initialization...', new Date().toISOString());
+      
       setTimeout(function() {
         var splash = document.querySelector('[data-splash-screen]');
         if (splash) {
+          console.warn('[BOOT] React did not finish loading - removing splash');
           splash.style.opacity = '0';
           setTimeout(function() { splash.remove(); }, 300);
         }
       }, 3000);
+
+      // Show early errors if they occurred
+      setTimeout(function() {
+        if (window.__earlyErrors && window.__earlyErrors.length > 0) {
+          console.error('[BOOT] Early errors detected:');
+          window.__earlyErrors.forEach((err, idx) => {
+            console.error(`  [${idx}]`, err.message, err.filename);
+          });
+        } else {
+          console.log('[BOOT] No early errors detected');
+        }
+      }, 100);
     </script>
 
     <!-- Global Error Handler: If React fails to mount (e.g. 500 on import), replace splash with Error UI -->
