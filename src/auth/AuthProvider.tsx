@@ -71,21 +71,34 @@ setAuthStateSnapshot(getInitialAuthState());
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [state, setState] = React.useState<AuthState>(getInitialAuthState());
+  const lastUnauthorizedAtRef = React.useRef<number>(0);
 
   const refreshProfile = React.useCallback(async (forceWait = false) => {
     try {
       const snapshot = getAuthStateSnapshot();
+
+      // Avoid unnecessary calls when we are already unauthenticated.
+      if (snapshot.status === 'unauthenticated' && !snapshot.idToken) {
+        return;
+      }
+
+      // Prevent tight 401 retry loops caused by multiple refresh triggers.
+      const now = Date.now();
+      if (!forceWait && lastUnauthorizedAtRef.current && now - lastUnauthorizedAtRef.current < 5000) {
+        return;
+      }
       
       // Cookie-first approach: Try to fetch profile immediately.
       // If we have a cookie, this will succeed even before Firebase SDK is ready.
       let userData;
       try {
-        userData = await apiJson<any>('/api/auth/me');
+        // Disable internal retry to avoid fighting with AuthProvider state updates
+        userData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
       } catch (err: any) {
         // If it failed and we are still loading, wait for Firebase to be sure
         if ((forceWait || snapshot.status === 'loading') && err.status !== 401) {
           await firebaseService.waitForAuth(1500);
-          userData = await apiJson<any>('/api/auth/me');
+          userData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
         } else {
           throw err;
         }
@@ -142,19 +155,21 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         });
       }
     } catch (err: any) {
-      // Background refreshes should be silent
-      console.warn("[AuthProvider] Profile refresh failed:", err.message || err);
-      
       if (err.status === 401) {
+        lastUnauthorizedAtRef.current = Date.now();
+        const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+        setAuthStateSnapshot(unauthenticated);
+        localStorage.removeItem(UI_CACHE_KEY);
         setState(prev => {
-          // If we had a user, maybe the cookie just expired, stay authenticated if possible? 
-          // No, usually 401 means we must re-auth.
-          if (prev.user && prev.status === 'authenticated') return prev; 
-          setAuthStateSnapshot({ status: 'unauthenticated', user: null, idToken: null });
-          localStorage.removeItem(UI_CACHE_KEY);
-          return { status: 'unauthenticated', user: null, idToken: null };
+          if (prev.status === 'unauthenticated' && !prev.user && !prev.idToken) return prev;
+          return unauthenticated;
         });
-      } else {
+        return;
+      }
+
+      // Background refreshes should be silent-ish for non-auth failures
+      console.warn("[AuthProvider] Profile refresh failed:", err.message || err);
+      {
         setState(prev => {
           if (prev.user) return { ...prev, status: 'authenticated' };
           if (prev.status === 'loading') return { ...prev, status: 'unauthenticated' };

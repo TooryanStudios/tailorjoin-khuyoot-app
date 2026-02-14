@@ -312,7 +312,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 // This includes: displayName, photoURL, credits, billing, history, closet
                 console.log('[AppContext] Fetching profile from /api/auth/me for UID:', authUser.uid);
                 try {
-                    const serverData = await apiJson<any>('/api/auth/me');
+                    // Disable internal retry to prevent infinite loops (since retry triggers auth state change which triggers re-sync)
+                    const serverData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
                     console.log('[AppContext] /api/auth/me response:', serverData);
                     if (cancelled) return;
                     
@@ -348,6 +349,11 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         return;
                     }
                 } catch (apiError) {
+                    const isUnauthorized = (apiError as any)?.status === 401;
+                    if (isUnauthorized) {
+                        console.warn('[AppContext] /api/auth/me returned 401, skipping Firebase fallback for this cycle');
+                        return;
+                    }
                     console.warn('[AppContext] /api/auth/me failed, falling back to Firebase:', apiError);
                 }
 
