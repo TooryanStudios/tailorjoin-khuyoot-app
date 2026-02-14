@@ -1,17 +1,16 @@
 import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
-import { useOrderDetails } from '../src/context/OrderDetailsContext';
 import { useModalStore } from '../src/store/useModalStore';
 import { 
    LogOut, Ruler, ShoppingBag, Edit2, Crown, 
    Package, Wallet, User as UserIcon, ArrowRight, Phone, RefreshCw, AlertTriangle, X,
-   Camera, Save, Mail, MapPin, Calendar, LayoutGrid, List, Shield, Scissors, Users, Trash2
+   Camera, Save, Mail, MapPin, Calendar, Users, Trash2, Shield, Scissors
 } from 'lucide-react';
-import { Order, FamilyMember, GarmentType } from '../types';
-import { getUserOrders } from '../services/orderService';
+import { FamilyMember, GarmentType } from '../types';
 import { firebaseService } from '../services/firebase';
 import { uploadAvatar } from '../services/storageService';
+import { getUserOrders } from '../services/orderService';
 import { useMeasurementTemplate, MeasurementTemplateContent } from '@/src/hooks/useMeasurementTemplate';
 import { PointMarker } from '@/src/components/Measurements/PointMarker';
 import { measurementService, MeasurementTemplate } from '@/src/modules/measurements/services/measurementService';
@@ -165,7 +164,7 @@ const getRoleLabel = (role?: string) => {
   return roleMap[role || 'customer'] || roleMap['customer'];
 };
 
-type TabType = 'orders' | 'measurements' | 'family' | 'wallet';
+type TabType = 'measurements' | 'family' | 'wallet';
 
 
 const MeasurementEditorDialog = ({
@@ -432,15 +431,11 @@ const MONT_HEADER_ID = 'khuyoot-mont-header';
 const DEFAULT_HEADER_SPACER_HEIGHT = 72;
 
 export const Account = () => {
-  const { user, logout, loading, updateLocalUser, refreshUser } = useApp();
-  const { showOrderDetails } = useOrderDetails();
+  const { user, logout, loading, updateLocalUser, refreshUser, ordersCount } = useApp();
   const navigate = useNavigate();
   const location = useLocation();
   const setIsUpgradeModalOpen = useModalStore((s) => s.setIsUpgradeModalOpen);
-  const [orders, setOrders] = useState<Order[]>([]);
   const [isEditing, setIsEditing] = useState(false);
-  const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'cancelled' | 'completed' | 'all'>('all');
-  const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -456,7 +451,7 @@ export const Account = () => {
     if (path.includes('/account/measurements')) return 'measurements';
     if (path.includes('/account/family')) return 'family';
     if (path.includes('/account/wallet')) return 'wallet';
-    return 'orders';
+    return 'measurements';
   };
   
   const [activeTab, setActiveTab] = useState<TabType>(getTabFromPath());
@@ -491,7 +486,12 @@ export const Account = () => {
   // Sync activeTab with URL changes
   useEffect(() => {
     if (location.pathname === '/account' || location.pathname === '/account/') {
-      navigate('/account/orders', { replace: true });
+      navigate('/account/measurements', { replace: true });
+      return;
+    }
+    // Redirect old orders path to new standalone orders page
+    if (location.pathname === '/account/orders') {
+      navigate('/orders', { replace: true });
       return;
     }
     setActiveTab(getTabFromPath());
@@ -527,23 +527,12 @@ export const Account = () => {
       console.log('[Account] Full user object:', JSON.stringify(user, null, 2));
       console.log('[Account] =======================================');
       
-      loadOrders();
       if (user.role === 'customer') {
         loadFamilyMembers();
       }
       loadMeasurements();
     }
   }, [user]);
-
-  const loadOrders = async () => {
-     if (!user?.id) return;
-     try {
-        const userOrders = await getUserOrders(user.id);
-        setOrders(userOrders);
-     } catch (error) {
-        console.error('Error loading orders:', error);
-     }
-  };
 
   const loadFamilyMembers = async () => {
     if (!user?.id) return;
@@ -708,11 +697,17 @@ export const Account = () => {
   const handleDeleteAccount = async (disableOnly: boolean = false) => {
     if (!user) return;
     
-    // Check for active orders
-    const activeOrders = orders.filter(o => !['delivered', 'cancelled'].includes(o.status));
-    if (activeOrders.length > 0 && !disableOnly) {
-      alert('لا يمكن حذف الحساب لوجود طلبات نشطة. سيتم تعطيل الحساب بدلاً من ذلك.');
-      return;
+    // Check for active orders by fetching them
+    try {
+      const userOrders = await getUserOrders(user.id);
+      const activeOrders = userOrders.filter(o => !['delivered', 'cancelled'].includes(o.status));
+      if (activeOrders.length > 0 && !disableOnly) {
+        alert('لا يمكن حذف الحساب لوجود طلبات نشطة. سيتم تعطيل الحساب بدلاً من ذلك.');
+        return;
+      }
+    } catch (error) {
+      console.error('Error checking orders:', error);
+      // Continue with deletion/disable even if can't check orders
     }
     
     setIsDeleting(true);
@@ -748,19 +743,6 @@ export const Account = () => {
       alert('فشل حذف الفرد');
     }
   };
-
-  const filteredOrders = orders.filter(order => {
-      if (statusFilter === 'all') return true;
-      if (statusFilter === 'active') return !['pending', 'cancelled', 'delivered'].includes(order.status);
-      if (statusFilter === 'pending') return order.status === 'pending';
-      if (statusFilter === 'cancelled') return order.status === 'cancelled';
-      if (statusFilter === 'completed') return order.status === 'delivered';
-      return true;
-  }).sort((a, b) => {
-      const dateA = a.createdAt?.toDate?.()?.getTime() || 0;
-      const dateB = b.createdAt?.toDate?.()?.getTime() || 0;
-      return dateB - dateA;
-  });
 
   if (loading) {
      return (
@@ -908,7 +890,7 @@ export const Account = () => {
                     <span className="text-[8px] text-white/60">الرصيد</span>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md rounded-lg p-2 border border-white/10 flex flex-col items-center justify-center min-w-[60px]">
-                    <span className="text-lg text-white">{orders.length}</span>
+                    <span className="text-lg text-white">{ordersCount || 0}</span>
                     <span className="text-[8px] text-white/60">الطلبات</span>
                   </div>
                   <div className="bg-white/10 backdrop-blur-md rounded-lg p-2 border border-white/10 flex flex-col items-center justify-center min-w-[60px]">
@@ -976,18 +958,6 @@ export const Account = () => {
           <div className="mb-4" dir="rtl">
             <div className="bg-white rounded-lg p-1.5 shadow-sm border border-slate-100 flex gap-1">
               <button
-                onClick={() => navigate('/account/orders')}
-                className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
-                  activeTab === 'orders'
-                    ? 'bg-[#63498b] text-white'
-                    : 'text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <ShoppingBag size={16} />
-                <span>طلباتي</span>
-              </button>
-              <div className="w-px bg-slate-200 self-stretch my-1"></div>
-              <button
                 onClick={() => navigate('/account/measurements')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                   activeTab === 'measurements'
@@ -1040,183 +1010,6 @@ export const Account = () => {
                 حذف الحساب
               </button>
             </div>
-          </div>
-          )}
-
-          {/* Tab Content */}
-          {activeTab === 'orders' && user.role !== 'tailor' && (
-          <div className="space-y-4">
-            <div className="flex flex-col md:flex-row md:items-center justify-between gap-3" dir="rtl">
-              <h3 className="text-base text-slate-900 font-bold">طلباتي</h3>
-              <div className="flex items-center gap-2">
-                {/* Filter Tabs */}
-                <div className="flex gap-1 bg-white rounded-lg p-1 border border-slate-200 shadow-sm">
-                  <button
-                    onClick={() => setStatusFilter('active')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      statusFilter === 'active'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    النشطة
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('pending')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      statusFilter === 'pending'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    قيد الانتظار
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('cancelled')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      statusFilter === 'cancelled'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    الملغية
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('completed')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      statusFilter === 'completed'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    المكتملة
-                  </button>
-                  <button
-                    onClick={() => setStatusFilter('all')}
-                    className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
-                      statusFilter === 'all'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                  >
-                    الكل
-                  </button>
-                </div>
-                
-                {/* View Mode Toggle */}
-                <div className="flex bg-white rounded-lg border border-slate-200 p-1 shadow-sm">
-                  <button
-                    onClick={() => setViewMode('list')}
-                    className={`px-2 py-1.5 rounded-md transition-all ${
-                      viewMode === 'list'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                    title="عرض القائمة"
-                  >
-                    <List size={14} />
-                  </button>
-                  <button
-                    onClick={() => setViewMode('grid')}
-                    className={`px-2 py-1.5 rounded-md transition-all ${
-                      viewMode === 'grid'
-                        ? 'bg-[#63498b] text-white'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    }`}
-                    title="عرض الشبكة"
-                  >
-                    <LayoutGrid size={14} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {filteredOrders.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-20 text-center" dir="rtl">
-                <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center mb-4 shadow-sm border border-gray-100">
-                  <ShoppingBag size={32} className="text-slate-300" />
-                </div>
-                <h3 className="text-lg text-slate-500">لا توجد طلبات حالياً</h3>
-                <p className="text-sm text-slate-400 mt-1">ابدأ التسوق واطلب منتجاتك المفضلة</p>
-                <button
-                  onClick={() => navigate('/')}
-                  className="mt-6 px-8 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all"
-                >
-                  تصفح المنتجات
-                </button>
-              </div>
-            ) : (
-              <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3' : 'space-y-3'} dir="rtl">
-                {filteredOrders.map(order => (
-                  <div
-                    key={order.id}
-                    onClick={() => showOrderDetails(order)}
-                    className={`bg-white rounded-lg p-5 shadow-sm hover:shadow-md transition-all group overflow-hidden flex gap-4 cursor-pointer ${
-                      order.status === 'delivered' ? 'border-2 border-green-500' : 'border border-slate-100'
-                    }`}
-                  >
-                    <div className="w-20 h-24 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden shrink-0">
-                      {order.items && order.items[0]?.image ? (
-                        <img
-                          src={order.items[0].image}
-                          className="w-full h-full object-cover"
-                          alt={order.items[0].name || order.productName}
-                        />
-                      ) : order.productImage ? (
-                        <img
-                          src={order.productImage}
-                          className="w-full h-full object-cover"
-                          alt={order.productName}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-slate-300">
-                          <Package size={24} />
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <h4 className="text-sm text-slate-900 line-clamp-1">
-                            {order.items && order.items[0]?.name ? order.items[0].name : order.productName || "طلب تفصيل"}
-                          </h4>
-                          <p className="text-xs text-[#63498b] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
-                          {(order.tailorShop || order.tailorName) && (
-                            <p className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
-                              <Scissors size={10} />
-                              {order.tailorShop || order.tailorName}
-                            </p>
-                          )}
-                        </div>
-                        <span className={`px-2.5 py-1 text-xs rounded-md shrink-0 ${
-                          order.status === 'delivered' ? 'bg-[#63498b]/10 text-[#63498b]' :
-                          order.status === 'processing' ? 'bg-[#63498b]/10 text-[#63498b]' :
-                          order.status === 'pending' ? 'bg-slate-100 text-slate-600' :
-                          order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                          'bg-[#63498b]/10 text-[#63498b]'
-                        }`}>
-                          {order.status === 'delivered' ? 'مكتمل' :
-                           order.status === 'processing' ? 'قيد التنفيذ' :
-                           order.status === 'pending' ? 'بانتظار التأكيد' :
-                           order.status === 'cancelled' ? 'ملغي' : order.status}
-                        </span>
-                      </div>
-
-                      <div className="flex items-center justify-between mt-3">
-                        <div>
-                          <span className="text-lg text-slate-900">{order.totalPrice || order.price} ر.س</span>
-                        </div>
-                        <span className="text-xs text-slate-400 flex items-center gap-1">
-                          <Calendar size={11} />
-                          {order.createdAt?.toDate?.() ? new Date(order.createdAt.toDate()).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' }) : new Date(order.orderDate).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' })}
-                        </span>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
           </div>
           )}
 

@@ -13,6 +13,7 @@ import { OrderDetailsProvider } from './src/context/OrderDetailsContext';
 import { MainLayout } from './src/components/MainLayout';
 import { ProductList } from './pages/ProductList';
 import { Account } from './pages/Account';
+import { Orders } from './pages/Orders';
 import { DesignerV2_1 as Designer } from './src/pages/DesignerV2_1/DesignerV2_1';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { TailorCollections } from './pages/TailorCollections';
@@ -67,7 +68,6 @@ import ReturnPolicy from './pages/ReturnPolicy';
 import { Settings } from './pages/Settings';
 import { useAppStore } from './src/store/useAppStore';
 import { LoadingShell } from './src/components/LoadingShell';
-import { NewProductPage } from './src/modules/admin/features/product-creator-v2';
 import { AppInitializer } from './src/components/AppInitializer';
 import { PaymentTestPage } from './src/pages/DesignerV2_1/pages/PaymentTestPage';
 import TryOn from './src/pages/TryOn';
@@ -438,6 +438,7 @@ const AppContent: React.FC = () => {
                  <Route path="/shop-account" element={<ShopAccount />} />
                  {/* Fabric store removed in new role model */}
                  <Route path="/account/*" element={<Account />} />
+                 <Route path="/orders" element={<Orders />} />
                  <Route path="/transaction-history" element={<TransactionHistory />} />
                  <Route path="/family-measurements" element={<FamilyMeasurements />} />
                  <Route path="/checkout" element={<Checkout />} />
@@ -448,7 +449,6 @@ const AppContent: React.FC = () => {
                  <Route path="/customization" element={<CustomizationPage />} />
                  <Route path="/customization/:productId" element={<CustomizationPage />} />
                  <Route path="/tailor/collections" element={<TailorCollections />} />
-                 <Route path="/tailor/product/new" element={<NewProductPage />} />
                  <Route path="/tailor/orders" element={<TailorOrders />} />
                  <Route path="/tailor-materials" element={<TailorMaterials />} />
                  <Route path="/tailor-dashboard" element={<TailorDashboard />} />

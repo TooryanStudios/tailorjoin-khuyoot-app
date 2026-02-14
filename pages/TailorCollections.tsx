@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, Sparkles } from 'lucide-react';
+import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus } from 'lucide-react';
 import { Button } from '../components/Button';
 import { ProductFormDialog } from '../components/ProductFormDialog';
 import { firebaseService } from '../services/firebase';
@@ -1130,12 +1130,6 @@ export const TailorCollections = () => {
                className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#63498b] text-white font-medium text-sm transition-all shadow-sm hover:bg-[#63498b]/90"
              >
                <Plus size={16} /> إضافة منتج
-             </button>
-             <button
-               onClick={() => navigate('/tailor/product/new')}
-               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-white border border-gray-200 text-slate-700 font-medium text-sm transition-all shadow-sm hover:bg-slate-50"
-             >
-               <Sparkles size={16} className="text-[#63498b]" /> تجربة الواجهة الجديدة
              </button>
            </div>
         </div>

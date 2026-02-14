@@ -110,10 +110,11 @@ export const ImageWorkspace: React.FC = () => {
                     e.stopPropagation();
                     removeImage(index);
                   }}
-                  className="absolute top-1 right-1 w-5 h-5 rounded-full bg-red-500 hover:bg-red-600 text-white opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
+                  className="absolute top-1 right-1 w-6 h-6 rounded-full bg-red-500 hover:bg-red-600 text-white opacity-100 transition-all flex items-center justify-center shadow-lg z-10"
                   aria-label={`Delete image ${index + 1}`}
+                  title="حذف الصورة"
                 >
-                  <X size={12} />
+                  <X size={14} strokeWidth={2.5} />
                 </button>
 
                 <div className="absolute bottom-1 right-1 px-1.5 py-0.5 rounded bg-black/60 backdrop-blur-sm text-white text-[10px] font-medium">

@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClientProvider } from '@tanstack/react-query';
 import 'react-image-crop/dist/ReactCrop.css';
+import './src/styles/global.css';
 import App from './App';
 import { queryClient } from './src/lib/queryClient';
 import { AuthProvider } from './src/auth/AuthProvider';

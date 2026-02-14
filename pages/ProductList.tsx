@@ -445,10 +445,42 @@ export const ProductList = () => {
       
       {/* Scrollable Content Container */}
       <div 
-        className="flex-1 overflow-y-auto pb-24 custom-scrollbar pt-4"
+        className="flex-1 overflow-y-auto pb-24 custom-scrollbar"
         dir="rtl"
       >
-        <div className="max-w-[1400px] mx-auto px-2 md:px-8">
+        {/* Hero Banner */}
+        <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
+          <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
+            <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
+            
+            <div className="relative z-10">
+              <div className="flex items-center justify-between gap-4">
+                {/* Title */}
+                <div className="space-y-1">
+                  <h1 className="text-2xl md:text-3xl font-bold text-white">
+                    {gender === 'women' ? 'منتجات النساء' : gender === 'men' ? 'منتجات الرجال' : 'المنتجات'}
+                  </h1>
+                  <p className="text-white/70 text-sm">استكشف أفضل التصاميم من خياطينا المميزين</p>
+                </div>
+
+                {/* Stats */}
+                <div className="flex gap-2">
+                  <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                    <span className="text-xl md:text-2xl font-bold text-white">{displayedProducts.length}</span>
+                    <span className="text-[9px] md:text-[10px] text-white/60">منتج متاح</span>
+                  </div>
+                  <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
+                    <span className="text-xl md:text-2xl font-bold text-white">{Object.keys(tailorsMap).length}</span>
+                    <span className="text-[9px] md:text-[10px] text-white/60">خياط</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="max-w-[1400px] mx-auto px-2 md:px-8 pt-3">
           
           <FilterBar 
             categories={categories}

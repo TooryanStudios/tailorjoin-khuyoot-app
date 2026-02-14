@@ -54,8 +54,7 @@ export const MontHeader = React.memo(function MontHeader() {
 
     const links = {
       admin: [
-        { id: 'admin', label: 'الحساب', path: '/account', icon: LayoutDashboard },
-        { id: 'shop', label: 'المنتجات', path: '/female', icon: ShoppingBag },
+        { id: 'shop', label: 'المنتجات', path: '/tailor/collections', icon: ShoppingBag },
         { id: 'orders', label: 'طلباتي', path: '/orders', icon: Package, badge: ordersCount },
         { id: 'account', label: 'حسابي', path: '/account', icon: User },
       ],
@@ -204,7 +203,6 @@ export const MontHeader = React.memo(function MontHeader() {
                     <button
                       onClick={() => {
                         const path = user.role === 'admin' ? '/admin' : 
-                                    user.role === 'tailor' ? '/tailor-dashboard' : 
                                     user.role === 'boutique' ? '/boutique-account' :
                                     user.role === 'shop' ? '/shop-account' : '/account';
                         navigate(path);
@@ -255,54 +253,87 @@ export const MontHeader = React.memo(function MontHeader() {
       {isMobileMenuOpen && (
         <div className="fixed inset-0 top-[60px] z-[9990] bg-[#ededed] p-6 md:hidden animate-in slide-in-from-top-4 duration-200 overflow-y-auto">
             <div className="flex flex-col gap-6 text-xl font-normal uppercase tracking-widest text-black/80">
-              <a href="/" className="border-b border-black/5 pb-4" onClick={() => setIsMobileMenuOpen(false)}>الرئيسية</a>
-              <a href="#" className="border-b border-black/5 pb-4" onClick={() => setIsMobileMenuOpen(false)}>من نحن</a>
-              <a href="#" className="border-b border-black/5 pb-4" onClick={() => setIsMobileMenuOpen(false)}>المتجر</a>
-              <a href="#" className="border-b border-black/5 pb-4" onClick={() => setIsMobileMenuOpen(false)}>العروض</a>
+              <a 
+                href="/" 
+                className={`border-b border-black/5 pb-4 flex items-center gap-2 ${isHomeLandingRoute() ? 'text-[var(--theme-primary)] font-bold' : ''}`}
+                onClick={() => setIsMobileMenuOpen(false)}
+              >
+                <Home size={20} />
+                الرئيسية
+              </a>
+              
+              {/* Role-specific menu items */}
+              {user && roleLinks.map(link => {
+                const IconComponent = link.icon;
+                return (
+                  <a
+                    key={link.id}
+                    href="#"
+                    className={`border-b border-black/5 pb-4 flex items-center gap-2 justify-between ${
+                      isLinkActive(link.path) ? 'text-[var(--theme-primary)] font-bold' : ''
+                    }`}
+                    onClick={(e) => {
+                      e.preventDefault();
+                      navigate(link.path);
+                      setIsMobileMenuOpen(false);
+                    }}
+                  >
+                    <span className="flex items-center gap-2">
+                      <IconComponent size={20} />
+                      {link.label}
+                    </span>
+                    {link.badge && link.badge > 0 && (
+                      <span className="bg-[var(--theme-primary)] text-white text-xs px-2 py-1 rounded-full">
+                        {link.badge}
+                      </span>
+                    )}
+                  </a>
+                );
+              })}
+              
+              <a 
+                href="#" 
+                className={`border-b border-black/5 pb-4 flex items-center gap-2 ${isLinkActive('/tailors') ? 'text-[var(--theme-primary)] font-bold' : ''}`}
+                onClick={(e) => { e.preventDefault(); navigate('/tailors'); setIsMobileMenuOpen(false); }}
+              >
+                <Scissors size={20} />
+                الخياطون
+              </a>
             </div>
 
             <div className="mt-8 space-y-6">
                <div>
                  <h5 className="text-[10px] font-black uppercase text-zinc-400 mb-2">روابط سريعة</h5>
                  <div className="flex flex-col gap-2 text-sm font-normal text-zinc-600">
-                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('/cart'); setIsMobileMenuOpen(false); }}>السلة ({cartCount || 0})</a>
+                    <a href="#" onClick={(e) => { e.preventDefault(); navigate('/cart'); setIsMobileMenuOpen(false); }}>
+                      <span className="flex items-center gap-2">
+                        <ShoppingBag size={16} />
+                        السلة ({cartCount || 0})
+                      </span>
+                    </a>
                     
                     {user ? (
                       <>
-                        {user.role === 'admin' && (
-                          <a href="#" onClick={(e) => { e.preventDefault(); navigate('/female'); setIsMobileMenuOpen(false); }}>تصفح المنتجات</a>
-                        )}
-                        <a href="#" onClick={(e) => { e.preventDefault(); navigate('/orders'); setIsMobileMenuOpen(false); }}>طلباتي الشخصية</a>
-                        <a href="#" onClick={(e) => { e.preventDefault(); navigate('/account'); setIsMobileMenuOpen(false); }}>حسابي الشخصي</a>
-                        <a href="#" onClick={(e) => { 
-                          e.preventDefault(); 
-                          const path = user.role === 'admin' ? '/admin' : 
-                                      user.role === 'tailor' ? '/tailor-dashboard' : '/account';
-                          navigate(path); 
-                          setIsMobileMenuOpen(false); 
-                        }}>لوحة التحكم</a>
                         <a href="#" onClick={async (e) => { 
                           e.preventDefault(); 
                           await logout(); 
                           navigate('/'); 
                           setIsMobileMenuOpen(false); 
-                        }} className="text-red-500">تسجيل الخروج</a>
+                        }} className="text-red-500 flex items-center gap-2">
+                          <LogOut size={16} />
+                          تسجيل الخروج
+                        </a>
                       </>
                     ) : (
-                      <a href="#" onClick={(e) => { e.preventDefault(); toggleAuthModal(true); setIsMobileMenuOpen(false); }}>تسجيل الدخول / الانضمام</a>
+                      <a href="#" onClick={(e) => { e.preventDefault(); toggleAuthModal(true); setIsMobileMenuOpen(false); }}>
+                        <span className="flex items-center gap-2">
+                          <User size={16} />
+                          تسجيل الدخول / الانضمام
+                        </span>
+                      </a>
                     )}
                  </div>
                </div>
-
-               {user?.role === 'tailor' && (
-                 <div>
-                   <h5 className="text-[10px] font-black uppercase text-zinc-400 mb-2">إدارة الخياط</h5>
-                   <div className="flex flex-col gap-2 text-sm font-normal text-zinc-600">
-                      <a href="#" onClick={(e) => { e.preventDefault(); navigate('/tailor/collections'); setIsMobileMenuOpen(false); }}>منتجاتي</a>
-                      <a href="#" onClick={(e) => { e.preventDefault(); navigate('/tailor/orders'); setIsMobileMenuOpen(false); }}>الطلبات الواردة</a>
-                   </div>
-                 </div>
-               )}
 
                <div>
                  <h5 className="text-[10px] font-black uppercase text-zinc-400 mb-2">تابعنا</h5>
@@ -313,27 +344,6 @@ export const MontHeader = React.memo(function MontHeader() {
                  </div>
                </div>
             </div>
-
-            {user ? (
-               <div className="mt-8 space-y-4">
-                 <button 
-                  onClick={() => {
-                    const path = user.role === 'admin' ? '/admin' : 
-                                user.role === 'tailor' ? '/tailor-dashboard' : '/account';
-                    navigate(path);
-                    setIsMobileMenuOpen(false);
-                  }}
-                  className="w-full bg-black text-white py-3 rounded-full text-xs font-normal uppercase tracking-widest flex items-center justify-center gap-2"
-                 >
-                   <LayoutDashboard size={14} />
-                   <span>{user.role === 'admin' ? 'لوحة تحكم المسؤول' : 'الذهاب إلى لوحة التحكم'}</span>
-                 </button>
-               </div>
-            ) : (
-              <div className="mt-8">
-                 <button onClick={() => { toggleAuthModal(true); setIsMobileMenuOpen(false); }} className="w-full bg-[var(--theme-primary)] text-white py-3 rounded-full text-xs font-normal uppercase tracking-widest">Join Community</button>
-              </div>
-            )}
         </div>
       )}
     </>

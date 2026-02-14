@@ -107,13 +107,12 @@
         }
       })();
     </script>
-
     <!-- Security Headers -->
-            <meta http-equiv="Content-Security-Policy" 
+    <meta http-equiv="Content-Security-Policy" 
               content="default-src 'self'; 
-               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com; 
-               script-src-elem 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
-               style-src 'self' 'unsafe-inline' https://cdn.tailwindcss.com https://fonts.googleapis.com; 
+               script-src 'self' 'unsafe-inline' 'unsafe-eval' https://*.firebaseio.com https://*.googleapis.com https://www.gstatic.com; 
+               script-src-elem 'self' 'unsafe-inline' https://*.firebaseio.com https://*.googleapis.com https://apis.google.com https://cdn.jsdelivr.net https://www.gstatic.com;
+               style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; 
                img-src 'self' data: blob: https: http:; 
                media-src 'self' data: blob: https: http: https://static.higgsfield.ai https://*.higgsfield.ai;
                font-src 'self' https://fonts.gstatic.com;
@@ -210,54 +209,8 @@
       })();
     </script>
 
-    <!-- Suppress Tailwind CDN warning in console (keep real errors visible) -->
-    <script>
-      if (typeof window !== 'undefined') {
-        const originalWarn = console.warn;
-        console.warn = function (...args) {
-          if (args[0]?.includes?.('cdn.tailwindcss.com should not be used in production')) return;
-          originalWarn.apply(console, args);
-        };
-      }
-    </script>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts - Cairo -->
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@200;300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <script>
-      tailwind.config = {
-        darkMode: 'class',
-        theme: {
-          extend: {
-            colors: {
-              brand: {
-                dark: '#050817',
-                primary: '#63498b',
-                secondary: '#b5e58d',
-                accent: '#fbbf24',
-                surface: '#1e293b'
-              },
-              theme: {
-                primary: '#63498b',
-                secondary: '#b5e58d',
-                master: '#63498b',
-                surface: '#c2b7d3',
-              },
-              boutique: {
-                dark: '#0F051D',
-                deep: '#1A0B2E'
-              },
-              gold: {
-                400: '#D4AF37'
-              }
-            },
-            fontFamily: {
-              sans: ['Cairo', 'sans-serif'],
-            }
-          }
-        }
-      }
-    </script>
 
     <style>
       :root {
