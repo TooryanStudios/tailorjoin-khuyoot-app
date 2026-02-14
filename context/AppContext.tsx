@@ -51,6 +51,7 @@ export interface User {
     phoneNumber?: string;
     contactNumber?: string;
     role: UserRole;
+    _isDefaultRole?: boolean; // Marker for temporary placeholder state from AuthProvider
     isGuest: boolean;
     joinDate: string;
     credits?: number;
@@ -150,26 +151,32 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         
         // Ensure we always have name/profileImage regardless of whether source uses Firebase names (displayName/photoURL) or our names
         const name = u.name || u.displayName || u.email?.split('@')[0] || 'User';
-        const profileImage = u.profileImage || u.photoURL || u.avatar || u.avatar_url;
+        const profileImage = u.profileImage || u.photoURL || u.avatar || u.avatar_url || (u as any).profile_image;
         const phone = u.phone || u.phoneNumber || (u as any).phone_number || (u as any).contactNumber || (u as any).mobile || (u as any).tel;
 
-        if (u.uid) {
-            console.log(`[AppContext] Normalizing user ${u.uid}:`, { 
-                hasPhone: !!phone, 
-                phoneValue: phone,
-                hasImage: !!profileImage,
-                sourceKeys: Object.keys(u)
-            });
-        }
+        console.log(`[AppContext] Normalizing user ${u.uid}:`, { 
+            inputRole: u.role,
+            resolvedRole: role,
+            inputPhoto: { photoURL: u.photoURL, profileImage: u.profileImage, avatar: u.avatar },
+            resolvedPhoto: profileImage,
+            hasPhone: !!phone, 
+            phoneValue: phone,
+            hasImage: !!profileImage,
+            isDefaultRole: !!(u as any)._isDefaultRole,
+            sourceKeys: Object.keys(u)
+        });
 
         const base = {
             id: u.uid || u.id,
             uid: u.uid || u.id,
             name,
+            displayName: name,
             email: u.email,
             profileImage,
+            photoURL: profileImage, // Sync for compatibility
             avatar: profileImage, // Sync for compatibility
             role: role as UserRole,
+            _isDefaultRole: (u as any)._isDefaultRole, // Propagate the flag
             isGuest: u.isGuest || false,
             joinDate: u.joinDate || u.metadata?.joinDate || u.createdAt || new Date().toISOString(),
         };
@@ -177,7 +184,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         const credits = u.credit_balance ?? u.credits ?? u.billing?.credits ?? 0;
         const tier = u.tier || u.billing?.tier || 'free';
 
-        return {
+        const result = {
             ...base,
             credits,
             tier,
@@ -185,6 +192,18 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             phoneNumber: phone || '', // Sync field name
             metadata: u.metadata || {}
         };
+        
+        console.log('[AppContext] Normalized result:', {
+            uid: result.uid,
+            role: result.role,
+            profileImage: result.profileImage,
+            photoURL: result.photoURL,
+            avatar: result.avatar,
+            name: result.name,
+            displayName: result.displayName
+        });
+        
+        return result;
     };
 
     const [user, setUser] = useState<User | null>(() => {
@@ -288,17 +307,39 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
         if (!authUser?.uid) return;
 
-        // If authUser already has rich data (from backend refresh), use it immediately
-        if ((authUser as any).billing) {
+        // If authUser already has rich data (from backend refresh) AND IT'S NOT A PLACEHOLDER, use it immediately
+        if ((authUser as any).billing && !(authUser as any)._isDefaultRole) {
+            console.log('[AppContext] ========== USING AUTH PROVIDER DATA ==========');
+            console.log('[AppContext] authUser received:', {
+                uid: authUser.uid,
+                email: authUser.email,
+                role: authUser.role,
+                displayName: authUser.displayName,
+                photoURL: authUser.photoURL,
+                profileImage: (authUser as any).profileImage,
+                avatar: (authUser as any).avatar,
+                billing: (authUser as any).billing
+            });
+            
             const normalized = normalizeUser(authUser);
+            
+            console.log('[AppContext] Normalized user:', {
+                uid: normalized?.uid,
+                role: normalized?.role,
+                profileImage: normalized?.profileImage,
+                photoURL: (normalized as any)?.photoURL,
+                name: normalized?.name,
+                displayName: (normalized as any)?.displayName
+            });
+            console.log('[AppContext] ===============================================');
+            
             setUser(normalized);
             try {
                 const cacheKey = `khuyoot:user-profile:${authUser.uid}`;
                 localStorage.setItem(cacheKey, JSON.stringify(normalized));
             } catch {}
             
-            // If we have billing, we don't necessarily need to fetch from Firebase
-            // unless we want to merge more data.
+            // Trust AuthProvider's data since it came from the backend
             return;
         }
 
@@ -314,7 +355,12 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 try {
                     // Disable internal retry to prevent infinite loops (since retry triggers auth state change which triggers re-sync)
                     const serverData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
-                    console.log('[AppContext] /api/auth/me response:', serverData);
+                    console.log('[AppContext] /api/auth/me response:', { 
+                        hasData: !!serverData, 
+                        role: serverData?.role || serverData?.user?.role,
+                        hasPhotoURL: !!(serverData?.photoURL || serverData?.profileImage || serverData?.user?.photoURL),
+                        keys: serverData ? Object.keys(serverData) : []
+                    });
                     if (cancelled) return;
                     
                     if (serverData) {
@@ -323,25 +369,29 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                             ? serverData.user 
                             : serverData;
                         
-                        // Merge all server data into user object
-                        const mergedUser = { ...metaUser };
+                        // Merge all server data into user object, prioritizing server data
+                        const mergedUser = { ...authUser, ...metaUser };
+                        
+                        // If server returned data in the outer envelope, merge those too (but don't override already-merged user data)
                         if (serverData.user && serverData.user.uid) {
                             Object.keys(serverData).forEach(key => {
                                 if (key !== 'user' && key !== 'status' && key !== 'success') {
-                                    // Only overwrite if the value is truthy or if mergedUser doesn't have it
-                                    if (serverData[key] !== undefined && serverData[key] !== null) {
+                                    if (serverData[key] !== undefined && serverData[key] !== null && !mergedUser[key]) {
                                       (mergedUser as any)[key] = serverData[key];
                                     }
                                 }
                             });
                         }
                         
-                        const normalized = normalizeUser({
-                            ...authUser,
-                            ...mergedUser,
-                            name: mergedUser.displayName || mergedUser.name || authUser.displayName || (authUser as any).name || (mergedUser as any).name,
-                            profileImage: mergedUser.photoURL || mergedUser.profileImage || authUser.photoURL || (authUser as any).profileImage || (mergedUser as any).avatar
+                        console.log('[AppContext] Merged user data before normalization:', {
+                            role: mergedUser.role,
+                            photoURL: mergedUser.photoURL,
+                            profileImage: mergedUser.profileImage,
+                            displayName: mergedUser.displayName,
+                            name: mergedUser.name
                         });
+                        
+                        const normalized = normalizeUser(mergedUser);
                         
                         setUser(normalized);
                         localStorage.setItem(cacheKey, JSON.stringify(normalized));

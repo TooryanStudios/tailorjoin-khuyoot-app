@@ -28,6 +28,7 @@ export interface AuthUser {
   displayName: string;
   photoURL: string;
   role: UserRole;
+  _isDefaultRole?: boolean; // Marker for temporary placeholder state
 
   // Enriched Data (from 'user_profiles' collection)
   billing: BillingInfo;

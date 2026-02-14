@@ -519,6 +519,14 @@ export const Account = () => {
   // Load orders on mount
   useEffect(() => {
     if (user) {
+      console.log('[Account] ========== USER DATA RECEIVED ==========');
+      console.log('[Account] user.role:', user.role);
+      console.log('[Account] user.profileImage:', user.profileImage);
+      console.log('[Account] user.photoURL:', user.photoURL);
+      console.log('[Account] user.avatar:', user.avatar);
+      console.log('[Account] Full user object:', JSON.stringify(user, null, 2));
+      console.log('[Account] =======================================');
+      
       loadOrders();
       if (user.role === 'customer') {
         loadFamilyMembers();

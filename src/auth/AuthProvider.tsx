@@ -9,7 +9,7 @@ import { LoadingShell } from '../components/LoadingShell';
 import { firebaseService } from '../../services/firebase';
 
 const UI_CACHE_KEY = 'khuyoot:ui:auth_cache';
-const API_KEY = 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
+const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
 
 const initialState: AuthState = {
   status: 'loading',
@@ -92,8 +92,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       // If we have a cookie, this will succeed even before Firebase SDK is ready.
       let userData;
       try {
-        // If we are on a fresh load and have no cached reason to believe a session exists,
-        // we can optionally wait for Firebase to avoid a noisy 401 in the console.
+        // If we represent we are authenticated (have a user in memory), act like we have a session.
         const currentSnap = getAuthStateSnapshot();
         const hasSessionEvidence = !!currentSnap.user || !!localStorage.getItem('khuyoot:has_session');
         
@@ -138,6 +137,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           });
         }
 
+        // Normalize photo field - API might return it as photoURL, profileImage, or avatar
+        if (!user.photoURL && (user.profileImage || user.avatar || (user as any).profile_image)) {
+          user.photoURL = user.profileImage || user.avatar || (user as any).profile_image;
+        }
+        
+        // Also set profileImage for compatibility
+        if (!user.profileImage && user.photoURL) {
+          user.profileImage = user.photoURL;
+        }
+
         // Ensure billing object is properly structured for the UI
         if (!user.billing && (user.credits !== undefined || user.credit_balance !== undefined)) {
           user.billing = {
@@ -147,32 +156,47 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           };
         }
 
-        setState(prev => {
-          const prevCredits = prev.user?.billing?.credits ?? (prev.user as any)?.credit_balance;
-          const nextCredits = user.billing?.credits ?? user.credit_balance;
-          
-          const prevImg = prev.user?.photoURL || (prev.user as any)?.profileImage;
-          const nextImg = user.photoURL || user.profileImage;
+        // Remove the default role marker since we now have real data
+        delete (user as any)._isDefaultRole;
 
-          const prevName = prev.user?.displayName || (prev.user as any)?.name;
-          const nextName = user.displayName || user.name;
-          
-          if (
-            prev.status === 'authenticated' && 
-            prev.user?.uid === user.uid && 
-            prevCredits === nextCredits &&
-            prevImg === nextImg &&
-            prevName === nextName
-          ) {
-            // Still update token if changed
-            if (prev.idToken !== snapshot.idToken) return { ...prev, idToken: snapshot.idToken };
-            return prev;
-          }
-
-          const next = { ...prev, status: 'authenticated' as const, user };
-          setAuthStateSnapshot(next);
-          return next;
+        console.log('[AuthProvider] ========== PROFILE REFRESH COMPLETE ==========');
+        console.log('[AuthProvider] Raw API response:', JSON.stringify(userData, null, 2));
+        console.log('[AuthProvider] Processed user object:', {
+          uid: user.uid,
+          email: user.email,
+          role: user.role,
+          displayName: user.displayName,
+          photoURL: user.photoURL,
+          profileImage: user.profileImage,
+          avatar: user.avatar,
+          hasPhoto: !!(user.photoURL || user.profileImage || user.avatar),
+          credits: user.billing?.credits,
+          fullUser: JSON.stringify(user, null, 2)
         });
+
+        // ALWAYS update state when we get fresh profile data to ensure UI reflects backend reality
+        const next: AuthState = { 
+          status: 'authenticated' as const, 
+          user,
+          idToken: snapshot.idToken 
+        };
+        
+        console.log('[AuthProvider] Setting new auth state:', {
+          role: next.user?.role,
+          photoURL: next.user?.photoURL,
+          displayName: next.user?.displayName
+        });
+        
+        setAuthStateSnapshot(next);
+        try { 
+          localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user: next.user, idToken: next.idToken })); 
+          console.log('[AuthProvider] Cached to localStorage');
+        } catch (e) {
+          console.error('[AuthProvider] Failed to cache:', e);
+        }
+        
+        setState(next);
+        console.log('[AuthProvider] ========================================');
       }
     } catch (err: any) {
       if (err.status === 401) {
@@ -182,6 +206,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         // Keep current auth state and let token/cookie sync settle instead of hard-logging out.
         const currentSnapshot = getAuthStateSnapshot();
         if (firebaseService.auth?.currentUser || currentSnapshot.idToken) {
+          console.log('[AuthProvider] 401 received but user is signed in locally. Assuming cookie sync delay.');
           setState(prev => {
             if (!prev.user) return prev;
             return { ...prev, status: 'authenticated' };
@@ -270,7 +295,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           // This avoids the 401 race condition where components call /api/auth/me before the cookie is set.
           refreshProfile(true);
         } catch (err) {
-          console.warn('[AuthProvider] Cookie sync failed:', err);
+          console.warn('[AuthProvider] Cookie sync failed in syncCookie effect (will retry):', err);
+          // Simple retry backup for flaky networks during login
+          setTimeout(async () => {
+             try {
+                await apiFetch('/api/auth/login-cookie', {
+                  method: 'POST',
+                  body: JSON.stringify({ token: state.idToken }),
+                  headers: { 'Content-Type': 'application/json' }
+                });
+                refreshProfile(true);
+             } catch (e) {
+                console.warn('[AuthProvider] Cookie sync retry failed:', e);
+             }
+          }, 2000);
         }
       }
     };
@@ -288,7 +326,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       try {
         const auth = firebaseService.auth;
         if (!auth) {
-          setState(unauthenticated);
+          // Do not force unauthenticated if we have cached user state, let it persist until explicit logout
+          const cached = getAuthStateSnapshot();
+          if (!cached.user) setState(unauthenticated);
           return;
         }
 
@@ -305,12 +345,26 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
                   return { ...prev, status: 'authenticated', idToken };
                 }
 
+                // Try to recover any persisted role from localStorage cache to prevent role-flicker
+                let initialRole = 'customer';
+                try {
+                  const cached = localStorage.getItem(UI_CACHE_KEY);
+                  if (cached) {
+                    const parsed = JSON.parse(cached);
+                    // Handle both root user and nested user structure in cache
+                    const cachedUser = parsed.user?.user || parsed.user;
+                    if (cachedUser?.uid === fbUser.uid && cachedUser?.role) {
+                      initialRole = cachedUser.role;
+                    }
+                  }
+                } catch {}
+
                 const user: any = {
                   uid: fbUser.uid,
                   email: fbUser.email,
                   displayName: fbUser.displayName || 'User',
                   photoURL: fbUser.photoURL || '',
-                  role: 'customer',
+                  role: initialRole,
                   billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
                   metadata: { completedOrders: 0 }
                 };
@@ -333,7 +387,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           // based solely on the Firebase SDK, as the cookie-based session might still be loading.
           setState(prev => {
             if (prev.status === 'loading') {
-              return prev;
+              // But ensure we clear the user just in case
+              return { ...prev, user: null };
             }            
             // NEW: Check if we have a bypass token. If so, don't drop the session just because the SDK is slow.
             const authKey = 'firebase:authUser:' + API_KEY + ':[DEFAULT]';
@@ -366,6 +421,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       displayName: (u as any).displayName || 'User',
       photoURL: (u as any).photoURL || '',
       role: 'customer',
+      _isDefaultRole: true, // Marker to indicate this is a client-side placeholder
       billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
       metadata: { completedOrders: 0 }
     };
@@ -374,7 +430,9 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     setState({ status: 'authenticated', user, idToken: token });
     setAuthStateSnapshot({ status: 'authenticated', user, idToken: token });
     try { localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user, idToken: token })); } catch {}
-    refreshProfile();
+    
+    // Immediately fetch the real profile data (including role, credits, photoURL)
+    refreshProfile(true);
     return user as AuthUser;
   }, [refreshProfile]);
 
