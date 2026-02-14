@@ -67,7 +67,14 @@ function getInitialAuthState(): AuthState {
 }
 
 // Eagerly initialize snapshot from cache so apiFetch can use it immediately
-setAuthStateSnapshot(getInitialAuthState());
+// CRITICAL: Wrap in try-catch for private browsing mode compatibility
+try {
+  setAuthStateSnapshot(getInitialAuthState());
+} catch (error) {
+  // Private browsing mode or localStorage disabled - use default state
+  console.warn('[AuthProvider] Failed to initialize auth snapshot:', error);
+  setAuthStateSnapshot(initialState);
+}
 
 export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   const [state, setState] = React.useState<AuthState>(getInitialAuthState());
