@@ -2,6 +2,12 @@ import { create } from 'zustand'
 import { persist, createJSONStorage } from 'zustand/middleware'
 import type { FabricPatternSettings, Product } from '../../types'
 
+declare global {
+  interface Window {
+    __diagnosticLog?: (msg: string) => void;
+  }
+}
+
 type FabricSource = 'khuyoot' | 'shops' | 'upload' | null
 
 export type GenerationItem = {
@@ -64,6 +70,33 @@ const defaultDesignerSession: DesignerSession = {
   lastUpdated: Date.now(),
 }
 
+// Safe storage that falls back to in-memory if localStorage is blocked (private browsing)
+const createSafeStorage = () => {
+  let memoryStorage: Record<string, string> = {};
+  
+  try {
+    // Test if localStorage is available
+    const testKey = '__storage_test__';
+    localStorage.setItem(testKey, '1');
+    localStorage.removeItem(testKey);
+    
+    console.log('[useAppStore] localStorage available');
+    if (window.__diagnosticLog) window.__diagnosticLog('✓ localStorage available');
+    
+    return localStorage;
+  } catch (e) {
+    console.warn('[useAppStore] localStorage blocked, using in-memory storage');
+    if (window.__diagnosticLog) window.__diagnosticLog('⚠️ localStorage blocked - using memory');
+    
+    // Return in-memory fallback
+    return {
+      getItem: (key: string) => memoryStorage[key] || null,
+      setItem: (key: string, value: string) => { memoryStorage[key] = value; },
+      removeItem: (key: string) => { delete memoryStorage[key]; },
+    };
+  }
+};
+
 export const useAppStore = create<AppStore>()(
   persist(
     (set) => ({
@@ -96,7 +129,7 @@ export const useAppStore = create<AppStore>()(
     }),
     {
       name: 'khuyoot-designer-storage',
-      storage: createJSONStorage(() => localStorage),
+      storage: createJSONStorage(() => createSafeStorage()),
       merge: (persistedState, currentState) => {
         const persisted = (persistedState ?? {}) as Partial<AppStore>
 
@@ -110,11 +143,35 @@ export const useAppStore = create<AppStore>()(
         }
       },
       onRehydrateStorage: () => (state) => {
-        state?.setHasHydrated(true)
+        console.log('[useAppStore] Hydration started');
+        if (window.__diagnosticLog) window.__diagnosticLog('⏳ Store hydration started');
+        
+        return (state, error) => {
+          if (error) {
+            console.error('[useAppStore] Hydration error:', error);
+            if (window.__diagnosticLog) window.__diagnosticLog('❌ Store hydration failed');
+          } else {
+            console.log('[useAppStore] Hydration complete');
+            if (window.__diagnosticLog) window.__diagnosticLog('✓ Store hydrated');
+          }
+          
+          // Always set hydrated, even if there was an error
+          state?.setHasHydrated(true);
+        };
       },
     }
   )
-)
+);
+
+// Failsafe: Force hydration after 500ms if it hasn't happened
+setTimeout(() => {
+  const state = useAppStore.getState();
+  if (!state.hasHydrated) {
+    console.warn('[useAppStore] Forcing hydration after timeout');
+    if (window.__diagnosticLog) window.__diagnosticLog('⚠️ Forcing store hydration');
+    state.setHasHydrated(true);
+  }
+}, 500);
 
 export const useDesignerSession = () => useAppStore((state) => state.designerSession)
 export const useSelectedRegion = () => useAppStore((state) => state.selectedRegion)

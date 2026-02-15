@@ -146,6 +146,9 @@ const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
 
+  console.log('[App] Component rendering, hasHydrated:', hasHydrated);
+  if (window.__diagnosticLog) window.__diagnosticLog('App rendering, hydrated: ' + hasHydrated);
+
   // DEV isolation: run the Firebase auth diagnostic page without the app bootstrap.
   // This prevents AppInitializer/AdminConfig/CreditProvider/AuthModal/etc from running.
   if (
