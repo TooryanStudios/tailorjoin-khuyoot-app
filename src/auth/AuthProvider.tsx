@@ -390,13 +390,16 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           }
 
           // If SDK says no user, and we don't have a reliable cache, or the SDK explicitly logged out.
-          // CRITICAL: If we are still in the initial 'loading' state, don't jump to 'unauthenticated' 
-          // based solely on the Firebase SDK, as the cookie-based session might still be loading.
+          // CRITICAL: avoid getting stuck forever in loading on browsers where Firebase persistence is limited.
           setState(prev => {
             if (prev.status === 'loading') {
-              // But ensure we clear the user just in case
+              const hasSessionEvidence = !!prev.idToken || !!localStorage.getItem('khuyoot:has_session');
+              if (!hasSessionEvidence) {
+                if (window.__diagnosticLog) window.__diagnosticLog('🔓 Auth resolved: unauthenticated (no session)');
+                return unauthenticated;
+              }
               return { ...prev, user: null };
-            }            
+            }
             // NEW: Check if we have a bypass token. If so, don't drop the session just because the SDK is slow.
             const authKey = 'firebase:authUser:' + API_KEY + ':[DEFAULT]';
             if (localStorage.getItem(authKey)) {
@@ -419,6 +422,22 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       unsubscribe?.();
     };
   }, []);
+
+  React.useEffect(() => {
+    if (state.status !== 'loading' || state.user || state.idToken) return;
+
+    const timeoutId = window.setTimeout(() => {
+      setState(prev => {
+        if (prev.status !== 'loading' || prev.user || prev.idToken) return prev;
+        const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+        if (window.__diagnosticLog) window.__diagnosticLog('⏱️ Auth loading timeout -> unauthenticated');
+        setAuthStateSnapshot(unauthenticated);
+        return unauthenticated;
+      });
+    }, 2200);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [state.status, state.user, state.idToken]);
 
   const login = React.useCallback(async (email: string, password: string) => {
     const u = await firebaseService.login(email, password);
