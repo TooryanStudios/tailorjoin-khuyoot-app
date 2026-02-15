@@ -101,52 +101,65 @@ export const MerchantsApproval = () => {
   }
 
   return (
-    <div className="p-6 space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
-          موافقات التجار والخياطين
-        </h2>
-        <p className="text-slate-600 dark:text-slate-400 text-sm">
-          مراجعة والموافقة على طلبات انضمام التجار الجدد
-        </p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950 p-6 md:p-8 space-y-8">
+      {/* Header with gradient */}
+      <div className="space-y-3">
+        <div className="flex items-end gap-3">
+          <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-600 flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <Store size={28} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-3xl md:text-4xl font-black text-slate-900 dark:text-white tracking-tight">
+              موافقات التجار
+            </h2>
+            <p className="text-slate-600 dark:text-slate-400 text-sm mt-1">
+              مراجعة والموافقة على طلبات انضمام التجار والخياطين الجدد
+            </p>
+          </div>
+        </div>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats Cards with modern design */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-amber-600 dark:text-amber-400 font-medium">قيد الانتظار</p>
-              <p className="text-3xl font-bold text-amber-700 dark:text-amber-300 mt-1">{stats.pending}</p>
+        <div className="group relative bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-amber-200/30 dark:border-amber-800/30 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:border-amber-300/60 dark:hover:border-amber-700/60">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-amber-400/5 rounded-full -mr-12 -mt-12"></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <Clock size={24} className="text-amber-600 dark:text-amber-400" />
+              <span className="text-xs font-bold text-amber-600 dark:text-amber-400 bg-amber-100/50 dark:bg-amber-900/30 px-2 py-1 rounded-full">معلق</span>
             </div>
-            <Clock size={32} className="text-amber-500" />
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mb-1">قيد الانتظار</p>
+            <p className="text-4xl font-black text-amber-700 dark:text-amber-300">{stats.pending}</p>
           </div>
         </div>
 
-        <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-green-600 dark:text-green-400 font-medium">موافق عليهم</p>
-              <p className="text-3xl font-bold text-green-700 dark:text-green-300 mt-1">{stats.approved}</p>
+        <div className="group relative bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-green-200/30 dark:border-green-800/30 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:border-green-300/60 dark:hover:border-green-700/60">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-green-400/5 rounded-full -mr-12 -mt-12"></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <CheckCircle2 size={24} className="text-green-600 dark:text-green-400" />
+              <span className="text-xs font-bold text-green-600 dark:text-green-400 bg-green-100/50 dark:bg-green-900/30 px-2 py-1 rounded-full">موافق</span>
             </div>
-            <CheckCircle2 size={32} className="text-green-500" />
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mb-1">موافق عليهم</p>
+            <p className="text-4xl font-black text-green-700 dark:text-green-300">{stats.approved}</p>
           </div>
         </div>
 
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl p-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-red-600 dark:text-red-400 font-medium">مرفوضين</p>
-              <p className="text-3xl font-bold text-red-700 dark:text-red-300 mt-1">{stats.rejected}</p>
+        <div className="group relative bg-white dark:bg-slate-800/50 backdrop-blur-sm border border-red-200/30 dark:border-red-800/30 rounded-2xl p-6 hover:shadow-xl transition-all duration-300 hover:border-red-300/60 dark:hover:border-red-700/60">
+          <div className="absolute top-0 right-0 w-24 h-24 bg-red-400/5 rounded-full -mr-12 -mt-12"></div>
+          <div className="relative">
+            <div className="flex items-center justify-between mb-4">
+              <XCircle size={24} className="text-red-600 dark:text-red-400" />
+              <span className="text-xs font-bold text-red-600 dark:text-red-400 bg-red-100/50 dark:bg-red-900/30 px-2 py-1 rounded-full">مرفوض</span>
             </div>
-            <XCircle size={32} className="text-red-500" />
+            <p className="text-xs text-slate-600 dark:text-slate-400 font-semibold mb-1">مرفوضين</p>
+            <p className="text-4xl font-black text-red-700 dark:text-red-300">{stats.rejected}</p>
           </div>
         </div>
       </div>
 
-      {/* Filter Tabs */}
-      <div className="flex gap-2 border-b border-slate-200 dark:border-slate-700">
+      {/* Filter Tabs with modern styling */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 p-1.5 flex gap-1 w-fit">
         {[
           { value: 'all', label: 'الكل', count: merchants.length },
           { value: 'pending', label: 'قيد الانتظار', count: stats.pending },
@@ -156,119 +169,124 @@ export const MerchantsApproval = () => {
           <button
             key={tab.value}
             onClick={() => setFilter(tab.value as any)}
-            className={`px-4 py-2 font-medium text-sm transition-colors relative ${
+            className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all duration-200 ${
               filter === tab.value
-                ? 'text-blue-600 dark:text-blue-400'
-                : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-300'
+                ? 'bg-gradient-to-r from-blue-500 to-cyan-500 text-white shadow-lg shadow-blue-500/30'
+                : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700'
             }`}
           >
-            {tab.label} ({tab.count})
-            {filter === tab.value && (
-              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-blue-600 dark:bg-blue-400"></div>
-            )}
+            {tab.label}
+            <span className={`ml-2 text-xs font-bold ${filter === tab.value ? 'opacity-100' : 'opacity-70'}`}>
+              ({tab.count})
+            </span>
           </button>
         ))}
       </div>
 
-      {/* Merchants List */}
+      {/* Merchants List with modern card design */}
       <div className="space-y-4">
         {filteredMerchants.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <Store size={48} className="mx-auto mb-3 opacity-30" />
-            <p>لا توجد طلبات في هذه الفئة</p>
+          <div className="text-center py-16 bg-white dark:bg-slate-800 rounded-2xl border border-dashed border-slate-200 dark:border-slate-700">
+            <div className="w-16 h-16 bg-slate-100 dark:bg-slate-700 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Store size={32} className="text-slate-400 dark:text-slate-500" />
+            </div>
+            <p className="text-slate-500 dark:text-slate-400 font-medium">لا توجد طلبات في هذه الفئة</p>
           </div>
         ) : (
           filteredMerchants.map(merchant => (
             <div
               key={merchant.id}
-              className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl p-5 hover:shadow-lg transition-shadow"
+              className="group bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-2xl p-6 hover:shadow-2xl hover:border-slate-200 dark:hover:border-slate-600 transition-all duration-300"
             >
-              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-4">
+              <div className="flex flex-col md:flex-row md:items-start md:justify-between gap-6">
                 {/* Merchant Info */}
-                <div className="flex-1 space-y-3">
-                  <div className="flex items-start gap-3">
-                    <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center shrink-0">
-                      <Store size={24} className="text-white" />
+                <div className="flex-1 space-y-4">
+                  <div className="flex items-start gap-4">
+                    <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl flex items-center justify-center shrink-0 shadow-lg shadow-blue-500/20 group-hover:shadow-xl group-hover:shadow-blue-500/30 transition-all">
+                      <Store size={28} className="text-white" />
                     </div>
-                    <div>
-                      <h3 className="text-lg font-bold text-slate-900 dark:text-white">{merchant.name || 'بدون اسم'}</h3>
-                      <span className="inline-block px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs rounded mt-1">
-                        {getShopTypeLabel(merchant.shopType)}
-                      </span>
+                    <div className="flex-1">
+                      <h3 className="text-xl font-black text-slate-900 dark:text-white tracking-tight">{merchant.name || 'بدون اسم'}</h3>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-bold rounded-full">
+                          {getShopTypeLabel(merchant.shopType)}
+                        </span>
+                        {merchant.specialization && (
+                          <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 text-xs font-bold rounded-full">
+                            {getSpecializationLabel(merchant.specialization)}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm text-slate-600 dark:text-slate-400">
-                    <div className="flex items-center gap-2">
-                      <Mail size={16} className="text-slate-400" />
-                      <span>{merchant.email}</span>
-                    </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                    {merchant.email && (
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <Mail size={16} className="text-slate-400 dark:text-slate-500" />
+                        <span className="truncate">{merchant.email}</span>
+                      </div>
+                    )}
                     {merchant.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone size={16} className="text-slate-400" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <Phone size={16} className="text-slate-400 dark:text-slate-500" />
                         <span>{merchant.phone}</span>
                       </div>
                     )}
                     {merchant.location && (
-                      <div className="flex items-center gap-2">
-                        <MapPin size={16} className="text-slate-400" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <MapPin size={16} className="text-slate-400 dark:text-slate-500" />
                         <span>{merchant.location}</span>
                       </div>
                     )}
-                    {merchant.specialization && (
-                      <div className="flex items-center gap-2">
-                        <Briefcase size={16} className="text-slate-400" />
-                        <span>{getSpecializationLabel(merchant.specialization)}</span>
-                      </div>
-                    )}
                     {merchant.experience && (
-                      <div className="flex items-center gap-2">
-                        <Calendar size={16} className="text-slate-400" />
+                      <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                        <Briefcase size={16} className="text-slate-400 dark:text-slate-500" />
                         <span>الخبرة: {merchant.experience}</span>
                       </div>
                     )}
                   </div>
 
-                  <div className="text-xs text-slate-400">
+                  <div className="text-xs text-slate-500 dark:text-slate-500 pt-1 border-t border-slate-100 dark:border-slate-700">
                     تاريخ التسجيل: {merchant.joinDate ? new Date(merchant.joinDate).toLocaleDateString('ar-SA', {
                       year: 'numeric',
-                      month: 'long',
+                      month: 'short',
                       day: 'numeric'
                     }) : 'غير متوفر'}
                   </div>
                 </div>
 
                 {/* Actions */}
-                <div className="flex md:flex-col gap-2">
+                <div className="flex-shrink-0">
                   {merchant.approvalStatus === 'pending' && (
-                    <>
+                    <div className="flex gap-2">
                       <button
                         onClick={() => handleApprove(merchant.id)}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors text-sm font-medium"
+                        className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-green-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
                       >
                         <CheckCircle2 size={18} />
-                        موافقة
+                        <span>موافقة</span>
                       </button>
                       <button
                         onClick={() => handleReject(merchant.id)}
-                        className="flex items-center justify-center gap-2 px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg transition-colors text-sm font-medium"
+                        className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
                       >
                         <XCircle size={18} />
-                        رفض
+                        <span>رفض</span>
                       </button>
-                    </>
+                    </div>
                   )}
                   {merchant.approvalStatus === 'approved' && (
-                    <span className="flex items-center gap-2 px-4 py-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded-lg text-sm font-medium">
+                    <div className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 text-green-700 dark:text-green-400 rounded-xl text-sm font-semibold border border-green-200 dark:border-green-800">
                       <CheckCircle2 size={18} />
-                      موافق عليه
-                    </span>
+                      <span>موافق عليه</span>
+                    </div>
                   )}
                   {merchant.approvalStatus === 'rejected' && (
-                    <span className="flex items-center gap-2 px-4 py-2 bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400 rounded-lg text-sm font-medium">
+                    <div className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-900/20 dark:to-rose-900/20 text-red-700 dark:text-red-400 rounded-xl text-sm font-semibold border border-red-200 dark:border-red-800">
                       <XCircle size={18} />
-                      مرفوض
-                    </span>
+                      <span>مرفوض</span>
+                    </div>
                   )}
                 </div>
               </div>
