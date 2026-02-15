@@ -40,6 +40,7 @@ export const ClientLayout: React.FC = () => {
   const isTransactionHistoryRoute = pathname.startsWith('/transaction-history');
   const isFamilyMeasurementsRoute = pathname.startsWith('/family-measurements');
   const isOrdersRoute = pathname.startsWith('/orders');
+  const isRegionsRoute = pathname.startsWith('/regions');
 
   // Check if we are on the tailor profile page (e.g. /tailor/123) but NOT on tailor admin pages
   const isTailorProfile = pathname.startsWith('/tailor/') && 
@@ -54,8 +55,8 @@ export const ClientLayout: React.FC = () => {
   // For mobile tailor profile and product details, hide only the header but keep the footer
   // UPDATED: Hide header on ALL mobile pages
   // ALSO: Hide header for Tailor Orders and Account as they use MontHeader
-  const hideHeader = isMobile || isDesignerRoute || isTailorOrdersRoute || isTailorCollectionsRoute || isTailorDashboardRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute;
-  const hideChrome = pathname.startsWith('/designer-v2-1') || isTailorOrdersRoute || isTailorCollectionsRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute;
+  const hideHeader = isMobile || isDesignerRoute || isTailorOrdersRoute || isTailorCollectionsRoute || isTailorDashboardRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute || isRegionsRoute;
+  const hideChrome = pathname.startsWith('/designer-v2-1') || isTailorOrdersRoute || isTailorCollectionsRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute || isRegionsRoute;
 
   React.useLayoutEffect(() => {
     if (hideHeader) {

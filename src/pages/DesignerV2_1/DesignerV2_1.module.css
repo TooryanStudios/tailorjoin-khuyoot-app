@@ -15,17 +15,17 @@
   appearance: none;
   width: 16px;
   height: 16px;
-  background: #2563eb; /* theme-primary */
+  background: var(--theme-primary);
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid white;
-  box-shadow: 0 0 10px rgba(37, 99, 235, 0.5);
+  box-shadow: 0 0 10px rgba(var(--theme-primary-rgb), 0.5);
 }
 
 :global(.premium-slider::-moz-range-thumb) {
   width: 16px;
   height: 16px;
-  background: #2563eb;
+  background: var(--theme-primary);
   border-radius: 50%;
   cursor: pointer;
   border: 2px solid white;
@@ -105,9 +105,9 @@
 }
 
 @keyframes border-pulse {
-  0% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
-  50% { border-color: rgba(37, 99, 235, 0.6); box-shadow: 0 0 15px 0 rgba(37, 99, 235, 0.2); }
-  100% { border-color: rgba(37, 99, 235, 0.2); box-shadow: 0 0 0 0 rgba(37, 99, 235, 0.4); }
+  0% { border-color: rgba(var(--theme-primary-rgb), 0.2); box-shadow: 0 0 0 0 rgba(var(--theme-primary-rgb), 0.4); }
+  50% { border-color: rgba(var(--theme-primary-rgb), 0.6); box-shadow: 0 0 15px 0 rgba(var(--theme-primary-rgb), 0.2); }
+  100% { border-color: rgba(var(--theme-primary-rgb), 0.2); box-shadow: 0 0 0 0 rgba(var(--theme-primary-rgb), 0.4); }
 }
 
 .premium-border-pulse {
@@ -124,8 +124,8 @@
   left: 0;
   width: 100%;
   height: 2px;
-  background: linear-gradient(90deg, transparent, #2563eb, transparent);
-  box-shadow: 0 0 15px #2563eb;
+  background: linear-gradient(90deg, transparent, var(--theme-primary), transparent);
+  box-shadow: 0 0 15px var(--theme-primary);
   z-index: 50;
   animation: scanning 2s linear infinite;
   opacity: 0.8;

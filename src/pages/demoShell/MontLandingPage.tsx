@@ -417,10 +417,10 @@ const MontLandingPage = () => {
               )) || (<>ننسج <br /> تجربة <br /> الخياطة</>)}
             </h1>
 
-            <p className="hidden md:block text-white bg-[var(--theme-primary)] px-4 py-2 rounded-lg text-xs md:text-sm max-w-[200px] md:max-w-xs leading-relaxed text-right">
+            <p className="block text-white bg-[var(--theme-primary)] px-4 py-2 rounded-lg text-xs md:text-sm max-w-[200px] md:max-w-xs leading-relaxed text-right">
               {config?.hero?.description || "نحول أحلامك إلى واقع بخياطة فاخرة ومخصصة."}
             </p>
-            <div className="hidden md:block w-full h-1 bg-zinc-800 rounded-full mt-6 relative overflow-hidden">
+            <div className="hidden md:block w-full h-0.5 bg-zinc-800 rounded-full mt-6 relative overflow-hidden">
                {/* Measurement Tape Pattern */}
                <div className="absolute inset-0 flex justify-between items-end px-1 pb-px">
                   {[...Array(20)].map((_, i) => (
@@ -445,22 +445,13 @@ const MontLandingPage = () => {
         <div className="bg-white rounded-3xl p-4 md:p-16 shadow-sm" dir="rtl">
           
           <div className="flex flex-col md:flex-row items-end justify-between gap-4 md:gap-10 mb-6 md:mb-12">
-             <div className="space-y-2 md:space-y-4 max-w-xl">
+             <div className="space-y-2 md:space-y-4 max-w-xl w-full md:w-auto ml-auto text-right">
                 <h2 className="text-lg md:text-3xl uppercase leading-[0.85] tracking-tighter text-right">خطوات التفصيل في خيوط</h2>
                 <p className="hidden md:block text-zinc-500 text-xs md:text-sm font-medium leading-relaxed text-right">
                   لأن الخياطة فن، جعلنا رحلتك معنا تبدأ بخطوة وتنتهي بتحفة فنية.
                 </p>
              </div>
              
-             {/* Supporting Badges - Scrollable on mobile */}
-             <div className="flex gap-2 overflow-x-auto w-full md:w-auto pb-2 md:pb-0 no-scrollbar">
-                 <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border-2 border-dashed border-zinc-200">
-                    <Ruler size={12} className="text-[var(--theme-text-accent)]" /> <span>خدمة قياس احترافية</span>
-                 </div>
-                 <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border-2 border-dashed border-zinc-200">
-                    <Truck size={12} className="text-[var(--theme-text-accent)]" /> <span>توصيل سريع</span>
-                 </div>
-             </div>
           </div>
 
           <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-8 relative z-10 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0">
@@ -470,7 +461,7 @@ const MontLandingPage = () => {
                { icon: <Palette size={16} />, title: "جرب الأقمشة", desc: "شاهد القماش على الموديل فوراً" },
                { icon: <Scissors size={16} />, title: "اطلب خياطك", desc: "تنفيذ بجودة عالية وتوصيل لبابك" }
              ].map((item, i) => (
-                <div key={i} className="shrink-0 w-[140px] md:w-auto snap-center group relative bg-[#fcfcfc] border-2 border-dashed border-[var(--theme-border)] p-3 md:p-6 rounded-2xl md:rounded-3xl md:hover:bg-[var(--theme-primary)] transition-all duration-500 md:hover:shadow-xl cursor-default h-full">
+                <div key={i} className="shrink-0 w-[140px] md:w-auto snap-center group relative bg-[#fcfcfc] border border-dashed border-[var(--theme-border)] p-3 md:p-6 rounded-2xl md:rounded-3xl md:hover:bg-[var(--theme-primary)] transition-all duration-500 md:hover:shadow-xl cursor-default h-full">
                    
                    {/* Number Watermark */}
                    <div className="absolute top-3 left-3 md:top-5 md:left-6 text-[var(--theme-faint)] md:group-hover:text-white/10 transition-colors text-3xl md:text-5xl font-black select-none font-mono">
@@ -504,6 +495,16 @@ const MontLandingPage = () => {
              ))}
           </div>
 
+           {/* Supporting Badges - Bottom of block */}
+           <div className="flex gap-2 overflow-x-auto w-full md:w-auto mt-4 md:mt-8 no-scrollbar">
+              <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border border-dashed border-zinc-200">
+                <Ruler size={12} className="text-[var(--theme-text-accent)]" /> <span>خدمة قياس احترافية</span>
+              </div>
+              <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border border-dashed border-zinc-200">
+                <Truck size={12} className="text-[var(--theme-text-accent)]" /> <span>توصيل سريع</span>
+              </div>
+           </div>
+
         </div>
       </section>
 
@@ -521,7 +522,10 @@ const MontLandingPage = () => {
                      اعثر على <span className="underline decoration-[var(--theme-primary)] decoration-2 underline-offset-4 text-zinc-900 font-normal">الخياط الأمهر</span> بالقرب منك
                    </p>
                 </div>
-                <button className="bg-[var(--theme-primary)] text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-normal uppercase tracking-widest md:hover:scale-105 transition-transform w-fit">
+                <button 
+                  onClick={() => navigate('/tailors')}
+                  className="bg-[var(--theme-primary)] text-white px-4 md:px-6 py-2 rounded-full text-xs md:text-sm font-normal uppercase tracking-widest md:hover:scale-105 transition-transform w-fit"
+                >
                   عرض كل المناطق
                 </button>
               </div>
@@ -534,7 +538,21 @@ const MontLandingPage = () => {
                    { name: 'نزوى', count: 9, image: 'https://images.unsplash.com/photo-1578328819058-b69f3a3b0f6b?w=400&auto=format&fit=crop' },
                    { name: 'صور', count: 7, image: 'https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=400&auto=format&fit=crop' }
                  ]).map((region: any, i: number) => (
-                    <div key={i} className="shrink-0 w-[140px] md:w-auto snap-center group relative h-24 md:h-32 rounded-2xl overflow-hidden cursor-pointer border border-black/5 md:hover:border-[var(--theme-primary)] md:hover:shadow-xl md:hover:scale-105 transition-all duration-300">
+                    <div 
+                      key={i} 
+                      onClick={() => {
+                        const regionMap: Record<string, string> = { 
+                          'مسقط': 'Muscat', 
+                          'صلالة': 'Salalah', 
+                          'صحار': 'Sohar', 
+                          'نزوى': 'Nizwa', 
+                          'صور': 'Sur' 
+                        };
+                        const regionId = regionMap[region.name] || 'All';
+                        navigate(`/tailors?region=${regionId}`);
+                      }}
+                      className="shrink-0 w-[140px] md:w-auto snap-center group relative h-24 md:h-32 rounded-2xl overflow-hidden cursor-pointer border border-black/5 md:hover:border-[var(--theme-primary)] md:hover:shadow-xl md:hover:scale-105 transition-all duration-300"
+                    >
                        <img src={region.image} className="w-full h-full object-cover opacity-100 md:group-hover:opacity-90 transition-opacity" alt={region.name} />
                        <div className="absolute inset-0 p-3 md:p-4 flex flex-col justify-between md:group-hover:bg-gradient-to-t md:group-hover:from-black/30 md:group-hover:to-transparent transition-colors duration-300">
                           <div className="flex justify-between items-start">

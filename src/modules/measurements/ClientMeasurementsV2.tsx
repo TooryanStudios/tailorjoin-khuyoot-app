@@ -344,10 +344,6 @@ const ClientMeasurementsV2Component: React.FC<ClientMeasurementsV2Props> = (prop
           ? "h-full bg-white text-zinc-900 rounded-2xl flex flex-col relative overflow-hidden" 
           : "min-h-screen h-full bg-white text-zinc-900 overflow-x-hidden"}
         dir={isAr ? 'rtl' : 'ltr'}
-        style={{
-          ['--theme-primary' as any]: '#7c3aed',
-          ['--theme-secondary' as any]: '#6d28d9',
-        } as React.CSSProperties}
       >
         {isModal && onClose && (
           <button 

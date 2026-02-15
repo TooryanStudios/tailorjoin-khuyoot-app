@@ -10,12 +10,16 @@
   --footer-height: 74px;
   
   /* 🎨 Master Theme (Unified App Identity) */
-  --theme-master: #63498b;       /* Royal Purple (Primary) */
-  --theme-primary: #63498b;
-  --theme-primary-glow: rgba(99, 73, 139, 0.15);
-  --theme-primary-dark: #4e3a6d;
-  --theme-secondary: #b5e58d;     /* Lime Green (Accent) */
-  --theme-surface-lavender: #c2b7d3; /* Light Lavender for backgrounds */
+  --theme-primary-rgb: 99 73 139;
+  --theme-primary-dark-rgb: 78 58 109;
+  --theme-secondary-rgb: 181 229 141;
+  --theme-surface-lavender-rgb: 194 183 211;
+  --theme-master: rgb(var(--theme-primary-rgb));       /* Royal Purple (Primary) */
+  --theme-primary: rgb(var(--theme-primary-rgb));
+  --theme-primary-glow: rgb(var(--theme-primary-rgb) / 0.15);
+  --theme-primary-dark: rgb(var(--theme-primary-dark-rgb));
+  --theme-secondary: rgb(var(--theme-secondary-rgb));     /* Lime Green (Accent) */
+  --theme-surface-lavender: rgb(var(--theme-surface-lavender-rgb)); /* Light Lavender for backgrounds */
   
   /* 🌌 Studio Design Tokens (Creati.studio style) */
   --studio-bg: #ffffff;

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Play, Ruler } from 'lucide-react';
+import { Play, Ruler, ExternalLink, ChevronUp } from 'lucide-react';
 
 interface MeasurementTemplateHookProps {
   template: any;
@@ -58,6 +58,8 @@ export interface MeasurementTemplateContentProps {
   onShowVideo: () => void;
   PointMarkerComponent: React.ComponentType<any>;
   toolbar?: React.ReactNode;
+  showVideo?: boolean;
+  videoUrl?: string;
 }
 
 export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProps> = ({
@@ -65,14 +67,41 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
   measurements,
   onMeasurementChange,
   onShowVideo,
-  PointMarkerComponent
-  ,
-  toolbar
+  PointMarkerComponent,
+  toolbar,
+  showVideo,
+  videoUrl
 }) => {
   if (!template || !template.points?.length) return null;
 
   const ordered = [...template.points].sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
   const showFallbackBg = !template.baseImageUrl;
+
+  // Helper function to convert YouTube URL to embed format
+  const getEmbedUrl = (url: string): string => {
+    if (!url) return '';
+    if (url.includes('youtube.com/embed/')) return url;
+    const watchMatch = url.match(/[?&]v=([^&]+)/);
+    if (watchMatch) return `https://www.youtube.com/embed/${watchMatch[1]}`;
+    const shortMatch = url.match(/youtu\.be\/([^?]+)/);
+    if (shortMatch) return `https://www.youtube.com/embed/${shortMatch[1]}`;
+    return url;
+  };
+
+  // Extract video ID for YouTube link
+  const getYouTubeUrl = (url: string): string => {
+    if (!url) return '';
+    const watchMatch = url.match(/[?&]v=([^&]+)/);
+    if (watchMatch) return `https://www.youtube.com/watch?v=${watchMatch[1]}`;
+    const shortMatch = url.match(/youtu\.be\/([^?]+)/);
+    if (shortMatch) return `https://www.youtube.com/watch?v=${shortMatch[1]}`;
+    const embedMatch = url.match(/youtube\.com\/embed\/([^?]+)/);
+    if (embedMatch) return `https://www.youtube.com/watch?v=${embedMatch[1]}`;
+    return url;
+  };
+
+  const embedUrl = videoUrl ? getEmbedUrl(videoUrl) : '';
+  const youtubeUrl = videoUrl ? getYouTubeUrl(videoUrl) : '';
 
   return (
     <div className="space-y-4">
@@ -85,19 +114,70 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
           </p>
         </div>
 
+        {/* Video Section - Inline within instructions */}
+        {showVideo && embedUrl && (
+          <div className="border border-gray-200 rounded-xl overflow-hidden bg-white animate-in slide-in-from-top-4 fade-in duration-500">
+            <div className="p-3 bg-gray-50 border-b border-gray-100 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Play size={14} className="text-theme-primary" />
+                <h4 className="text-xs font-normal text-gray-900">فيديو توضيحي</h4>
+              </div>
+              <div className="flex items-center gap-2">
+                {youtubeUrl && (
+                  <a
+                    href={youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 px-2 py-1 text-[10px] font-normal text-gray-600 hover:text-theme-primary transition-colors rounded-lg hover:bg-gray-100"
+                    title="فتح في يوتيوب"
+                  >
+                    <ExternalLink size={11} />
+                    <span>يوتيوب</span>
+                  </a>
+                )}
+                <button
+                  onClick={onShowVideo}
+                  className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                  title="إخفاء الفيديو"
+                >
+                  <ChevronUp size={14} className="text-gray-400" />
+                </button>
+              </div>
+            </div>
+            <div className="aspect-video bg-black">
+              <iframe
+                src={embedUrl}
+                title="فيديو تعليمات القياس"
+                className="w-full h-full"
+                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                allowFullScreen
+              />
+            </div>
+          </div>
+        )}
+
         <button 
           className="w-full flex items-center justify-center gap-2 py-2.5 bg-white border border-gray-200 rounded-xl text-gray-700 hover:bg-gray-50 transition-all font-medium text-xs shadow-sm"
           onClick={onShowVideo}
         >
-          <Play size={14} className="text-emerald-500 fill-emerald-500" />
-          <span>مشاهدة فيديو توضيحي لطريقة أخذ القياس</span>
+          {showVideo ? (
+            <>
+              <ChevronUp size={14} className="text-gray-500" />
+              <span>إغلاق</span>
+            </>
+          ) : (
+            <>
+              <Play size={14} className="text-emerald-500 fill-emerald-500" />
+              <span>مشاهدة فيديو توضيحي لطريقة أخذ القياس</span>
+            </>
+          )}
         </button>
       </div>
 
       {toolbar}
 
       {/* Interactive Measurement Diagram */}
-      <div className="relative w-full aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-200 overflow-visible">
+      <div className="relative w-full max-w-md mx-auto aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-200 overflow-visible">
         {template.baseImageUrl ? (
           <img 
             src={template.baseImageUrl} 

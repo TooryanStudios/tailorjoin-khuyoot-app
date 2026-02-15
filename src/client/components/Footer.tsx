@@ -11,7 +11,7 @@ function roleBadge(role: string | undefined, t: (key: string) => string) {
     case 'tailor':
       return { text: t('roleTailor'), cls: 'bg-amber-500' };
     case 'boutique':
-      return { text: t('roleBoutique'), cls: 'bg-purple-500' };
+      return { text: t('roleBoutique'), cls: 'bg-theme-primary' };
     case 'shop':
       return { text: t('roleShop'), cls: 'bg-green-500' };
     case 'admin':

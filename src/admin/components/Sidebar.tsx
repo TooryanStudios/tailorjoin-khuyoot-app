@@ -36,7 +36,7 @@ const SidebarItem = React.memo<SidebarItemProps>(function SidebarItem({
       }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
         isActive
-          ? 'bg-purple-600 text-white shadow-lg shadow-purple-900/20'
+          ? 'bg-theme-primary text-white shadow-lg shadow-theme-primary/20'
           : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
       }`}
     >
@@ -100,7 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     >
         <div className="h-16 flex items-center px-6 border-b border-zinc-800 justify-between">
           <div className="flex items-center gap-2">
-            <Shield className="text-purple-500" size={24} />
+            <Shield className="text-theme-primary" size={24} />
             <h1 className="text-lg font-bold text-white tracking-wider">KHUYOOT</h1>
           </div>
           <button 

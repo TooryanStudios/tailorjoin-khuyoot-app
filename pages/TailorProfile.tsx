@@ -13,6 +13,8 @@ import {
    addToWishlist
 } from '../services/interactionService';
 import { addReview, getReviews, hasUserReviewed, deleteReview } from '../services/reviewService';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 // Import new components
 import { MobileTailorProfile } from '../src/components/tailor-profile/MobileTailorProfile';
@@ -38,13 +40,49 @@ export const TailorProfile = () => {
     const [reviewSubmitting, setReviewSubmitting] = useState(false);
     const [termsAccepted, setTermsAccepted] = useState(false);
     const [hasReviewed, setHasReviewed] = useState(false);
+    const [visibleCount, setVisibleCount] = useState(6);
+    
+    // Pagination Logic
+    const currentProducts = tailorProducts.slice(0, visibleCount);
+    const hasMore = visibleCount < tailorProducts.length;
+    const loadMore = () => setVisibleCount(c => c + 6);
 
+    // Reset visible count when products change
+    useEffect(() => {
+        setVisibleCount(6);
+    }, [tailorProducts]);
+    
     // Load Tailor Data
     const loadTailor = async () => {
         if (!id) return;
         setLoadingTailor(true);
         try {
-            const profile = await firebaseService.getUserProfile(id);
+            // First try using the service
+            let profile = await firebaseService.getUserProfile(id);
+            
+            // Fallback: If service returns null, try direct Firestore access
+            // This handles cases where getUserProfile logic might filter out valid users unexpectedly
+            if (!profile) {
+                console.warn('getUserProfile returned null, trying direct Firestore fetch', id);
+                try {
+                    const userDoc = await getDoc(doc(db, 'users', id));
+                    if (userDoc.exists()) {
+                        const data = userDoc.data();
+                        console.log('Found user via direct fetch:', data);
+                        // Construct a basic profile object from what we found
+                        profile = {
+                            id: userDoc.id,
+                            name: data.name || data.shopName || 'Tailor',
+                            role: data.role || 'tailor',
+                            // Add other necessary fields as needed to satisfy types
+                            ...data
+                        } as any;
+                    }
+                } catch (err) {
+                    console.error('Direct interaction failed:', err);
+                }
+            }
+
             if (!profile) {
                 setTailor(null);
                 return;
@@ -206,6 +244,20 @@ export const TailorProfile = () => {
             setHasReviewed(true);
             setReviewRating(0);
             setReviewComment('');
+
+            // Update local tailor rating
+            if (tailor) {
+                const currentCount = tailor.reviewsCount || 0;
+                const currentRating = tailor.rating || 0;
+                const newCount = currentCount + 1;
+                const newRating = ((currentRating * currentCount) + reviewRating) / newCount;
+                
+                setTailor(prev => prev ? ({
+                    ...prev,
+                    reviewsCount: newCount,
+                    rating: Number(newRating.toFixed(1))
+                }) : null);
+            }
         } catch (e) {
             console.warn('[TailorProfile] submitReview failed:', e);
             alert('حدث خطأ أثناء إضافة التقييم');
@@ -261,7 +313,9 @@ export const TailorProfile = () => {
             <div className="md:hidden">
                 <MobileTailorProfile 
                     tailor={tailor}
-                    products={tailorProducts}
+                    products={currentProducts}
+                    hasMore={hasMore}
+                    onLoadMore={loadMore}
                     reviews={shopReviews}
                     shopReviews={shopReviews}
                     activeTab={activeTab}
@@ -280,7 +334,9 @@ export const TailorProfile = () => {
             <div className="hidden md:block">
                 <DesktopTailorProfile 
                     tailor={tailor}
-                    products={tailorProducts}
+                    products={currentProducts}
+                    hasMore={hasMore}
+                    onLoadMore={loadMore}
                     reviews={shopReviews}
                     shopReviews={shopReviews}
                     activeTab={activeTab}

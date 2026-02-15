@@ -31,6 +31,18 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   const [selectedMonthly, setSelectedMonthly] = React.useState<'basic' | 'standard' | 'plus'>('plus');
   const timeoutsRef = React.useRef<number[]>([]);
 
+  const getReadableError = React.useCallback((error: any): string => {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '');
+    if (code === 'permission-denied' || /insufficient permissions|permission-denied/i.test(message)) {
+      return 'تعذر تنفيذ العملية بسبب صلاحيات الحساب. سجّل الدخول مرة أخرى ثم أعد المحاولة.';
+    }
+    if (message === 'AUTH_REQUIRED' || /auth_required|must.?login|login required/i.test(message)) {
+      return 'يجب تسجيل الدخول أولاً';
+    }
+    return message || t('upgradeFailed');
+  }, [t]);
+
   React.useEffect(() => {
     setPhase('idle');
     setError('');
@@ -94,7 +106,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
     } catch (e: any) {
       console.error('[Upgrade] Error:', e);
       setPhase('idle');
-      setError(e?.message || t('upgradeFailed'));
+      setError(getReadableError(e));
     }
   };
 

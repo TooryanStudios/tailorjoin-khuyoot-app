@@ -245,11 +245,20 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, []);
 
   React.useEffect(() => {
-    const handleBypassLogin = () => {
+    const handleBypassLogin = async () => {
+      const sdkUser = await firebaseService.waitForAuth(4000);
+      if (!sdkUser) {
+        const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+        localStorage.removeItem(UI_CACHE_KEY);
+        localStorage.removeItem('khuyoot:has_session');
+        setState(unauthenticated);
+        setAuthStateSnapshot(unauthenticated);
+        return;
+      }
       const authState = getInitialAuthState();
       setState(authState);
       setAuthStateSnapshot(authState);
-      refreshProfile();
+      refreshProfile(true);
     };
 
     const handleBypassLogout = () => {
@@ -260,7 +269,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setAuthStateSnapshot(unauthenticated);
     };
 
-    window.addEventListener('auth-bypass-login', handleBypassLogin);
+    window.addEventListener('auth-bypass-login', handleBypassLogin as EventListener);
     window.addEventListener('auth-bypass-logout', handleBypassLogout);
 
     const handleUpdateState = (event: Event) => {
@@ -278,7 +287,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     window.addEventListener('khuyoot:update-user-state', handleUpdateState);
 
     return () => {
-      window.removeEventListener('auth-bypass-login', handleBypassLogin);
+      window.removeEventListener('auth-bypass-login', handleBypassLogin as EventListener);
       window.removeEventListener('auth-bypass-logout', handleBypassLogout);
       window.removeEventListener('khuyoot:update-user-state', handleUpdateState);
     };
@@ -399,15 +408,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
               }
               return { ...prev, user: null };
             }
-            // NEW: Check if we have a bypass token. If so, don't drop the session just because the SDK is slow.
-            const authKey = 'firebase:authUser:' + API_KEY + ':[DEFAULT]';
-            if (localStorage.getItem(authKey)) {
-              return prev;
-            }
             return unauthenticated;
           });
           setAuthStateSnapshot(unauthenticated);
           localStorage.removeItem(UI_CACHE_KEY);
+          localStorage.removeItem('khuyoot:has_session');
         });
       } catch (e) {
         console.warn('[AuthProvider] SDK Listener error:', e);
@@ -438,19 +443,23 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   }, [state.status, state.user, state.idToken]);
 
   const login = React.useCallback(async (email: string, password: string) => {
-    const u = await firebaseService.login(email, password);
+    await firebaseService.login(email, password);
+    const sdkUser = await firebaseService.waitForAuth(5000);
+    if (!sdkUser) {
+      throw new Error('SESSION_SYNC_FAILED');
+    }
     const user: any = {
-      uid: (u as any).uid || (u as any).id,
-      email: (u as any).email || '',
-      displayName: (u as any).displayName || 'User',
-      photoURL: (u as any).photoURL || '',
+      uid: sdkUser.uid,
+      email: sdkUser.email || '',
+      displayName: sdkUser.displayName || 'User',
+      photoURL: sdkUser.photoURL || '',
       role: 'customer',
       _isDefaultRole: true, // Marker to indicate this is a client-side placeholder
       billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
       metadata: { completedOrders: 0 }
     };
 
-    const token = (u as any).accessToken || (u as any).stsTokenManager?.accessToken;
+    const token = await sdkUser.getIdToken(false);
     setState({ status: 'authenticated', user, idToken: token });
     setAuthStateSnapshot({ status: 'authenticated', user, idToken: token });
     try { localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user, idToken: token })); } catch {}

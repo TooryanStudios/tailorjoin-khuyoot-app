@@ -15,6 +15,7 @@ import {
   reauthenticateWithCredential,
   EmailAuthProvider,
   onAuthStateChanged,
+  signInWithCustomToken,
   User as FirebaseUser,
   deleteUser,
 } from 'firebase/auth';
@@ -79,6 +80,36 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 }
 
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
+
+const UI_AUTH_CACHE_KEY = 'khuyoot:ui:auth_cache';
+
+function getStoredIdTokenCandidate(): string | null {
+  try {
+    const direct = localStorage.getItem('khuyoot:auth:token');
+    if (direct) return direct;
+  } catch {}
+
+  try {
+    const rawCache = localStorage.getItem(UI_AUTH_CACHE_KEY);
+    if (rawCache) {
+      const parsed = JSON.parse(rawCache);
+      const token = typeof parsed?.idToken === 'string' ? parsed.idToken : null;
+      if (token) return token;
+    }
+  } catch {}
+
+  try {
+    const authKey = `firebase:authUser:${firebaseConfig.apiKey || ''}:[DEFAULT]`;
+    const rawAuth = localStorage.getItem(authKey);
+    if (rawAuth) {
+      const parsed = JSON.parse(rawAuth);
+      const token = parsed?.stsTokenManager?.accessToken;
+      if (typeof token === 'string' && token) return token;
+    }
+  } catch {}
+
+  return null;
+}
 
 // Detect private browsing mode where IndexedDB/localStorage might be blocked
 function isPrivateBrowsingMode(): boolean {
@@ -568,8 +599,44 @@ export const firebaseService = {
     }
   },
 
+    async ensureFirebaseSessionFromStoredToken(): Promise<any> {
+      if (!isFirebaseInitialized) return null;
+      if (auth.currentUser) return auth.currentUser;
+
+      const idToken = getStoredIdTokenCandidate();
+      if (!idToken) return null;
+
+      try {
+        const res = await fetch('/api/auth/custom-token', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${idToken}`,
+          },
+          credentials: 'include',
+          body: JSON.stringify({ idToken }),
+        });
+
+        if (!res.ok) {
+          return null;
+        }
+
+        const data = await res.json();
+        const customToken = typeof data?.customToken === 'string' ? data.customToken : '';
+        if (!customToken) return null;
+
+        const credential = await signInWithCustomToken(auth, customToken);
+        return credential?.user || auth.currentUser;
+      } catch (error) {
+        console.warn('[Firebase] Failed to restore SDK auth session from stored token:', error);
+        return null;
+      }
+    },
+
     async waitForAuth(maxWaitMs = 1500): Promise<any> {
       if (!isFirebaseInitialized) return null;
+      if (auth.currentUser) return auth.currentUser;
+      await this.ensureFirebaseSessionFromStoredToken();
       if (auth.currentUser) return auth.currentUser;
       return new Promise((resolve) => {
         const timeout = setTimeout(() => {
@@ -802,6 +869,10 @@ export const firebaseService = {
     if (!uid) throw new Error('userId is required');
     if (!action) throw new Error('actionType is required');
     if (cost <= 0) throw new Error('cost must be > 0');
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) {
+      throw new Error('AUTH_REQUIRED');
+    }
 
     const profileRef = doc(db, 'user_profiles', uid);
     const txRef = doc(collection(db, 'credit_transactions'));
@@ -860,6 +931,8 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error('Firebase not configured');
     const id = sanitizeFirestoreDocId(params.transactionId);
     if (!id) throw new Error('transactionId is required');
+    await this.waitForAuth(4000);
+    if (!auth.currentUser) throw new Error('AUTH_REQUIRED');
     const refDoc = doc(db, 'credit_transactions', id);
     await runTransaction(db, async (tx) => {
       const snap = await tx.get(refDoc);
@@ -874,6 +947,8 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error('Firebase not configured');
     const id = sanitizeFirestoreDocId(params.transactionId);
     if (!id) throw new Error('transactionId is required');
+    await this.waitForAuth(4000);
+    if (!auth.currentUser) throw new Error('AUTH_REQUIRED');
     const txRef = doc(db, 'credit_transactions', id);
 
     await runTransaction(db, async (tx) => {
@@ -1002,6 +1077,10 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error('Firebase not configured');
     const uid = sanitizeFirestoreDocId(params.userId);
     if (!uid) throw new Error('userId is required');
+    await this.waitForAuth(4000);
+    if (!auth.currentUser || auth.currentUser.uid !== uid) {
+      throw new Error('AUTH_REQUIRED');
+    }
     const amount = Math.floor(Number(params.amount || 0));
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('amount must be a positive integer');
 
@@ -1313,11 +1392,19 @@ export const firebaseService = {
     try {
       const { signInWithEmailPasswordBypass } = await import('../src/services/authBypass');
       const result = await signInWithEmailPasswordBypass(email, pass);
+
+      // Critical: ensure Firebase SDK auth session is actually established.
+      // Without this, UI may look logged-in while Firestore writes fail with permission errors.
+      const sdkUser = await this.waitForAuth(5000);
+      const expectedUid = result.user?.uid;
+      if (!sdkUser || (expectedUid && sdkUser.uid !== expectedUid)) {
+        throw new Error('SESSION_SYNC_FAILED');
+      }
       
       // Return immediately with user data from REST API response
       // The SDK's onAuthStateChanged will fire asynchronously when it picks up the stored tokens
       const user: User = {
-        id: result.user?.uid || result.idToken.split('.')[0], // Use uid from token if user not available
+        id: sdkUser.uid,
         name: email.split('@')[0], // Will be updated by Firestore fetch
         email: email,
         avatar: undefined,

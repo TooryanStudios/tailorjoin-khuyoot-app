@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Tag } from 'lucide-react';
+import { ShoppingBag, Scissors } from 'lucide-react';
 import { Product } from '../../../types';
 import { StableImage } from '../../../components/StableImage';
 import { TailorProductActions } from './TailorProductActions';
@@ -28,162 +28,148 @@ export const TailorProductCard = React.memo(function TailorProductCard({
    viewMode,
    onClick,
    onLikeChange,
+   onToggleLike,
    isHot,
+   compact
 }: {
    product: Product;
    viewMode: ViewMode;
    onClick: () => void;
    onLikeChange?: (newCount: number) => void;
+   onToggleLike?: (id: string, count: number) => void;
    isHot?: boolean;
+   compact?: boolean;
 }) {
    const cover = getCoverImage(product);
    const price = formatOmr(product.price);
-   const likes = typeof (product as any).likes === 'number' ? (product as any).likes : 0;
-   const tags: string[] = Array.isArray(product.tags) ? product.tags.filter(Boolean) : [];
+   const likes = typeof (product as any).likes === 'number' ? (product as any).likes : ((product as any).likeCount || 0);
 
-   const isCompact = viewMode === 'compact';
-   const isList = viewMode === 'list';
+   // Handle both like handlers
+   const handleLikeChange = (newCount: number) => {
+       if (onLikeChange) onLikeChange(newCount);
+       if (onToggleLike) onToggleLike(product.id, newCount);
+   };
 
-   const priceNode = price ? (
-      <div className="inline-flex items-baseline gap-1 rounded-lg bg-blue-500/10 px-2.5 py-1">
-         <span className="text-sm font-extrabold text-blue-600 tabular-nums">{price}</span>
-         <span className="text-[11px] font-semibold text-blue-600/80">ر.ع</span>
-      </div>
-   ) : null;
+   // Slideshow Logic for Desktop Hover
+   const images = Array.isArray(product.images) && product.images.length > 0 
+        ? product.images 
+        : (Array.isArray((product as any).imageUrls) ? (product as any).imageUrls : (product.image ? [product.image] : []));
+   
+   const [index, setIndex] = React.useState(0);
+   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
 
-   if (isList) {
+   const startSlideshow = () => {
+        if (images.length > 1 && !intervalRef.current) {
+            intervalRef.current = setInterval(() => {
+                setIndex((prev) => (prev + 1) % images.length);
+            }, 1200);
+        }
+   };
+
+   const stopSlideshow = () => {
+        if (intervalRef.current) {
+            clearInterval(intervalRef.current);
+            intervalRef.current = null;
+        }
+        setIndex(0);
+   };
+
+   // List View (Horizontal)
+   if (viewMode === 'list') {
       return (
-         <div
-            role="button"
-            tabIndex={0}
+         <div 
             onClick={onClick}
-            onKeyDown={(e) => {
-               if (e.key === 'Enter' || e.key === ' ') onClick();
-            }}
-            className="group w-full text-right bg-[var(--studio-card)] border border-[var(--studio-card-border)] rounded-xl overflow-hidden hover:shadow-lg transition-all flex gap-3 p-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="group flex gap-4 bg-white p-3 rounded-2xl border border-zinc-100 hover:border-zinc-200 transition-all cursor-pointer"
          >
-            <div className="relative w-28 h-28 flex-shrink-0 overflow-hidden bg-[var(--studio-surface)] rounded-lg">
-               <StableImage src={cover} alt={product.name} aspectClass="h-full" className="h-full" imgClassName="transition-transform duration-500 group-hover:scale-105" />
-               <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
-                  <TailorProductActions productId={product.id} initialLikes={likes} onLikeChange={onLikeChange} />
-               </div>
-
-               {isHot && (
-                  <div className="absolute bottom-2 left-2">
-                     <span className="inline-flex items-center rounded-full bg-red-600 px-2.5 py-1 text-[10px] font-black text-white tracking-wide">
-                        <span className="animate-pulse">HOT</span>
-                     </span>
-                  </div>
-               )}
-
-               {tags.length > 0 && (
-                  <div className="absolute top-2 left-2">
-                     <span className="inline-flex items-center gap-1 rounded-full bg-black/55 backdrop-blur px-2 py-1 text-[10px] font-semibold text-white max-w-[140px]">
-                        <Tag className="h-3 w-3" />
-                        <span className="truncate">{tags[0]}</span>
-                     </span>
-                  </div>
-               )}
+            <div className="w-24 h-24 shrink-0 rounded-xl overflow-hidden bg-zinc-100 relative">
+               <StableImage 
+                  src={cover} 
+                  alt={product.name} 
+                  aspectClass="h-full" 
+                  className="h-full w-full" 
+                  imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+               />
             </div>
-
-            <div className="flex-1 min-w-0 flex flex-col justify-between">
-               <div>
-                  <div className="flex items-start justify-between gap-2">
-                     <div className="text-[var(--studio-text)] font-normal text-sm line-clamp-2">{product.name}</div>
-                     {priceNode}
-                  </div>
-                  {tags.length > 1 && (
-                     <div className="mt-1 text-[11px] text-[var(--studio-text-muted)] line-clamp-1">{tags.slice(1, 4).join(' • ')}</div>
-                  )}
-
-                   <button
-                      type="button"
-                      onClick={(e) => {
-                         e.stopPropagation();
-                         onClick();
-                      }}
-                      className="group/start mt-3 w-full relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-lg text-white text-sm font-bold py-2 transition-all bg-blue-600 shadow-md hover:shadow-lg hover:-translate-y-0.5"
-                   >
-                      <ShoppingBag size={16} />
-                      ابدأ التفصيل
-                   </button>
-               </div>
+            <div className="flex-1 flex flex-col justify-center text-right">
+                <h3 className="font-bold text-zinc-900 text-sm mb-1">{product.name}</h3>
+                <div className="flex items-center gap-2 text-xs text-zinc-500">
+                    <Scissors size={12} />
+                    <span>يبدأ من <span className="font-bold text-zinc-900">{price}</span> ر.ع</span>
+                </div>
             </div>
          </div>
       );
    }
 
+   // Grid / Compact View - Matches Home Page "Trends" Design
    return (
-      <div
-         role="button"
-         tabIndex={0}
-         onClick={onClick}
-         onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') onClick();
-         }}
-         className={
-            'group w-full text-right bg-[var(--studio-card)] border border-[var(--studio-card-border)] overflow-hidden hover:shadow-lg transition-all focus:outline-none focus:ring-2 focus:ring-blue-500 ' +
-            (isCompact ? 'rounded-lg' : 'rounded-xl')
-         }
+      <div 
+        className="cursor-pointer group h-full flex flex-col" 
+        onClick={onClick}
       >
-         <div className={isCompact ? 'relative aspect-square overflow-hidden bg-[var(--studio-surface)]' : 'relative aspect-[3/4] overflow-hidden bg-[var(--studio-surface)]'}>
-            <StableImage
-               src={cover}
-               alt={product.name}
-               aspectClass="h-full"
-               className="h-full"
-               imgClassName="w-full h-full object-cover transition-transform duration-500 hover:scale-[1.05]"
-            />
+        <div 
+            className="relative aspect-[3/4] bg-zinc-800 rounded-3xl overflow-hidden mb-3 border border-white/10 shadow-sm hover:shadow-md transition-all duration-300"
+            onMouseEnter={startSlideshow}
+            onMouseLeave={stopSlideshow}
+        >
+             {/* Slideshow Check */}
+             {images.length > 0 ? (
+                 images.map((img: string, i: number) => (
+                    <img 
+                        key={i}
+                        src={img} 
+                        className={`w-full h-full object-cover absolute inset-0 transition-opacity duration-700 ${
+                             i === index ? 'opacity-100 scale-100' : 'opacity-0 scale-110'
+                        }`}
+                        alt={product.name} 
+                        loading="eager"
+                        decoding="async"
+                    />
+                 ))
+             ) : (
+                <StableImage
+                    src={cover}
+                    alt={product.name}
+                    aspectClass="w-full h-full"
+                    className="w-full h-full"
+                    imgClassName="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
+                />
+             )}
+             
+             {/* Gradient Overlay (Subtle) */}
+             <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
 
-            <div className="absolute top-2 right-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100 transition-opacity">
-               <TailorProductActions productId={product.id} initialLikes={likes} onLikeChange={onLikeChange} />
-            </div>
+             {/* Like Button Top Right - Force Activated */}
+             <div className="absolute top-3 right-3 opacity-100 transition-opacity duration-300 z-20">
+                <TailorProductActions 
+                    productId={product.id} 
+                    initialLikes={likes} 
+                    onLikeChange={handleLikeChange}
+                    variant="glass"
+                />
+             </div>
 
-            {isHot && (
-               <div className="absolute bottom-2 right-2">
-                  <span className="inline-flex items-center rounded-full bg-red-600 px-3 py-1.5 text-[11px] font-black text-white tracking-wide shadow-lg">
-                     <span className="animate-pulse">HOT</span>
-                  </span>
-               </div>
-            )}
+             {/* Hidden "Start" Button (Shop Bag) - appears on hover like Home Page */}
+             <button 
+                className="absolute bottom-4 right-4 bg-[var(--theme-primary)] text-white w-10 h-10 rounded-full flex items-center justify-center translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-10 shadow-xl"
+                title="تفاصيل"
+             >
+                <ShoppingBag size={18} />
+             </button>
+        </div>
 
-            {tags.length > 0 && (
-               <div className="absolute top-2 left-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-black/55 backdrop-blur px-2 py-1 text-[10px] font-semibold text-white max-w-[160px]">
-                     <Tag className="h-3 w-3" />
-                     <span className="truncate">{tags[0]}</span>
-                  </span>
-               </div>
-            )}
-
-         </div>
-
-         <div className={isCompact ? 'p-2' : 'p-3'}>
-            <div className="flex items-start justify-between gap-2">
-               <div className={isCompact ? 'text-slate-900 dark:text-white font-normal text-xs truncate' : 'text-slate-900 dark:text-white font-normal text-sm line-clamp-2'}>
-                  {product.name}
-               </div>
-               {priceNode}
-            </div>
-            {tags.length > 1 && !isCompact && (
-               <div className="mt-1 text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1">{tags.slice(1, 4).join(' • ')}</div>
-            )}
-
-            <button
-               type="button"
-               onClick={(e) => {
-                  e.stopPropagation();
-                  onClick();
-               }}
-               className={
-                  'group/start mt-3 w-full relative overflow-hidden inline-flex items-center justify-center gap-2 rounded-lg text-white font-bold transition-all bg-blue-600 shadow-md hover:shadow-lg hover:-translate-y-0.5 ' +
-                  (isCompact ? 'py-2 text-xs' : 'py-2.5 text-sm')
-               }
-            >
-               <ShoppingBag size={isCompact ? 14 : 16} />
-               ابدأ التفصيل
-            </button>
-         </div>
+        <div className="px-1 text-right">
+             {/* Title */}
+             <h4 className="text-sm font-light text-white mb-1 leading-tight transition-colors line-clamp-1">
+                 {product.name}
+             </h4>
+             
+             {/* Price */}
+             <div className="flex items-center gap-1.5 text-xs text-white/70 font-light">
+                 <Scissors size={12} className="text-white/40" />
+                 <span>يبدأ من <span className="text-white font-medium">{price}</span> ر.ع</span>
+             </div>
+        </div>
       </div>
    );
 });

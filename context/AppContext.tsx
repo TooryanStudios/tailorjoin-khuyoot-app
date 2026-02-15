@@ -107,6 +107,9 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 const getFirebaseErrorMessage = (error: any) => {
     const code = error.code;
     const message = error.message || '';
+    if (message.includes('SESSION_SYNC_FAILED')) {
+        return 'تم تسجيل الدخول ولكن لم تكتمل مزامنة الجلسة. يرجى المحاولة مرة أخرى.';
+    }
     if (message.includes('timeout') || message.includes('Timeout')) {
         return 'انتهت مهلة الاتصال. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
     }

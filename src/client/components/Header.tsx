@@ -42,7 +42,7 @@ const HeaderComponent = () => {
           icon: (
             <span
               aria-hidden
-              className={`${languageBadgeClassName} bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-900/30 dark:text-purple-200 dark:border-purple-800/60`}
+              className={`${languageBadgeClassName} bg-theme-primary/10 text-theme-primary border-theme-primary/30 dark:bg-theme-primary/20 dark:text-theme-primary dark:border-theme-primary/40`}
             >
               ع
             </span>

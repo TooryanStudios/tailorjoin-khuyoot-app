@@ -412,7 +412,13 @@ const AppContent: React.FC = () => {
                    <Route path="page-a" element={<DemoShellPageA />} />
                    <Route path="page-b" element={<DemoShellPageB />} />
                    <Route path="tailors" element={<TailorList />} />
-                   <Route path="tailor/:id" element={<TailorProfile />} />
+                   <Route path="tailor/:id" element={
+                     <ErrorBoundary>
+                       <React.Suspense fallback={<LoadingShell />}>
+                         <TailorProfile />
+                       </React.Suspense>
+                     </ErrorBoundary>
+                   } />
                    <Route path="designer-v2-1" element={<Navigate to="/tryon" replace />} />
                    <Route path="designer-v2-1/:productId" element={<Navigate to="/tryon" replace />} />
                    <Route path="designer-v2-1/design/:taskId" element={<Navigate to="/tryon" replace />} />
@@ -501,6 +507,18 @@ const RootModalPortal: React.FC = () => {
   const termsContent = (appSettings as any)?.pageTexts?.termsAndConditions || '';
   const returnPolicyContent = (appSettings as any)?.pageTexts?.returnPolicy || '';
 
+  const mapUpgradePurchaseError = React.useCallback((error: any): string => {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '');
+    if (code === 'permission-denied' || /insufficient permissions|permission-denied/i.test(message)) {
+      return 'تعذر تنفيذ عملية الشراء بسبب صلاحيات الحساب. يرجى تسجيل الدخول مرة أخرى ثم المحاولة.';
+    }
+    if (message === 'AUTH_REQUIRED' || /auth_required|must.?login|login required/i.test(message)) {
+      return 'يجب تسجيل الدخول أولاً';
+    }
+    return message || 'فشل في إضافة الرصيد';
+  }, []);
+
   const handleUpgrade = async (packageInfo: {
     packageType: string;
     packageName: string;
@@ -508,7 +526,9 @@ const RootModalPortal: React.FC = () => {
     price: number;
     isSubscription: boolean;
   }) => {
-    const currentUserId = user?.id;
+    await firebaseService.waitForAuth(4000);
+    const authUid = firebaseService.auth?.currentUser?.uid;
+    const currentUserId = authUid || (user as any)?.uid || user?.id;
     if (!currentUserId) {
       throw new Error('يجب تسجيل الدخول أولاً');
     }
@@ -538,7 +558,7 @@ const RootModalPortal: React.FC = () => {
       // Also refresh user profile to update TryOn page
       window.dispatchEvent(new CustomEvent('khuyoot:refresh-user-data'));
     } catch (error: any) {
-      throw new Error(error?.message || 'فشل في إضافة الرصيد');
+      throw new Error(mapUpgradePurchaseError(error));
     }
   };
 

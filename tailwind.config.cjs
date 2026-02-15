@@ -12,16 +12,18 @@ module.exports = {
       colors: {
         brand: {
           dark: '#050817',
-          primary: '#63498b',
-          secondary: '#b5e58d',
+          primary: 'rgb(var(--theme-primary-rgb) / <alpha-value>)',
+          'primary-dark': 'rgb(var(--theme-primary-dark-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--theme-secondary-rgb) / <alpha-value>)',
           accent: '#fbbf24',
           surface: '#1e293b'
         },
         theme: {
-          primary: '#63498b',
-          secondary: '#b5e58d',
-          master: '#63498b',
-          surface: '#c2b7d3',
+          primary: 'rgb(var(--theme-primary-rgb) / <alpha-value>)',
+          'primary-dark': 'rgb(var(--theme-primary-dark-rgb) / <alpha-value>)',
+          secondary: 'rgb(var(--theme-secondary-rgb) / <alpha-value>)',
+          master: 'rgb(var(--theme-primary-rgb) / <alpha-value>)',
+          surface: 'rgb(var(--theme-surface-lavender-rgb) / <alpha-value>)',
         },
         boutique: {
           dark: '#0F051D',

@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2 } from 'lucide-react';
+import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video } from 'lucide-react';
 import { Product } from '../types';
 import imageCompression from 'browser-image-compression';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -25,6 +25,8 @@ interface ProductFormDialogProps {
     uploadError: string;
     pendingImageFiles: File[];
     pendingBlobUrls: string[];
+    pendingVideoFile: File | null;
+    pendingVideoUrl: string;
     draggedImageIndex: number | null;
   };
   handlers: {
@@ -42,6 +44,8 @@ interface ProductFormDialogProps {
     setUploadError: (value: string) => void;
     setPendingImageFiles: (value: File[] | ((prev: File[]) => File[])) => void;
     setPendingBlobUrls: (value: string[] | ((prev: string[]) => string[])) => void;
+    setPendingVideoFile: (value: File | null) => void;
+    setPendingVideoUrl: (value: string) => void;
     setDraggedImageIndex: (value: number | null) => void;
   };
   callbacks: {
@@ -77,6 +81,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
   const [activeCategoryGroup, setActiveCategoryGroup] = React.useState<string>(
     () => groupedCategoryOptions[0]?.groupName ?? ''
   );
+  const [imageToDelete, setImageToDelete] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     if (!activeCategoryGroup && groupedCategoryOptions.length > 0) {
@@ -105,6 +110,32 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
       callbacks.resetForm();
       callbacks.closeDialog();
     }
+  };
+
+  const confirmDeleteImage = () => {
+    if (imageToDelete === null) return;
+    
+    const index = imageToDelete;
+    const urlToDelete = formState.allProductImages[index];
+    
+    // If it's a blob URL, also remove from pending arrays
+    if (urlToDelete.startsWith('blob:')) {
+      URL.revokeObjectURL(urlToDelete);
+      const blobIndex = formState.pendingBlobUrls.indexOf(urlToDelete);
+      if (blobIndex !== -1) {
+        handlers.setPendingBlobUrls((prev) => prev.filter((_, i) => i !== blobIndex));
+        handlers.setPendingImageFiles((prev) => prev.filter((_, i) => i !== blobIndex));
+      }
+    }
+    
+    handlers.setAllProductImages((prev) => prev.filter((_, i) => i !== index));
+    if (index === formState.coverImageIndex && formState.allProductImages.length > 1) {
+      handlers.setCoverImageIndex(0);
+    } else if (index < formState.coverImageIndex) {
+      handlers.setCoverImageIndex((prev) => prev - 1);
+    }
+    
+    setImageToDelete(null);
   };
 
   return (
@@ -391,20 +422,84 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                   </button>
                 </div>
 
-                {/* Library button */}
+                {/* Video upload button */}
                 <button
                   type="button"
-                  onClick={() => callbacks.showDefaultImagesModal(true)}
-                  className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-[#63498b] hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-2"
+                  onClick={() => {
+                    const input = document.createElement('input');
+                    input.type = 'file';
+                    input.accept = 'video/*';
+                    input.multiple = false;
+                    input.onchange = (e) => {
+                      const files = Array.from((e.target as HTMLInputElement).files || []);
+                      if (files.length === 0) return;
+                      const videoFile = files[0];
+                      if (videoFile && videoFile.type.startsWith('video/')) {
+                        // Clean up previous blob URL if exists
+                        if (formState.pendingVideoUrl && formState.pendingVideoUrl.startsWith('blob:')) {
+                          URL.revokeObjectURL(formState.pendingVideoUrl);
+                        }
+                        // Create new blob URL for preview
+                        const blobUrl = URL.createObjectURL(videoFile);
+                        handlers.setPendingVideoFile(videoFile);
+                        handlers.setPendingVideoUrl(blobUrl);
+                      } else {
+                        alert('الرجاء اختيار ملف فيديو صالح');
+                      }
+                    };
+                    input.click();
+                  }}
+                  disabled={formState.loading}
+                  className="border-2 border-dashed border-slate-300 rounded-lg p-4 text-center hover:border-[#63498b] hover:bg-slate-50 transition-all flex flex-col items-center justify-center gap-2 cursor-pointer"
                 >
-                  <ImagePlus size={20} className="text-slate-400" />
-                  <span className="text-sm text-slate-600">المكتبة</span>
+                  <Video size={20} className="text-[#63498b]/70" />
+                  <span className="text-sm text-slate-600">رفع فيديو</span>
                 </button>
               </div>
             )}
 
             {formState.uploadError && (
               <p className="text-sm text-red-500">{formState.uploadError}</p>
+            )}
+
+            {/* Video preview */}
+            {formState.pendingVideoUrl && (
+              <div className="p-3 bg-slate-50 rounded-lg border border-slate-100">
+                <div className="flex items-start gap-3">
+                  <div className="relative w-32 aspect-video bg-slate-900 rounded overflow-hidden shrink-0">
+                    <video
+                      src={formState.pendingVideoUrl}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      controls
+                    />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium text-slate-900">
+                      {formState.pendingVideoFile?.name || 'فيديو المنتج'}
+                    </p>
+                    <p className="text-xs text-slate-500 mt-1">
+                      {formState.pendingVideoFile
+                        ? `${(formState.pendingVideoFile.size / (1024 * 1024)).toFixed(2)} MB`
+                        : ''}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (formState.pendingVideoUrl && formState.pendingVideoUrl.startsWith('blob:')) {
+                        URL.revokeObjectURL(formState.pendingVideoUrl);
+                      }
+                      handlers.setPendingVideoFile(null);
+                      handlers.setPendingVideoUrl('');
+                    }}
+                    className="p-2 hover:bg-slate-200 rounded-lg transition-colors"
+                    aria-label="حذف الفيديو"
+                    title="حذف الفيديو"
+                  >
+                    <Trash2 size={16} className="text-red-500" />
+                  </button>
+                </div>
+              </div>
             )}
 
             {/* Image grid */}
@@ -448,27 +543,19 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                           <button
                             type="button"
                             onClick={() => handlers.setCoverImageIndex(index)}
-                            className="bg-white/95 hover:bg-white text-[#63498b] p-1 rounded text-xs font-medium"
+                            className="bg-white/95 hover:bg-white text-[#63498b] p-2 rounded-lg"
                             title="تعيين كغلاف"
                           >
-                            غلاف
+                            <Star size={16} />
                           </button>
                         )}
                         <button
                           type="button"
-                          onClick={() => {
-                            if (confirm(`حذف الصورة؟`)) {
-                              const urlToDelete = formState.allProductImages[index];
-                              if (urlToDelete.startsWith('blob:')) URL.revokeObjectURL(urlToDelete);
-                              handlers.setAllProductImages((prev) => prev.filter((_, i) => i !== index));
-                              if (index === formState.coverImageIndex && formState.allProductImages.length > 1) handlers.setCoverImageIndex(0);
-                              else if (index < formState.coverImageIndex) handlers.setCoverImageIndex((prev) => prev - 1);
-                            }
-                          }}
-                          className="bg-red-500 hover:bg-red-600 text-white p-1 rounded"
+                          onClick={() => setImageToDelete(index)}
+                          className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg"
                           title="حذف"
                         >
-                          <Trash2 size={10} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
                     </div>
@@ -538,6 +625,44 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         </form>
 
       </div>
+      
+      {/* Delete Image Confirmation Dialog */}
+      {imageToDelete !== null && (
+        <div 
+          className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+          onClick={() => setImageToDelete(null)}
+        >
+          <div 
+            className="relative w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 animate-in zoom-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="p-6 space-y-4">
+              <div className="text-center space-y-2">
+                <div className="w-12 h-12 mx-auto rounded-full bg-red-100 flex items-center justify-center">
+                  <Trash2 className="w-6 h-6 text-red-600" />
+                </div>
+                <h3 className="text-lg font-bold text-gray-900">حذف الصورة؟</h3>
+                <p className="text-sm text-gray-500">هل أنت متأكد من حذف هذه الصورة؟ لن تتمكن من استرجاعها.</p>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setImageToDelete(null)}
+                  className="flex-1 px-4 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition-all active:scale-95"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmDeleteImage}
+                  className="flex-1 px-4 py-2.5 bg-red-500 text-white rounded-xl font-medium hover:bg-red-600 transition-all active:scale-95"
+                >
+                  حذف
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

@@ -24,7 +24,9 @@ import {
   ArrowLeft,
   History,
   Home as HomeIcon,
-  ChevronDown
+  ChevronDown,
+  ChevronUp,
+  ExternalLink
 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { Product, Tailor, ProductPageConfig } from '../types';
@@ -128,6 +130,147 @@ const ImageGallery = React.memo(({
           </div>
         )}
     </section>
+  );
+});
+
+const MeasurementEditDialog = React.memo(({ 
+  isOpen,
+  onClose,
+  template,
+  measurementHook,
+  onSaveToProfile,
+  onApplyProfile,
+  productType
+}: { 
+  isOpen: boolean;
+  onClose: () => void;
+  template: any;
+  measurementHook: any;
+  onSaveToProfile: () => void;
+  onApplyProfile: () => void;
+  productType?: string;
+}) => {
+  const [showVideo, setShowVideo] = React.useState(false);
+
+  // Check if all measurements are complete (must be before early return)
+  const allMeasurementsComplete = React.useMemo(() => {
+    if (!template?.points?.length) return false;
+    return template.points.every((point: any) => {
+      const value = measurementHook.measurements[point.id];
+      return value && value > 0;
+    });
+  }, [template, measurementHook.measurements]);
+
+  const handleDone = () => {
+    if (allMeasurementsComplete) {
+      onClose();
+    }
+  };
+
+  if (!isOpen || !measurementHook.hasTemplate) return null;
+
+  return createPortal(
+    <div 
+      className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+      onClick={onClose}
+    >
+      <div 
+        className="relative w-full max-w-3xl bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Tajawal']"
+        onClick={(e) => e.stopPropagation()}
+        dir="rtl"
+      >
+        {/* Header */}
+        <div className="p-4 px-6 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary">
+              <Ruler size={20} />
+            </div>
+            <div>
+              <h3 className="text-base font-normal text-gray-900">تسجيل المقاسات</h3>
+              <p className="text-[10px] text-gray-500 font-normal">أدخل مقاساتك بدقة للحصول على أفضل نتيجة</p>
+            </div>
+          </div>
+          <button 
+            onClick={onClose}
+            title="إغلاق"
+            aria-label="إغلاق"
+            className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          <MeasurementTemplateContent
+            template={template}
+            measurements={measurementHook.measurements}
+            onMeasurementChange={measurementHook.handleMeasurementChange}
+            onShowVideo={() => setShowVideo(!showVideo)}
+            PointMarkerComponent={PointMarker}
+            showVideo={showVideo}
+            videoUrl={measurementHook.videoUrl}
+            toolbar={
+              <div className="flex items-center justify-between gap-2 mb-6">
+                {productType && (
+                  <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-xl border border-gray-100">
+                    <Ruler size={14} className="text-gray-400" />
+                    <span className="text-[10px] font-normal text-gray-600">{productType}</span>
+                  </div>
+                )}
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={onApplyProfile}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-[#f5f5f5] border border-gray-100 rounded-xl text-[10px] font-normal text-gray-600 hover:text-theme-primary transition-all active:scale-95 shadow-sm"
+                  >
+                    <FolderOpen size={14} className="text-theme-primary" />
+                    <span>تحميل مقاس محفوظ</span>
+                  </button>
+                  <button 
+                    onClick={onSaveToProfile}
+                    className="flex items-center gap-1.5 px-3 py-2 bg-theme-primary/10 text-theme-primary border border-theme-primary/10 rounded-xl text-[10px] font-normal hover:bg-theme-primary hover:text-white transition-all active:scale-95 shadow-sm"
+                  >
+                    <Save size={14} />
+                    <span>حفظ هذه المقاسات</span>
+                  </button>
+                </div>
+              </div>
+            }
+          />
+        </div>
+
+        {/* Footer */}
+        <div className="p-4 bg-gray-50 border-t border-gray-100 flex items-center justify-between">
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center gap-2">
+              <button 
+                onClick={handleDone}
+                disabled={!allMeasurementsComplete}
+                className={`px-6 py-2.5 rounded-xl font-normal text-xs uppercase tracking-widest shadow-lg transition-all ${
+                  allMeasurementsComplete 
+                    ? 'bg-theme-primary text-white hover:bg-emerald-600 active:scale-95 cursor-pointer' 
+                    : 'bg-gray-300 text-gray-500 cursor-not-allowed opacity-60'
+                }`}
+              >
+                تم
+              </button>
+              {allMeasurementsComplete ? (
+                <p className="text-[10px] text-gray-400 font-normal">تأكد من دقة القياسات قبل إرسال الطلب</p>
+              ) : (
+                <p className="text-[10px] text-red-500 font-normal">⚠️ يرجى إكمال جميع القياسات</p>
+              )}
+            </div>
+          </div>
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 text-xs font-normal text-gray-700 bg-white hover:bg-gray-100 border border-gray-300 rounded-xl transition-all shadow-sm active:scale-95"
+          >
+            إلغاء
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body
   );
 });
 
@@ -614,37 +757,37 @@ const ProductSummaryDialog = React.memo(({
             onClick={onClose}
         >
             <div 
-                className="relative w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-white/10 flex flex-col max-h-[90vh]"
+                className="relative w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Tajawal']"
                 onClick={(e) => e.stopPropagation()}
                 dir="rtl"
             >
                 {/* Duplicate Order Warning Overlay */}
                 {showDuplicateWarning && (
-                    <div className="absolute inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center p-8 animate-in fade-in duration-300">
-                        <div className="flex flex-col items-center text-center space-y-6">
-                            <div className="w-20 h-20 bg-amber-50 rounded-full flex items-center justify-center text-amber-500 shadow-inner">
-                                <AlertCircle size={40} strokeWidth={2.5} />
+                    <div className="absolute inset-0 z-[100] bg-white/95 backdrop-blur-sm flex items-center justify-center p-6 animate-in fade-in duration-300">
+                        <div className="flex flex-col items-center text-center space-y-4">
+                            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center text-amber-500">
+                                <AlertCircle size={32} strokeWidth={2.5} />
                             </div>
                             
-                            <div className="space-y-2">
-                                <h4 className="text-xl font-black text-gray-900">هذا الطلب مرسل مسبقاً!</h4>
-                                <p className="text-sm text-gray-500 leading-relaxed font-medium">
+                            <div className="space-y-1">
+                                <h4 className="text-lg font-normal text-gray-900">هذا الطلب مرسل مسبقاً!</h4>
+                                <p className="text-xs text-gray-500 leading-relaxed font-normal">
                                     لقد قمت بإرسال طلب لهذا المنتج بنفس المقاسات بالضبط سابقاً. 
                                     هل ترغب في إرسال طلب جديد متطابق أم ترغب في تعديل المقاسات؟
                                 </p>
                             </div>
 
-                            <div className="w-full flex flex-col gap-3">
+                            <div className="w-full flex flex-col gap-2">
                                 <button 
                                     onClick={onConfirmDuplicate}
-                                    className="w-full h-14 bg-theme-primary text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
+                                    className="w-full h-12 bg-theme-primary text-white rounded-xl font-normal text-xs uppercase tracking-widest shadow-lg active:scale-95 transition-all"
                                 >
                                     نعم، أريد الإرسال مرة أخرى
                                 </button>
                                 
                                 <button 
                                     onClick={onCancelDuplicate}
-                                    className="w-full h-14 bg-white border-2 border-theme-primary text-theme-primary rounded-2xl font-black text-xs uppercase tracking-widest active:scale-95 transition-all"
+                                    className="w-full h-12 bg-white border-2 border-theme-primary text-theme-primary rounded-xl font-normal text-xs uppercase tracking-widest active:scale-95 transition-all"
                                 >
                                     سأقوم بتغيير المقاسات
                                 </button>
@@ -655,7 +798,7 @@ const ProductSummaryDialog = React.memo(({
 
                 {/* Header */}
                 <div className="p-4 px-6 border-b border-gray-100 flex items-center justify-between">
-                    <h3 className="text-lg font-black text-gray-900">{isSuccess ? "تم إرسال الطلب" : "ملخص الطلب"}</h3>
+                    <h3 className="text-base font-normal text-gray-900">{isSuccess ? "تم إرسال الطلب" : "ملخص الطلب"}</h3>
                     <button 
                         onClick={onClose}
                         title="إغلاق"
@@ -667,56 +810,56 @@ const ProductSummaryDialog = React.memo(({
                 </div>
 
                 {isSuccess ? (
-                    <div className="p-8 flex flex-col items-center text-center animate-in zoom-in duration-500">
-                        <div className="w-24 h-24 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 shadow-inner mb-6">
-                            <CheckCircle2 size={56} strokeWidth={2.5} />
+                    <div className="p-6 flex flex-col items-center text-center animate-in zoom-in duration-500">
+                        <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center text-emerald-500 mb-4">
+                            <CheckCircle2 size={32} strokeWidth={2.5} />
                         </div>
                         
-                        <div className="space-y-2 mb-8">
-                            <h4 className="text-2xl font-black text-gray-900">شكراً لك! تم إرسال الطلب</h4>
-                            <p className="text-sm text-gray-500 leading-relaxed font-medium max-w-[280px]">
-                                تم إرسال طلب التفصيل الخاص بك إلى الخياط <span className="text-theme-primary font-bold">{tailor?.name}</span>. 
+                        <div className="space-y-1 mb-5">
+                            <h4 className="text-lg font-normal text-gray-900">شكراً لك! تم إرسال الطلب</h4>
+                            <p className="text-xs text-gray-500 leading-relaxed font-normal max-w-[280px]">
+                                تم إرسال طلب التفصيل الخاص بك إلى الخياط <span className="text-theme-primary font-normal">{tailor?.name}</span>. 
                                 يمكنك متابعة حالة الطلب من ملفك الشخصي.
                             </p>
                         </div>
 
                         {/* Navigation Actions */}
-                        <div className="w-full grid gap-3">
-                            <div className="grid grid-cols-2 gap-3">
+                        <div className="w-full grid gap-2">
+                            <div className="grid grid-cols-2 gap-2">
                                 <button 
                                     onClick={() => navigate(`/tailor/${tailor?.id}`)}
-                                    className="flex flex-col items-center justify-center gap-2 p-4 bg-[#fbfbfb] border border-gray-100 rounded-2xl hover:bg-theme-primary/5 hover:border-theme-primary/20 transition-all font-bold text-gray-900 group"
+                                    className="flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 border border-gray-100 rounded-xl hover:bg-theme-primary/5 hover:border-theme-primary/20 transition-all font-normal text-gray-700 group"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-theme-primary/10 flex items-center justify-center text-theme-primary group-hover:bg-theme-primary group-hover:text-white transition-colors">
-                                        <User size={20} />
+                                    <div className="w-8 h-8 rounded-full bg-theme-primary/10 flex items-center justify-center text-theme-primary group-hover:bg-theme-primary group-hover:text-white transition-colors">
+                                        <User size={16} />
                                     </div>
-                                    <span className="text-[11px]">زيارة صفحة الخياط</span>
+                                    <span className="text-[10px]">زيارة صفحة الخياط</span>
                                 </button>
                                 
                                 <button 
                                     onClick={() => navigate('/account?tab=orders')}
-                                    className="flex flex-col items-center justify-center gap-2 p-4 bg-[#fbfbfb] border border-gray-100 rounded-2xl hover:bg-emerald-50 hover:border-emerald-200 transition-all font-bold text-gray-900 group"
+                                    className="flex flex-col items-center justify-center gap-2 p-3 bg-gray-50 border border-gray-100 rounded-xl hover:bg-emerald-50 hover:border-emerald-200 transition-all font-normal text-gray-700 group"
                                 >
-                                    <div className="w-10 h-10 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-600 group-hover:text-white transition-colors">
-                                        <History size={20} />
+                                    <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600 group-hover:bg-emerald-500 group-hover:text-white transition-colors">
+                                        <History size={16} />
                                     </div>
-                                    <span className="text-[11px]">متابعة طلباتي</span>
+                                    <span className="text-[10px]">متابعة طلباتي</span>
                                 </button>
                             </div>
 
                             <button 
                                 onClick={() => navigate('/')}
-                                className="w-full h-14 bg-gray-900 text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-lg flex items-center justify-center gap-3 active:scale-95 transition-all"
+                                className="w-full h-12 bg-gray-900 text-white rounded-xl font-normal text-xs uppercase tracking-widest shadow-lg flex items-center justify-center gap-2 active:scale-95 transition-all hover:bg-gray-800"
                             >
-                                <HomeIcon size={18} />
+                                <HomeIcon size={16} />
                                 <span>العودة للرئيسية</span>
                             </button>
 
                             <button 
                                 onClick={onClose}
-                                className="w-full py-4 text-xs font-bold text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center gap-2 border border-transparent hover:border-gray-100 rounded-2xl"
+                                className="w-full py-2 text-[10px] font-normal text-gray-400 hover:text-gray-600 transition-colors flex items-center justify-center gap-1 border border-transparent hover:border-gray-100 rounded-xl"
                             >
-                                <ArrowLeft size={14} className="rotate-180" />
+                                <ArrowLeft size={12} className="rotate-180" />
                                 <span>البقاء في صفحة المنتج</span>
                             </button>
                         </div>
@@ -724,43 +867,43 @@ const ProductSummaryDialog = React.memo(({
                 ) : (
                     <>
                         {/* Content */}
-                        <div className="flex-1 overflow-y-auto p-6 space-y-6 custom-scrollbar">
+                        <div className="flex-1 overflow-y-auto p-5 space-y-4 custom-scrollbar">
                             {/* Product Info */}
-                            <div className="flex gap-4 items-start">
-                                <div className="w-20 h-24 bg-[#fbfbfb] rounded-xl border border-gray-100 p-2 shrink-0">
+                            <div className="flex gap-3 items-start">
+                                <div className="w-16 h-20 bg-gray-50 rounded-xl border border-gray-100 p-1.5 shrink-0">
                                     <img 
                                         src={product.image || (product.images && product.images[0])} 
                                         alt={product.name} 
-                                        className="w-full h-full object-contain drop-shadow-md"
+                                        className="w-full h-full object-contain"
                                     />
                                 </div>
                                 <div className="min-w-0">
-                                    <h4 className="text-sm font-black text-gray-900 uppercase tracking-tight truncate">{product.name}</h4>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase mt-1">{product.category || 'تفصيل'}</p>
+                                    <h4 className="text-sm font-normal text-gray-900 uppercase tracking-tight truncate">{product.name}</h4>
+                                    <p className="text-[10px] text-gray-500 font-normal uppercase mt-0.5">{product.category || 'تفصيل'}</p>
                                     
-                                    <div className="mt-3 flex items-center gap-2">
-                                        <div className="w-6 h-6 rounded-full overflow-hidden border border-gray-100 shrink-0">
+                                    <div className="mt-2 flex items-center gap-1.5">
+                                        <div className="w-5 h-5 rounded-full overflow-hidden border border-gray-100 shrink-0">
                                             <img src={tailor?.image} alt={tailor?.name} className="w-full h-full object-cover" />
                                         </div>
-                                        <span className="text-xs font-bold text-theme-primary">{tailor?.name}</span>
+                                        <span className="text-[10px] font-normal text-theme-primary">{tailor?.name}</span>
                                     </div>
                                 </div>
                             </div>
 
                             {/* Measurements Summary */}
-                            <div className="space-y-3">
-                                <div className="flex items-center gap-2 text-gray-400">
-                                    <Ruler size={14} />
-                                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em]">المقاسات المسجلة</h5>
+                            <div className="space-y-2">
+                                <div className="flex items-center gap-1.5 text-gray-400">
+                                    <Ruler size={12} />
+                                    <h5 className="text-[10px] font-normal uppercase tracking-[0.15em]">المقاسات المسجلة</h5>
                                 </div>
                                 <div className="grid grid-cols-2 gap-2">
                                     {measurementItems.length > 0 ? measurementItems.map((item: any, idx: number) => (
-                                        <div key={idx} className="bg-gray-50 rounded-lg p-3 border border-gray-100 flex justify-between items-center">
-                                            <span className="text-[10px] font-bold text-gray-500">{item.label}</span>
-                                            <span className="text-xs font-black text-gray-900">{item.value} <span className="text-[8px] font-medium text-gray-400">سم</span></span>
+                                        <div key={idx} className="bg-gray-50 rounded-lg p-2.5 border border-gray-100 flex justify-between items-center">
+                                            <span className="text-[10px] font-normal text-gray-500">{item.label}</span>
+                                            <span className="text-xs font-normal text-gray-900">{item.value} <span className="text-[8px] font-normal text-gray-400">سم</span></span>
                                         </div>
                                     )) : (
-                                        <div className="col-span-2 text-center py-4 text-xs text-gray-400 italic">
+                                        <div className="col-span-2 text-center py-3 text-xs text-gray-400 italic">
                                             لم يتم إدخال مقاسات
                                         </div>
                                     )}
@@ -769,49 +912,49 @@ const ProductSummaryDialog = React.memo(({
 
                             {/* Comments Summary if exists */}
                             {comments && (
-                                <div className="space-y-2">
-                                    <h5 className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">ملاحظات إضافية</h5>
-                                    <div className="bg-amber-50/50 p-4 rounded-xl border border-amber-100 text-xs text-gray-700 leading-relaxed italic">
+                                <div className="space-y-1.5">
+                                    <h5 className="text-[10px] font-normal uppercase tracking-[0.15em] text-gray-400">ملاحظات إضافية</h5>
+                                    <div className="bg-amber-50/50 p-3 rounded-xl border border-amber-100 text-xs text-gray-700 leading-relaxed italic">
                                         "{comments}"
                                     </div>
                                 </div>
                             )}
 
                             {/* Price Summary */}
-                            <div className="bg-[#fbfbfb] rounded-2xl p-5 border border-gray-100 space-y-3">
-                                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                            <div className="bg-gray-50 rounded-xl p-4 border border-gray-100 space-y-2">
+                                <div className="flex justify-between items-center text-[10px] font-normal uppercase tracking-wider text-gray-500">
                                     <span>سعر الخياطة</span>
                                     <span className="text-gray-900">{formatOmr(product.price)} ر.ع</span>
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] font-bold uppercase tracking-widest text-gray-400">
+                                <div className="flex justify-between items-center text-[10px] font-normal uppercase tracking-wider text-gray-500">
                                     <span>رسوم الخدمة</span>
                                     <span className="text-gray-900">0.000 ر.ع</span>
                                 </div>
                                 <div className="h-px bg-gray-200 my-1" />
                                 <div className="flex justify-between items-center">
-                                    <span className="text-xs font-black uppercase tracking-widest text-theme-primary">المجموع الكلي</span>
-                                    <span className="text-xl font-black text-gray-900">{formatOmr(product.price)} ر.ع</span>
+                                    <span className="text-xs font-normal uppercase tracking-wider text-theme-primary">المجموع الكلي</span>
+                                    <span className="text-lg font-normal text-gray-900">{formatOmr(product.price)} ر.ع</span>
                                 </div>
                             </div>
                         </div>
 
                         {/* Footer Actions */}
-                        <div className="p-6 bg-white border-t border-gray-100">
+                        <div className="p-5 bg-white border-t border-gray-100">
                             <button 
                                 onClick={onConfirm}
                                 disabled={isSubmitting}
-                                className="w-full h-14 bg-theme-primary hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl font-black text-sm uppercase tracking-widest shadow-xl shadow-theme-primary/10 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
+                                className="w-full h-12 bg-theme-primary hover:bg-emerald-600 disabled:opacity-50 text-white rounded-xl font-normal text-xs uppercase tracking-widest shadow-xl shadow-theme-primary/10 transition-all flex items-center justify-center gap-2 active:scale-[0.98]"
                             >
                                 {isSubmitting ? (
                                     <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
                                 ) : (
                                     <>
-                                        <Check size={20} strokeWidth={3} />
+                                        <Check size={18} strokeWidth={3} />
                                         إرسال طلب التفصيل للخياط
                                     </>
                                 )}
                             </button>
-                            <p className="mt-4 text-center text-[10px] text-gray-400 font-medium">
+                            <p className="mt-3 text-center text-[10px] text-gray-400 font-normal">
                                 بالضغط على تأكيد، فإنك توافق على شروط وأحكام خيوط
                             </p>
                         </div>
@@ -1015,8 +1158,7 @@ export const ProductDetails = ({
   const [showStartTailoringActions, setShowStartTailoringActions] = useState(false);
   const [template, setTemplate] = useState<any>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-  const [forceOpenMeasurements, setForceOpenMeasurements] = useState(false);
-  const [isMeasurementsPanelOpen, setIsMeasurementsPanelOpen] = useState(false);
+  const [showMeasurementDialog, setShowMeasurementDialog] = useState(false);
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
   const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [isOrderSuccess, setIsOrderSuccess] = useState(false);
@@ -1028,7 +1170,6 @@ export const ProductDetails = ({
   const [savedMeasurementProfiles, setSavedMeasurementProfiles] = useState<any[]>([]);
   const [showSavedMeasurementsModal, setShowSavedMeasurementsModal] = useState(false);
   const [isSavingMeasurement, setIsSavingMeasurement] = useState(false);
-  const measurementsRef = React.useRef<HTMLDivElement>(null);
 
   const productQuery = useQuery({
     queryKey: ['product', productId],
@@ -1396,7 +1537,7 @@ export const ProductDetails = ({
     <div className="min-h-screen bg-[#ededed] dir-rtl font-sans">
       <MontHeader />
 
-      <main className="flex flex-col md:flex-row w-full md:h-[calc(100vh-72px)] bg-[#ededed] dir-rtl px-2 md:px-8 py-2 gap-8 md:overflow-hidden">
+      <main className="flex flex-col md:flex-row w-full bg-[#ededed] dir-rtl px-2 md:px-8 py-2 gap-8">
         <ImageGallery 
             images={productImages} 
             currentIndex={currentImageIndex} 
@@ -1404,8 +1545,8 @@ export const ProductDetails = ({
             productName={product.name}
         />
 
-        <section className="w-full md:w-[60%] h-full overflow-y-auto custom-scrollbar bg-white border border-black/5 rounded-3xl shadow-sm">
-          <div className="p-6 md:p-8 max-w-2xl mx-auto min-h-full flex flex-col space-y-4">
+        <section className="w-full md:w-[60%] bg-white border border-black/5 rounded-3xl shadow-sm">
+          <div className="p-6 md:p-8 max-w-2xl mx-auto flex flex-col space-y-4">
               
               <div className="flex items-center justify-between">
                 <button 
@@ -1513,33 +1654,15 @@ export const ProductDetails = ({
                 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <button 
-                       onClick={() => {
-                          setForceOpenMeasurements(true);
-                          setTimeout(() => {
-                            measurementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                            setTimeout(() => setForceOpenMeasurements(false), 100);
-                          }, 200);
-                       }}
-                       className={`group flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 transition-all text-center ${
-                         isMeasurementsPanelOpen 
-                           ? 'bg-theme-primary border-theme-primary text-white shadow-lg' 
-                           : 'bg-white border-theme-primary hover:bg-theme-primary/5 hover:shadow-lg'
-                       }`}
+                       onClick={() => setShowMeasurementDialog(true)}
+                       className="group flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 bg-white border-theme-primary hover:bg-theme-primary/5 hover:shadow-lg transition-all text-center"
                     >
-                        <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                          isMeasurementsPanelOpen 
-                            ? 'bg-white/20 text-white' 
-                            : 'bg-theme-primary/10 text-theme-primary'
-                        }`}>
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-theme-primary/10 text-theme-primary">
                             <Ruler size={20} strokeWidth={2.5} />
                         </div>
                         <div>
-                            <div className={`font-bold text-xs mb-0.5 ${
-                              isMeasurementsPanelOpen ? 'text-white' : 'text-gray-900'
-                            }`}>إدخال / تعديل المقاسات</div>
-                            <p className={`text-[9px] leading-snug ${
-                              isMeasurementsPanelOpen ? 'text-white/80' : 'text-gray-500'
-                            }`}>إدخال المقاسات على الرسم</p>
+                            <div className="font-bold text-xs mb-0.5 text-gray-900">إدخال / تعديل المقاسات</div>
+                            <p className="text-[9px] leading-snug text-gray-500">إدخال المقاسات على الرسم</p>
                         </div>
                     </button>
 
@@ -1563,22 +1686,21 @@ export const ProductDetails = ({
               </div>
 
               <div className="pt-4 border-t border-gray-100">
-                 <div ref={measurementsRef}>
-                   <MeasurementInstructionsCollapsible 
-                    template={template} 
+                 {/* Measurement Dialog */}
+                 <MeasurementEditDialog
+                    isOpen={showMeasurementDialog}
+                    onClose={() => setShowMeasurementDialog(false)}
+                    template={template}
                     measurementHook={measurementHook}
-                    forceOpen={forceOpenMeasurements}
-                    onToggle={setIsMeasurementsPanelOpen}
                     onSaveToProfile={handleSaveToProfile}
                     onApplyProfile={() => setShowSavedMeasurementsModal(true)}
-                   />
-                 </div>
+                    productType={productType}
+                 />
 
-                 {isMeasurementsPanelOpen && (
-                    <div className="pt-4 border-t border-gray-100 animate-in fade-in slide-in-from-bottom-2 duration-500">
+                 {/* Comments Section - Always visible */}
+                 <div className="pt-4 border-t border-gray-100">
                         {/* Comments Section */}
-                        <div className="mb-6">
-                            {!showCommentsField ? (
+                        <div className="mb-6">{!showCommentsField ? (
                                 <button 
                                     onClick={() => setShowCommentsField(true)}
                                     className="flex items-center gap-2 text-xs font-bold text-gray-500 hover:text-theme-primary transition-colors"
@@ -1611,13 +1733,13 @@ export const ProductDetails = ({
                             )}
                         </div>
 
-                        {measurementError && (
-                            <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-700 text-xs font-bold animate-shake">
-                                <AlertCircle size={16} />
-                                <span>{measurementError}</span>
-                            </div>
-                        )}
-                        <button 
+                     {measurementError && (
+                         <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-700 text-xs font-bold animate-shake">
+                             <AlertCircle size={16} />
+                             <span>{measurementError}</span>
+                         </div>
+                     )}
+                     <button 
                             onClick={handleReviewOrder}
                             className="w-full h-14 bg-theme-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-theme-primary/20 hover:bg-emerald-600 transition-all flex items-center justify-center gap-2 active:scale-95"
                         >
@@ -1625,7 +1747,6 @@ export const ProductDetails = ({
                             <span>مراجعة الطلب والمتابعة</span>
                         </button>
                     </div>
-                 )}
               </div>
 
           </div>

@@ -65,14 +65,14 @@ const StepIndicator = ({ step, totalSteps }) => (
                 <div className={`relative flex flex-col items-center group`}>
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center text-sm font-bold transition-all duration-300 border-2 
                         ${step >= s 
-                            ? 'bg-indigo-600 border-indigo-600 text-white shadow-lg shadow-indigo-200 dark:shadow-none' 
+                            ? 'bg-theme-primary border-theme-primary text-white shadow-lg shadow-theme-primary/20 dark:shadow-none' 
                             : 'bg-white dark:bg-gray-800 border-gray-300 dark:border-gray-600 text-gray-400'
                         }`}>
                         {step > s ? <Icons.Check /> : s}
                     </div>
                 </div>
                 {s < totalSteps && (
-                    <div className={`flex-1 h-1 mx-2 rounded-full transition-all duration-500 ${step > s ? 'bg-indigo-600' : 'bg-gray-200 dark:bg-gray-700'}`} />
+                    <div className={`flex-1 h-1 mx-2 rounded-full transition-all duration-500 ${step > s ? 'bg-theme-primary' : 'bg-gray-200 dark:bg-gray-700'}`} />
                 )}
             </React.Fragment>
         ))}
@@ -86,14 +86,14 @@ const InputField = ({ label, icon: Icon, required, ...props }) => (
         </label>
         <div className="relative">
             {Icon && (
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0 text-gray-400 group-focus-within:text-indigo-500 transition-colors">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none rtl:right-0 rtl:left-auto rtl:pr-3 rtl:pl-0 text-gray-400 group-focus-within:text-theme-primary transition-colors">
                     <Icon />
                 </div>
             )}
             <input
                 {...props}
                 className={`block w-full rounded-xl border-gray-300 bg-white dark:bg-gray-800 dark:border-gray-600 text-gray-900 dark:text-white transition-all duration-200 
-                focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-900/30 outline-none
+                focus:border-theme-primary focus:ring-2 focus:ring-theme-primary/20 dark:focus:ring-theme-primary/30 outline-none
                 shadow-sm py-3 ${Icon ? 'pl-10 rtl:pr-10 rtl:pl-3' : 'px-4'} ${props.className || ''}`}
             />
         </div>
@@ -105,13 +105,13 @@ const ImageUpload = ({ label, onChange, previewUrl, multiple, accept, subtext })
         <label className="block text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">{label}</label>
         <label className={`flex flex-col items-center justify-center w-full h-44 border-2 border-dashed rounded-2xl cursor-pointer transition-all duration-200 relative overflow-hidden group
             ${previewUrl 
-                ? 'border-indigo-300 bg-indigo-50 dark:bg-indigo-900/10 dark:border-indigo-700' 
-                : 'border-gray-300 bg-gray-50 dark:bg-gray-800 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-indigo-400'
+                ? 'border-theme-primary/40 bg-theme-primary/10 dark:bg-theme-primary/15 dark:border-theme-primary/60' 
+                : 'border-gray-300 bg-gray-50 dark:bg-gray-800 dark:border-gray-600 hover:bg-gray-100 dark:hover:bg-gray-700 hover:border-theme-primary/50'
             }`}>
             
             {!previewUrl ? (
                 <div className="flex flex-col items-center justify-center pt-5 pb-6 z-10 text-center px-4">
-                    <div className="p-3 bg-white dark:bg-gray-700 rounded-full mb-3 text-indigo-500 shadow-sm group-hover:scale-110 group-hover:text-indigo-600 transition-all">
+                    <div className="p-3 bg-white dark:bg-gray-700 rounded-full mb-3 text-theme-primary shadow-sm group-hover:scale-110 group-hover:text-theme-primary transition-all">
                         <Icons.Upload />
                     </div>
                     <p className="mb-1 text-sm text-gray-600 dark:text-gray-300 font-medium">Click to upload</p>
@@ -1076,7 +1076,7 @@ export default function TailorJoinFlow() {
                     )}
                     <div className="space-y-3">
                         <button onClick={resetToFirstPage} className="w-full py-4 rounded-xl border-2 border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 font-bold hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors transform active:scale-95 duration-200">{t('go_first')}</button>
-                        <button onClick={goAddMoreProducts} className="w-full py-4 rounded-xl bg-indigo-600 text-white font-bold hover:bg-indigo-700 transition-colors shadow-lg shadow-indigo-200 dark:shadow-none transform active:scale-95 duration-200">{t('add_more')}</button>
+                        <button onClick={goAddMoreProducts} className="w-full py-4 rounded-xl bg-theme-primary text-white font-bold hover:bg-theme-primary-dark transition-colors shadow-lg shadow-theme-primary/20 dark:shadow-none transform active:scale-95 duration-200">{t('add_more')}</button>
                     </div>
                 </div>
             </div>
@@ -1084,7 +1084,7 @@ export default function TailorJoinFlow() {
     }
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-indigo-50 dark:from-gray-900 dark:to-gray-800 py-10 px-4 transition-colors duration-300" dir={isRtl ? 'rtl' : 'ltr'}>
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 to-theme-primary/10 dark:from-gray-900 dark:to-gray-800 py-10 px-4 transition-colors duration-300" dir={isRtl ? 'rtl' : 'ltr'}>
             <AnimationStyles />
             <div className="max-w-3xl mx-auto">
                 {/* Header Section */}
@@ -1096,7 +1096,7 @@ export default function TailorJoinFlow() {
                     <div className="flex bg-white dark:bg-gray-800 rounded-lg p-1 shadow-sm border border-gray-200 dark:border-gray-700">
                         {['ar', 'en'].map(l => (
                             <button key={l} onClick={() => { setLang(l); setFormData(p => ({ ...p, preferredLanguage: l })); }}
-                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${lang === l ? 'bg-indigo-600 text-white shadow-sm' : 'text-gray-500 hover:text-indigo-600 dark:text-gray-400'}`}>
+                                className={`px-4 py-1.5 rounded-md text-sm font-bold transition-all ${lang === l ? 'bg-theme-primary text-white shadow-sm' : 'text-gray-500 hover:text-theme-primary dark:text-gray-400'}`}>
                                 {l.toUpperCase()}
                             </button>
                         ))}
@@ -1143,7 +1143,7 @@ export default function TailorJoinFlow() {
                         {/* WELCOME SCREEN */}
                         {step === 0 && (
                             <div className="text-center py-10 animate-fade-in-up">
-                                <div className="w-24 h-24 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600 shadow-inner">
+                                <div className="w-24 h-24 bg-theme-primary/10 dark:bg-theme-primary/20 rounded-full flex items-center justify-center mx-auto mb-6 text-theme-primary shadow-inner">
                                     <Icons.Store />
                                 </div>
                                 <h2 className="text-3xl font-black text-gray-900 dark:text-white mb-4 tracking-tight">{t('welcome_title')}</h2>
@@ -1152,7 +1152,7 @@ export default function TailorJoinFlow() {
                                 </p>
                                 <button
                                     onClick={() => { setStep(1); navigate('/join-tailor/1'); }}
-                                    className="px-10 py-4 bg-indigo-600 text-white text-lg font-bold rounded-2xl hover:bg-indigo-700 transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-indigo-200 dark:shadow-none"
+                                    className="px-10 py-4 bg-theme-primary text-white text-lg font-bold rounded-2xl hover:bg-theme-primary-dark transition-all transform hover:scale-105 active:scale-95 shadow-lg shadow-theme-primary/20 dark:shadow-none"
                                 >
                                     {t('welcome_start')}
                                 </button>
@@ -1163,13 +1163,13 @@ export default function TailorJoinFlow() {
                         {step === 1 && (
                             <form onSubmit={handleSubmitStep1} className="space-y-6 animate-fade-in">
                                 {lastSubmission && (
-                                    <div className="bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-2xl p-4 flex flex-wrap gap-3 items-center justify-between">
-                                        <div className="text-sm text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-2">
+                                    <div className="bg-theme-primary/10 dark:bg-theme-primary/20 border border-theme-primary/20 dark:border-theme-primary/40 rounded-2xl p-4 flex flex-wrap gap-3 items-center justify-between">
+                                        <div className="text-sm text-theme-primary dark:text-theme-primary font-medium flex items-center gap-2">
                                             <Icons.Check />
                                             {t('saved_last_banner')}
                                         </div>
                                         <div className="flex gap-2">
-                                            <button type="button" onClick={() => restoreFromSnapshot(lastSubmission)} className="text-xs font-bold text-indigo-600 bg-white dark:bg-gray-700 dark:text-indigo-300 px-4 py-2 rounded-xl shadow-sm hover:bg-indigo-50 dark:hover:bg-gray-600 transition-colors">{t('restore_data')}</button>
+                                            <button type="button" onClick={() => restoreFromSnapshot(lastSubmission)} className="text-xs font-bold text-theme-primary bg-white dark:bg-gray-700 dark:text-theme-primary px-4 py-2 rounded-xl shadow-sm hover:bg-theme-primary/10 dark:hover:bg-gray-600 transition-colors">{t('restore_data')}</button>
                                             <button type="button" onClick={() => { localStorage.removeItem('tailorJoinLastSubmission'); setLastSubmission(null); }} className="text-xs font-bold text-red-500 hover:text-red-700 dark:hover:text-red-400 px-2 py-2 transition-colors">{t('clear_saved')}</button>
                                         </div>
                                     </div>
@@ -1179,7 +1179,7 @@ export default function TailorJoinFlow() {
                                 <div className="grid grid-cols-3 gap-2 p-1.5 bg-gray-100 dark:bg-gray-700/50 rounded-2xl border border-gray-200 dark:border-gray-600">
                                     {[{ key: 'tailor', label: t('account_tailor') }, { key: 'shop', label: t('account_shop') }, { key: 'boutique', label: t('account_boutique') }].map(a => (
                                         <button key={a.key} type="button" onClick={() => setFormData(p => ({ ...p, accountKind: a.key }))}
-                                            className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${formData.accountKind === a.key ? 'bg-white dark:bg-gray-600 text-indigo-600 shadow-sm transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50'}`}>
+                                            className={`py-2.5 rounded-xl text-sm font-bold transition-all duration-200 ${formData.accountKind === a.key ? 'bg-white dark:bg-gray-600 text-theme-primary shadow-sm transform scale-[1.02]' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 hover:bg-gray-200/50'}`}>
                                             {a.label}
                                         </button>
                                     ))}
@@ -1212,7 +1212,7 @@ export default function TailorJoinFlow() {
                                     <div className="flex gap-4">
                                         {['male', 'female'].map(opt => (
                                             <button key={opt} type="button" onClick={() => setFormData(p => ({ ...p, specializationOptions: p.specializationOptions.includes(opt) ? [] : [opt] }))}
-                                                className={`flex-1 py-3 border-2 rounded-xl text-sm font-bold transition-all duration-200 ${formData.specializationOptions.includes(opt) ? 'border-indigo-600 bg-indigo-50 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 shadow-sm' : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:border-indigo-200 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                                                className={`flex-1 py-3 border-2 rounded-xl text-sm font-bold transition-all duration-200 ${formData.specializationOptions.includes(opt) ? 'border-theme-primary bg-theme-primary/10 dark:bg-theme-primary/20 text-theme-primary dark:text-theme-primary shadow-sm' : 'border-gray-200 dark:border-gray-600 text-gray-500 hover:border-theme-primary/30 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
                                                 {opt === 'male' ? t('male') : t('female')}
                                             </button>
                                         ))}
@@ -1223,7 +1223,7 @@ export default function TailorJoinFlow() {
 
                                 <div className="flex justify-between items-center pt-6">
                                     <button type="button" onClick={prevStep} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">{t('back')}</button>
-                                    <button type="submit" className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2 transform active:scale-95">
+                                    <button type="submit" className="px-8 py-3 bg-theme-primary text-white font-bold rounded-xl hover:bg-theme-primary-dark transition-all shadow-lg shadow-theme-primary/20 dark:shadow-none flex items-center gap-2 transform active:scale-95">
                                         {t('next')} <Icons.ArrowRight flip={isRtl} />
                                     </button>
                                 </div>
@@ -1238,7 +1238,7 @@ export default function TailorJoinFlow() {
                                         <h3 className="text-2xl font-bold text-gray-900 dark:text-white">{t('products_title')}</h3>
                                         <p className="text-sm text-gray-500 mt-1">{t('products_hint')}</p>
                                     </div>
-                                    <span className="bg-indigo-100 dark:bg-indigo-900/30 text-indigo-700 dark:text-indigo-300 text-xs font-bold px-4 py-2 rounded-full self-start sm:self-auto shadow-sm">
+                                    <span className="bg-theme-primary/10 dark:bg-theme-primary/20 text-theme-primary dark:text-theme-primary text-xs font-bold px-4 py-2 rounded-full self-start sm:self-auto shadow-sm">
                                         {products.length} Items
                                     </span>
                                 </div>
@@ -1252,7 +1252,7 @@ export default function TailorJoinFlow() {
 
                                             <div className="mb-5">
                                                 {/* Image Area - Improved Grid Logic */}
-                                                <label className={`block w-full rounded-2xl overflow-hidden cursor-pointer relative bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-indigo-300 transition-colors
+                                                <label className={`block w-full rounded-2xl overflow-hidden cursor-pointer relative bg-gray-50 dark:bg-gray-800 border-2 border-dashed border-gray-200 dark:border-gray-600 hover:border-theme-primary/50 transition-colors
                                                     ${(!productPreviews[p.localId] || productPreviews[p.localId].length === 0) ? 'h-40 flex items-center justify-center' : 'p-2'}`}>
                                                     
                                                     {(!productPreviews[p.localId] || productPreviews[p.localId].length === 0) ? (
@@ -1277,7 +1277,7 @@ export default function TailorJoinFlow() {
                                                             ))}
                                                             {/* Add More Button / Counter */}
                                                             {productPreviews[p.localId].length < 10 && (
-                                                                <div className="h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 flex items-center justify-center text-gray-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-900/20 transition-colors">
+                                                                <div className="h-16 rounded-lg border-2 border-dashed border-gray-300 dark:border-gray-500 flex items-center justify-center text-gray-400 hover:text-theme-primary hover:bg-theme-primary/10 dark:hover:bg-theme-primary/20 transition-colors">
                                                                     <Icons.Plus />
                                                                 </div>
                                                             )}
@@ -1295,9 +1295,9 @@ export default function TailorJoinFlow() {
                                                         placeholder=" "
                                                         value={p.name}
                                                         onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].name = e.target.value; return c; })}
-                                                        className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-semibold"
+                                                        className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-theme-primary focus:ring-0 font-semibold"
                                                     />
-                                                    <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-indigo-600 rtl:origin-[100%]">
+                                                    <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-theme-primary rtl:origin-[100%]">
                                                         {t('product_name_ph')}
                                                     </label>
                                                 </div>
@@ -1309,9 +1309,9 @@ export default function TailorJoinFlow() {
                                                             placeholder=" "
                                                             value={p.price}
                                                             onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].price = e.target.value; return c; })}
-                                                            className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-indigo-600 focus:ring-0 font-mono"
+                                                            className="peer block w-full border-0 border-b-2 border-gray-200 dark:border-gray-600 bg-transparent py-2.5 px-0 text-sm text-gray-900 dark:text-white focus:border-theme-primary focus:ring-0 font-mono"
                                                         />
-                                                        <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-indigo-600 rtl:origin-[100%]">
+                                                        <label className="absolute top-3 -z-10 origin-[0] -translate-y-6 scale-75 transform text-sm text-gray-500 duration-300 peer-placeholder-shown:translate-y-0 peer-placeholder-shown:scale-100 peer-focus:start-0 peer-focus:-translate-y-6 peer-focus:scale-75 peer-focus:text-theme-primary rtl:origin-[100%]">
                                                             {t('price_ph')}
                                                         </label>
                                                         <span className="absolute right-0 rtl:left-0 rtl:right-auto bottom-2 text-xs font-bold text-gray-400">OMR</span>
@@ -1321,7 +1321,7 @@ export default function TailorJoinFlow() {
                                                         <div className="relative">
                                                             {categoriesLoading ? (
                                                                 <div className="flex items-center justify-center py-2.5 px-3 bg-gray-100 dark:bg-gray-800 rounded-lg">
-                                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-indigo-600"></div>
+                                                                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-theme-primary"></div>
                                                                     <span className="ml-2 text-xs text-gray-500">Loading...</span>
                                                                 </div>
                                                             ) : categoriesError ? (
@@ -1338,7 +1338,7 @@ export default function TailorJoinFlow() {
                                                                 <select
                                                                     value={p.category}
                                                                     onChange={(e) => setProducts(l => { const c = [...l]; const i = c.findIndex(x => x.localId === p.localId); if (i !== -1) c[i].category = e.target.value; return c; })}
-                                                                    className="block w-full rounded-lg border-0 bg-gray-100 dark:bg-gray-800 py-2.5 px-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-indigo-600"
+                                                                    className="block w-full rounded-lg border-0 bg-gray-100 dark:bg-gray-800 py-2.5 px-3 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-theme-primary"
                                                                     disabled={productCategories.length === 0}
                                                                 >
                                                                     <option value="">{productCategories.length === 0 ? (selectedGender ? 'لا توجد تصنيفات' : 'اختر التخصص أولاً') : t('category_label')}...</option>
@@ -1355,7 +1355,7 @@ export default function TailorJoinFlow() {
                                     {/* Add Button Card */}
                                     <button
                                         onClick={() => setProducts(l => [...l, { localId: `p_${Date.now()}`, name: '', price: '', images: [], category: '' }])}
-                                        className="flex flex-col items-center justify-center h-full min-h-[300px] border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-indigo-300 transition-all text-gray-400 hover:text-indigo-500 group"
+                                        className="flex flex-col items-center justify-center h-full min-h-[300px] border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-3xl hover:bg-gray-50 dark:hover:bg-gray-800/50 hover:border-theme-primary/50 transition-all text-gray-400 hover:text-theme-primary group"
                                     >
                                         <div className="p-4 bg-white dark:bg-gray-700 rounded-full shadow-sm mb-4 group-hover:scale-110 transition-transform"><Icons.Plus /></div>
                                         <span className="font-bold text-lg">{t('add_product')}</span>
@@ -1364,7 +1364,7 @@ export default function TailorJoinFlow() {
 
                                 <div className="flex justify-between items-center pt-6 border-t border-gray-100 dark:border-gray-700">
                                     <button onClick={prevStep} className="px-6 py-3 text-gray-500 font-bold hover:bg-gray-100 dark:hover:bg-gray-700 rounded-xl transition-colors">{t('back')}</button>
-                                    <button onClick={() => { const err = validateStep2(); if (err.length) setError(err.join('\n')); else { setError(null); nextStep(); } }} className="px-8 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200 dark:shadow-none flex items-center gap-2 transform active:scale-95 transition-transform">
+                                    <button onClick={() => { const err = validateStep2(); if (err.length) setError(err.join('\n')); else { setError(null); nextStep(); } }} className="px-8 py-3 bg-theme-primary text-white font-bold rounded-xl hover:bg-theme-primary-dark shadow-lg shadow-theme-primary/20 dark:shadow-none flex items-center gap-2 transform active:scale-95 transition-transform">
                                         {t('next')} <Icons.ArrowRight flip={isRtl} />
                                     </button>
                                 </div>
@@ -1374,26 +1374,26 @@ export default function TailorJoinFlow() {
                         {/* STEP 3: REVIEW */}
                         {step === 3 && (
                             <div className="space-y-8 animate-fade-in">
-                                <div className="bg-indigo-50/50 dark:bg-indigo-900/10 rounded-3xl p-8 border border-indigo-100 dark:border-indigo-800 backdrop-blur-sm">
-                                    <h3 className="text-xl font-black text-indigo-900 dark:text-indigo-100 mb-6 flex items-center gap-3">
-                                        <div className="p-2 bg-indigo-200 dark:bg-indigo-800 rounded-lg"><Icons.Store /></div> 
+                                <div className="bg-theme-primary/10 dark:bg-theme-primary/20 rounded-3xl p-8 border border-theme-primary/20 dark:border-theme-primary/40 backdrop-blur-sm">
+                                    <h3 className="text-xl font-black text-theme-primary dark:text-theme-primary mb-6 flex items-center gap-3">
+                                        <div className="p-2 bg-theme-primary/20 dark:bg-theme-primary/30 rounded-lg"><Icons.Store /></div> 
                                         {t('data_summary')}
                                     </h3>
                                     
                                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-8 gap-y-6 text-sm">
-                                        <div className="flex justify-between border-b border-indigo-200/50 dark:border-indigo-800 pb-2">
+                                        <div className="flex justify-between border-b border-theme-primary/20 dark:border-theme-primary/30 pb-2">
                                             <span className="text-gray-500 dark:text-gray-400">{t('shop_name_label')}</span>
                                             <span className="font-bold text-gray-900 dark:text-white">{formData.shopName}</span>
                                         </div>
-                                        <div className="flex justify-between border-b border-indigo-200/50 dark:border-indigo-800 pb-2">
+                                        <div className="flex justify-between border-b border-theme-primary/20 dark:border-theme-primary/30 pb-2">
                                             <span className="text-gray-500 dark:text-gray-400">{t('phone_login_label')}</span>
                                             <span className="font-bold text-gray-900 dark:text-white font-mono">{formData.phone}</span>
                                         </div>
-                                        <div className="flex justify-between border-b border-indigo-200/50 dark:border-indigo-800 pb-2">
+                                        <div className="flex justify-between border-b border-theme-primary/20 dark:border-theme-primary/30 pb-2">
                                             <span className="text-gray-500 dark:text-gray-400">{t('account_type_label')}</span>
                                             <span className="font-bold text-gray-900 dark:text-white uppercase bg-white dark:bg-gray-700 px-2 py-0.5 rounded shadow-sm">{formData.accountKind}</span>
                                         </div>
-                                        <div className="flex justify-between border-b border-indigo-200/50 dark:border-indigo-800 pb-2">
+                                        <div className="flex justify-between border-b border-theme-primary/20 dark:border-theme-primary/30 pb-2">
                                             <span className="text-gray-500 dark:text-gray-400">{t('products_header')}</span>
                                             <span className="font-bold text-gray-900 dark:text-white">{products.length} Items</span>
                                         </div>
@@ -1401,7 +1401,7 @@ export default function TailorJoinFlow() {
 
                                     {uploads.boardPreviewUrl && (
                                         <div className="mt-6">
-                                            <div className="text-xs text-indigo-400 mb-3 uppercase tracking-wide font-bold">{t('board_image_label')}</div>
+                                            <div className="text-xs text-theme-primary/70 mb-3 uppercase tracking-wide font-bold">{t('board_image_label')}</div>
                                             <div className="h-32 w-full rounded-2xl overflow-hidden shadow-md">
                                                 <img src={uploads.boardPreviewUrl} className="w-full h-full object-cover" alt="board" />
                                             </div>
@@ -1416,13 +1416,13 @@ export default function TailorJoinFlow() {
                                             <span>{Math.round(submitProgress.percent)}%</span>
                                         </div>
                                         <div className="h-3 bg-gray-100 dark:bg-gray-700 rounded-full overflow-hidden">
-                                            <div className="h-full bg-gradient-to-r from-indigo-500 to-purple-500 transition-all duration-300 ease-out" style={{ width: `${submitProgress.percent}%` }}></div>
+                                            <div className="h-full bg-theme-primary transition-all duration-300 ease-out" style={{ width: `${submitProgress.percent}%` }}></div>
                                         </div>
                                     </div>
                                 )}
 
                                 <div className="space-y-4 pt-4">
-                                    <button onClick={handleSubmitAll} disabled={loading} className="w-full py-4 bg-gradient-to-r from-indigo-600 to-indigo-700 text-white font-bold rounded-2xl hover:from-indigo-700 hover:to-indigo-800 shadow-xl shadow-indigo-200 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] text-lg">
+                                    <button onClick={handleSubmitAll} disabled={loading} className="w-full py-4 bg-theme-primary text-white font-bold rounded-2xl hover:bg-theme-primary-dark shadow-xl shadow-theme-primary/20 dark:shadow-none disabled:opacity-50 disabled:cursor-not-allowed transition-all transform active:scale-[0.98] text-lg">
                                         {loading ? t('submitting') : t('submit')}
                                     </button>
                                     <button onClick={prevStep} disabled={loading} className="w-full py-3 text-gray-500 dark:text-gray-400 font-bold hover:bg-gray-50 dark:hover:bg-gray-800 rounded-2xl transition-colors">

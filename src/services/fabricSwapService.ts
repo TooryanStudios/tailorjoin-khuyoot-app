@@ -114,6 +114,8 @@ async function checkApiHealth(): Promise<{ ok: boolean; error?: string }> {
     const res = await fetch('/api/health', {
       method: 'GET',
       signal: controller.signal,
+      credentials: 'omit', // Don't send cookies for health check to avoid header size issues
+      cache: 'no-store',
     });
     
     const elapsed = Date.now() - startTime;
@@ -122,8 +124,13 @@ async function checkApiHealth(): Promise<{ ok: boolean; error?: string }> {
     console.log(`✅ [Health Check] Response received in ${elapsed}ms, status: ${res.status}`);
     
     if (!res.ok) {
-      console.error(`❌ [Health Check] Server returned non-OK status: ${res.status}`);
-      return { ok: false, error: `Server returned ${res.status}` };
+      const errorText = await res.text().catch(() => 'Unknown error');
+      console.error(`❌ [Health Check] Server returned non-OK status: ${res.status}`, errorText);
+      try {
+        const errorJson = JSON.parse(errorText);
+        if (errorJson.error) return { ok: false, error: `Server Error: ${errorJson.error}` };
+      } catch {}
+      return { ok: false, error: `Server returned ${res.status}: ${errorText.substring(0, 50)}` };
     }
     
     const data = await res.json().catch(() => {

@@ -175,6 +175,13 @@ export const AuthModal = () => {
     setConfirmPassword('');
   }, [isLogin]);
 
+  // Clear tailorGender when role changes to user
+  useEffect(() => {
+    if (role !== 'tailor') {
+      setTailorGender('');
+    }
+  }, [role]);
+
   const loadRegions = async () => {
     try {
       const data = await firebaseService.getPopularRegions();
@@ -554,6 +561,30 @@ export const AuthModal = () => {
                         </button>
                       );
                     })}
+                  </div>
+                )}
+
+                {!isLogin && role === 'tailor' && (
+                  <div className="space-y-1.5">
+                    <label className="block text-[10px] font-bold text-slate-600 mr-1 uppercase tracking-wider">
+                      التخصص <span className="text-red-500">*</span>
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setTailorGender('male')}
+                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                      >
+                        رجالي
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setTailorGender('female')}
+                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                      >
+                        نسائي
+                      </button>
+                    </div>
                   </div>
                 )}
 

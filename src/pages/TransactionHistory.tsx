@@ -188,7 +188,7 @@ export const TransactionHistory: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+      <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
         <MontHeader />
         <div
           aria-hidden="true"
@@ -202,12 +202,12 @@ export const TransactionHistory: React.FC = () => {
           <div className="px-4 md:px-8 py-3">
             <div className="max-w-4xl mx-auto">
               <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100 text-center">
-                <CreditCard className="w-16 h-16 mx-auto mb-4 text-[#63498b]/20" />
+                <CreditCard className="w-16 h-16 mx-auto mb-4 text-theme-primary/20" />
                 <h2 className="text-xl font-bold text-slate-900 mb-2">يجب تسجيل الدخول</h2>
                 <p className="text-slate-600 mb-6">الرجاء تسجيل الدخول لعرض سجل المعاملات</p>
                 <button
                   onClick={() => toggleAuthModal(true, 'login')}
-                  className="inline-flex items-center gap-2 px-6 py-3 bg-[#63498b] hover:bg-[#523d74] text-white font-medium rounded-lg transition-all"
+                  className="inline-flex items-center gap-2 px-6 py-3 bg-theme-primary hover:bg-theme-primary-dark text-white font-medium rounded-lg transition-all"
                 >
                   <CreditCard className="w-5 h-5" />
                   <span>تسجيل الدخول</span>
@@ -221,7 +221,7 @@ export const TransactionHistory: React.FC = () => {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"
@@ -253,7 +253,7 @@ export const TransactionHistory: React.FC = () => {
         {/* Loading State */}
         {loading && (
           <div className="bg-white rounded-lg p-12 shadow-sm border border-slate-100 flex items-center justify-center">
-            <Loader2 className="w-8 h-8 text-[#63498b] animate-spin" />
+            <Loader2 className="w-8 h-8 text-theme-primary animate-spin" />
           </div>
         )}
 
@@ -289,7 +289,7 @@ export const TransactionHistory: React.FC = () => {
                   }
                 }, 500);
               }}
-              className="px-6 py-2 text-sm bg-[#63498b] hover:bg-[#523d74] text-white font-medium rounded-lg transition-all"
+              className="px-6 py-2 text-sm bg-theme-primary hover:bg-theme-primary-dark text-white font-medium rounded-lg transition-all"
             >
               إعادة المحاولة
             </button>
@@ -320,8 +320,8 @@ export const TransactionHistory: React.FC = () => {
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="flex items-start gap-3">
-                    <div className="p-2 rounded-lg bg-[#63498b]/10">
-                      <Package className="w-5 h-5 text-[#63498b]" />
+                    <div className="p-2 rounded-lg bg-theme-primary/10">
+                      <Package className="w-5 h-5 text-theme-primary" />
                     </div>
                     <div>
                       <h3 className="text-sm font-bold text-slate-900 mb-1">{purchase.package_name}</h3>

@@ -511,8 +511,8 @@ service cloud.firestore {
       // Admins can update freely.
       allow update: if isAdminUser() || (
         isOwnerUid(uid)
-        && request.resource.data.user_id == resource.data.user_id
-        && request.resource.data.tier == resource.data.tier
+        && request.resource.data.user_id == resource.data.get('user_id', uid)
+        && request.resource.data.tier == resource.data.get('tier', 'Free')
         && request.resource.data.credit_balance is number
         && request.resource.data.credit_balance >= 0
         && (
@@ -527,7 +527,7 @@ service cloud.firestore {
             && pricingExists(request.resource.data.last_credit_action)
             && pricingDoc(request.resource.data.last_credit_action).data.is_active != false
             && request.resource.data.last_credit_cost == pricingDoc(request.resource.data.last_credit_action).data.credit_cost
-            && request.resource.data.credit_balance == resource.data.credit_balance - request.resource.data.last_credit_cost
+            && request.resource.data.credit_balance == resource.data.get('credit_balance', 0) - request.resource.data.last_credit_cost
             && existsAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx))
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.user_id == uid
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.status == 'pending'
@@ -544,7 +544,7 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.status == 'failed'
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount is number
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount < 0
-            && request.resource.data.credit_balance == resource.data.credit_balance + (-getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount)
+            && request.resource.data.credit_balance == resource.data.get('credit_balance', 0) + (-getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount)
           )
           ||
           // PURCHASE: balance increases by positive amount from a completed purchase tx.
@@ -557,7 +557,7 @@ service cloud.firestore {
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.action_type == 'purchase'
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount is number
             && getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount > 0
-            && request.resource.data.credit_balance == resource.data.credit_balance + getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount
+            && request.resource.data.credit_balance == resource.data.get('credit_balance', 0) + getAfter(/databases/$(database)/documents/credit_transactions/$(request.resource.data.last_credit_tx)).data.amount
             && (!('last_purchase_id' in request.resource.data) || request.resource.data.last_purchase_id is string)
           )
         )

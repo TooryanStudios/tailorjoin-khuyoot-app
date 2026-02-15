@@ -19,6 +19,8 @@ interface MobileTailorProfileProps {
     viewMode: ViewMode;
     toggleLike?: (id: string, count: number) => void;
     onProductClick: (id: string) => void;
+    hasMore?: boolean;
+    onLoadMore?: () => void;
 }
 
 export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
@@ -32,7 +34,9 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
     user,
     viewMode,
     toggleLike,
-    onProductClick
+    onProductClick,
+    hasMore,
+    onLoadMore
 }) => {
     // Helper to format OMR
     const formatOmr = (price: number | string | undefined): string => {
@@ -48,117 +52,118 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
     const mainImage = tailor.image || tailor.coverImage || (products.length > 0 ? products[0].image : null);
 
     return (
-        <div className="min-h-screen bg-[var(--studio-bg)] pb-20 relative scrollbar-hide">
-            {/* Immersive Hero Section */}
-            <div className="relative w-full h-[55vh]">
-                {/* Hero Background Image */}
-                {bgImage ? (
-                    <StableImage 
-                        src={bgImage} 
-                        alt="Background" 
-                        aspectClass="w-full h-full" 
-                        className="w-full h-full" 
-                        imgClassName="w-full h-full object-cover"
-                    />
-                ) : (
-                    <div className="w-full h-full bg-[var(--studio-surface)] flex items-center justify-center">
-                        <ShoppingBag size={48} className="text-[var(--studio-text-muted)]" />
-                    </div>
-                )}
+        <div className="min-h-screen bg-[#ededed] pb-20 relative font-['Tajawal'] text-right" dir="rtl">
+            
+            {/* Standard Profile Header (Matches App Theme) */}
+            <div className="bg-white pb-4 mb-4 shadow-sm border-b border-zinc-200">
                 
-                {/* Gradient Overlay - Starts transparent, goes via colored/transparent to solid page color */}
-                <div className="absolute inset-x-0 bottom-0 h-[60%] bg-gradient-to-t from-[var(--studio-bg)] via-[var(--studio-bg)]/80 to-transparent pointer-events-none" />
+                {/* Cover Image / Banner */}
+                <div className="relative h-32 md:h-48 w-full overflow-hidden bg-zinc-100">
+                    {tailor.coverImage ? (
+                        <StableImage 
+                            src={tailor.coverImage} 
+                            alt="Cover" 
+                            aspectClass="w-full h-full" 
+                            className="w-full h-full" 
+                            imgClassName="w-full h-full object-cover"
+                        />
+                    ) : (
+                        <div className="w-full h-full bg-slate-200 flex items-center justify-center">
+                             {/* Neutral placeholder */}
+                        </div>
+                    )}
+                    <button 
+                        onClick={onBack}
+                        className="absolute top-4 right-4 bg-white/90 backdrop-blur text-zinc-700 w-8 h-8 rounded-full flex items-center justify-center shadow-lg hover:bg-white transition-all z-10"
+                    >
+                        <ArrowRight size={18} />
+                    </button>
+                </div>
 
-                {/* Hero Content - Sitting on the gradient */}
-                <div className="absolute bottom-0 left-0 right-0 px-6 pb-8 flex flex-col items-center text-center z-10 animate-in slide-in-from-bottom-6 duration-700 delay-100">
-                    
-                    {/* Cinematic Title - Styled like 'A Magical Journey' */}
-                    <div className="flex flex-col items-center justify-center mb-3 relative">
-                        {tailor.approvalStatus === 'approved' && (
-                            <div className="absolute -top-6 text-blue-500 animate-in fade-in slide-in-from-bottom-2 duration-700 delay-300" title="موثق">
-                                <CheckCircle2 size={20} className="fill-blue-500/10" />
+                {/* Profile Info Row */}
+                <div className="px-4 flex items-end -mt-10 relative z-10 gap-3">
+                    {/* Profile Pic */}
+                    <div className="w-20 h-20 rounded-xl bg-white p-1 shadow-md border border-zinc-100">
+                        {tailor.image ? (
+                            <StableImage 
+                                src={tailor.image} 
+                                alt={tailor.name} 
+                                aspectClass="h-full" 
+                                className="w-full h-full rounded-lg overflow-hidden" 
+                                imgClassName="object-cover w-full h-full" 
+                            />
+                        ) : (
+                            <div className="w-full h-full bg-zinc-100 rounded-lg flex items-center justify-center text-zinc-300">
+                                <ShoppingBag size={24} />
                             </div>
                         )}
-                        <h1 className="text-6xl font-serif font-black text-[var(--studio-text)] leading-[0.85] drop-shadow-lg tracking-tighter max-w-[10ch] mx-auto text-center mt-2">
-                           {tailor.name}
-                        </h1>
+                    </div>
+
+                    {/* Basic Info */}
+                    <div className="flex-1 pb-1">
+                         <div className="flex items-center gap-1">
+                            <h1 className="text-xl font-bold text-black leading-tight flex items-center gap-1.5">
+                                {tailor.name}
+                                {tailor.approvalStatus === 'approved' && (
+                                    <CheckCircle2 size={16} className="text-blue-500 fill-blue-50" />
+                                )}
+                            </h1>
+                         </div>
+                         <div className="text-xs text-zinc-500 mt-0.5 flex items-center gap-2">
+                            <span>{getSpecializationLabel(tailor.specialization)}</span>
+                            {tailor.tailorGender && (
+                                <span className="text-zinc-400 text-[10px]">{tailor.tailorGender}</span>
+                            )}
+                         </div>
+                    </div>
+                </div>
+
+                <div className="px-4 mt-3 flex items-center justify-between">
+                     <div className="flex gap-4 text-xs font-medium text-zinc-600">
+                        <div className="flex items-center gap-1">
+                             <Star size={13} className="text-amber-500 fill-amber-500" />
+                             <span className="font-bold text-black">{tailor.rating || 0}</span>
+                             <span className="text-zinc-400 font-normal">تقييم</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                            <MapPin size={13} className="text-zinc-400" />
+                            <span>{tailor.location || 'مسقط'}</span>
+                             <span className="text-zinc-300">|</span>
+                             <Clock size={13} className="text-zinc-400" />
+                             <span>يفتح: 9:00 ص - 10:00 م</span>
+                        </div>
                      </div>
                      
-                     {/* Tags Row - Reverted Font, No Italic */}
-                     <div className="flex flex-wrap justify-center items-center gap-3 mb-2 text-[var(--studio-text-muted)] text-sm font-medium tracking-wide">
-                        {/* Tiny Avatar integrated as a visual anchor */}
-                        {mainImage && (
-                            <div className="w-6 h-6 rounded-full overflow-hidden border border-[var(--studio-card-border)] shadow-sm opacity-90">
-                                <StableImage 
-                                    src={mainImage} 
-                                    alt={tailor.name} 
-                                    aspectClass="h-full" 
-                                    className="h-full w-full" 
-                                    imgClassName="object-cover w-full h-full" 
-                                />
-                            </div>
-                        )}
-
-                        <span>{getSpecializationLabel(tailor.specialization)}</span>
-                        
-                        <span className="opacity-40">•</span>
-                        
-                        <span>{tailor.location || 'مسقط'}</span>
-                     </div>
+                     <button
+                        onClick={onContact}
+                        className="bg-[var(--theme-primary)] hover:opacity-90 text-white text-xs font-light px-4 py-1.5 rounded-full flex items-center gap-1.5 shadow-sm transition-colors"
+                     >
+                         <MessageCircle size={14} />
+                         تواصل
+                     </button>
                 </div>
             </div>
 
-            <div className="relative px-6 flex flex-col items-center">
-                {/* Stats Info Bar - Minimal Capsul, Outlined Icons, Less Rounded, Smaller, No Border */}
-                <div className="w-full max-w-sm bg-[var(--studio-surface)] backdrop-blur-md rounded-lg px-4 py-2 shadow-sm flex justify-between items-center mb-6 -mt-4 relative z-20">
-                    
-                    {/* Item 1: Models */}
-                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
-                        <ShoppingBag size={14} className="stroke-1" />
-                        <span className="text-xs font-medium">{products.length} موديل</span>
-                    </div>
-
-                    {/* Separator */}
-                    <div className="w-px h-3 bg-[var(--studio-card-border)]" />
-
-                    {/* Item 2: Rating */}
-                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
-                         <Star size={14} className="stroke-1" />
-                         <span className="text-xs font-medium">{tailor.rating} تقييم</span>
-                    </div>
-
-                    {/* Separator */}
-                    <div className="w-px h-3 bg-[var(--studio-card-border)]" />
-
-                    {/* Item 3: Followers */}
-                    <div className="flex items-center gap-1.5 text-[var(--studio-text-muted)]">
-                         <Heart size={14} className="stroke-1" />
-                         <span className="text-xs font-medium">{tailor.followers || 0} متابع</span>
-                    </div>
-                </div>
-
-                {/* Tabs */}
-                <div className="flex w-full border-b border-[var(--studio-card-border)] mb-2">
+            <div className="px-2">
+                {/* Tabs - Underline Style (Matching App) */}
+                <div className="bg-white rounded-lg shadow-sm border border-zinc-100 p-1 mb-4 flex">
                     <button 
                         onClick={() => setActiveTab('products')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'products' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
+                        className={`flex-1 py-2 text-sm font-light text-center rounded-md transition-all ${activeTab === 'products' ? 'bg-[var(--theme-surface-lavender)] text-[var(--theme-primary)]' : 'text-zinc-500 hover:text-black hover:bg-zinc-50'}`}
                     >
                         الموديلات
-                        {activeTab === 'products' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
-                    </button>
-                    <button 
-                        onClick={() => setActiveTab('portfolio')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'portfolio' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
-                    >
-                         نبذة
-                        {activeTab === 'portfolio' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
                     </button>
                      <button 
                         onClick={() => setActiveTab('reviews')}
-                        className={`flex-1 pb-3 text-sm font-bold text-center relative transition-colors ${activeTab === 'reviews' ? 'text-blue-600' : 'text-[var(--studio-text-muted)]'}`}
+                        className={`flex-1 py-2 text-sm font-light text-center rounded-md transition-all ${activeTab === 'reviews' ? 'bg-[var(--theme-surface-lavender)] text-[var(--theme-primary)]' : 'text-zinc-500 hover:text-black hover:bg-zinc-50'}`}
                     >
                         التقييمات
-                        {activeTab === 'reviews' && <div className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-600 rounded-t-full" />}
+                    </button>
+                    <button 
+                        onClick={() => setActiveTab('portfolio')}
+                        className={`flex-1 py-2 text-sm font-light text-center rounded-md transition-all ${activeTab === 'portfolio' ? 'bg-[var(--theme-surface-lavender)] text-[var(--theme-primary)]' : 'text-zinc-500 hover:text-black hover:bg-zinc-50'}`}
+                    >
+                         نبذة
                     </button>
                 </div>
 
@@ -204,69 +209,37 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
                              ) : (
                                  <>
                                      {/* Category: All Models */}
-                                     <div className="space-y-3">
-                                         <h2 className="text-xs font-normal text-slate-900 dark:text-white px-1">
+                                     <div className="space-y-4">
+                                         <h2 className="text-sm font-bold text-slate-900 dark:text-white px-1">
                                              جميع الموديلات
                                          </h2>
-                                         <div className="relative -mx-6">
-                                             <div className="flex gap-1.5 overflow-x-auto snap-x snap-mandatory scrollbar-hide px-6 pb-2">
+                                         <div className="bg-[#52554e] text-white rounded-[1.5rem] px-4 py-6 relative overflow-hidden mb-4 mx-1">
+                                             {/* Subtle Pattern Overlay */}
+                                             <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, white 1px, transparent 0)', backgroundSize: '24px 24px' }}></div>
+                                             
+                                             <div className="relative z-10 grid grid-cols-2 gap-3">
                                                  {products.map((product, index) => (
-                                                     <div 
+                                                     <TailorProductCard
                                                          key={product.id}
-                                                         className="flex-shrink-0 w-[135px] snap-start"
+                                                         product={product}
+                                                         viewMode="grid"
                                                          onClick={() => onProductClick(product.id)}
-                                                     >
-                                                         <div className="relative aspect-[2/3.5] rounded overflow-hidden group cursor-pointer">
-                                                             <StableImage
-                                                                 src={product.image}
-                                                                 alt={product.name}
-                                                                 aspectClass="w-full h-full"
-                                                                 className="w-full h-full"
-                                                                 imgClassName="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                                             />
-                                                             <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/30 to-transparent" />
-                                                             
-                                                             {/* Top 10 Badge - First 2 cards */}
-                                                             {index < 2 && (
-                                                                 <div className="absolute top-2 left-2 bg-red-600 text-white text-[8px] font-bold px-1 py-0.5 rounded leading-tight flex flex-col items-center">
-                                                                     <span>Top</span>
-                                                                     <span>10</span>
-                                                                 </div>
-                                                             )}
-
-                                                             {/* Action Icons - Top Right */}
-                                                             <div className="absolute top-2 right-2 flex gap-1.5">
-                                                                 <button 
-                                                                     className="text-white hover:text-white/80 transition-colors"
-                                                                     onClick={(e) => {
-                                                                         e.stopPropagation();
-                                                                         toggleLike && toggleLike(product.id, product.likeCount || 0);
-                                                                     }}
-                                                                 >
-                                                                     <Heart size={14} className="stroke-2" />
-                                                                 </button>
-                                                                 <button 
-                                                                     className="text-white hover:text-white/80 transition-colors"
-                                                                     onClick={(e) => e.stopPropagation()}
-                                                                 >
-                                                                     <Bookmark size={14} className="stroke-2" />
-                                                                 </button>
-                                                             </div>
-
-                                                             {/* Title & Price - Bottom */}
-                                                             <div className="absolute bottom-0 left-0 right-0 p-3 text-center">
-                                                                 <h3 className="text-white font-bold text-base line-clamp-2 mb-1">
-                                                                     {product.name}
-                                                                 </h3>
-                                                                 <p className="text-white/80 text-[11px] font-medium">
-                                                                     {formatOmr(product.price)} ر.ع
-                                                                 </p>
-                                                             </div>
-                                                         </div>
-                                                     </div>
+                                                         onToggleLike={toggleLike}
+                                                     />
                                                  ))}
                                              </div>
                                          </div>
+
+                                         {hasMore && (
+                                            <div className="flex justify-center pb-8 pt-2">
+                                                <button 
+                                                    onClick={onLoadMore}
+                                                    className="px-6 py-2 bg-white text-zinc-700 border border-zinc-200 rounded-full text-sm font-medium hover:bg-zinc-50 transition-colors shadow-sm"
+                                                >
+                                                    عرض المزيد
+                                                </button>
+                                            </div>
+                                         )}
                                      </div>
                                  </>
                              )}

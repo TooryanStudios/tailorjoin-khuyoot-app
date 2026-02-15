@@ -183,10 +183,14 @@ async function proxyRemoteImageInfo(urlStr: string, res: http.ServerResponse, re
 
 const port = Number(process.env.TRYON_API_PORT || 8788);
 
-const server = http.createServer(async (req, res) => {
+const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
   try {
     if (!req.url) return;
-    console.log(`[API] ${req.method} ${req.url}`);
+    
+    // Log health checks less verbosely
+    if (!req.url.startsWith('/api/health')) {
+      console.log(`[API] ${req.method} ${req.url}`);
+    }
 
     if (req.method === 'OPTIONS') {
       setCors(res, req);
@@ -348,8 +352,14 @@ const server = http.createServer(async (req, res) => {
 
   if (req.url.startsWith('/api/health')) {
     setCors(res, req);
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'ok' }));
+    try {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'ok', timestamp: Date.now() }));
+    } catch (e: any) {
+      console.error('[API] /health error:', e);
+      res.writeHead(500);
+      res.end(JSON.stringify({ error: e.message }));
+    }
     return;
   }
 

@@ -18,6 +18,7 @@ import { useAppStore } from '../src/store/useAppStore';
 import { preloadImages } from '../src/utils/imagePreloader';
 import { StableImage } from '../components/StableImage';
 import { MontHeader } from '../src/components/MontHeader';
+import { DeleteConfirmModal } from '../src/pages/DesignerV2_1/components/DeleteConfirmModal';
 
 type UploadItemStatus = 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
 type SaveJobStatus = 'uploading' | 'saving' | 'done' | 'error';
@@ -116,6 +117,8 @@ export const TailorCollections = () => {
   const [allProductImages, setAllProductImages] = useState<string[]>([]); // Array of all product images
   const [pendingImageFiles, setPendingImageFiles] = useState<File[]>([]); // Files waiting to be uploaded on submit
   const [pendingBlobUrls, setPendingBlobUrls] = useState<string[]>([]); // Maps 1:1 with pendingImageFiles
+  const [pendingVideoFile, setPendingVideoFile] = useState<File | null>(null); // Video file waiting to be uploaded
+  const [pendingVideoUrl, setPendingVideoUrl] = useState<string>(''); // Blob URL or existing video URL
   const [uploadError, setUploadError] = useState<string>('');
   const [coverImageIndex, setCoverImageIndex] = useState<number>(0); // index صورة الغلاف
   const [showDefaultImagesModal, setShowDefaultImagesModal] = useState(false); // modal الصور الافتراضية
@@ -134,6 +137,14 @@ export const TailorCollections = () => {
   const [isImageDragOver, setIsImageDragOver] = useState(false);
   const [draggedImageIndex, setDraggedImageIndex] = useState<number | null>(null);
   const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
+  
+  // Delete confirm modal state
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
+  
+  // Success dialog state
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
 
   const normalizeGenderValue = React.useCallback((value?: string): 'male' | 'female' | null => {
     if (!value) return null;
@@ -449,7 +460,7 @@ export const TailorCollections = () => {
       const imageFiles = files.filter((f) => f.type.startsWith('image/'));
       if (imageFiles.length === 0) return;
 
-      const totalImages = allProductImages.length + pendingImageFiles.length;
+      const totalImages = allProductImages.length;
       const remainingSlots = 10 - totalImages;
       const filesToAdd = imageFiles.slice(0, Math.max(0, remainingSlots));
 
@@ -640,6 +651,17 @@ export const TailorCollections = () => {
     [updateJob]
   );
 
+  const uploadVideo = React.useCallback(
+    async (videoFile: File, userId: string): Promise<string> => {
+      const uniqueId = `${Date.now()}_${Math.random().toString(36).substring(7)}`;
+      const storageRef = ref(storage, `products/${userId}/videos/${uniqueId}_${videoFile.name}`);
+      await uploadBytes(storageRef, videoFile);
+      const downloadUrl = await getDownloadURL(storageRef);
+      return downloadUrl;
+    },
+    []
+  );
+
   const runAddOrUpdateJob = React.useCallback(
     async (params: {
       title: string;
@@ -722,6 +744,15 @@ export const TailorCollections = () => {
             return;
           }
 
+          // Upload video if present
+          let videoUrl: string | undefined = undefined;
+          if (pendingVideoFile) {
+            videoUrl = await uploadVideo(pendingVideoFile, user.id);
+          } else if (pendingVideoUrl && !pendingVideoUrl.startsWith('blob:')) {
+            // Keep existing video URL if no new video was uploaded
+            videoUrl = pendingVideoUrl;
+          }
+
           const newProduct: Product = {
             id: '', // سيتم إنشاؤه تلقائياً في Firebase
             name: newName,
@@ -738,6 +769,7 @@ export const TailorCollections = () => {
             tailorName: user.name,
             ...(trimmedDescription ? { description: trimmedDescription } : {}),
             ...(parsedTags.length > 0 ? { tags: parsedTags } : {}),
+            ...(videoUrl ? { videoUrl } : {}),
             isDraft: saveAsDraft,
           };
 
@@ -750,7 +782,8 @@ export const TailorCollections = () => {
       setShowAddForm(false);
       resetForm();
       
-      alert(saveAsDraft ? 'تم حفظ المنتج كمسودة!' : 'تم نشر المنتج بنجاح!');
+      setSuccessMessage(saveAsDraft ? 'تم حفظ المنتج كمسودة!' : 'تم نشر المنتج بنجاح!');
+      setShowSuccessDialog(true);
     } catch (error) {
       console.error('Error adding product:', error);
       alert('حدث خطأ أثناء إضافة المنتج');
@@ -767,15 +800,30 @@ export const TailorCollections = () => {
       return;
     }
 
-    if(!confirm('هل أنت متأكد من حذف هذا المنتج؟')) return;
+    setProductToDelete(id);
+    setShowDeleteModal(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+    const id = productToDelete;
+    
+    // Optimistic update
+    const previousProducts = [...tailorProducts];
+    setTailorProducts(tailorProducts.filter(p => p.id !== id));
+    setShowDeleteModal(false);
     
     try {
-      await firebaseService.deleteProduct(id, user.id);
-      await refreshProducts();
-      alert('تم حذف المنتج بنجاح');
+      if (user?.id) {
+        await firebaseService.deleteProduct(id, user.id);
+      }
     } catch (error) {
       console.error('Error deleting product:', error);
       alert('حدث خطأ أثناء حذف المنتج');
+      // Revert state
+      setTailorProducts(previousProducts);
+    } finally {
+      setProductToDelete(null);
     }
   };
 
@@ -791,6 +839,9 @@ export const TailorCollections = () => {
     setAllProductImages(product.images || (product.image ? [product.image] : []));
     setPendingImageFiles([]);
     setPendingBlobUrls([]);
+    // تحميل الفيديو الموجود (إن وجد)
+    setPendingVideoFile(null);
+    setPendingVideoUrl(product.videoUrl || '');
     // تحميل index صورة الغلاف
     setCoverImageIndex(product.coverImageIndex || 0);
     setShowAddForm(false);
@@ -842,10 +893,25 @@ export const TailorCollections = () => {
             return;
           }
 
+          // Upload video if present
+          let videoUrl: string | undefined = undefined;
+          if (pendingVideoFile) {
+            videoUrl = await uploadVideo(pendingVideoFile, user.id);
+          } else if (pendingVideoUrl && !pendingVideoUrl.startsWith('blob:')) {
+            // Keep existing video URL if no new video was uploaded
+            videoUrl = pendingVideoUrl;
+          } else if (editingProduct.videoUrl) {
+            // Keep existing video URL from the product being edited
+            videoUrl = editingProduct.videoUrl;
+          }
+
           // تحديث الصور (يجب أن تكون موجودة)
           updates.image = uploadedUrls[coverImageIndex] || uploadedUrls[0];
           updates.coverImageIndex = coverImageIndex;
           updates.images = uploadedUrls;
+          if (videoUrl) {
+            updates.videoUrl = videoUrl;
+          }
 
           // إذا كان المنتج مسودة ونريد نشره
           if (publishDraft && editingProduct.isDraft) {
@@ -861,10 +927,11 @@ export const TailorCollections = () => {
       resetForm();
       
       if (publishDraft && editingProduct.isDraft) {
-        alert('تم نشر المنتج بنجاح!');
+        setSuccessMessage('تم نشر المنتج بنجاح!');
       } else {
-        alert('تم تحديث المنتج بنجاح!');
+        setSuccessMessage('تم تحديث المنتج بنجاح!');
       }
+      setShowSuccessDialog(true);
     } catch (error) {
       console.error('Error updating product:', error);
       alert('حدث خطأ أثناء تحديث المنتج');
@@ -878,6 +945,9 @@ export const TailorCollections = () => {
     pendingBlobUrls.forEach((url) => {
       if (url.startsWith('blob:')) URL.revokeObjectURL(url);
     });
+    if (pendingVideoUrl && pendingVideoUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingVideoUrl);
+    }
     
     setNewName('');
     setNewPrice('');
@@ -887,6 +957,8 @@ export const TailorCollections = () => {
     setAllProductImages([]);
     setPendingImageFiles([]);
     setPendingBlobUrls([]);
+    setPendingVideoFile(null);
+    setPendingVideoUrl('');
     setCoverImageIndex(0);
     setUploadError('');
     
@@ -996,6 +1068,9 @@ export const TailorCollections = () => {
     pendingBlobUrls.forEach((url) => {
       if (url.startsWith('blob:')) URL.revokeObjectURL(url);
     });
+    if (pendingVideoUrl && pendingVideoUrl.startsWith('blob:')) {
+      URL.revokeObjectURL(pendingVideoUrl);
+    }
     
     setNewName('');
     setNewPrice('');
@@ -1007,6 +1082,8 @@ export const TailorCollections = () => {
     setAllProductImages([]);
     setPendingImageFiles([]);
     setPendingBlobUrls([]);
+    setPendingVideoFile(null);
+    setPendingVideoUrl('');
     setCoverImageIndex(0);
     setUploadError('');
   };
@@ -1197,6 +1274,8 @@ export const TailorCollections = () => {
               uploadError,
               pendingImageFiles,
               pendingBlobUrls,
+              pendingVideoFile,
+              pendingVideoUrl,
               draggedImageIndex,
             }}
             handlers={{
@@ -1214,6 +1293,8 @@ export const TailorCollections = () => {
               setUploadError,
               setPendingImageFiles,
               setPendingBlobUrls,
+              setPendingVideoFile,
+              setPendingVideoUrl,
               setDraggedImageIndex,
             }}
             callbacks={{
@@ -1559,6 +1640,42 @@ export const TailorCollections = () => {
                   </p>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      <DeleteConfirmModal 
+        isOpen={showDeleteModal}
+        onConfirm={confirmDelete}
+        onCancel={() => setShowDeleteModal(false)}
+        itemName="هذا المنتج"
+      />
+
+      {/* Success Dialog */}
+      {showSuccessDialog && (
+        <div 
+          className="fixed inset-0 z-[15000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+          onClick={() => setShowSuccessDialog(false)}
+        >
+          <div 
+            className="relative w-full max-w-sm bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 animate-in zoom-in duration-300"
+            onClick={(e) => e.stopPropagation()}
+            dir="rtl"
+          >
+            <div className="p-6 text-center space-y-4">
+              <div className="w-16 h-16 mx-auto rounded-full bg-emerald-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <h3 className="text-lg font-bold text-gray-900">{successMessage}</h3>
+              <button
+                onClick={() => setShowSuccessDialog(false)}
+                className="w-full px-6 py-3 bg-theme-primary text-white rounded-xl font-medium hover:bg-emerald-600 transition-all active:scale-95"
+              >
+                حسناً
+              </button>
             </div>
           </div>
         </div>

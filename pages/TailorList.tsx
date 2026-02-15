@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, MapPin, Star, CheckCircle2, Search, Filter, Grid, List } from 'lucide-react';
 import { Tailor, Region } from '../types';
-import { getTailors } from '../services/mockService';
 import { getSpecializationLabel } from '../utils/specializationHelper';
 import { StableImage } from '../components/StableImage';
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from '../services/firebase';
 
 const REGIONS: { id: Region | 'All', name: string }[] = [
   { id: 'All', name: 'الكل' },
@@ -15,6 +16,15 @@ const REGIONS: { id: Region | 'All', name: string }[] = [
   { id: 'Sur', name: 'صور' },
 ];
 
+// Helper to translate common region names if they come in English
+const translateRegion = (name: string): string => {
+  const map: Record<string, string> = {
+    'Muscat': 'مسقط', 'Sohar': 'صحار', 'Salalah': 'صلالة', 'Nizwa': 'نزوى', 'Sur': 'صور',
+    'Buraimi': 'البريمي', 'Rustaq': 'الرستاق', 'Ibri': 'عبري', 'Khasab': 'خصب'
+  };
+  return map[name] || name;
+};
+
 export const TailorList = () => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -22,12 +32,52 @@ export const TailorList = () => {
   const regionFilter = searchParams.get('region');
   
   const [tailors, setTailors] = useState<Tailor[]>([]);
-  const [activeRegion, setActiveRegion] = useState<Region | 'All'>('All');
+  const [availableRegions, setAvailableRegions] = useState(REGIONS as { id: string, name: string }[]);
+  const [activeRegion, setActiveRegion] = useState('All');
   const [search, setSearch] = useState('');
+  const [displayCount, setDisplayCount] = useState(6);
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
 
   useEffect(() => {
-    getTailors().then(setTailors);
+    const fetchTailors = async () => {
+      try {
+        const usersRef = collection(db, 'users');
+        const q = query(usersRef, where('approvalStatus', '==', 'approved'));
+        const snapshot = await getDocs(q);
+        
+        const fetchedTailors = snapshot.docs
+          .map(doc => ({ id: doc.id, ...doc.data() } as Tailor))
+          .filter(user => {
+              const role = user.role;
+              const type = (user as any).type || (user as any).shopType;
+              const shopTypes = ['tailor', 'boutique', 'shop', 'fabric_store'];
+              return shopTypes.includes(role) || shopTypes.includes(type);
+          });
+          
+        setTailors(fetchedTailors);
+
+        // Extract unique regions from fetched tailors
+        const uniqueRegions = new Set<string>();
+        fetchedTailors.forEach(t => {
+          if (t.region) uniqueRegions.add(t.region);
+        });
+        
+        // Create dynamic region list
+        const dynamicRegions = Array.from(uniqueRegions).map(r => ({
+          id: r,
+          name: translateRegion(r)
+        })).sort((a, b) => a.name.localeCompare(b.name, 'ar')); // Sort alphabetically in Arabic
+
+        // Merge with defaults if you want to ensure main cities are always visible, 
+        // OR replace entirely. For "from existing tailor shops", replacement is better,
+        // but we'll prepend 'All'.
+        setAvailableRegions([{ id: 'All', name: 'الكل' }, ...dynamicRegions]);
+
+      } catch (error) {
+        console.error('Error fetching tailors:', error);
+      }
+    };
+    fetchTailors();
   }, []);
 
   // Set initial search if specialization filter is provided
@@ -40,19 +90,20 @@ export const TailorList = () => {
   // Set initial region if region filter is provided from URL
   useEffect(() => {
     if (regionFilter) {
-      // Try to match region from REGIONS list, otherwise set to 'All'
-      const matchedRegion = REGIONS.find(r => r.name === regionFilter || r.id === regionFilter);
-      if (matchedRegion && matchedRegion.id !== 'All') {
-        setActiveRegion(matchedRegion.id);
-      }
+      // Logic adjusted to work with dynamic availableRegions if needed, 
+      // but activeRegion state is simple string now.
+      setActiveRegion(regionFilter); 
     }
   }, [regionFilter]);
 
   const filteredTailors = tailors.filter(t => {
     const matchesRegion = activeRegion === 'All' || t.region === activeRegion;
-    const matchesSearch = t.name.includes(search) || t.specialization.includes(search);
-    return matchesRegion && matchesSearch;
+    const nameMatch = (t.name || '').toLowerCase().includes(search.toLowerCase());
+    const specMatch = (t.specialization || '').toLowerCase().includes(search.toLowerCase());
+    return matchesRegion && (nameMatch || specMatch);
   });
+  
+  const displayedTailors = filteredTailors.slice(0, displayCount);
 
   return (
     <div className="h-full flex flex-col bg-[#ededed] font-['Tajawal'] text-[#1a1a1a] selection:bg-[var(--theme-primary)] selection:text-white">
@@ -124,22 +175,12 @@ export const TailorList = () => {
           </div>
         )}
         
-        {/* Search */}
-        <div className="relative max-w-xl mx-auto mb-6">
-           <input 
-              type="text" 
-              placeholder="ابحث باسم الخياط أو التخصص..."
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-white border border-zinc-200 rounded-full py-4 pl-12 pr-6 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-black/10 focus:border-black transition-all"
-           />
-              <Search size={18} className="absolute top-1/2 -translate-y-1/2 left-4 text-zinc-400" />
-        </div>
+        {/* Search removed as requested */}
 
         {/* Region Filter */}
         <div className="flex items-center justify-between mb-4">
           <div className="flex gap-2 overflow-x-auto no-scrollbar pb-2 flex-1">
-            {REGIONS.map(region => (
+            {availableRegions.map(region => (
               <button
                 key={region.id}
                 onClick={() => setActiveRegion(region.id)}
@@ -185,33 +226,40 @@ export const TailorList = () => {
       {/* List */}
       <div className="bg-white rounded-3xl p-4 md:p-6 shadow-sm">
       <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'grid grid-cols-1 gap-4'}>
-        {filteredTailors.map(tailor => (
+        {displayedTailors.map(tailor => (
            <div 
              key={tailor.id}
-             onClick={() => navigate(`/tailor/${tailor.id}`)}
-             className="bg-white rounded-xl p-4 border border-zinc-200 hover:shadow-md transition-all cursor-pointer flex gap-4"
+             onClick={(e) => {
+               e.stopPropagation();
+               console.log('Navigating to tailor:', tailor.id);
+               navigate(`/tailor/${tailor.id}`);
+             }}
+             className="bg-white rounded-xl p-4 border border-zinc-200 hover:shadow-md transition-all cursor-pointer flex gap-4 relative z-10"
            >
-              {tailor.image ? (
-                <StableImage
-                  src={tailor.image}
-                  alt={tailor.name}
-                  aspectClass="aspect-square"
-                  className="w-20 h-20 rounded-xl border border-zinc-200"
-                  imgClassName="object-cover"
-                />
+              {(tailor.image || tailor.profileImage || tailor.avatar) ? (
+                <div className="w-20 h-20 shrink-0">
+                  <StableImage
+                    src={tailor.image || tailor.profileImage || tailor.avatar || ''}
+                    alt={tailor.name}
+                    aspectClass="aspect-square"
+                    className="w-full h-full rounded-xl border border-zinc-200 overflow-hidden"
+                    imgClassName="w-full h-full object-cover"
+                  />
+                </div>
               ) : (
-                <div className="w-20 h-20 rounded-xl bg-zinc-100 flex items-center justify-center border border-zinc-200">
-                  <span className="text-2xl font-bold text-zinc-400">
-                    {tailor.name.charAt(0)}
+                <div className="w-20 h-20 shrink-0 rounded-xl bg-zinc-100 flex items-center justify-center border border-zinc-200">
+                  <span className="text-2xl font-bold text-zinc-400 uppercase">
+                    {(tailor.name || '?').charAt(0)}
                   </span>
                 </div>
               )}
-              <div className="flex-1">
+              
+              <div className="flex-1 min-w-0">
                  <div className="flex justify-between items-start">
                     <div className="flex items-center gap-2">
-                      <h3 className="text-[15px] font-bold text-black">{tailor.name}</h3>
+                      <h3 className="text-[15px] font-bold text-black truncate">{tailor.name}</h3>
                       {tailor.tailorGender && (
-                        <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${
                           tailor.tailorGender === 'male' 
                             ? 'bg-blue-500/10 text-blue-600' 
                             : 'bg-pink-500/10 text-pink-600'
@@ -220,7 +268,7 @@ export const TailorList = () => {
                         </span>
                       )}
                     </div>
-                    <div className="flex items-center gap-1 text-amber-500 text-xs font-bold bg-amber-500/10 px-1.5 py-0.5 rounded">
+                    <div className="flex items-center gap-1 text-amber-500 text-xs font-bold bg-amber-500/10 px-1.5 py-0.5 rounded shrink-0">
                        <Star size={10} fill="currentColor" /> {tailor.rating}
                     </div>
                  </div>
@@ -243,6 +291,18 @@ export const TailorList = () => {
            </div>
         )}
       </div>
+
+      {filteredTailors.length > displayedTailors.length && (
+        <div className="flex justify-center mt-8">
+          <button 
+            onClick={() => setDisplayCount(prev => prev + 6)}
+            className="bg-zinc-900 text-white px-8 py-3 rounded-full text-sm font-medium hover:bg-zinc-800 transition-colors shadow-lg shadow-zinc-200"
+          >
+            عرض المزيد من الخياطين
+          </button>
+        </div>
+      )}
+
       </div>
       </div>
       </div>

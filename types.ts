@@ -94,6 +94,7 @@ export interface Product {
   image: string; // صورة الغلاف الرئيسية
   coverImageIndex?: number; // index الصورة المختارة كغلاف من images
   images?: string[]; // صور إضافية للمنتج
+  videoUrl?: string; // رابط الفيديو التعريفي للمنتج
   rating?: number;
   location?: string;
   duration?: string; // e.g. "3-5 أيام"
@@ -181,6 +182,8 @@ export interface Shop {
   rating?: number;
   location?: string;
   image?: string;
+  profileImage?: string; // Sometimes used by User model
+  avatar?: string;       // Sometimes used by User model
   coverImage?: string;
   description?: string;
   followers?: number;

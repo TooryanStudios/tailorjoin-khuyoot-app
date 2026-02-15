@@ -627,11 +627,6 @@ export const useDesignerLogic = () => {
       }
 
       try {
-        await firebaseService.adminAdjustCredits({
-          userId: currentUser.uid,
-          amount: 10,
-          reason: `Plan selection bonus (${planId})`,
-        });
         markPlanBonusClaimed();
         await refreshCredits();
       } catch (error: any) {
@@ -652,17 +647,21 @@ export const useDesignerLogic = () => {
 
     console.log('[Designer] User ID:', currentUser.uid);
     
-    // Try Firebase directly (simpler and more reliable)
+    // Use user-allowed purchase flow (Firestore rules block admin/manual adjustments for regular users)
     try {
-      console.log('[Designer] Calling Firebase adminAdjustCredits...');
+      console.log('[Designer] Calling Firebase purchaseCredits...');
       const baseAmount = 200;
       const bonusAmount = !planBonusClaimed ? 10 : 0;
       const totalAmount = baseAmount + bonusAmount;
 
-      const result = await firebaseService.adminAdjustCredits({
+      const result = await firebaseService.purchaseCredits({
         userId: currentUser.uid,
         amount: totalAmount,
-        reason: bonusAmount > 0 ? `Upgrade bonus (${baseAmount}) + Plan Selection Bonus (${bonusAmount})` : 'Upgrade bonus',
+        packageType: 'upgrade_bonus',
+        packageName: bonusAmount > 0 ? `Upgrade bonus (${baseAmount}) + Plan Selection Bonus (${bonusAmount})` : 'Upgrade bonus',
+        amountPaid: 0,
+        paymentMethod: 'bonus',
+        isSubscription: false,
       });
       
       console.log('[Designer] Firebase result:', result);
@@ -684,8 +683,12 @@ export const useDesignerLogic = () => {
         });
       }
     } catch (error: any) {
-      console.error('❌ Firebase adminAdjustCredits failed:', error);
-      throw new Error(error?.message || t('creditReserveFailed'));
+      console.error('❌ Firebase purchaseCredits failed:', error);
+      const msg = String(error?.message || '');
+      if (msg === 'AUTH_REQUIRED') {
+        throw new Error(t('mustLoginFirst'));
+      }
+      throw new Error(msg || t('creditReserveFailed'));
     }
 
     console.log('🔵 Setting subscription flags...');
@@ -1524,8 +1527,9 @@ export const useDesignerLogic = () => {
       } else if ('reason' in creditRes && creditRes.reason === 'error') {
         // Check if the error is due to not being logged in
         const errorMsg = creditRes.error instanceof Error ? creditRes.error.message : String(creditRes.error || '');
-        if (errorMsg.includes('Not logged in')) {
+        if (/not logged in|auth_required|permission-denied|insufficient permissions/i.test(errorMsg)) {
           toggleAuthModal(true, 'login');
+          showError('انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.');
           return;
         }
         showError('Unable to reserve credits. Please try again.');
@@ -1656,8 +1660,9 @@ export const useDesignerLogic = () => {
       } else if ('reason' in creditRes && creditRes.reason === 'error') {
         // Check if the error is due to not being logged in
         const errorMsg = creditRes.error instanceof Error ? creditRes.error.message : String(creditRes.error || '');
-        if (errorMsg.includes('Not logged in')) {
+        if (/not logged in|auth_required|permission-denied|insufficient permissions/i.test(errorMsg)) {
           toggleAuthModal(true, 'login');
+          showError('انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.');
           return;
         }
         showError('Unable to reserve credits for upscale. Please try again.');
@@ -1913,8 +1918,9 @@ export const useDesignerLogic = () => {
           } else if ('reason' in res && res.reason === 'error') {
             // Check if the error is due to not being logged in
             const errorMsg = res.error instanceof Error ? res.error.message : String(res.error || '');
-            if (errorMsg.includes('Not logged in')) {
+            if (/not logged in|auth_required|permission-denied|insufficient permissions/i.test(errorMsg)) {
               toggleAuthModal(true, 'login');
+              showError('انتهت الجلسة. يرجى تسجيل الدخول مرة أخرى.');
               return;
             }
             showError('Unable to reserve credits for premium template. Please try again.');

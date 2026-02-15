@@ -149,7 +149,7 @@ export const SmartHeader: React.FC = () => {
               onClick={() => navigate('/tryon')}
               className="flex items-center gap-3 rounded-xl p-3 text-left font-medium text-slate-700 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-               <div className="flex h-8 w-8 items-center justify-center rounded-full bg-purple-100 text-purple-600 dark:bg-purple-900/30 dark:text-purple-400">
+              <div className="flex h-8 w-8 items-center justify-center rounded-full bg-theme-primary/10 text-theme-primary dark:bg-theme-primary/20 dark:text-theme-primary">
                 <span className="text-xs">D</span>
               </div>
               {t('navDesigner') || 'Designer'}
