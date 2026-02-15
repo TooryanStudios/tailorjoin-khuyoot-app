@@ -483,6 +483,16 @@
   </head>
 
   <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
+    
+    <!-- DIAGNOSTIC OVERLAY - Always visible during boot -->
+    <div id="diagnostic-overlay" style="position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.95);color:#00ff00;font-family:monospace;font-size:12px;padding:15px;z-index:999999;max-height:250px;overflow-y:auto;border-top:3px solid #00ff00;box-shadow:0 -4px 20px rgba(0,255,0,0.3)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-weight:bold;color:#00ff00">🔍 BOOT DIAGNOSTICS</div>
+        <button onclick="this.parentElement.parentElement.style.display='none'" style="background:#00ff00;color:#000;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold">HIDE</button>
+      </div>
+      <div style="color:#888;font-size:11px;margin-bottom:5px">⏱️ Starting diagnostic...</div>
+    </div>
+    
     <div id="root" class="min-height-screen bg-inherit text-inherit">
       <!-- Inline splash screen before React loads -->
       <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a] z-[9999] transition-opacity duration-300">
@@ -496,18 +506,21 @@
     <script>
       console.log('[BOOT] Starting app initialization...', new Date().toISOString());
       
-      // Create diagnostic overlay for debugging
-      var diagnosticDiv = document.createElement('div');
-      diagnosticDiv.id = 'diagnostic-overlay';
-      diagnosticDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:#00ff00;font-family:monospace;font-size:11px;padding:10px;z-index:99999;max-height:200px;overflow-y:auto;border-top:2px solid #00ff00';
-      document.body.appendChild(diagnosticDiv);
+      // Use the existing diagnostic overlay
+      var diagnosticDiv = document.getElementById('diagnostic-overlay');
       
       window.__diagnosticLog = function(msg) {
         console.log('[DIAGNOSTIC]', msg);
-        var entry = document.createElement('div');
-        entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
-        diagnosticDiv.appendChild(entry);
-        diagnosticDiv.scrollTop = diagnosticDiv.scrollHeight;
+        if (!diagnosticDiv) {
+          diagnosticDiv = document.getElementById('diagnostic-overlay');
+        }
+        if (diagnosticDiv) {
+          var entry = document.createElement('div');
+          entry.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(0,255,0,0.2)';
+          entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+          diagnosticDiv.appendChild(entry);
+          diagnosticDiv.scrollTop = diagnosticDiv.scrollHeight;
+        }
       };
       
       window.__diagnosticLog('✓ Diagnostic system initialized');
