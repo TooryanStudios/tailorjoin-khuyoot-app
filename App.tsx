@@ -146,8 +146,24 @@ const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
 
-  console.log('[App] Component rendering, hasHydrated:', hasHydrated);
-  if (window.__diagnosticLog) window.__diagnosticLog('📱 App rendering, hydrated: ' + hasHydrated);
+  // Debug: Check both the hook value AND the store value
+  const storeValue = useAppStore.getState().hasHydrated;
+  console.log('[App] Component rendering, hook value:', hasHydrated, 'store value:', storeValue);
+  if (window.__diagnosticLog) window.__diagnosticLog('📱 App render: hook=' + hasHydrated + ' store=' + storeValue);
+
+  // Emergency hydration check: if hook says false but store says true, force re-render
+  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  React.useEffect(() => {
+    const unsubscribe = useAppStore.subscribe((state) => {
+      console.log('[App] Store updated! hasHydrated:', state.hasHydrated);
+      if (state.hasHydrated && !hasHydrated) {
+        console.warn('[App] MISMATCH DETECTED! Forcing re-render');
+        if (window.__diagnosticLog) window.__diagnosticLog('🔄 Forcing App re-render');
+        forceUpdate();
+      }
+    });
+    return unsubscribe;
+  }, [hasHydrated]);
 
   // Force hydration if stuck (emergency fallback in component)
   React.useEffect(() => {
