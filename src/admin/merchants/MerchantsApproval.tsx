@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { Store, CheckCircle2, XCircle, Clock, MapPin, Phone, Mail, Briefcase, Calendar } from 'lucide-react';
+import { Store, CheckCircle2, XCircle, Clock, MapPin, Phone, Mail, Briefcase, Calendar, X, Eye } from 'lucide-react';
 import { firebaseService } from '../../../services/firebase';
-import { User } from '../../../types';
+import { User, Product } from '../../../types';
 import { getSpecializationLabel } from '../../../utils/specializationHelper';
 
 export const MerchantsApproval = () => {
   const [merchants, setMerchants] = useState<User[]>([]);
   const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
   const [loading, setLoading] = useState(true);
+  const [selectedMerchant, setSelectedMerchant] = useState<User | null>(null);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [productsLoading, setProductsLoading] = useState(false);
 
   useEffect(() => {
     loadMerchants();
@@ -46,6 +49,25 @@ export const MerchantsApproval = () => {
       console.error('Error approving merchant:', error);
       alert('حدث خطأ أثناء الموافقة');
     }
+  };
+
+  const handleViewProducts = async (merchant: User) => {
+    setSelectedMerchant(merchant);
+    setProductsLoading(true);
+    try {
+      const fetchedProducts = await firebaseService.getProductsByTailorId(merchant.id || merchant.uid || '');
+      setProducts(fetchedProducts || []);
+    } catch (error) {
+      console.error('Error loading products:', error);
+      setProducts([]);
+    } finally {
+      setProductsLoading(false);
+    }
+  };
+
+  const closeModal = () => {
+    setSelectedMerchant(null);
+    setProducts([]);
   };
 
   const handleReject = async (merchantId: string) => {
@@ -255,26 +277,34 @@ export const MerchantsApproval = () => {
                     }) : 'غير متوفر'}
                   </div>
                 </div>
-
                 {/* Actions */}
-                <div className="flex-shrink-0">
+                <div className="flex-shrink-0 space-y-2">
                   {merchant.approvalStatus === 'pending' && (
-                    <div className="flex gap-2">
+                    <>
                       <button
-                        onClick={() => handleApprove(merchant.id)}
-                        className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-green-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
+                        onClick={() => handleViewProducts(merchant)}
+                        className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-blue-500 hover:bg-blue-600 text-white rounded-lg font-semibold shadow-lg shadow-blue-500/20 hover:shadow-xl active:scale-95 transition-all text-sm mb-2"
                       >
-                        <CheckCircle2 size={18} />
-                        <span>موافقة</span>
+                        <Eye size={16} />
+                        <span>عرض المنتجات</span>
                       </button>
-                      <button
-                        onClick={() => handleReject(merchant.id)}
-                        className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
-                      >
-                        <XCircle size={18} />
-                        <span>رفض</span>
-                      </button>
-                    </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => handleApprove(merchant.id)}
+                          className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-green-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
+                        >
+                          <CheckCircle2 size={18} />
+                          <span>موافقة</span>
+                        </button>
+                        <button
+                          onClick={() => handleReject(merchant.id)}
+                          className="flex-1 inline-flex items-center justify-center gap-2 px-5 py-3 bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white rounded-xl font-semibold shadow-lg shadow-red-500/30 hover:shadow-xl hover:scale-105 active:scale-95 transition-all text-sm"
+                        >
+                          <XCircle size={18} />
+                          <span>رفض</span>
+                        </button>
+                      </div>
+                    </>
                   )}
                   {merchant.approvalStatus === 'approved' && (
                     <div className="inline-flex items-center gap-2 px-5 py-3 bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/20 dark:to-emerald-900/20 text-green-700 dark:text-green-400 rounded-xl text-sm font-semibold border border-green-200 dark:border-green-800">
@@ -294,6 +324,138 @@ export const MerchantsApproval = () => {
           ))
         )}
       </div>
+
+      {/* Products Modal */}
+      {selectedMerchant && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-end md:items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl md:rounded-3xl w-full md:max-w-2xl max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Modal Header */}
+            <div className="sticky top-0 bg-white dark:bg-slate-800 border-b border-slate-100 dark:border-slate-700 p-6 flex items-center justify-between">
+              <div>
+                <h3 className="text-2xl font-black text-slate-900 dark:text-white tracking-tight">
+                  {selectedMerchant.name || 'بدون اسم'}
+                </h3>
+                <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">المنتجات والتفاصيل</p>
+              </div>
+              <button
+                onClick={closeModal}
+                className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                aria-label="إغلاق"
+              >
+                <X size={24} className="text-slate-600 dark:text-slate-400" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6">
+              {/* Merchant Details */}
+              <div className="space-y-3">
+                <h4 className="font-bold text-slate-900 dark:text-white">التفاصيل الأساسية</h4>
+                <div className="grid grid-cols-2 gap-3 text-sm">
+                  {selectedMerchant.email && (
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <Mail size={16} className="text-slate-400" />
+                      <span className="truncate">{selectedMerchant.email}</span>
+                    </div>
+                  )}
+                  {selectedMerchant.phone && (
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <Phone size={16} className="text-slate-400" />
+                      <span>{selectedMerchant.phone}</span>
+                    </div>
+                  )}
+                  {selectedMerchant.location && (
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <MapPin size={16} className="text-slate-400" />
+                      <span>{selectedMerchant.location}</span>
+                    </div>
+                  )}
+                  {selectedMerchant.experience && (
+                    <div className="flex items-center gap-2 text-slate-600 dark:text-slate-400">
+                      <Briefcase size={16} className="text-slate-400" />
+                      <span>{selectedMerchant.experience}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Products Section */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-bold text-slate-900 dark:text-white">المنتجات ({products.length})</h4>
+                  {productsLoading && (
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                  )}
+                </div>
+
+                {products.length === 0 ? (
+                  <div className="text-center py-8 text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900 rounded-lg">
+                    {productsLoading ? 'جاري التحميل...' : 'لم يتم العثور على منتجات'}
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-1 gap-3">
+                    {products.map(product => (
+                      <div
+                        key={product.id}
+                        className="bg-slate-50 dark:bg-slate-900 rounded-lg p-4 border border-slate-200 dark:border-slate-700 hover:border-blue-300 dark:hover:border-blue-700 transition-colors"
+                      >
+                        <div className="flex gap-4">
+                          {product.image && (
+                            <img
+                              src={product.image}
+                              alt={product.name}
+                              className="w-20 h-20 rounded-lg object-cover"
+                            />
+                          )}
+                          <div className="flex-1">
+                            <h5 className="font-semibold text-slate-900 dark:text-white">{product.name}</h5>
+                            {product.category && (
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1">
+                                التصنيف: {product.category}
+                              </p>
+                            )}
+                            {product.price && (
+                              <p className="text-sm font-bold text-blue-600 dark:text-blue-400 mt-2">
+                                {product.price} ريال
+                              </p>
+                            )}
+                            {product.description && (
+                              <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 line-clamp-2">
+                                {product.description}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="sticky bottom-0 bg-white dark:bg-slate-800 border-t border-slate-100 dark:border-slate-700 p-6 flex gap-3">
+              <button
+                onClick={closeModal}
+                className="flex-1 px-6 py-3 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-900 dark:text-white rounded-xl font-semibold transition-colors"
+              >
+                إغلاق
+              </button>
+              {selectedMerchant.approvalStatus === 'pending' && (
+                <button
+                  onClick={() => {
+                    handleApprove(selectedMerchant.id);
+                    closeModal();
+                  }}
+                  className="flex-1 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white rounded-xl font-semibold shadow-lg shadow-green-500/30 transition-all"
+                >
+                  موافقة
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
