@@ -9,6 +9,8 @@
     <!-- CRITICAL: EARLY ERROR LOGGING (before any modules load) -->
     <script>
       window.__earlyErrors = [];
+      window.__diagnosticLog = null; // Will be initialized later
+      
       window.addEventListener('error', (e) => {
         window.__earlyErrors.push({
           message: e.message,
@@ -17,6 +19,9 @@
           stack: e.error?.stack
         });
         console.error('[EARLY ERROR]', e.message, e.filename, e.lineno);
+        if (window.__diagnosticLog) {
+          window.__diagnosticLog('\u274c ERROR: ' + e.message);
+        }
       }, true);
       window.addEventListener('unhandledrejection', (e) => {
         window.__earlyErrors.push({
@@ -24,6 +29,9 @@
           stack: e.reason?.stack
         });
         console.error('[UNHANDLED REJECTION]', e.reason);
+        if (window.__diagnosticLog) {
+          window.__diagnosticLog('\u274c PROMISE REJECTED: ' + (e.reason?.message || e.reason));
+        }
       }, true);
     </script>
     
@@ -488,10 +496,31 @@
     <script>
       console.log('[BOOT] Starting app initialization...', new Date().toISOString());
       
+      // Create diagnostic overlay for debugging
+      var diagnosticDiv = document.createElement('div');
+      diagnosticDiv.id = 'diagnostic-overlay';
+      diagnosticDiv.style.cssText = 'position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.9);color:#00ff00;font-family:monospace;font-size:11px;padding:10px;z-index:99999;max-height:200px;overflow-y:auto;border-top:2px solid #00ff00';
+      document.body.appendChild(diagnosticDiv);
+      
+      window.__diagnosticLog = function(msg) {
+        console.log('[DIAGNOSTIC]', msg);
+        var entry = document.createElement('div');
+        entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
+        diagnosticDiv.appendChild(entry);
+        diagnosticDiv.scrollTop = diagnosticDiv.scrollHeight;
+      };
+      
+      window.__diagnosticLog('✓ Diagnostic system initialized');
+      window.__diagnosticLog('✓ Body loaded, DOM ready');
+      window.__diagnosticLog('⏳ Waiting for React to mount...');
+      
       setTimeout(function() {
         var splash = document.querySelector('[data-splash-screen]');
+        var root = document.getElementById('root');
         if (splash) {
           console.warn('[BOOT] React did not finish loading - removing splash');
+          window.__diagnosticLog('⚠️ TIMEOUT: React failed to mount in 3s');
+          window.__diagnosticLog('Root children: ' + (root ? root.children.length : 'NO ROOT'));
           splash.style.opacity = '0';
           setTimeout(function() { splash.remove(); }, 300);
         }
@@ -501,11 +530,14 @@
       setTimeout(function() {
         if (window.__earlyErrors && window.__earlyErrors.length > 0) {
           console.error('[BOOT] Early errors detected:');
+          window.__diagnosticLog('❌ ERRORS DETECTED: ' + window.__earlyErrors.length);
           window.__earlyErrors.forEach((err, idx) => {
             console.error(`  [${idx}]`, err.message, err.filename);
+            window.__diagnosticLog('ERROR ' + idx + ': ' + err.message);
           });
         } else {
           console.log('[BOOT] No early errors detected');
+          window.__diagnosticLog('✓ No early errors');
         }
       }, 100);
     </script>

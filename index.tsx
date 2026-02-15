@@ -7,6 +7,17 @@ import App from './App';
 import { queryClient } from './src/lib/queryClient';
 import { AuthProvider } from './src/auth/AuthProvider';
 
+// TypeScript declarations for diagnostic logging
+declare global {
+  interface Window {
+    __diagnosticLog?: (msg: string) => void;
+    __earlyErrors?: Array<{message: string; filename?: string; lineno?: number; stack?: string}>;
+  }
+}
+
+console.log('[index.tsx] ✓ All imports successful');
+if (window.__diagnosticLog) window.__diagnosticLog('✓ All modules imported');
+
 // i18n (language + RTL/LTR) must initialize before React renders
 import './src/i18n/i18n';
 
@@ -126,10 +137,19 @@ try {
   // ignore
 }
 
+console.log('[index.tsx] Module loaded, starting React mounting...');
+if (window.__diagnosticLog) window.__diagnosticLog('✓ index.tsx module loaded');
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
-  throw new Error("Could not find root element to mount to");
+  const err = "Could not find root element to mount to";
+  console.error('[index.tsx]', err);
+  if (window.__diagnosticLog) window.__diagnosticLog('❌ FATAL: No #root element');
+  throw new Error(err);
 }
+
+console.log('[index.tsx] Found root element, preparing to mount...');
+if (window.__diagnosticLog) window.__diagnosticLog('✓ Found #root element');
 
 // CRITICAL: Remove splash screen IMMEDIATELY before React renders
 // This prevents black screen flickering on mobile
@@ -137,21 +157,44 @@ try {
   const splash = rootElement.querySelector('[data-splash-screen]');
   if (splash) {
     splash.remove();
+    console.log('[index.tsx] Splash screen removed');
+    if (window.__diagnosticLog) window.__diagnosticLog('✓ Splash removed');
   }
 } catch (e) {
   console.warn('Failed to remove splash screen:', e);
+  if (window.__diagnosticLog) window.__diagnosticLog('⚠️ Splash removal failed: ' + e.message);
 }
 
-const root = ReactDOM.createRoot(rootElement);
-root.render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <AuthProvider>
-        <App />
-      </AuthProvider>
-    </QueryClientProvider>
-  </React.StrictMode>
-);
+console.log('[index.tsx] Creating React root...');
+if (window.__diagnosticLog) window.__diagnosticLog('⏳ Creating React root...');
+
+try {
+  const root = ReactDOM.createRoot(rootElement);
+  console.log('[index.tsx] React root created, rendering app...');
+  if (window.__diagnosticLog) window.__diagnosticLog('✓ React root created');
+  
+  root.render(
+    <React.StrictMode>
+      <QueryClientProvider client={queryClient}>
+        <AuthProvider>
+          <App />
+        </AuthProvider>
+      </QueryClientProvider>
+    </React.StrictMode>
+  );
+  
+  console.log('[index.tsx] ✅ React render() called successfully');
+  if (window.__diagnosticLog) window.__diagnosticLog('✅ React render() called');
+  
+  // Confirm mount after a short delay
+  setTimeout(() => {
+    if (window.__diagnosticLog) window.__diagnosticLog('🎉 React should be mounted now');
+  }, 100);
+} catch (err) {
+  console.error('[index.tsx] FATAL ERROR during React mounting:', err);
+  if (window.__diagnosticLog) window.__diagnosticLog('❌ FATAL: ' + err.message);
+  throw err;
+}
 
 // Service Worker registration completely removed in development
 // PWA will be handled during production build only
