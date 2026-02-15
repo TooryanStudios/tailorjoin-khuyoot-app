@@ -146,6 +146,7 @@ export const AuthModal = () => {
   const [fallbackEmail, setFallbackEmail] = useState<string>('');
   const [showFallback, setShowFallback] = useState(false);
   const allowRegistrations = appSettings?.allowNewRegistrations !== false;
+  const [specializationError, setSpecializationError] = useState('');
 
   // Sync local mode with context mode when it changes
   React.useEffect(() => {
@@ -173,12 +174,14 @@ export const AuthModal = () => {
   useEffect(() => {
     setPassword('');
     setConfirmPassword('');
+    setSpecializationError('');
   }, [isLogin]);
 
   // Clear tailorGender when role changes to user
   useEffect(() => {
     if (role !== 'tailor') {
       setTailorGender('');
+      setSpecializationError('');
     }
   }, [role]);
 
@@ -300,9 +303,13 @@ export const AuthModal = () => {
         
         // التحقق من اختيار جنس الخياط (إلزامي)
         if (role === 'tailor' && !tailorGender) {
-          alert('يرجى اختيار تخصص الخياط (رجالي أو نسائي)');
+          setSpecializationError('يرجى اختيار تخصص الخياط (رجالي أو نسائي)');
           setStatusText('');
           setSubmitting(false);
+          // Scroll to the specialization field
+          setTimeout(() => {
+            document.querySelector('[data-field="specialization"]')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 100);
           return;
         }
         
@@ -565,26 +572,34 @@ export const AuthModal = () => {
                 )}
 
                 {!isLogin && role === 'tailor' && (
-                  <div className="space-y-1.5">
+                  <div className="space-y-1.5" data-field="specialization">
                     <label className="block text-[10px] font-bold text-slate-600 mr-1 uppercase tracking-wider">
                       التخصص <span className="text-red-500">*</span>
                     </label>
                     <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
-                        onClick={() => setTailorGender('male')}
-                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                        onClick={() => { setTailorGender('male'); setSpecializationError(''); }}
+                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
                       >
                         رجالي
                       </button>
                       <button
                         type="button"
-                        onClick={() => setTailorGender('female')}
-                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                        onClick={() => { setTailorGender('female'); setSpecializationError(''); }}
+                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
                       >
                         نسائي
                       </button>
                     </div>
+                    {specializationError && (
+                      <div className="flex items-center gap-1.5 text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 px-2.5 py-1.5 rounded-lg">
+                        <svg className="w-3.5 h-3.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                        </svg>
+                        <span className="text-[10px] font-semibold">{specializationError}</span>
+                      </div>
+                    )}
                   </div>
                 )}
 
