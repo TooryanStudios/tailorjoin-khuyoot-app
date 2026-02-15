@@ -9,7 +9,6 @@
     <!-- CRITICAL: EARLY ERROR LOGGING (before any modules load) -->
     <script>
       window.__earlyErrors = [];
-      window.__diagnosticLog = null; // Will be initialized later
       
       window.addEventListener('error', (e) => {
         window.__earlyErrors.push({
@@ -19,9 +18,6 @@
           stack: e.error?.stack
         });
         console.error('[EARLY ERROR]', e.message, e.filename, e.lineno);
-        if (window.__diagnosticLog) {
-          window.__diagnosticLog('\u274c ERROR: ' + e.message);
-        }
       }, true);
       window.addEventListener('unhandledrejection', (e) => {
         window.__earlyErrors.push({
@@ -29,9 +25,6 @@
           stack: e.reason?.stack
         });
         console.error('[UNHANDLED REJECTION]', e.reason);
-        if (window.__diagnosticLog) {
-          window.__diagnosticLog('\u274c PROMISE REJECTED: ' + (e.reason?.message || e.reason));
-        }
       }, true);
     </script>
     
@@ -483,16 +476,7 @@
   </head>
 
   <body class="bg-slate-50 text-slate-900 dark:bg-[#050817] dark:text-slate-100 transition-colors duration-300">
-    
-    <!-- DIAGNOSTIC OVERLAY - Always visible during boot -->
-    <div id="diagnostic-overlay" style="position:fixed;bottom:0;left:0;right:0;background:rgba(0,0,0,0.95);color:#00ff00;font-family:monospace;font-size:12px;padding:15px;z-index:999999;max-height:250px;overflow-y:auto;border-top:3px solid #00ff00;box-shadow:0 -4px 20px rgba(0,255,0,0.3)">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-        <div style="font-weight:bold;color:#00ff00">🔍 BOOT DIAGNOSTICS</div>
-        <button onclick="this.parentElement.parentElement.style.display='none'" style="background:#00ff00;color:#000;border:none;padding:4px 12px;border-radius:4px;cursor:pointer;font-size:11px;font-weight:bold">HIDE</button>
-      </div>
-      <div style="color:#888;font-size:11px;margin-bottom:5px">⏱️ Starting diagnostic...</div>
-    </div>
-    
+
     <div id="root" class="min-height-screen bg-inherit text-inherit">
       <!-- Inline splash screen before React loads -->
       <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a] z-[9999] transition-opacity duration-300">
@@ -504,36 +488,9 @@
 
     <!-- Failsafe: Force remove splash after 3 seconds if React fails to mount -->
     <script>
-      console.log('[BOOT] Starting app initialization...', new Date().toISOString());
-      
-      // Use the existing diagnostic overlay
-      var diagnosticDiv = document.getElementById('diagnostic-overlay');
-      
-      window.__diagnosticLog = function(msg) {
-        console.log('[DIAGNOSTIC]', msg);
-        if (!diagnosticDiv) {
-          diagnosticDiv = document.getElementById('diagnostic-overlay');
-        }
-        if (diagnosticDiv) {
-          var entry = document.createElement('div');
-          entry.style.cssText = 'padding:2px 0;border-bottom:1px solid rgba(0,255,0,0.2)';
-          entry.textContent = new Date().toLocaleTimeString() + ' - ' + msg;
-          diagnosticDiv.appendChild(entry);
-          diagnosticDiv.scrollTop = diagnosticDiv.scrollHeight;
-        }
-      };
-      
-      window.__diagnosticLog('✓ Diagnostic system initialized');
-      window.__diagnosticLog('✓ Body loaded, DOM ready');
-      window.__diagnosticLog('⏳ Waiting for React to mount...');
-      
       setTimeout(function() {
         var splash = document.querySelector('[data-splash-screen]');
-        var root = document.getElementById('root');
         if (splash) {
-          console.warn('[BOOT] React did not finish loading - removing splash');
-          window.__diagnosticLog('⚠️ TIMEOUT: React failed to mount in 3s');
-          window.__diagnosticLog('Root children: ' + (root ? root.children.length : 'NO ROOT'));
           splash.style.opacity = '0';
           setTimeout(function() { splash.remove(); }, 300);
         }
@@ -543,14 +500,9 @@
       setTimeout(function() {
         if (window.__earlyErrors && window.__earlyErrors.length > 0) {
           console.error('[BOOT] Early errors detected:');
-          window.__diagnosticLog('❌ ERRORS DETECTED: ' + window.__earlyErrors.length);
           window.__earlyErrors.forEach((err, idx) => {
             console.error(`  [${idx}]`, err.message, err.filename);
-            window.__diagnosticLog('ERROR ' + idx + ': ' + err.message);
           });
-        } else {
-          console.log('[BOOT] No early errors detected');
-          window.__diagnosticLog('✓ No early errors');
         }
       }, 100);
     </script>

@@ -395,7 +395,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
             if (prev.status === 'loading') {
               const hasSessionEvidence = !!prev.idToken || !!localStorage.getItem('khuyoot:has_session');
               if (!hasSessionEvidence) {
-                if (window.__diagnosticLog) window.__diagnosticLog('🔓 Auth resolved: unauthenticated (no session)');
                 return unauthenticated;
               }
               return { ...prev, user: null };
@@ -430,7 +429,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       setState(prev => {
         if (prev.status !== 'loading' || prev.user || prev.idToken) return prev;
         const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
-        if (window.__diagnosticLog) window.__diagnosticLog('⏱️ Auth loading timeout -> unauthenticated');
         setAuthStateSnapshot(unauthenticated);
         return unauthenticated;
       });

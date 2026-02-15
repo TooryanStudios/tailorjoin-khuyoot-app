@@ -146,44 +146,6 @@ const App: React.FC = () => {
   const hasHydrated = useAppStore((state) => state.hasHydrated);
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
 
-  // Debug: Check both the hook value AND the store value
-  const storeValue = useAppStore.getState().hasHydrated;
-  console.log('[App] Component rendering, hook value:', hasHydrated, 'store value:', storeValue);
-  if (window.__diagnosticLog) window.__diagnosticLog('📱 App render: hook=' + hasHydrated + ' store=' + storeValue);
-
-  // Emergency hydration check: if hook says false but store says true, force re-render
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-  React.useEffect(() => {
-    const unsubscribe = useAppStore.subscribe((state) => {
-      console.log('[App] Store updated! hasHydrated:', state.hasHydrated);
-      if (state.hasHydrated && !hasHydrated) {
-        console.warn('[App] MISMATCH DETECTED! Forcing re-render');
-        if (window.__diagnosticLog) window.__diagnosticLog('🔄 Forcing App re-render');
-        forceUpdate();
-      }
-    });
-    return unsubscribe;
-  }, [hasHydrated]);
-
-  // Force hydration if stuck (emergency fallback in component)
-  React.useEffect(() => {
-    if (!hasHydrated) {
-      console.log('[App] Not hydrated yet, waiting...');
-      const timer = setTimeout(() => {
-        const state = useAppStore.getState();
-        if (!state.hasHydrated) {
-          console.error('[App] COMPONENT FORCING hydration');
-          if (window.__diagnosticLog) window.__diagnosticLog('🚨 App forcing hydration!');
-          state.setHasHydrated(true);
-        }
-      }, 1500);
-      return () => clearTimeout(timer);
-    } else {
-      console.log('[App] Hydrated! Proceeding with render');
-      if (window.__diagnosticLog) window.__diagnosticLog('✅ App proceeding (hydrated)');
-    }
-  }, [hasHydrated]);
-
   // DEV isolation: run the Firebase auth diagnostic page without the app bootstrap.
   // This prevents AppInitializer/AdminConfig/CreditProvider/AuthModal/etc from running.
   if (
