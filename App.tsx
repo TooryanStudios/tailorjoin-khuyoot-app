@@ -147,7 +147,26 @@ const App: React.FC = () => {
   const [maintenanceMode, setMaintenanceMode] = React.useState(false);
 
   console.log('[App] Component rendering, hasHydrated:', hasHydrated);
-  if (window.__diagnosticLog) window.__diagnosticLog('App rendering, hydrated: ' + hasHydrated);
+  if (window.__diagnosticLog) window.__diagnosticLog('📱 App rendering, hydrated: ' + hasHydrated);
+
+  // Force hydration if stuck (emergency fallback in component)
+  React.useEffect(() => {
+    if (!hasHydrated) {
+      console.log('[App] Not hydrated yet, waiting...');
+      const timer = setTimeout(() => {
+        const state = useAppStore.getState();
+        if (!state.hasHydrated) {
+          console.error('[App] COMPONENT FORCING hydration');
+          if (window.__diagnosticLog) window.__diagnosticLog('🚨 App forcing hydration!');
+          state.setHasHydrated(true);
+        }
+      }, 1500);
+      return () => clearTimeout(timer);
+    } else {
+      console.log('[App] Hydrated! Proceeding with render');
+      if (window.__diagnosticLog) window.__diagnosticLog('✅ App proceeding (hydrated)');
+    }
+  }, [hasHydrated]);
 
   // DEV isolation: run the Firebase auth diagnostic page without the app bootstrap.
   // This prevents AppInitializer/AdminConfig/CreditProvider/AuthModal/etc from running.

@@ -10,6 +10,11 @@ import React from 'react';
  * - Header/Footer visibility checks
  */
 export const LoadingShell: React.FC = () => {
+  React.useEffect(() => {
+    console.log('[LoadingShell] Displayed - waiting for hydration');
+    if (window.__diagnosticLog) window.__diagnosticLog('⏳ LoadingShell shown (waiting for store)');
+  }, []);
+
   return (
     <div 
       className="min-h-screen w-full bg-slate-50 dark:bg-[#050817] text-slate-900 dark:text-slate-100 font-sans"
@@ -26,9 +31,18 @@ export const LoadingShell: React.FC = () => {
                 className="w-full h-full object-contain"
               />
             </div>
+            <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+              جاري التحميل...
+            </div>
           </div>
         </div>
       </div>
     </div>
   );
 };
+
+declare global {
+  interface Window {
+    __diagnosticLog?: (msg: string) => void;
+  }
+}

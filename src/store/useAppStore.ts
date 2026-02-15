@@ -142,36 +142,61 @@ export const useAppStore = create<AppStore>()(
           },
         }
       },
-      onRehydrateStorage: () => (state) => {
-        console.log('[useAppStore] Hydration started');
-        if (window.__diagnosticLog) window.__diagnosticLog('⏳ Store hydration started');
+      onRehydrateStorage: () => {
+        console.log('[useAppStore] onRehydrateStorage setup');
+        if (window.__diagnosticLog) window.__diagnosticLog('⏳ Store setup rehydration');
         
         return (state, error) => {
+          console.log('[useAppStore] Rehydration callback fired, error:', error, 'state:', !!state);
+          
           if (error) {
             console.error('[useAppStore] Hydration error:', error);
-            if (window.__diagnosticLog) window.__diagnosticLog('❌ Store hydration failed');
+            if (window.__diagnosticLog) window.__diagnosticLog('❌ Hydration error: ' + error.message);
           } else {
             console.log('[useAppStore] Hydration complete');
-            if (window.__diagnosticLog) window.__diagnosticLog('✓ Store hydrated');
+            if (window.__diagnosticLog) window.__diagnosticLog('✓ Hydration complete');
           }
           
           // Always set hydrated, even if there was an error
-          state?.setHasHydrated(true);
+          if (state) {
+            console.log('[useAppStore] Setting hasHydrated = true');
+            state.setHasHydrated(true);
+            if (window.__diagnosticLog) window.__diagnosticLog('✅ hasHydrated = TRUE');
+          } else {
+            console.error('[useAppStore] State is null!');
+            if (window.__diagnosticLog) window.__diagnosticLog('🚨 State NULL in callback');
+          }
         };
       },
     }
   )
 );
 
-// Failsafe: Force hydration after 500ms if it hasn't happened
-setTimeout(() => {
-  const state = useAppStore.getState();
-  if (!state.hasHydrated) {
-    console.warn('[useAppStore] Forcing hydration after timeout');
-    if (window.__diagnosticLog) window.__diagnosticLog('⚠️ Forcing store hydration');
-    state.setHasHydrated(true);
-  }
-}, 500);
+// Failsafe: Force hydration after timeout if it hasn't happened
+// Run in next tick to ensure store is fully created
+if (typeof window !== 'undefined') {
+  setTimeout(() => {
+    console.log('[useAppStore] Checking hydration status...');
+    const state = useAppStore.getState();
+    console.log('[useAppStore] Current hasHydrated:', state.hasHydrated);
+    
+    if (!state.hasHydrated) {
+      console.warn('[useAppStore] FORCING hydration after 300ms timeout');
+      if (window.__diagnosticLog) window.__diagnosticLog('⚠️ FORCING store hydration (timeout)');
+      state.setHasHydrated(true);
+    }
+  }, 300);
+  
+  // Second failsafe at 1 second
+  setTimeout(() => {
+    const state = useAppStore.getState();
+    if (!state.hasHydrated) {
+      console.error('[useAppStore] EMERGENCY: Forcing hydration at 1s');
+      if (window.__diagnosticLog) window.__diagnosticLog('🚨 EMERGENCY hydration at 1s');
+      state.setHasHydrated(true);
+    }
+  }, 1000);
+}
 
 export const useDesignerSession = () => useAppStore((state) => state.designerSession)
 export const useSelectedRegion = () => useAppStore((state) => state.selectedRegion)
