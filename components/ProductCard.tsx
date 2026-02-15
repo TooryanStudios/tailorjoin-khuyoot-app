@@ -94,7 +94,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
   // List view layout
   if (viewMode === 'list') {
     return (
-      <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group flex gap-4 p-3">
+      <div className="bg-white dark:bg-white/5 border-[0.5px] border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group flex gap-4 p-3">
         <div 
           className="relative w-32 h-32 flex-shrink-0 overflow-hidden bg-slate-100 dark:bg-slate-900 rounded-lg cursor-pointer"
           onClick={() => navigate(`/product/${product.id}`)}
@@ -156,7 +156,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
   // Compact view layout
   if (viewMode === 'compact') {
     return (
-      <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-lg overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group">
+      <div className="bg-white dark:bg-white/5 border-[0.5px] border-slate-200 dark:border-white/10 rounded-2xl overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group">
         <div 
           className="relative aspect-square overflow-hidden bg-slate-100 dark:bg-slate-900 cursor-pointer"
           onClick={() => navigate(`/product/${product.id}`)}
@@ -198,7 +198,7 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
 
   // Default grid view layout
   return (
-    <div className="bg-white dark:bg-white/5 border border-slate-200 dark:border-white/10 rounded-xl overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group">
+    <div className="bg-white dark:bg-white/5 border-[0.5px] border-slate-200 dark:border-white/10 rounded-3xl overflow-hidden hover:shadow-lg dark:hover:border-white/20 transition-all group">
       <div 
         className="relative aspect-[3/4] overflow-hidden bg-slate-100 dark:bg-slate-900 cursor-pointer"
         onClick={() => navigate(`/product/${product.id}`)}
@@ -282,15 +282,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, viewMode = 'g
           
           <div className="flex flex-col gap-1 mt-1">
              {product.tailorName && (
-               <div className="flex flex-col">
-                 <div className="text-slate-700 dark:text-slate-300 text-xs font-medium truncate">
-                   {product.tailorName}
-                 </div>
-                 {product.tailorId && (
-                   <div className="text-slate-400 dark:text-slate-500 text-[10px] font-mono truncate">
-                     ID: {product.tailorId}
-                   </div>
-                 )}
+               <div className="text-slate-700 dark:text-slate-300 text-xs font-medium truncate">
+                 {product.tailorName}
                </div>
              )}
              <div className="flex items-center gap-1 text-slate-500 dark:text-slate-400 text-xs">

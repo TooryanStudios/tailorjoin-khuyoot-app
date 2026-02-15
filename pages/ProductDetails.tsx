@@ -55,21 +55,80 @@ const ImageGallery = React.memo(({
   onIndexChange: (idx: number) => void;
   productName: string;
 }) => {
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
+  const [isLightboxImageLoading, setIsLightboxImageLoading] = useState(false);
   const nextImage = () => onIndexChange((currentIndex + 1) % images.length);
   const prevImage = () => onIndexChange((currentIndex - 1 + images.length) % images.length);
 
+  const handleImageClick = () => {
+    setIsLightboxOpen(true);
+    setIsLightboxImageLoading(true);
+  };
+
+  const closeLightbox = () => {
+    setIsLightboxOpen(false);
+    setIsLightboxImageLoading(false);
+  };
+
+  const handleLightboxNext = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLightboxImageLoading(true);
+    nextImage();
+  };
+
+  const handleLightboxPrev = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setIsLightboxImageLoading(true);
+    prevImage();
+  };
+
+  const handleImageLoad = () => {
+    setIsLightboxImageLoading(false);
+  };
+
+  // Keyboard navigation
+  useEffect(() => {
+    if (!isLightboxOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        closeLightbox();
+      } else if (e.key === 'ArrowLeft') {
+        nextImage();
+      } else if (e.key === 'ArrowRight') {
+        prevImage();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isLightboxOpen, currentIndex]);
+
+  // Prevent body scroll when lightbox is open
+  useEffect(() => {
+    if (isLightboxOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isLightboxOpen]);
+
   return (
-    <section className="relative w-full md:w-[40%] min-h-[50vh] md:h-full bg-white flex flex-col items-center justify-start flex-shrink-0 border border-black/5 rounded-3xl shadow-sm overflow-hidden">
+    <>
+      <section className="relative w-full md:w-[40%] min-h-[50vh] md:min-h-0 md:self-stretch bg-white flex flex-col items-center justify-start flex-shrink-0 border-[0.5px] border-black/5 rounded-3xl shadow-sm overflow-hidden">
         {images.length > 0 ? (
            <>
               <div className="w-full flex-1 relative flex items-center justify-center min-h-0 bg-[#fbfbfb]">
-                  <div className="relative h-full flex items-center justify-center group/image-scroll">
+                  <div className="relative h-full flex items-center justify-center group/image-scroll cursor-pointer" onClick={handleImageClick}>
                     <StableImage 
                       src={images[currentIndex]} 
                       alt={productName}
                       aspectClass="h-full"
                       className="!w-auto h-full bg-transparent p-4 md:p-8"
-                      imgClassName="!relative !inset-auto h-full w-auto object-contain drop-shadow-2xl rounded-3xl"
+                      imgClassName="!relative !inset-auto h-full w-auto object-contain rounded-3xl"
                     />
 
                     <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-20 pointer-events-none opacity-0 group-hover/image-scroll:opacity-100 transition-opacity">
@@ -104,7 +163,7 @@ const ImageGallery = React.memo(({
                   )}
               </div>
 
-              <div className="w-full px-4 pb-4 pt-2 flex justify-center gap-3 overflow-x-auto no-scrollbar z-20 h-auto flex-shrink-0">
+              <div className="w-full px-4 pb-4 pt-2 flex justify-center gap-3 overflow-x-auto z-20 h-auto flex-shrink-0">
                 {images.map((img, idx) => (
                     <button
                       key={idx}
@@ -130,6 +189,91 @@ const ImageGallery = React.memo(({
           </div>
         )}
     </section>
+
+      {/* Image Lightbox Modal */}
+      {isLightboxOpen && createPortal(
+        <div 
+          className="fixed inset-0 z-[10001] bg-black/95 flex items-center justify-center"
+          onClick={closeLightbox}
+        >
+          {/* Close Button */}
+          <button
+            onClick={closeLightbox}
+            className="absolute top-4 right-4 md:top-6 md:right-6 w-10 h-10 md:w-12 md:h-12 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center z-50 transition-all text-white"
+            title="إغلاق"
+          >
+            <X size={24} />
+          </button>
+
+          {/* Image Counter */}
+          <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/50 backdrop-blur-md px-4 py-2 rounded-full text-white text-sm font-medium z-50">
+            {currentIndex + 1} / {images.length}
+          </div>
+
+          {/* Main Image */}
+          <div 
+            className="relative w-full h-full flex items-center justify-center p-4 md:p-8"
+          >
+            {isLightboxImageLoading && (
+              <div className="absolute inset-0 flex items-center justify-center z-40">
+                <div className="w-12 h-12 border-4 border-white/20 border-t-white rounded-full animate-spin"></div>
+              </div>
+            )}
+            <img
+              src={images[currentIndex]}
+              alt={productName}
+              className="max-w-full max-h-full object-contain"
+              onLoad={handleImageLoad}
+              style={{ opacity: isLightboxImageLoading ? 0 : 1, transition: 'opacity 0.3s' }}
+            />
+          </div>
+
+          {/* Navigation Arrows */}
+          {images.length > 1 && (
+            <>
+              <button
+                onClick={handleLightboxPrev}
+                className="absolute right-4 md:right-8 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center z-50 transition-all text-white"
+                title="الصورة السابقة"
+              >
+                <ChevronRight size={32} />
+              </button>
+              <button
+                onClick={handleLightboxNext}
+                className="absolute left-4 md:left-8 top-1/2 -translate-y-1/2 w-12 h-12 md:w-14 md:h-14 bg-white/10 hover:bg-white/20 backdrop-blur-sm rounded-full flex items-center justify-center z-50 transition-all text-white"
+                title="الصورة التالية"
+              >
+                <ChevronLeft size={32} />
+              </button>
+            </>
+          )}
+
+          {/* Thumbnails at Bottom */}
+          {images.length > 1 && (
+            <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-2 max-w-[90vw] overflow-x-auto px-4 z-50 pb-2">
+              {images.map((img, idx) => (
+                <button
+                  key={idx}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onIndexChange(idx);
+                  }}
+                  title={`عرض الصورة ${idx + 1}`}
+                  className={`relative w-12 h-12 md:w-16 md:h-16 flex-shrink-0 rounded-lg overflow-hidden border-2 transition-all bg-black/30 ${
+                    currentIndex === idx
+                      ? 'border-white ring-2 ring-white/50'
+                      : 'border-white/30 opacity-60 hover:opacity-100'
+                  }`}
+                >
+                  <img src={img} alt="" className="w-full h-full object-contain p-0.5" />
+                </button>
+              ))}
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
+    </>
   );
 });
 
@@ -1170,6 +1314,7 @@ export const ProductDetails = ({
   const [savedMeasurementProfiles, setSavedMeasurementProfiles] = useState<any[]>([]);
   const [showSavedMeasurementsModal, setShowSavedMeasurementsModal] = useState(false);
   const [isSavingMeasurement, setIsSavingMeasurement] = useState(false);
+  const [isPreparingTryOn, setIsPreparingTryOn] = useState(false);
 
   const productQuery = useQuery({
     queryKey: ['product', productId],
@@ -1432,6 +1577,72 @@ export const ProductDetails = ({
     setIsSummaryOpen(true);
   };
 
+  const handleTryOnClick = async () => {
+    if (!product) return;
+    setIsPreparingTryOn(true);
+    
+    try {
+      // Collect all product images
+      const productImages: string[] = [];
+      if (product.images && product.images.length > 0) {
+        productImages.push(...product.images);
+      } else if (product.image) {
+        productImages.push(product.image);
+      }
+
+      if (productImages.length === 0) {
+        // No images to preload, just navigate
+        navigate(`/tryon/${product.id}`, { state: { product } });
+        return;
+      }
+
+      // Determine main image index
+      const mainImageIndex = product.coverImageIndex !== undefined && productImages[product.coverImageIndex] 
+        ? product.coverImageIndex 
+        : 0;
+
+      // Preload all images as blobs and prefetch them to browser cache
+      const preloadPromises = productImages.map(async (imageUrl) => {
+        try {
+          const res = await fetch(imageUrl, { cache: 'force-cache' });
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          await res.blob(); // This caches it in browser
+          
+          // Also preload as image element for img cache
+          return new Promise<void>((resolve) => {
+            const img = new Image();
+            img.onload = () => resolve();
+            img.onerror = () => resolve(); // Don't fail on error
+            img.src = imageUrl;
+          });
+        } catch (error) {
+          console.warn('Failed to preload image:', imageUrl, error);
+        }
+      });
+
+      // Wait for all images to be cached
+      await Promise.all(preloadPromises);
+
+      // Small delay to ensure everything is settled
+      await new Promise(resolve => setTimeout(resolve, 100));
+
+      // Navigate with product data in state to avoid refetch
+      navigate(`/tryon/${product.id}`, { 
+        state: { 
+          product,
+          preloadedImages: productImages,
+          mainImageIndex
+        } 
+      });
+    } catch (error) {
+      console.error('Failed to preload try-on resources:', error);
+      // Navigate anyway if preload fails
+      navigate(`/tryon/${product.id}`, { state: { product } });
+    } finally {
+      setIsPreparingTryOn(false);
+    }
+  };
+
   const handlePlaceOrder = async (ignoreDuplicate = false) => {
     if (!product || !tailor || isSubmittingOrder) return;
     
@@ -1537,7 +1748,7 @@ export const ProductDetails = ({
     <div className="min-h-screen bg-[#ededed] dir-rtl font-sans">
       <MontHeader />
 
-      <main className="flex flex-col md:flex-row w-full bg-[#ededed] dir-rtl px-2 md:px-8 py-2 gap-8">
+      <main className="flex flex-col md:flex-row md:items-stretch w-full bg-[#ededed] dir-rtl px-2 md:px-8 py-2 gap-3">
         <ImageGallery 
             images={productImages} 
             currentIndex={currentImageIndex} 
@@ -1545,7 +1756,7 @@ export const ProductDetails = ({
             productName={product.name}
         />
 
-        <section className="w-full md:w-[60%] bg-white border border-black/5 rounded-3xl shadow-sm">
+        <section className="w-full md:w-[60%] md:self-stretch bg-white border-[0.5px] border-black/5 rounded-3xl shadow-sm">
           <div className="p-6 md:p-8 max-w-2xl mx-auto flex flex-col space-y-4">
               
               <div className="flex items-center justify-between">
@@ -1562,7 +1773,7 @@ export const ProductDetails = ({
                   className="flex items-center gap-2 text-gray-400 hover:text-gray-900 transition-colors"
                   title="رجوع"
                 >
-                  <ArrowRight size={16} className="rtl:rotate-180" />
+                  <ArrowRight size={16} />
                   <span className="text-xs font-bold">رجوع</span>
                 </button>
 
@@ -1667,7 +1878,7 @@ export const ProductDetails = ({
                     </button>
 
                     <button 
-                       onClick={() => navigate(`/tryon/${product.id}`)}
+                       onClick={handleTryOnClick}
                        className="group flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-white border-2 border-theme-primary hover:bg-theme-primary/5 hover:shadow-lg transition-all text-center"
                     >
                         <div className="w-10 h-10 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary">
@@ -1805,6 +2016,20 @@ export const ProductDetails = ({
         message={infoDialog?.message || ''}
         onClose={handleInfoDismiss}
       />
+
+      {/* Preparing Try-On Dialog */}
+      {isPreparingTryOn && createPortal(
+        <div className="fixed inset-0 z-[10002] flex items-center justify-center bg-black/50">
+          <div className="bg-white rounded-2xl p-8 shadow-2xl max-w-sm mx-4">
+            <div className="flex flex-col items-center gap-4">
+              <div className="w-16 h-16 border-4 border-theme-primary border-t-transparent rounded-full animate-spin" />
+              <p className="text-lg font-medium text-gray-800">جاري تحميل الصور...</p>
+              <p className="text-sm text-gray-500">تحضير صفحة تجربة الأقمشة</p>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

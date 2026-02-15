@@ -58,7 +58,7 @@ export const DesignerMetadataPanel: React.FC<MetadataPanelProps> = React.memo((p
   if (!activeItem) return null;
 
   return (
-    <div className="border-t border-zinc-100 bg-white px-6 pt-6 pb-6 shadow-sm">
+    <div className="border-t border-zinc-100 bg-white px-6 pt-6 pb-6 shadow-sm rounded-3xl">
       <div className="p-4 bg-white/[0.02] rounded-xl border border-white/5 max-w-7xl mx-auto backdrop-blur-md shadow-2xl">
         <div className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-4 flex items-center gap-2">
           <Info className="w-4 h-4" />

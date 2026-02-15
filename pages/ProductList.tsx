@@ -1,11 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { Tag, ShoppingBag, ChevronDown } from 'lucide-react';
+import { Tag, ShoppingBag, ChevronDown, Heart } from 'lucide-react';
 import { Product, Tailor } from '../types';
 import { getProducts, MOCK_TAILORS } from '../services/mockService';
 import { MontHeader } from '../src/components/MontHeader';
 import { collection, getDocs, query, where, doc, getDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
+import { useApp } from '../context/AppContext';
+import { likeProduct, unlikeProduct, hasLikedProduct } from '../services/interactionService';
 
 // ----------------------------------------------------------------------------
 // CONSTANTS & HELPERS
@@ -39,6 +41,7 @@ const LOAD_MORE_INCREMENT = 12;
 // ----------------------------------------------------------------------------
 const ProductCard = React.memo(({ product }: { product: Product }) => {
   const navigate = useNavigate();
+  const { user } = useApp();
   // Include product.imageUrl fallback
   const allImages = product.images || (product.image ? [product.image] : product.imageUrl ? [product.imageUrl] : []);
   // Filter out non-http images (relative paths from bad uploads)
@@ -46,11 +49,37 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
   
   const [index, setIndex] = React.useState(0);
   const [imgError, setImgError] = React.useState(false);
+  const [isLiked, setIsLiked] = React.useState(false);
   const intervalRef = React.useRef<NodeJS.Timeout | null>(null);
+
+  React.useEffect(() => {
+    if (user && product.id) {
+      hasLikedProduct(user.id, product.id).then(setIsLiked).catch(console.error);
+    }
+  }, [user, product.id]);
 
   const handleClick = React.useCallback(() => {
     navigate(`/product/${product.id}`);
   }, [navigate, product.id]);
+
+  const handleLike = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!user) {
+      alert('يجب تسجيل الدخول للإعجاب بالمنتجات');
+      return;
+    }
+    try {
+      if (isLiked) {
+        await unlikeProduct(user.id, product.id);
+        setIsLiked(false);
+      } else {
+        await likeProduct(user.id, product.id);
+        setIsLiked(true);
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    }
+  };
 
   const startSlideshow = () => {
     if (images.length > 1 && !intervalRef.current) {
@@ -73,7 +102,7 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
   return (
     <div className="cursor-pointer group h-full flex flex-col" onClick={handleClick}>
       <div 
-        className="relative aspect-[3/4] bg-zinc-800 rounded-xl overflow-hidden mb-3 border border-white/5 shadow-sm hover:shadow-xl transition-all duration-500"
+        className="relative aspect-[3/4] bg-zinc-800 rounded-3xl overflow-hidden mb-3 border-[0.5px] border-white/5 shadow-sm hover:shadow-xl transition-all duration-500"
         onMouseEnter={startSlideshow}
         onMouseLeave={stopSlideshow}
       >
@@ -102,6 +131,30 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
           </div>
         )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-60" />
+        
+        {/* Action Buttons - Top Right Column */}
+        <div className="absolute top-3 right-3 flex flex-col gap-2 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity duration-300 z-10">
+          {/* Like Button */}
+          <button 
+              className={`bg-white/90 backdrop-blur-sm w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg hover:scale-110 ${
+                isLiked ? 'text-rose-500' : 'text-zinc-700'
+              }`}
+              onClick={handleLike}
+              aria-label="Add to favorites"
+          >
+            <Heart size={14} className={isLiked ? 'fill-current' : ''} />
+          </button>
+          
+          {/* Tag Button */}
+          <button 
+              className="bg-white/90 backdrop-blur-sm text-zinc-700 w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300 shadow-lg hover:scale-110" 
+              onClick={(e) => { e.stopPropagation(); }}
+              aria-label="Tags"
+          >
+            <Tag size={14} />
+          </button>
+        </div>
+        
         <button 
             className="absolute bottom-4 right-4 bg-white text-black w-10 h-10 rounded-full flex items-center justify-center translate-y-4 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 transition-all duration-300 z-10 shadow-xl" 
             onClick={(e) => { e.stopPropagation(); }}
@@ -111,31 +164,12 @@ const ProductCard = React.memo(({ product }: { product: Product }) => {
         </button>
       </div>
       <div className="px-2 mt-auto text-right" dir="rtl">
-        <p className="text-[10px] font-bold uppercase text-zinc-500 tracking-wider mb-1 line-clamp-1">
+        <p className="text-[10px] font-bold uppercase text-black tracking-wider mb-1 line-clamp-1">
             {product.tailorName || 'مجموعة خيوط'}
         </p>
-        <h4 className="text-sm font-bold text-black mb-1 line-clamp-1">{product.name}</h4>
+        <h4 className="text-sm text-black mb-1 line-clamp-1">{product.name}</h4>
         
-        {/* Debug Info */}
-        <div className="space-y-0.5 mb-1">
-          {product.tailorId && (
-            <div className="text-slate-400 text-[8px] font-mono">
-              ID: {product.tailorId}
-            </div>
-          )}
-          {product.category && (
-            <div className="text-orange-500 text-[8px] font-mono">
-              Cat: {product.category}
-            </div>
-          )}
-          {product.categoryId && (
-            <div className="text-purple-500 text-[8px] font-mono">
-              CatID: {product.categoryId}
-            </div>
-          )}
-        </div>
-
-        <div className="text-xs text-zinc-400 font-medium flex items-center gap-1">
+        <div className="text-sm text-black font-bold flex items-center gap-1">
           <span>يبدأ من {product.price} ر.ع</span>
         </div>
       </div>
@@ -440,7 +474,7 @@ export const ProductList = () => {
   };
 
   return (
-    <div className="h-full flex flex-col font-sans bg-[#ededed]">
+    <div className="h-full flex flex-col font-['Tajawal'] bg-[#ededed]">
       <MontHeader />
       
       {/* Scrollable Content Container */}

@@ -26,6 +26,15 @@
         });
         console.error('[UNHANDLED REJECTION]', e.reason);
       }, true);
+
+      // Suppress harmless ResizeObserver warning
+      window.addEventListener('error', (e) => {
+        if (e.message === 'ResizeObserver loop completed with undelivered notifications.' ||
+            e.message === 'ResizeObserver loop limit exceeded') {
+          e.stopImmediatePropagation();
+          return false;
+        }
+      });
     </script>
     
     <!-- 🎨 Fonts -->

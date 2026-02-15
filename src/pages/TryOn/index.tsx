@@ -1,6 +1,7 @@
 ﻿
 import React from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
 import { useDesignerLogic } from './hooks/useDesignerLogic';
 import { type DemoShellOutletContext } from '../demoShell/DemoShellLayout';
 import { Sidebar } from './sections/refactored/Sidebar';
@@ -127,11 +128,11 @@ export const TryOn: React.FC = () => {
         />
       )}
 
-      <main className="flex-1 flex overflow-hidden">
+      <main className="flex-1 flex overflow-hidden px-2 md:px-8">
         <Sidebar {...(logic as any)._stable || logic} />
 
         <div className="flex-1 flex overflow-hidden bg-[#e5e5e5]">
-          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-scroll custom-scrollbar border-l border-zinc-200 pb-6">
+          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-scroll custom-scrollbar border-l border-zinc-200 pb-6 rounded-3xl bg-white shadow-sm">
             <DesignerViewport {...logic} />
 
             {features.showFullComparison && (

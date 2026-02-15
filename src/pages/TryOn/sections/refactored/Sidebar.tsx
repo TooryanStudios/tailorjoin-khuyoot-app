@@ -23,7 +23,9 @@ import {
   X,
   Check,
   Link as LinkIcon,
-  Smartphone
+  Smartphone,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { TemplateSelectorView } from '../../../../modules/TemplatePicker';
@@ -343,7 +345,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     <motion.aside 
       initial={false}
       animate={{ width: isSidebarCollapsed ? 80 : 320 }}
-      className={`h-full bg-[#ededed] flex flex-col items-center z-50 relative`}
+      className={`h-full bg-[#ededed] flex flex-col items-center z-50 relative rounded-3xl`}
     >
       {/* Black divider line at the end of the sidebar */}
       <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-300 z-[100]" />
@@ -520,6 +522,18 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
             transition={{ duration: 0.2, ease: "easeInOut" }}
             className="w-full h-full flex flex-col"
           >
+            {/* Back Button Bar */}
+            <div className="px-5 py-2 border-b border-zinc-200 bg-transparent">
+              <button
+                onClick={() => navigate('/')}
+                className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-zinc-600 hover:bg-zinc-100 hover:text-zinc-900 transition-all active:scale-95"
+                title="رجوع"
+              >
+                <ArrowRight size={18} />
+                <span className="text-sm font-medium">رجوع</span>
+              </button>
+            </div>
+
             {/* Credits Section (Below Divider) - Tightened */}
             <div className="px-5 py-3 border-b border-zinc-200 bg-transparent">
               <div 

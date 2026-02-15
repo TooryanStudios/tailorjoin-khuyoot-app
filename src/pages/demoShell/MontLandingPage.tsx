@@ -420,7 +420,7 @@ const MontLandingPage = () => {
             <p className="block text-white bg-[var(--theme-primary)] px-4 py-2 rounded-lg text-xs md:text-sm max-w-[200px] md:max-w-xs leading-relaxed text-right">
               {config?.hero?.description || "نحول أحلامك إلى واقع بخياطة فاخرة ومخصصة."}
             </p>
-            <div className="hidden md:block w-full h-0.5 bg-zinc-800 rounded-full mt-6 relative overflow-hidden">
+            <div className="hidden md:block w-full h-px bg-white rounded-full mt-6 relative overflow-hidden">
                {/* Measurement Tape Pattern */}
                <div className="absolute inset-0 flex justify-between items-end px-1 pb-px">
                   {[...Array(20)].map((_, i) => (

@@ -194,6 +194,16 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     return (
         <>
             <div className="min-h-screen bg-[#ededed] pb-20 relative flex flex-col">
+                {/* Fixed Back Button - Top Right (Above Credit Bar) */}
+                <button 
+                    onClick={onBack}
+                    className="fixed top-4 right-4 z-[10001] w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 text-gray-900 transition-transform active:scale-95"
+                    title="رجوع"
+                    aria-label="رجوع"
+                >
+                    <ArrowLeft size={20} />
+                </button>
+
                 {/* Simplified Header for Mobile */}
                 <div className="relative z-10 w-full px-4 pt-4">
                     {/* Product Images Widget Card */}
