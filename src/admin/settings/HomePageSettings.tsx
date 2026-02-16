@@ -242,13 +242,13 @@ export const HomePageSettings: React.FC = () => {
   }
 
   return (
-    <div className="w-full max-w-none min-w-0 px-4 py-6">
+    <div className="w-full bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
       {/* Compact Header */}
-      <div className="mb-8">
-        <h2 className="text-2xl font-bold text-white">
+      <div className="mb-6">
+        <h2 className="text-2xl font-normal text-zinc-900 dark:text-white">
           إعدادات الصفحة الرئيسية
         </h2>
-        <p className="text-slate-400 mt-2">
+        <p className="text-zinc-500 dark:text-zinc-400 mt-2">
           تحكم في عناصر الصفحة الرئيسية وإعداداتها
         </p>
       </div>

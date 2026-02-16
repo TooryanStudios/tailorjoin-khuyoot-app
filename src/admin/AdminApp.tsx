@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
 import { firebaseService } from '../services/firebase';
-import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Zap, Eye, EyeOff } from 'lucide-react';
+import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Zap, Eye, EyeOff, Settings } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
 import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
@@ -393,132 +393,141 @@ export const AdminApp = () => {
     const configSection = getConfigSectionFromPathname(location.pathname);
 
     return (
-      <div className="space-y-4 w-full">
-        <div className="flex justify-between items-start gap-3 mb-3">
-          <div>
-            <h2 className="text-lg font-black text-zinc-900 dark:text-white">إعدادات النظام</h2>
-            <p className="text-xs text-zinc-600 dark:text-zinc-400">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <Link
-              to="/visualizer"
-              className="inline-flex items-center gap-2 rounded-lg border border-purple-500/40 bg-purple-500/10 px-3 py-2 text-xs font-normal text-purple-100 hover:bg-purple-500/20 transition-colors"
-            >
-              <Maximize2 size={14} />
-              <span>فتح الـ 3D Visualizer</span>
-            </Link>
-            {configSection === 'general' && (
-              <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 bg-gradient-to-r from-green-600 to-green-700 hover:from-green-700 hover:to-green-800 shadow-lg shadow-green-500/30 hover:shadow-green-500/50 transition-all disabled:shadow-none disabled:from-slate-400 disabled:to-slate-400">
-                {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
-                <span>حفظ التغييرات</span>
-              </Button>
-            )}
+      <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
+        {/* Header Section */}
+        <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
+          <div className="flex justify-between items-start gap-3">
+            <div className="flex items-end gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-theme-primary/10 flex items-center justify-center">
+                <Settings size={24} className="text-theme-primary" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-normal text-zinc-900 dark:text-white tracking-tight">إعدادات النظام</h2>
+                <p className="text-xs text-zinc-500 font-normal uppercase tracking-widest mt-0.5">تحديث الإعدادات بنفس لغة واجهة المصمم 2.1</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <Link
+                to="/visualizer"
+                className="inline-flex items-center gap-2 rounded-2xl border border-purple-500/40 bg-purple-500/10 px-4 py-2.5 text-xs font-semibold text-purple-600 dark:text-purple-300 hover:bg-purple-500/20 transition-all shadow-sm"
+              >
+                <Maximize2 size={14} />
+                <span>فتح الـ 3D Visualizer</span>
+              </Link>
+              {configSection === 'general' && (
+                <Button onClick={handleSaveSettings} disabled={isSaving} className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-green-500 hover:bg-green-600 text-white font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 text-xs">
+                  {isSaving ? <Activity className="animate-spin" size={16} /> : <Save size={16} />}
+                  <span>حفظ التغييرات</span>
+                </Button>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Tabs */}
-        <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-2 mb-3">
-          <button
-            onClick={() => navigate('/admin/config/general')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'general'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            الإعدادات العامة
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/homepage')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'homepage'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            الصفحة الرئيسية
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/landing-page')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'landing-page'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            صفحة الهبوط (Mont)
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/designer')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'designer'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            المصمم
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/product-page')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'product-page'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            صفحة المنتج
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/texts')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'texts'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            نصوص الموقع
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/social')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'social'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            السوشيال ميديا
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/seo')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'seo'
-                ? 'bg-theme-primary text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            SEO
-          </button>
-          <button
-            onClick={() => navigate('/admin/config/advanced/orders')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'advanced'
-                ? 'bg-black text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            إعدادات متقدمة
-          </button>
-
-          <button
-            onClick={() => navigate('/admin/config/debug-tools')}
-            className={`px-2 py-1.5 rounded-2xl text-[10px] md:text-xs font-normal transition-all text-center ${
-              configSection === 'debug-tools'
-                ? 'bg-black text-white'
-                : 'bg-zinc-100 dark:bg-zinc-700 text-zinc-700 dark:text-zinc-300 hover:bg-zinc-200 dark:hover:bg-zinc-600'
-            }`}
-          >
-            أدوات التشخيص
-          </button>
+        <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-2">
+          <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-1">
+            <button
+              onClick={() => navigate('/admin/config/general')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'general'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              الإعدادات العامة
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/homepage')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'homepage'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              الصفحة الرئيسية
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/landing-page')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'landing-page'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              صفحة الهبوط (Mont)
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/designer')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'designer'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              المصمم
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/product-page')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'product-page'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              صفحة المنتج
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/texts')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'texts'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              نصوص الموقع
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/social')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'social'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              السوشيال ميديا
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/seo')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'seo'
+                  ? 'bg-theme-primary text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              SEO
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/advanced/orders')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'advanced'
+                  ? 'bg-black text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              إعدادات متقدمة
+            </button>
+            <button
+              onClick={() => navigate('/admin/config/debug-tools')}
+              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                configSection === 'debug-tools'
+                  ? 'bg-black text-white shadow-sm font-bold'
+                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
+              }`}
+            >
+              أدوات التشخيص
+            </button>
+          </div>
         </div>
 
         {configSection === 'debug-tools' ? (
@@ -540,24 +549,24 @@ export const AdminApp = () => {
         ) : configSection === 'advanced' ? (
           <AdvancedSettings />
         ) : (
-          <div className="bg-zinc-900/60 backdrop-blur-xl rounded-2xl border border-zinc-700/50 overflow-hidden divide-y divide-zinc-800/50 shadow-xl shadow-theme-primary/40">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm overflow-hidden divide-y divide-zinc-200 dark:divide-zinc-800">
             {/* خيار الوضع الفاتح/الداكن */}
-          <div className="p-5 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
+          <div className="p-5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
             <div className="flex items-center gap-4">
-              <div className={`p-2 rounded-lg bg-zinc-800/50 ${theme === 'dark' ? 'text-theme-primary' : 'text-amber-300'} border border-zinc-700`}>
+              <div className={`p-2 rounded-2xl ${theme === 'dark' ? 'bg-theme-primary/10 text-theme-primary' : 'bg-amber-100 text-amber-600'} border-[1.5px] ${theme === 'dark' ? 'border-theme-primary/20' : 'border-amber-200'}`}>
                 {theme === 'dark' ? <Moon size={20} /> : <Sun size={20} />}
               </div>
               <div>
-                <p className="font-normal text-white text-sm">مظهر لوحة التحكم</p>
-                <p className="text-xs text-zinc-400">التبديل بين الوضع الفاتح والداكن للوحة التحكم</p>
+                <p className="font-bold text-zinc-900 dark:text-white text-sm">مظهر لوحة التحكم</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400">التبديل بين الوضع الفاتح والداكن للوحة التحكم</p>
               </div>
             </div>
             <button 
               onClick={toggleTheme}
-              className={`px-4 py-2 rounded-lg font-normal text-sm transition-colors border border-zinc-700 shadow-sm ${
+              className={`px-4 py-2.5 rounded-2xl font-semibold text-xs transition-all shadow-sm hover:shadow-md ${
                 theme === 'dark' 
                   ? 'bg-theme-primary text-white hover:bg-purple-500' 
-                  : 'bg-amber-500 text-white hover:bg-amber-400'
+                  : 'bg-amber-500 text-white hover:bg-amber-600'
               }`}
             >
               {theme === 'dark' ? 'الوضع الفاتح' : 'الوضع الداكن'}
@@ -565,26 +574,26 @@ export const AdminApp = () => {
           </div>
 
           {[
-            { key: 'storiesEnabled', label: 'القصص (Stories)', desc: 'تفعيل ميزة القصص للخياطين في الصفحة الرئيسية', icon: PlayCircle, color: 'text-pink-500' },
-            { key: 'designerEnabled', label: 'المصمم الذكي', desc: 'تفعيل أدوات التصميم بالذكاء الاصطناعي', icon: PenTool, color: 'text-theme-primary' },
-            { key: 'cartEnabled', label: 'نظام السلة والطلبات', desc: 'إتاحة عمليات الشراء وإدارة الطلبات', icon: ShoppingCart, color: 'text-orange-500' },
-            { key: 'storeEnabled', label: 'متجر خيوط للأقمشة', desc: 'تفعيل متجر خيوط لشراء الأقمشة (تجريبي)', icon: Store, color: 'text-emerald-500' },
-            { key: 'allowNewRegistrations', label: 'التسجيل الجديد', desc: 'السماح للمستخدمين الجدد بإنشاء حسابات', icon: Users, color: 'text-blue-500' },
-            { key: 'maintenanceMode', label: 'وضع الصيانة', desc: 'إغلاق الموقع مؤقتاً لجميع المستخدمين', icon: Lock, color: 'text-red-500' },
+            { key: 'storiesEnabled', label: 'القصص (Stories)', desc: 'تفعيل ميزة القصص للخياطين في الصفحة الرئيسية', icon: PlayCircle, color: 'text-pink-500', bgColor: 'bg-pink-50 dark:bg-pink-900/10', borderColor: 'border-pink-200 dark:border-pink-800/30' },
+            { key: 'designerEnabled', label: 'المصمم الذكي', desc: 'تفعيل أدوات التصميم بالذكاء الاصطناعي', icon: PenTool, color: 'text-theme-primary', bgColor: 'bg-purple-50 dark:bg-purple-900/10', borderColor: 'border-purple-200 dark:border-purple-800/30' },
+            { key: 'cartEnabled', label: 'نظام السلة والطلبات', desc: 'إتاحة عمليات الشراء وإدارة الطلبات', icon: ShoppingCart, color: 'text-orange-500', bgColor: 'bg-orange-50 dark:bg-orange-900/10', borderColor: 'border-orange-200 dark:border-orange-800/30' },
+            { key: 'storeEnabled', label: 'متجر خيوط للأقمشة', desc: 'تفعيل متجر خيوط لشراء الأقمشة (تجريبي)', icon: Store, color: 'text-emerald-500', bgColor: 'bg-emerald-50 dark:bg-emerald-900/10', borderColor: 'border-emerald-200 dark:border-emerald-800/30' },
+            { key: 'allowNewRegistrations', label: 'التسجيل الجديد', desc: 'السماح للمستخدمين الجدد بإنشاء حسابات', icon: Users, color: 'text-blue-500', bgColor: 'bg-blue-50 dark:bg-blue-900/10', borderColor: 'border-blue-200 dark:border-blue-800/30' },
+            { key: 'maintenanceMode', label: 'وضع الصيانة', desc: 'إغلاق الموقع مؤقتاً لجميع المستخدمين', icon: Lock, color: 'text-red-500', bgColor: 'bg-red-50 dark:bg-red-900/10', borderColor: 'border-red-200 dark:border-red-800/30' },
           ].map((item: any) => (
-            <div key={item.key} className="p-5 flex items-center justify-between hover:bg-zinc-800/30 transition-colors">
+            <div key={item.key} className="p-5 flex items-center justify-between hover:bg-zinc-50 dark:hover:bg-zinc-800/30 transition-colors">
               <div className="flex items-center gap-4">
-                  <div className={`p-2 rounded-lg bg-zinc-800/50 border border-zinc-700 ${item.color}`}>
+                  <div className={`p-2 rounded-2xl ${item.bgColor} border-[1.5px] ${item.borderColor} ${item.color}`}>
                     <item.icon size={20} />
                   </div>
                   <div>
-                    <p className="font-normal text-white text-sm">{item.label}</p>
-                    <p className="text-xs text-zinc-400">{item.desc}</p>
+                    <p className="font-bold text-zinc-900 dark:text-white text-sm">{item.label}</p>
+                    <p className="text-xs text-zinc-500 dark:text-zinc-400">{item.desc}</p>
                   </div>
               </div>
               <button 
                 onClick={() => handleToggle(item.key)}
-                className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings[item.key as keyof AppSettings] ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                className={`w-12 h-6 rounded-full p-1 transition-all ${localSettings[item.key as keyof AppSettings] ? 'bg-emerald-500' : 'bg-zinc-200 dark:bg-zinc-700'}`}
                 title={localSettings[item.key as keyof AppSettings] ? 'الغاء التفعيل' : 'تفعيل'}
                 aria-label={item.label}
               >
@@ -594,14 +603,14 @@ export const AdminApp = () => {
           ))}
 
           {/* إعدادات فيديو المساعدة */}
-          <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
+          <div className="p-6 bg-zinc-50 dark:bg-zinc-800/20">
             <div className="flex items-center justify-between mb-4">
               <div>
-                <h3 className="text-sm font-normal text-white flex items-center gap-2">
-                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-500/20 text-purple-200 border border-purple-500/40">جديد</span>
+                <h3 className="text-sm font-bold text-zinc-900 dark:text-white flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-purple-100 dark:bg-purple-500/20 text-purple-600 dark:text-purple-300 border border-purple-200 dark:border-purple-500/40">جديد</span>
                   إعدادات فيديو المساعدة
                 </h3>
-                <p className="text-xs text-zinc-400 mt-1">تحكّم بزر "شاهد" الذي يعرض فيديو شرح المقاسات داخل صفحات العميل.</p>
+                <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">تحكّم بزر "شاهد" الذي يعرض فيديو شرح المقاسات داخل صفحات العميل.</p>
               </div>
               <button
                 onClick={() => setLocalSettings(prev => ({
@@ -611,7 +620,7 @@ export const AdminApp = () => {
                     enabled: !(prev.helpVideo?.enabled)
                   }
                 }))}
-                className={`w-12 h-6 rounded-full p-1 transition-colors border border-zinc-700 ${localSettings.helpVideo?.enabled ? 'bg-emerald-500' : 'bg-zinc-700'}`}
+                className={`w-12 h-6 rounded-full p-1 transition-all ${localSettings.helpVideo?.enabled ? 'bg-emerald-500' : 'bg-zinc-200 dark:bg-zinc-700'}`}
                 title={localSettings.helpVideo?.enabled ? 'الغاء التفعيل' : 'تفعيل'}
                 aria-label="تفعيل فيديو المساعدة"
               >
@@ -621,7 +630,7 @@ export const AdminApp = () => {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="md:col-span-2">
-                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">رابط الفيديو (YouTube)</label>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-2 text-right">رابط الفيديو (YouTube)</label>
                 <input
                   type="text"
                   defaultValue={localSettings.helpVideo?.url || ''}
@@ -639,11 +648,11 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="مثال: https://youtu.be/xxxxxxxx أو https://www.youtube.com/watch?v=xxxxxxx"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
+                  className="w-full px-3 py-2 rounded-2xl border-[1.5px] border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">نص الزر</label>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-2 text-right">نص الزر</label>
                 <input
                   type="text"
                   defaultValue={localSettings.helpVideo?.buttonText || 'شاهد'}
@@ -661,10 +670,10 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="شاهد"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
+                  className="w-full px-3 py-2 rounded-2xl border-[1.5px] border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
-              <div className="flex items-center gap-2 bg-purple-500/15 text-purple-100 px-3 py-2 rounded-lg text-xs md:justify-end border border-purple-500/30">
+              <div className="flex items-center gap-2 bg-purple-50 dark:bg-purple-500/15 text-purple-700 dark:text-purple-200 px-3 py-2 rounded-2xl text-xs md:justify-end border-[1.5px] border-purple-200 dark:border-purple-500/30">
                 <CheckCircle size={14} />
                 <span>نقوم تلقائياً بتحويل الروابط إلى صيغة embed المتوافقة مع YouTube.</span>
               </div>
@@ -672,14 +681,14 @@ export const AdminApp = () => {
           </div>
 
           {/* ??????? ????? ?????? */}
-          <div className="p-5 border-t border-zinc-800/50 bg-zinc-900/40">
+          <div className="p-6 bg-zinc-50 dark:bg-zinc-800/20">
             <div className="mb-4">
-              <h3 className="text-sm font-normal text-white">????? ??????</h3>
-              <p className="text-xs text-zinc-400 mt-1">???? ??????? ???????? ????????? (HEX) ???????? ??? ??????? ?????? ????????.</p>
+              <h3 className="text-sm font-bold text-zinc-900 dark:text-white">????? ??????</h3>
+              <p className="text-xs text-zinc-500 dark:text-zinc-400 mt-1">???? ??????? ???????? ????????? (HEX) ???????? ??? ??????? ?????? ????????.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-zinc-300 mb-2 text-right">????? ???????</label>
+                <label className="block text-xs font-bold text-zinc-700 dark:text-zinc-300 mb-2 text-right">????? ???????</label>
                 <input
                   type="text"
                   defaultValue={localSettings.themeColors?.primary || '#CFFF04'}
@@ -697,7 +706,7 @@ export const AdminApp = () => {
                     }
                   }}
                   placeholder="#CFFF04"
-                  className="w-full px-3 py-2 rounded-lg border border-zinc-700 bg-zinc-800 text-sm text-white placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
+                  className="w-full px-3 py-2 rounded-2xl border-[1.5px] border-zinc-300 dark:border-zinc-600 bg-white dark:bg-zinc-800 text-sm text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-theme-primary/40"
                 />
               </div>
               <div>
@@ -1068,7 +1077,7 @@ export const AdminApp = () => {
         shopsCount={shopsCount}
       />
 
-      {isSidebarOpen && isSmallScreen && (
+      {isSidebarOpen && (
         <div
           className="fixed inset-0 bg-zinc-900/40 backdrop-blur-sm z-40"
           onClick={() => setSidebarOpenPersisted(false)}

@@ -51,7 +51,7 @@ const TailorCard = React.memo(function TailorCard({ tailor, regionName }: { tail
           <div className="flex flex-wrap gap-2">
             {tailor.specialization && (
               <span className="px-3 py-1.5 rounded-full bg-purple-500/30 backdrop-blur-sm border border-purple-300/20 text-xs text-white font-medium">
-                {tailor.specialization === 'males' ? 'تفصيل رجالي' : tailor.specialization === 'females' ? 'تفصيل نسائي' : tailor.specialization}
+                {tailor.specialization === 'male' ? 'تفصيل رجالي' : tailor.specialization === 'female' ? 'تفصيل نسائي' : tailor.specialization}
               </span>
             )}
             {tailor.experience && (

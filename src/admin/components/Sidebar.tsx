@@ -36,8 +36,8 @@ const SidebarItem = React.memo<SidebarItemProps>(function SidebarItem({
       }}
       className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-colors mb-1 ${
         isActive
-          ? 'bg-theme-primary text-white shadow-lg shadow-theme-primary/20'
-          : 'text-zinc-400 hover:bg-zinc-800 hover:text-white'
+          ? 'bg-black/80 text-white shadow-lg'
+          : 'text-white hover:bg-black/80 hover:text-white'
       }`}
     >
       <Icon size={16} />
@@ -81,31 +81,26 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const showDevPrefixes = Boolean((import.meta as any)?.env?.DEV);
 
   const onAfterNavigate = () => {
-    // Keep the sidebar open on desktop so the user always sees the menu.
-    try {
-      const isSmallScreen = window.matchMedia('(max-width: 640px)').matches;
-      if (isSmallScreen) setIsOpen(false);
-    } catch {
-      setIsOpen(false);
-    }
+    // Close the sidebar after navigation on all screen sizes
+    setIsOpen(false);
   };
 
   return (
     <aside
-      className={`fixed top-0 right-0 h-full w-64 bg-zinc-950 text-zinc-300 flex flex-col border-l border-zinc-800 z-[999] transition-transform duration-300 ${
+      className={`fixed top-0 right-0 h-full w-64 bg-gradient-to-b from-black/70 to-black/60 backdrop-blur-md text-white flex flex-col border-l border-theme-primary/20 z-[999] transition-transform duration-300 font-['Tajawal'] ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
       role="complementary"
       aria-hidden={!isOpen}
     >
-        <div className="h-16 flex items-center px-6 border-b border-zinc-800 justify-between">
+        <div className="h-16 flex items-center px-6 border-b border-theme-primary/20 justify-between bg-gradient-to-r from-black/80 to-black/60">
           <div className="flex items-center gap-2">
             <Shield className="text-theme-primary" size={24} />
             <h1 className="text-lg font-bold text-white tracking-wider">KHUYOOT</h1>
           </div>
           <button 
             onClick={() => setIsOpen(false)} 
-            className="text-zinc-400 hover:text-white transition-colors"
+            className="text-white hover:text-theme-primary transition-colors"
             title="إخفاء الشريط الجانبي"
           >
             <X size={20}/>
@@ -115,41 +110,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="flex-1 overflow-y-auto py-6 px-3" style={{ overflowY: 'auto', maxHeight: 'calc(100vh - 128px)' }}>
           <button 
             onClick={() => navigate('/')} 
-            className="flex items-center gap-3 w-full px-4 py-3 mb-6 rounded-xl bg-theme-primary/10 text-theme-primary hover:bg-theme-primary/20 transition-all border border-theme-primary/20 group"
+            className="flex items-center gap-3 w-full px-4 py-3 mb-6 rounded-xl bg-white/10 text-white border border-white/30 hover:bg-white/20 hover:border-white/50 transition-all group"
           >
             <Home size={18} className="group-hover:scale-110 transition-transform" />
             <div className="text-left">
-              <p className="text-xs font-bold leading-none">عرض الموقع</p>
-              <p className="text-[9px] opacity-60 mt-1">الخروج من لوحة الإدارة</p>
+              <p className="text-xs font-normal leading-none">عرض الموقع</p>
+              <p className="text-[9px] opacity-70 mt-1">الخروج من لوحة الإدارة</p>
             </div>
           </button>
 
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mb-2 uppercase tracking-wider">الرئيسية</p>
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الرئيسية</p>
           <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="approvals" icon={CheckCircle} label="موافقات التجار" count={tailorsCount + boutiquesCount + shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mt-6 mb-2 uppercase tracking-wider">المحلات التجارية</p>
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">المحلات التجارية</p>
           <SidebarItem id="tailors" icon={Scissors} label="جميع محلات الخياطة" count={tailorsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="boutiques" icon={Store} label="البوتيكات" count={boutiquesCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="shops" icon={Building2} label="المحلات الأخرى" count={shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mt-6 mb-2 uppercase tracking-wider">الإدارة</p>
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الإدارة</p>
           <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="products" icon={Package} label="المنتجات" to="/admin/products/categories" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="store" icon={Store} label="إدارة المتجر" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mt-6 mb-2 uppercase tracking-wider">الأصول</p>
-          <SidebarItem id="images" icon={ImagePlus} label="*++** مكتبة الصور" to="/admin/images/all" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الأصول</p>
+          <SidebarItem id="images" icon={ImagePlus} label="مكتبة الصور" to="/admin/images/all" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="family" icon={Users} label="ملفات العائلة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mt-6 mb-2 uppercase tracking-wider">Try-On</p>
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">Try-On</p>
           <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" to="/admin/tryon-templates/templates" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           
-          <p className="px-4 text-[9px] font-bold text-zinc-500 mt-6 mb-2 uppercase tracking-wider">النظام</p>
+          <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">النظام</p>
           <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="notifications" icon={Bell} label="إرسال الإشعارات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
           <SidebarItem id="ads" icon={Megaphone} label="إدارة الإعلانات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
@@ -162,7 +157,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <SidebarItem id="logs" icon={FileText} label="System Logs" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
         </div>
 
-        <div className="p-4 border-t border-zinc-800">
+        <div className="p-4 border-t border-theme-primary/20 bg-gradient-to-r from-black/70 to-black/50">
           <button onClick={onLogout} className="flex items-center gap-3 w-full px-4 py-3 rounded-lg text-red-400 hover:bg-red-500/10 transition-colors">
             <LogOut size={16} />
             <span className="font-medium text-xs">تسجيل الخروج</span>

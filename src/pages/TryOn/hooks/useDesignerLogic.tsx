@@ -727,8 +727,7 @@ export const useDesignerLogic = () => {
   const loadedProductRef = React.useRef<string | null>(null);
   
   // Blob cache for instant image switching (used by product images and history)
-  const MAX_CACHE_SIZE = 10;
-  const blobCache = React.useRef<Map<string, string>>(new Map());
+  // No blob caching needed - using browser's native cache via fetch cache: 'force-cache'
 
   // Load product image if productId is in URL
   // FIX: Removed function dependencies (setSourcePreviewUrl, setSourceForComparison, persistTemplateSelection)
@@ -786,53 +785,33 @@ export const useDesignerLogic = () => {
             if (productImages.length > 0) {
               console.log(`Loading product "${product.name}" with ${productImages.length} image(s)`);
               
-              // Prefetch all product images as blobs for instant access
-              const blobPromises = productImages.map(async (imageUrl, index) => {
-                const imageId = `product-${productId}-${index}`;
-                
+              // Prefetch all product images to browser cache AND fetch blobs for base64 conversion
+              const prefetchPromises = productImages.map(async (imageUrl, index) => {
                 try {
-                  // Try to use browser's disk cache
+                  // Fetch with browser's disk cache
                   const res = await fetch(imageUrl, { cache: 'force-cache' });
                   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-                  
+                  // Get both blob (for base64) and benefit from browser cache
                   const blob = await res.blob();
                   
-                  // Critical check: If unmounted, DO NOT create object URL to avoid leak/ghosting
-                  if (!isMounted.current || activeRequestId.current !== currentRequestId) {
-                    return { index, blobUrl: imageUrl, imageUrl, blob: null };
-                  }
-
-                  const blobUrl = URL.createObjectURL(blob);
-                  
-                  // Safely add to cache
-                  if (blobCache.current) {
-                    blobCache.current.set(imageId, blobUrl);
-                  }
-                  
-                  return { index, blobUrl, imageUrl, blob };
+                  return { index, imageUrl, blob, success: true };
                 } catch (e) {
-                  console.warn(`[ProductCache] Failed to cache ${imageId}:`, e);
-                  return { index, blobUrl: imageUrl, imageUrl, blob: null }; // Fallback
+                  console.warn(`[ProductCache] Failed to prefetch image ${index}:`, e);
+                  return { index, imageUrl, blob: null, success: false };
                 }
               });
               
-              const cachedImages = await Promise.all(blobPromises);
+              const prefetchedImages = await Promise.all(prefetchPromises);
               
               // Final mount check before state updates
               if (!isMounted.current || activeRequestId.current !== currentRequestId) {
-                // Cleanup any blobs we just created since we're aborting
-                cachedImages.forEach(img => {
-                  if (img.blob && img.blobUrl.startsWith('blob:')) {
-                    URL.revokeObjectURL(img.blobUrl);
-                  }
-                });
                 return;
               }
 
-              // Create template items with blob URLs
-              const templates = cachedImages.map(({ index, blobUrl }) => ({
+              // Create template items with product image URLs (not blob URLs - they get revoked)
+              const templates = prefetchedImages.map(({ index, imageUrl }) => ({
                 id: `product-${productId}-${index}`,
-                imageUrl: blobUrl, // Use blob URL for instant loading
+                imageUrl, // Use original URL - browser cache will serve it instantly
                 name: index === mainImageIndex ? `${product.name} (Main)` : `${product.name} - ${index + 1}`,
                 isPremium: false,
                 isProductImage: true 
@@ -840,26 +819,28 @@ export const useDesignerLogic = () => {
               
               setProductTemplates(templates);
               
-              // Auto-load the main image using blob URL
-              const mainImage = cachedImages.find(img => img.index === mainImageIndex);
-              if (mainImage && mainImage.blob) {
+              // Auto-load the main image using product image URL
+              const mainImage = prefetchedImages.find(img => img.index === mainImageIndex);
+              if (mainImage) {
                 setLastActiveTemplateTab('Shop');
-                setShopPreviewUrl(mainImage.blobUrl);
-                setSourceForComparison(mainImage.blobUrl);
+                setShopPreviewUrl(mainImage.imageUrl);
+                setSourceForComparison(mainImage.imageUrl);
                 
-                // Convert blob to base64 for API calls
-                const reader = new FileReader();
-                reader.onloadend = () => {
-                  if (!isMounted.current || activeRequestId.current !== currentRequestId) return;
-                  const dataUrl = reader.result as string;
-                  const parts = dataUrl.split(',');
-                  const base64 = parts[1];
-                  const mimeType = mainImage.blob!.type || 'image/jpeg';
-                  
-                  setShopImageBase64(base64);
-                  setShopImageMimeType(mimeType);
-                };
-                reader.readAsDataURL(mainImage.blob);
+                // Convert blob to base64 for API calls if blob exists
+                if (mainImage.blob) {
+                  const reader = new FileReader();
+                  reader.onloadend = () => {
+                    if (!isMounted.current || activeRequestId.current !== currentRequestId) return;
+                    const dataUrl = reader.result as string;
+                    const parts = dataUrl.split(',');
+                    const base64 = parts[1];
+                    const mimeType = mainImage.blob!.type || 'image/jpeg';
+                    
+                    setShopImageBase64(base64);
+                    setShopImageMimeType(mimeType);
+                  };
+                  reader.readAsDataURL(mainImage.blob);
+                }
                 
                 persistTemplateSelection({
                   templateId: `product-${productId}-${mainImageIndex}`,

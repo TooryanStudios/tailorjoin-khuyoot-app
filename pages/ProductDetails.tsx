@@ -1309,6 +1309,8 @@ export const ProductDetails = ({
   const [duplicateOrder, setDuplicateOrder] = useState<any>(null);
   const [showDuplicateWarning, setShowDuplicateWarning] = useState(false);
   const [measurementError, setMeasurementError] = useState<string | null>(null);
+  const [openMeasurementsToken, setOpenMeasurementsToken] = useState(0);
+  const [pendingOpenMeasurements, setPendingOpenMeasurements] = useState(false);
   const [customerComments, setCustomerComments] = useState("");
   const [showCommentsField, setShowCommentsField] = useState(false);
   const [savedMeasurementProfiles, setSavedMeasurementProfiles] = useState<any[]>([]);
@@ -1384,7 +1386,17 @@ export const ProductDetails = ({
     setPendingProfileToApply(null);
   };
 
-  const handleInfoDismiss = () => setInfoDialog(null);
+  const handleInfoDismiss = () => {
+    setInfoDialog(null);
+    if (!pendingOpenMeasurements) return;
+    setPendingOpenMeasurements(false);
+    setMeasurementError(null);
+    if (isMobile) {
+      setOpenMeasurementsToken((prev) => prev + 1);
+    } else {
+      setShowMeasurementDialog(true);
+    }
+  };
 
   const handleSaveMeasurement = async (name: string) => {
     if (!user?.uid) return;
@@ -1569,6 +1581,8 @@ export const ProductDetails = ({
     
     if (missingPoints.length > 0) {
       setMeasurementError("يرجى ملأ جميع بيانات المقاسات في الرسم التوضيحي للمتابعة");
+      setInfoDialog({ message: "يرجى إضافة أو إكمال القياسات للمتابعة" });
+      setPendingOpenMeasurements(true);
       return;
     }
     
@@ -1719,28 +1733,84 @@ export const ProductDetails = ({
 
   if (isMobile) {
     return (
-      <MobileProductDetails
-        product={product}
-        tailor={tailor}
-        productImages={productImages}
-        currentImageIndex={currentImageIndex}
-        setCurrentImageIndex={setCurrentImageIndex}
-        isLiked={isLiked}
-        onLikeToggle={() => setIsLiked(!isLiked)}
-        onBack={() => navigate(-1)}
-        onStartTailoring={() => setShowStartTailoringActions(true)}
-        onAddToCart={handleAddToCart}
-        template={template}
-        measurementHook={measurementHook}
-        onPlaceOrder={handleReviewOrder}
-        measurementError={measurementError}
-        customerComments={customerComments}
-        setCustomerComments={setCustomerComments}
-        showCommentsField={showCommentsField}
-        setShowCommentsField={setShowCommentsField}
-        onSaveToProfile={handleSaveToProfile}
-        onApplyProfile={() => setShowSavedMeasurementsModal(true)}
-      />
+      <>
+        <MobileProductDetails
+          product={product}
+          tailor={tailor}
+          productImages={productImages}
+          currentImageIndex={currentImageIndex}
+          setCurrentImageIndex={setCurrentImageIndex}
+          isLiked={isLiked}
+          onLikeToggle={() => setIsLiked(!isLiked)}
+          onBack={() => navigate(-1)}
+          onStartTailoring={() => setShowStartTailoringActions(true)}
+          onAddToCart={handleAddToCart}
+          template={template}
+          measurementHook={measurementHook}
+          onPlaceOrder={handleReviewOrder}
+          measurementError={measurementError}
+          customerComments={customerComments}
+          setCustomerComments={setCustomerComments}
+          showCommentsField={showCommentsField}
+          setShowCommentsField={setShowCommentsField}
+          onSaveToProfile={handleSaveToProfile}
+          onApplyProfile={() => setShowSavedMeasurementsModal(true)}
+          openMeasurementsToken={openMeasurementsToken}
+        />
+
+        <ProductSummaryDialog
+          isOpen={isSummaryOpen}
+          onClose={() => {
+            setIsSummaryOpen(false);
+            setIsOrderSuccess(false);
+            setShowDuplicateWarning(false);
+            setDuplicateOrder(null);
+          }}
+          product={product}
+          tailor={tailor}
+          measurements={measurementHook.measurements}
+          template={template}
+          onConfirm={handlePlaceOrder}
+          isSubmitting={isSubmittingOrder}
+          isSuccess={isOrderSuccess}
+          comments={customerComments}
+          showDuplicateWarning={showDuplicateWarning}
+          onConfirmDuplicate={() => handlePlaceOrder(true)}
+          onCancelDuplicate={() => {
+            setShowDuplicateWarning(false);
+            setDuplicateOrder(null);
+          }}
+        />
+
+        <SavedMeasurementsSheet
+          isOpen={showSavedMeasurementsModal}
+          onClose={() => setShowSavedMeasurementsModal(false)}
+          profiles={filteredMeasurementProfiles}
+          onSelect={handleProfileSelect}
+        />
+        <MeasurementSaveDialog
+          isOpen={showSaveDialog}
+          name={saveDialogName}
+          error={saveDialogError}
+          isSaving={isSavingMeasurement}
+          onChange={setSaveDialogName}
+          onCancel={handleCancelSaveDialog}
+          onConfirm={handleConfirmSave}
+        />
+        <ConfirmationDialog
+          isOpen={showApplyConfirmation && !!pendingProfileToApply}
+          title="تحميل المقاس المحفوظ"
+          description="هل ترغب في تطبيق هذا المقاس على المنتج الحالي؟"
+          onCancel={handleCancelApply}
+          onConfirm={handleApplyConfirmation}
+        />
+        <InfoDialog
+          isOpen={!!infoDialog}
+          title={infoDialog?.title}
+          message={infoDialog?.message || ''}
+          onClose={handleInfoDismiss}
+        />
+      </>
     );
   }
 

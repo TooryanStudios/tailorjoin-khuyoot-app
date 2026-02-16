@@ -196,13 +196,9 @@ export const AdvancedSettings: React.FC = () => {
   ];
 
   return (
-    <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl relative overflow-hidden">
-      {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -ml-32 -mb-32" />
-
+    <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm">
       {/* Tabs */}
-      <div className="relative border-b border-white/10 bg-white/5 p-4 overflow-x-auto scrollbar-hide">
+      <div className="relative border-b border-zinc-200 dark:border-zinc-800 bg-zinc-50 dark:bg-zinc-900/30 p-4 overflow-x-auto scrollbar-hide">
         <div className="flex gap-3 min-w-max">
           {tabs.map((tab) => {
             const Icon = tab.icon;

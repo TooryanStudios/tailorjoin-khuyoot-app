@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Plus, Search, Loader2, RefreshCw } from 'lucide-react';
+import { Plus, Search, Loader2, RefreshCw, Package } from 'lucide-react';
 import { Category, ProductTemplate, CategoryTreeNode, CategoryFormData, ProductTemplateFormData } from './types';
 import {
   getAllCategories,
@@ -15,11 +15,25 @@ import {
 } from './services';
 import { CategoryForm } from './components/CategoryForm';
 import { ProductTemplateForm } from './components/ProductTemplateForm';
-import { CategoryTreeItem } from './components/CategoryTreeItem';
 
 type TabType = 'categories' | 'templates';
 
 const PRODUCT_TABS: ReadonlyArray<TabType> = ['categories', 'templates'];
+
+type CategoryRow = {
+  node: CategoryTreeNode;
+  level: number;
+};
+
+function flattenCategoryTree(nodes: CategoryTreeNode[], level = 0, acc: CategoryRow[] = []): CategoryRow[] {
+  nodes.forEach((node) => {
+    acc.push({ node, level });
+    if (node.children && node.children.length > 0) {
+      flattenCategoryTree(node.children, level + 1, acc);
+    }
+  });
+  return acc;
+}
 
 function getProductsTabFromPathname(pathname: string): TabType {
   const parts = String(pathname || '').split('/').filter(Boolean);
@@ -48,6 +62,7 @@ export const ProductsManagement: React.FC = () => {
   // Product Form Modal
   const [showProductForm, setShowProductForm] = useState(false);
   const [editingProduct, setEditingProduct] = useState<ProductTemplate | null>(null);
+  const categoryRows = React.useMemo(() => flattenCategoryTree(categoryTree), [categoryTree]);
 
   useEffect(() => {
     loadData();
@@ -202,52 +217,64 @@ export const ProductsManagement: React.FC = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
       {/* الرأس */}
-      <div className="flex items-center justify-between">
-        <h1 className="text-3xl font-bold text-slate-800 dark:text-white">
-          إدارة المنتجات
-        </h1>
-        <div className="flex items-center gap-3">
-          <button
-            onClick={loadData}
-            disabled={loading}
-            className="flex items-center gap-2 px-4 py-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-200 font-medium rounded-lg transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-            title="تحديث البيانات"
-          >
-            <RefreshCw size={20} className={loading ? 'animate-spin' : ''} />
-            تحديث
-          </button>
-          <button
-            onClick={() =>
-              activeTab === 'categories' ? handleAddCategory() : handleAddProduct()
-            }
-            className="flex items-center gap-2 px-6 py-3 bg-emerald-500 hover:bg-emerald-600 text-white font-medium rounded-lg transition-colors shadow-sm"
-          >
-            <Plus size={20} />
-            {activeTab === 'categories' ? 'إضافة تصنيف' : 'إضافة منتج'}
-          </button>
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
+        <div className="flex items-end justify-between gap-4 flex-wrap">
+          <div className="flex items-end gap-3">
+            <div className="w-12 h-12 rounded-2xl bg-theme-primary/10 flex items-center justify-center">
+              <Package size={24} className="text-theme-primary" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-normal text-zinc-900 dark:text-white tracking-tight">
+                إدارة المنتجات
+              </h1>
+              <p className="text-xs text-zinc-500 font-normal uppercase tracking-widest mt-0.5">
+                إدارة التصنيفات وقوالب المنتجات
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2 flex-wrap">
+            <button
+              onClick={loadData}
+              disabled={loading}
+              className="flex items-center gap-2 px-4 py-2.5 bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 font-semibold rounded-2xl transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+              title="تحديث البيانات"
+            >
+              <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+              تحديث
+            </button>
+            <button
+              onClick={() =>
+                activeTab === 'categories' ? handleAddCategory() : handleAddProduct()
+              }
+              className="flex items-center gap-2 px-4 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white font-semibold rounded-2xl transition-colors shadow-sm text-xs"
+            >
+              <Plus size={16} />
+              {activeTab === 'categories' ? 'إضافة تصنيف' : 'إضافة منتج'}
+            </button>
+          </div>
         </div>
       </div>
 
       {/* التبويبات */}
-      <div className="flex items-center gap-2 border-b border-slate-200 dark:border-slate-700">
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-2 flex gap-1 w-fit">
         <button
           onClick={() => navigate('/admin/products/categories')}
-          className={`px-6 py-3 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-2xl text-xs font-normal transition-all ${
             activeTab === 'categories'
-              ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-theme-primary text-white shadow-sm font-bold'
+              : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
           }`}
         >
           التصنيفات ({categories.length})
         </button>
         <button
           onClick={() => navigate('/admin/products/templates')}
-          className={`px-6 py-3 font-medium transition-colors ${
+          className={`px-4 py-2 rounded-2xl text-xs font-normal transition-all ${
             activeTab === 'templates'
-              ? 'text-emerald-600 dark:text-emerald-400 border-b-2 border-emerald-600 dark:border-emerald-400'
-              : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200'
+              ? 'bg-theme-primary text-white shadow-sm font-bold'
+              : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
           }`}
         >
           قوالب المنتجات ({products.length})
@@ -257,47 +284,106 @@ export const ProductsManagement: React.FC = () => {
       {/* محتوى التبويبات */}
       {activeTab === 'categories' ? (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-6">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-xl font-bold text-slate-800 dark:text-white">
+              <h2 className="text-xl font-normal text-zinc-900 dark:text-white">
                 التصنيفات الهرمية
               </h2>
             </div>
-          {categoryTree.length === 0 ? (
-            <div className="text-center py-12">
-              <p className="text-slate-500 dark:text-slate-400 mb-4">
-                لا توجد تصنيفات بعد
-              </p>
-              <button
-                onClick={() => handleAddCategory()}
-                className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
-              >
-                إضافة أول تصنيف
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-2">
-              {categoryTree.map((node) => (
-                <CategoryTreeItem
-                  key={node.id}
-                  node={node}
-                  level={0}
-                  onEdit={handleEditCategory}
-                  onDelete={handleDeleteCategory}
-                  onAddChild={handleAddCategory}
-                />
-              ))}
-            </div>
-          )}
-        </div>
+            {categoryRows.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-zinc-500 dark:text-zinc-400 mb-4">
+                  لا توجد تصنيفات بعد
+                </p>
+                <button
+                  onClick={() => handleAddCategory()}
+                  className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl transition-colors"
+                >
+                  إضافة أول تصنيف
+                </button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead className="bg-zinc-50 dark:bg-zinc-800/60">
+                    <tr className="text-zinc-700 dark:text-zinc-300">
+                      <th className="px-4 py-3 text-right font-normal">التصنيف</th>
+                      <th className="px-4 py-3 text-right font-normal">المستوى</th>
+                      <th className="px-4 py-3 text-right font-normal">الحالة</th>
+                      <th className="px-4 py-3 text-right font-normal">المنتجات</th>
+                      <th className="px-4 py-3 text-right font-normal">الإجراءات</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
+                    {categoryRows.map(({ node, level }) => (
+                      <tr key={node.id} className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40">
+                        <td className="px-4 py-3 text-zinc-900 dark:text-white">
+                          <div className="flex items-center gap-2" style={{ paddingRight: `${level * 16}px` }}>
+                            {node.image ? (
+                              <img
+                                src={node.image}
+                                alt={node.nameAr}
+                                className="w-8 h-8 rounded-xl border border-zinc-200 dark:border-zinc-700 object-cover"
+                              />
+                            ) : (
+                              <div className="w-8 h-8 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-100 dark:bg-zinc-800" />
+                            )}
+                            <div className="min-w-0">
+                              <div className="truncate">{node.nameAr}</div>
+                              <div className="text-[11px] text-zinc-500 dark:text-zinc-400 truncate">{node.nameEn}</div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">{node.level}</td>
+                        <td className="px-4 py-3">
+                          <span className={`px-2.5 py-1 rounded-2xl text-[11px] font-normal ${
+                            node.isActive
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
+                              : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
+                          }`}>
+                            {node.isActive ? 'مفعل' : 'معطل'}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-zinc-600 dark:text-zinc-400">
+                          {node.productsCount ?? 0}
+                        </td>
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleEditCategory(node)}
+                              className="px-3 py-1.5 text-xs rounded-2xl bg-blue-500 hover:bg-blue-600 text-white transition-colors"
+                            >
+                              تعديل
+                            </button>
+                            <button
+                              onClick={() => handleAddCategory(node.id)}
+                              className="px-3 py-1.5 text-xs rounded-2xl bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700 text-zinc-700 dark:text-zinc-200 transition-colors"
+                            >
+                              فرعي
+                            </button>
+                            <button
+                              onClick={() => handleDeleteCategory(node.id)}
+                              className="px-3 py-1.5 text-xs rounded-2xl bg-red-500 hover:bg-red-600 text-white transition-colors"
+                            >
+                              حذف
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       ) : (
         <div className="space-y-4">
           {/* البحث */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm p-4">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-4">
             <div className="relative">
               <Search
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400"
                 size={20}
               />
               <input
@@ -305,22 +391,22 @@ export const ProductsManagement: React.FC = () => {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="ابحث عن منتج..."
-                className="w-full pr-10 pl-4 py-2 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-800 dark:text-white focus:ring-2 focus:ring-emerald-500 dark:focus:ring-emerald-400 focus:border-transparent"
+                className="w-full pr-10 pl-4 py-2.5 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-800/60 text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-emerald-500/40 focus:border-emerald-500/50"
               />
             </div>
           </div>
 
           {/* قائمة المنتجات */}
-          <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm overflow-hidden">
+          <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm overflow-hidden">
             {filteredProducts.length === 0 ? (
               <div className="text-center py-12">
-                <p className="text-slate-500 dark:text-slate-400 mb-4">
+                <p className="text-zinc-500 dark:text-zinc-400 mb-4">
                   {searchQuery ? 'لا توجد نتائج' : 'لا توجد منتجات بعد'}
                 </p>
                 {!searchQuery && (
                   <button
                     onClick={handleAddProduct}
-                    className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-lg transition-colors"
+                    className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-2xl transition-colors"
                   >
                     إضافة أول منتج
                   </button>
@@ -329,33 +415,33 @@ export const ProductsManagement: React.FC = () => {
             ) : (
               <div className="overflow-x-auto">
                 <table className="w-full">
-                  <thead className="bg-slate-50 dark:bg-slate-700">
+                  <thead className="bg-zinc-50 dark:bg-zinc-800/60">
                     <tr>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         الصورة
                       </th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         الاسم
                       </th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         التصنيف
                       </th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         الحالة
                       </th>
-                      <th className="px-6 py-3 text-right text-sm font-semibold text-slate-700 dark:text-slate-300">
+                      <th className="px-6 py-3 text-right text-xs font-semibold text-zinc-700 dark:text-zinc-300">
                         الإجراءات
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
+                  <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
                     {filteredProducts.map((product) => (
                       <tr
                         key={product.id}
-                        className="hover:bg-slate-50 dark:hover:bg-slate-700/50 transition-colors"
+                        className="hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors"
                       >
                         <td className="px-6 py-4">
-                          <div className="w-16 h-16 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-600">
+                          <div className="w-16 h-16 rounded-2xl overflow-hidden border border-zinc-200 dark:border-zinc-700">
                             <img
                               src={product.defaultImage}
                               alt={product.nameAr}
@@ -365,21 +451,21 @@ export const ProductsManagement: React.FC = () => {
                         </td>
                         <td className="px-6 py-4">
                           <div>
-                            <p className="font-semibold text-slate-800 dark:text-white">
+                            <p className="font-semibold text-zinc-900 dark:text-white">
                               {product.nameAr}
                             </p>
-                            <p className="text-sm text-slate-500 dark:text-slate-400">
+                            <p className="text-sm text-zinc-500 dark:text-zinc-400">
                               {product.nameEn}
                             </p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
                               ID: {product.id}
                             </p>
                           </div>
                         </td>
-                        <td className="px-6 py-4 text-slate-600 dark:text-slate-400">
+                        <td className="px-6 py-4 text-zinc-600 dark:text-zinc-400">
                           <div>
                             <p>{getCategoryName(product.categoryId)}</p>
-                            <p className="text-xs text-slate-400 dark:text-slate-500">
+                            <p className="text-xs text-zinc-400 dark:text-zinc-500">
                               Category ID: {product.categoryId}
                               {getCategoryLevel(product.categoryId) !== null
                                 ? ` • Level: ${getCategoryLevel(product.categoryId)}`
@@ -392,7 +478,7 @@ export const ProductsManagement: React.FC = () => {
                             className={`px-3 py-1 rounded-full text-xs font-medium ${
                               product.isActive
                                 ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
-                                : 'bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-400'
+                                : 'bg-zinc-100 dark:bg-zinc-800 text-zinc-600 dark:text-zinc-400'
                             }`}
                           >
                             {product.isActive ? 'مفعل' : 'معطل'}
@@ -402,13 +488,13 @@ export const ProductsManagement: React.FC = () => {
                           <div className="flex items-center gap-2">
                             <button
                               onClick={() => handleEditProduct(product)}
-                              className="px-3 py-1 bg-blue-500 hover:bg-blue-600 text-white text-sm rounded-lg transition-colors"
+                              className="px-3 py-1.5 bg-blue-500 hover:bg-blue-600 text-white text-xs rounded-2xl transition-colors"
                             >
                               تعديل
                             </button>
                             <button
                               onClick={() => handleDeleteProduct(product.id)}
-                              className="px-3 py-1 bg-red-500 hover:bg-red-600 text-white text-sm rounded-lg transition-colors"
+                              className="px-3 py-1.5 bg-red-500 hover:bg-red-600 text-white text-xs rounded-2xl transition-colors"
                             >
                               حذف
                             </button>

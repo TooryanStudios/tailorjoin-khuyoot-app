@@ -27,25 +27,25 @@ const ToolCard = React.memo(function ToolCard(props: {
   const badge = item.badge || (item.devOnly ? 'DEV' : undefined);
 
   return (
-    <div className="rounded-2xl border border-zinc-800 bg-zinc-950/60 p-4 shadow-[0_20px_60px_-30px_rgba(168,85,247,0.25)]">
+    <div className="rounded-2xl border-[1.5px] border-black/10 dark:border-white/10 bg-white dark:bg-zinc-900 p-4 shadow-sm">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2">
-            <h3 className="text-sm font-extrabold text-white truncate">{item.title}</h3>
+            <h3 className="text-sm font-extrabold text-zinc-900 dark:text-white truncate">{item.title}</h3>
             {badge ? (
               <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-purple-500/40 bg-purple-500/10 text-purple-100">
                 {badge}
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-xs text-zinc-400 leading-relaxed">{item.description}</p>
+          <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400 leading-relaxed">{item.description}</p>
         </div>
 
         <a
           href={item.href}
           target="_blank"
           rel="noopener noreferrer"
-          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-900/60 transition-colors"
+          className="shrink-0 inline-flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900/60 transition-colors"
           title={item.href}
         >
           <ExternalLink size={14} />
@@ -54,8 +54,8 @@ const ToolCard = React.memo(function ToolCard(props: {
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/30 px-3 py-2 text-[11px] text-zinc-300 max-w-full">
-          <LinkIcon size={14} className="text-zinc-500" />
+        <div className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/30 px-3 py-2 text-[11px] text-zinc-600 dark:text-zinc-300 max-w-full">
+          <LinkIcon size={14} className="text-zinc-400" />
           <span className="truncate" dir="ltr">{item.href}</span>
         </div>
 
@@ -70,7 +70,7 @@ const ToolCard = React.memo(function ToolCard(props: {
             OK ({check.status})
           </div>
         ) : check?.state === 'error' ? (
-          <div className="inline-flex items-center gap-2 text-xs text-red-300">
+          <div className="inline-flex items-center gap-2 text-xs text-red-600 dark:text-red-300">
             <XCircle size={14} />
             {check.message}
           </div>
@@ -85,7 +85,7 @@ const ToolCard = React.memo(function ToolCard(props: {
               href={l.href}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900/20 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-900/40 transition-colors"
+              className="inline-flex items-center gap-2 rounded-lg border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/20 px-3 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900/40 transition-colors"
             >
               <ExternalLink size={14} />
               {l.label}
@@ -314,18 +314,18 @@ export function DebugToolsHub() {
   }, [visibleItems]);
 
   return (
-    <div className="space-y-5" dir="rtl">
+    <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 p-6 shadow-sm space-y-5" dir="rtl">
       <div className="flex items-start justify-between gap-4 flex-wrap">
         <div className="min-w-0">
-          <h3 className="text-lg font-extrabold text-white">أدوات التصحيح والتشخيص</h3>
-          <p className="mt-1 text-sm text-zinc-400">
+          <h3 className="text-lg font-extrabold text-zinc-900 dark:text-white">أدوات التصحيح والتشخيص</h3>
+          <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
             صفحة واحدة تجمع كل صفحات الاختبار والتشخيص والوثائق لتسهيل الوصول أثناء الدعم.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
           {!isDev ? (
-            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-200">
+            <div className="inline-flex items-center gap-2 rounded-xl border border-amber-300/60 bg-amber-100 px-3 py-2 text-xs text-amber-700 dark:border-amber-500/30 dark:bg-amber-500/10 dark:text-amber-200">
               <ShieldAlert size={16} />
               بعض الأدوات تظهر فقط في DEV
             </div>
@@ -333,7 +333,7 @@ export function DebugToolsHub() {
           <button
             type="button"
             onClick={() => void runChecks()}
-            className="inline-flex items-center gap-2 rounded-xl border border-zinc-800 bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-200 hover:bg-zinc-900/60 transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 px-3 py-2 text-xs font-semibold text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900/60 transition-colors"
           >
             <RefreshCw size={14} />
             Check links
@@ -346,9 +346,9 @@ export function DebugToolsHub() {
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           placeholder="ابحث عن أداة أو ملف…"
-          className="w-full md:w-96 bg-zinc-950 border border-zinc-800 rounded-xl px-4 py-3 text-sm text-zinc-200 placeholder:text-zinc-600 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
+          className="w-full md:w-96 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-xl px-4 py-3 text-sm text-zinc-900 dark:text-zinc-200 placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:outline-none focus:ring-2 focus:ring-purple-500/40"
         />
-        <div className="text-xs text-zinc-500">{visibleItems.length} links</div>
+        <div className="text-xs text-zinc-600 dark:text-zinc-400">{visibleItems.length} links</div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
@@ -357,8 +357,8 @@ export function DebugToolsHub() {
         ))}
       </div>
 
-      <div className="rounded-2xl border border-zinc-800 bg-zinc-950/40 p-4 text-xs text-zinc-400 leading-relaxed">
-        <div className="font-bold text-zinc-200 mb-2">ملاحظات سريعة</div>
+      <div className="rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-zinc-50 dark:bg-zinc-900/40 p-4 text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed">
+        <div className="font-bold text-zinc-900 dark:text-zinc-200 mb-2">ملاحظات سريعة</div>
         <ul className="space-y-1">
           <li>• صفحات HTML (مثل Firebase Auth Diagnostic) تُفتح في تبويب جديد.</li>
           <li>• Video Lab يحتاج تشغيل Python server: <span dir="ltr">tools/video_lab/server.py</span></li>

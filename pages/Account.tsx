@@ -3,11 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useModalStore } from '../src/store/useModalStore';
 import { 
-   LogOut, Ruler, ShoppingBag, Edit2, Crown, 
-   Package, Wallet, User as UserIcon, ArrowRight, Phone, RefreshCw, AlertTriangle, X,
-   Camera, Save, Mail, MapPin, Calendar, Users, Trash2, Shield, Scissors
+  LogOut, Ruler, ShoppingBag, Edit2, Crown, 
+  Package, Wallet, User as UserIcon, ArrowRight, Phone, RefreshCw, AlertTriangle, X,
+  Camera, Save, Mail, MapPin, Calendar, Users, Trash2, Shield, Scissors
 } from 'lucide-react';
-import { FamilyMember, GarmentType } from '../types';
+import { FamilyMember, GarmentType, Gender } from '../types';
 import { firebaseService } from '../services/firebase';
 import { uploadAvatar } from '../services/storageService';
 import { getUserOrders } from '../services/orderService';
@@ -171,25 +171,50 @@ const MeasurementEditorDialog = ({
   isOpen,
   onClose,
   initialData,
-  onSave
+  onSave,
+  userGender
 }: {
   isOpen: boolean;
   onClose: () => void;
   initialData?: { name?: string; type?: string; metrics?: Record<string, number>; notes?: string };
   onSave: (data: { name: string; type: string; metrics: Record<string, number>; notes: string }) => Promise<void>;
+  userGender?: Gender;
 }) => {
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [isTypePickerOpen, setIsTypePickerOpen] = useState(false);
+  const [typePickerTab, setTypePickerTab] = useState<'female' | 'male'>('female');
   const [name, setName] = useState('');
+  const [nameTouched, setNameTouched] = useState(false);
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const lastAutoNameRef = useRef<string>('');
   
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+  const femaleTemplates = templates.filter(t => t.genderGroup === 'female');
+  const maleTemplates = templates.filter(t => t.genderGroup === 'male');
+  const visibleTemplates = typePickerTab === 'female' ? femaleTemplates : maleTemplates;
+  const defaultTabFromUser = userGender === 'male' ? 'male' : 'female';
   const measurementHook = useMeasurementTemplate({ 
     template: selectedTemplate,
     initialMeasurements: initialData?.metrics
   });
+
+  useEffect(() => {
+    if (selectedTemplate?.genderGroup) {
+      setTypePickerTab(selectedTemplate.genderGroup);
+      return;
+    }
+    setTypePickerTab(defaultTabFromUser);
+  }, [selectedTemplate?.id, selectedTemplate?.genderGroup, defaultTabFromUser]);
+
+  useEffect(() => {
+    if (isTypePickerOpen) {
+      const initialTab = selectedTemplate?.genderGroup || defaultTabFromUser;
+      setTypePickerTab(initialTab);
+    }
+  }, [isTypePickerOpen, selectedTemplate?.genderGroup, defaultTabFromUser]);
 
   useEffect(() => {
     if (isOpen) {
@@ -229,8 +254,19 @@ const MeasurementEditorDialog = ({
             setNotes('');
             measurementHook.setMeasurements({});
         }
+        setNameTouched(false);
+        lastAutoNameRef.current = '';
     }
   }, [isOpen, initialData]);
+
+  useEffect(() => {
+    if (!selectedTemplate || initialData?.name) return;
+    const nextAutoName = `مقاس ${selectedTemplate.name}`;
+    if (!name.trim() || (!nameTouched && name === lastAutoNameRef.current)) {
+      setName(nextAutoName);
+    }
+    lastAutoNameRef.current = nextAutoName;
+  }, [selectedTemplate?.id, selectedTemplate?.name]);
 
   const handleSave = async () => {
     if (!name.trim()) return;
@@ -272,39 +308,49 @@ const MeasurementEditorDialog = ({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
             <div className="space-y-4">
                  {/* Name Field */}
-                <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
-                    <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm mb-4"
-                    placeholder="مثال: قياسي الشخصي"
-                    />
-                </div>
-
                 {isLoadingTemplates ? (
                     <div className="py-10 text-center"><RefreshCw className="animate-spin mx-auto text-slate-400" /></div>
                 ) : (
                     <div className="mb-4">
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">نوع الملبس</label>
-                        <div className="flex gap-2 flex-wrap">
-                            {templates.map(t => (
-                                <button
-                                    key={t.id}
-                                    onClick={() => setSelectedTemplateId(t.id)}
-                                    className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
-                                        selectedTemplateId === t.id 
-                                        ? 'bg-[#63498b] text-white border-[#63498b]' 
-                                        : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
-                                    }`}
-                                >
-                                    {t.name}
-                                </button>
-                            ))}
-                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setIsTypePickerOpen(true)}
+                          className="w-full p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-[#63498b]/50 transition-all text-right"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="w-9 h-9 rounded-lg bg-[#63498b]/10 flex items-center justify-center">
+                              <Ruler size={16} className="text-[#63498b]" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs text-slate-500">اختيار نوع الملبس</p>
+                              <p className={selectedTemplate ? 'text-sm font-semibold text-slate-900' : 'text-sm text-slate-400'}>
+                                {selectedTemplate?.name || 'اضغط للاختيار'}
+                              </p>
+                            </div>
+                            {selectedTemplate && (
+                              <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-[#63498b]/10 text-[#63498b]">
+                                تم الاختيار
+                              </span>
+                            )}
+                          </div>
+                        </button>
                     </div>
                 )}
+
+                <div>
+                    <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
+                    <input
+                    type="text"
+                    value={name}
+                    onChange={(e) => {
+                      setNameTouched(true);
+                      setName(e.target.value);
+                    }}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm mb-4"
+                    placeholder="مثال: قياسي الشخصي"
+                    />
+                </div>
                  
                 {/* Visual Editor */}
                 {selectedTemplate && (
@@ -387,6 +433,79 @@ const MeasurementEditorDialog = ({
             </div>
         </div>
       </div>
+
+      {isTypePickerOpen && (
+        <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10002]" onClick={() => setIsTypePickerOpen(false)}>
+          <div className="bg-white rounded-xl p-5 max-w-2xl w-full shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+              <h4 className="text-sm font-bold text-slate-900">اختيار نوع الملبس</h4>
+              <button
+                onClick={() => setIsTypePickerOpen(false)}
+                className="p-1.5 hover:bg-slate-100 rounded-lg transition-all"
+                aria-label="إغلاق"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setTypePickerTab('female')}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                  typePickerTab === 'female'
+                    ? 'bg-[#63498b] text-white border-[#63498b]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                نسائي
+              </button>
+              <button
+                type="button"
+                onClick={() => setTypePickerTab('male')}
+                className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
+                  typePickerTab === 'male'
+                    ? 'bg-[#63498b] text-white border-[#63498b]'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
+                }`}
+              >
+                رجالي
+              </button>
+            </div>
+
+            {visibleTemplates.length === 0 ? (
+              <div className="text-center py-8 text-sm text-slate-500 bg-slate-50 rounded-lg">
+                لا توجد أنواع متاحة لهذا القسم
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+                {visibleTemplates.map(t => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTemplateId(t.id);
+                      setIsTypePickerOpen(false);
+                    }}
+                    className={`text-right p-3 rounded-xl border transition-all ${
+                      selectedTemplateId === t.id
+                        ? 'bg-[#63498b]/10 border-[#63498b]'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <div className={`text-sm font-semibold ${selectedTemplateId === t.id ? 'text-[#63498b]' : 'text-slate-900'}`}>
+                      {t.name}
+                    </div>
+                    <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
+                      {t.description || 'تفاصيل المقاسات الخاصة بهذا النوع'}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
        <div className='z-[10002]'>
             {measurementHook.showVideoDialog && (
@@ -1463,6 +1582,7 @@ export const Account = () => {
         onClose={() => setIsEditorOpen(false)}
         initialData={editorInitialData}
         onSave={handleSaveDialog}
+        userGender={user?.gender}
       />
 
       {/* Delete Measurement Confirmation Dialog */}

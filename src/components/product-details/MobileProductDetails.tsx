@@ -22,8 +22,8 @@ const VideoDialog = React.memo(({ isOpen, onClose, videoUrl }: { isOpen: boolean
     const embedUrl = getEmbedUrl(videoUrl);
   
     return createPortal(
-      <div 
-        className="fixed inset-0 z-[11000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
+            <div 
+                className="fixed inset-0 z-[13000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-md animate-in fade-in duration-300"
         onClick={onClose}
       >
         <div 
@@ -114,6 +114,7 @@ interface MobileProductDetailsProps {
     setShowCommentsField?: (val: boolean) => void;
     onSaveToProfile?: () => void;
     onApplyProfile?: () => void;
+    openMeasurementsToken?: number;
 }
 
 export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
@@ -137,10 +138,11 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     setShowCommentsField = (_val: boolean) => {},
     onSaveToProfile,
     onApplyProfile
+    ,openMeasurementsToken
 }) => {
     const navigate = useNavigate();
     const [showVideoDialog, setShowVideoDialog] = useState(false);
-    const measurementsRef = React.useRef<HTMLDivElement>(null);
+    const [showMeasurementDialog, setShowMeasurementDialog] = useState(false);
     const carouselRef = React.useRef<HTMLDivElement>(null);
 
     // Use hook's state if available, otherwise local for safety (though it should always be there now)
@@ -152,6 +154,11 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
             carouselRef.current.style.transform = `translateX(-${currentImageIndex * 100}%)`;
         }
     }, [currentImageIndex]);
+
+    React.useEffect(() => {
+        if (!openMeasurementsToken) return;
+        setShowMeasurementDialog(true);
+    }, [openMeasurementsToken]);
 
     const videoUrl = template?.videoUrl || template?.tutorialVideoUrl || 'https://www.youtube.com/watch?v=6eZtn5Du8O4';
 
@@ -291,266 +298,269 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                         
                         {/* Primary Info Card */}
                         <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6 text-right" dir="rtl">
-                            <div className="flex justify-between items-start mb-6">
-                                {/* Right Side: Product Details */}
-                                <div className="flex flex-col items-start gap-2">
-                                    <h1 className="text-2xl font-black text-gray-900 leading-tight">
-                                        {product.name}
-                                    </h1>
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-3xl font-black text-gray-900">
-                                            {formatOmr(product.price)}
-                                        </span>
-                                        <span className="text-sm font-bold text-gray-500 mt-2">ر.ع</span>
-                                        {product.originalPrice && (
-                                            <span className="text-xs text-gray-400 line-through mt-2">
-                                                {formatOmr(product.originalPrice)}
-                                            </span>
-                                        )}
-                                    </div>
-                                </div>
-
-                                {/* Left Side: Shop Details */}
-                                {tailor && (
-                                    <div 
-                                        onClick={() => navigate(`/tailor/${tailor.id}`)}
-                                        className="flex flex-col items-end gap-1 cursor-pointer"
-                                    >
-                                        <div className="w-12 h-12 rounded-2xl overflow-hidden border border-gray-100 shadow-sm mb-1 bg-[#fbfbfb]">
-                                            {tailor.image ? (
-                                                <StableImage 
-                                                    src={tailor.image} 
-                                                    alt={tailor.name}
-                                                    aspectClass="h-full w-full" 
-                                                    className="h-full w-full" 
-                                                    imgClassName="object-cover w-full h-full" 
-                                                />
-                                            ) : (
-                                                <div className="flex items-center justify-center h-full w-full">
-                                                    <span className="text-xs text-gray-300">?</span>
-                                                </div>
-                                            )}
+                            <div className="flex items-center gap-3 mb-4">
+                                <h1 className="text-2xl font-black text-gray-900 leading-tight tracking-tight">
+                                    {product.name}
+                                </h1>
+                                {product.price && (
+                                    <>
+                                        <div className="w-px h-5 bg-gray-300"></div>
+                                        <div className="flex items-baseline gap-1">
+                                            <span className="text-lg font-black text-gray-900">{product.price}</span>
+                                            <span className="text-xs font-bold text-gray-600">ر.ع</span>
                                         </div>
-                                    </div>
+                                    </>
                                 )}
                             </div>
 
-                            <div className="space-y-3 py-6 border-y border-gray-100 my-4">
-                                <div className="flex flex-col gap-1 mb-1">
-                                    <h3 className="text-lg font-black text-gray-900 uppercase">بدء التفصيل</h3>
-                                    <p className="text-[10px] text-gray-500 font-bold uppercase tracking-widest leading-none">اختر الطريقة المختصرة للبدء</p>
+                            <div className="grid grid-cols-3 divide-x divide-x-reverse border border-gray-100 rounded-2xl overflow-hidden bg-[#fbfbfb] shadow-sm">
+                                <div 
+                                    className="p-3 flex flex-col items-center justify-center gap-1.5 cursor-pointer hover:bg-gray-50 transition-colors"
+                                    onClick={() => tailor && navigate(`/tailor/${tailor.id}`)}
+                                >
+                                    {tailor?.image ? (
+                                        <img src={tailor.image} alt={tailor.name} className="w-6 h-6 rounded-full object-cover shadow-sm" />
+                                    ) : (
+                                        <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-gray-500">
+                                            <User size={12} />
+                                        </div>
+                                    )}
+                                    <div className="flex items-center gap-1">
+                                        <span className="text-[10px] font-black text-gray-900 truncate max-w-[80px]">
+                                            {tailor?.name || product.tailorName || 'المصمم'}
+                                        </span>
+                                        {tailor?.approvalStatus === 'approved' && <CheckCircle2 size={10} className="text-theme-primary" />}
+                                    </div>
                                 </div>
-                                
-                                <div className="grid grid-cols-1 gap-2">
+
+                                <div className="p-3 flex flex-col items-center justify-center gap-1">
+                                    <div className="flex items-center gap-1 text-gray-400">
+                                        <Clock size={12} />
+                                        <span className="text-[8px] font-black uppercase tracking-tighter">مدة التنفيذ</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-900">{product.duration || '7-10 أيام'}</span>
+                                </div>
+
+                                <div className="p-3 flex flex-col items-center justify-center gap-1">
+                                    <div className="flex items-center gap-1 text-gray-400">
+                                        <MapPin size={12} />
+                                        <span className="text-[8px] font-black uppercase tracking-tighter">الموقع</span>
+                                    </div>
+                                    <span className="text-[10px] font-bold text-gray-900">{product.location || 'مسقط'}</span>
+                                </div>
+                            </div>
+
+                            <div className="space-y-3 py-5 border-y border-gray-100 my-2">
+                                <div className="flex flex-col gap-0.5 mb-1">
+                                    <h3 className="text-sm font-black text-gray-900 uppercase tracking-tight">ابدأ التفصيل</h3>
+                                    <p className="text-[10px] font-medium text-gray-500">اختر الطريقة المختصرة للبدء</p>
+                                </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <button 
-                                       onClick={() => {
-                                          measurementsRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                       }}
-                                       className="group flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 active:border-theme-primary active:bg-emerald-50/10 transition-all text-right shadow-sm active:scale-[0.98]"
+                                       onClick={() => setShowMeasurementDialog(true)}
+                                       className="group flex flex-col items-center gap-2.5 p-4 rounded-2xl border-2 bg-white border-theme-primary hover:bg-theme-primary/5 hover:shadow-lg transition-all text-center"
                                     >
-                                        <div className="w-12 h-12 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary shrink-0">
-                                            <Ruler size={24} strokeWidth={2.5} />
+                                        <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-theme-primary/10 text-theme-primary">
+                                            <Ruler size={20} strokeWidth={2.5} />
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="font-black text-gray-900 text-xs mb-0.5 uppercase tracking-wide">أخذ المقاسات</div>
-                                            <p className="text-[9px] text-gray-500 font-medium leading-relaxed">أدخلي مقاساتك مباشرة على الرسم التوضيحي</p>
+                                        <div>
+                                            <div className="font-bold text-xs mb-0.5 text-gray-900">إدخال / تعديل المقاسات</div>
+                                            <p className="text-[9px] leading-snug text-gray-500">إدخال المقاسات على الرسم</p>
                                         </div>
-                                        <ChevronLeft size={16} className="text-gray-300" />
                                     </button>
 
                                     <button 
                                        onClick={() => navigate(`/tryon/${product.id}`)}
-                                       className="group flex items-center gap-4 p-4 rounded-2xl bg-white border border-gray-100 active:border-orange-500 active:bg-orange-50/10 transition-all text-right shadow-sm active:scale-[0.98]"
+                                       className="group flex flex-col items-center gap-2.5 p-4 rounded-2xl bg-white border-2 border-theme-primary hover:bg-theme-primary/5 hover:shadow-lg transition-all text-center"
                                     >
-                                        <div className="w-12 h-12 rounded-xl bg-orange-500/10 flex items-center justify-center text-orange-500 shrink-0">
-                                            <Palette size={24} strokeWidth={2.5} />
+                                        <div className="w-10 h-10 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary">
+                                            <Palette size={20} strokeWidth={2.5} />
                                         </div>
-                                        <div className="flex-1">
-                                            <div className="font-black text-gray-900 text-xs mb-0.5 uppercase tracking-wide">تجربة قماش مختلف</div>
-                                            <p className="text-[9px] text-gray-500 font-medium leading-relaxed">تغيير الأقمشة ورؤية النتيجة في ثوانٍ</p>
+                                        <div>
+                                            <div className="font-bold text-xs mb-0.5 text-gray-900">تجربة قماش مختلف</div>
+                                            <p className="text-[9px] leading-snug text-gray-500">تغيير القماش ومعاينة النتيجة</p>
                                         </div>
-                                        <ChevronLeft size={16} className="text-gray-300" />
                                     </button>
                                 </div>
-                            </div>
-
-                            <button 
-                                onClick={onAddToCart}
-                                className="w-full bg-gray-900 hover:bg-black text-white font-black py-4 rounded-2xl shadow-lg transition-all flex items-center justify-center gap-2 text-sm uppercase tracking-wide active:scale-95"
-                            >
-                                <ShoppingBag size={18} strokeWidth={2.5} />
-                                إضافة إلى السلة
-                            </button>
-                        </div>
-
-                        {/* Stats Bar */}
-                        <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-4 flex items-center justify-between text-gray-900">
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100 first:border-0">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">الفئة</span>
-                                <span className="font-bold text-xs">{product.category || 'تفصيل'}</span>
-                            </div>
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">المدة</span>
-                                <div className="flex items-center gap-1">
-                                    <Clock size={12} className="text-theme-primary" />
-                                    <span className="font-bold text-xs">{product.duration || '7-10 أيام'}</span>
-                                </div>
-                            </div>
-                            <div className="flex flex-col items-center gap-1 flex-1 border-l border-gray-100">
-                                <span className="text-[10px] font-black text-gray-400 uppercase">الخامة</span>
-                                <span className="font-bold text-xs truncate max-w-[80px]">
-                                    {product.fabric || 'قطن ممتاز'}
-                                </span>
                             </div>
                         </div>
                         
-                        {/* Measurement Template Preview */}
+                        {/* Order Notes + Review */}
                         {template && template.points?.length > 0 && (
-                            <div ref={measurementsRef} className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6" dir="rtl">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-bold text-gray-900 text-base uppercase tracking-wide font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</h3>
-                                    <div className="flex items-center gap-2">
-                                        <Ruler size={14} className="text-emerald-500" />
-                                        <span className="text-[10px] font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">{template.name}</span>
-                                    </div>
-                                </div>
-
-                                {/* Instructions Block - Above Diagram */}
-                                <div className="mb-4 p-4 bg-[#ededed] rounded-2xl border border-gray-100 space-y-3">
-                                    <div className="flex flex-col gap-1">
-                                        <p className="text-xs font-black text-gray-900">تعليمات القياس:</p>
-                                        <p className="text-[10px] text-gray-600 leading-relaxed font-bold">
-                                            يرجى إدخال القياسات الصحيحة (بالسنتيمتر) في الخانات الموضحة أدناه. يمكنك النقر مباشرة على الخانة وتعديل الرقم.
-                                        </p>
-                                    </div>
-
-                                    <button 
-                                        onClick={() => setShowVideoDialog(true)}
-                                        className="w-full py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-black text-[10px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
-                                    >
-                                        <Play size={14} className="fill-emerald-500 text-emerald-500" />
-                                        <span>مشاهدة فيديو توضيحي</span>
-                                    </button>
-                                </div>
-
-                                {/* Action Buttons - Separate compact block below instructions */}
-                                <div className="grid grid-cols-2 gap-2 mb-6">
-                                    <button 
-                                        onClick={onApplyProfile}
-                                        className="flex items-center justify-center gap-2 py-2.5 bg-[#fbfbfb] border border-gray-100 rounded-xl text-[9px] font-black text-gray-500 hover:text-theme-primary transition-all active:scale-95"
-                                    >
-                                        <FolderOpen size={12} className="text-theme-primary" />
-                                        <span>تحميل مقاس محفوظ</span>
-                                    </button>
-                                    <button 
-                                        onClick={onSaveToProfile}
-                                        className="flex items-center justify-center gap-2 py-2.5 bg-theme-primary/5 text-theme-primary border border-theme-primary/10 rounded-xl text-[9px] font-black hover:bg-theme-primary hover:text-white transition-all active:scale-95"
-                                    >
-                                        <Save size={12} />
-                                        <span>حفظ هذه المقاسات</span>
-                                    </button>
-                                </div>
-                                
-                                <div className="relative w-full aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-100 overflow-visible mb-6">
-                                    {template.baseImageUrl ? (
-                                        <img 
-                                            src={template.baseImageUrl} 
-                                            alt={template.name}
-                                            className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90 rounded-2xl"
-                                            loading="lazy"
-                                        />
+                            <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6" dir="rtl">
+                                <div className="mb-4">
+                                    {!showCommentsField ? (
+                                        <button 
+                                            onClick={() => setShowCommentsField(true)}
+                                            className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-theme-primary transition-colors"
+                                        >
+                                            <MessageSquare size={12} />
+                                            <span>إضافة ملاحظات إضافية للطلب؟</span>
+                                        </button>
                                     ) : (
-                                        <div className="absolute inset-0 flex items-center justify-center opacity-5">
-                                            <img src="/logo_big.png?v=4" alt="" className="w-20 h-auto grayscale" />
+                                        <div className="space-y-2 animate-in fade-in zoom-in duration-300">
+                                            <div className="flex items-center justify-between">
+                                                <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 text-right w-full">ملاحظاتك للخياط</label>
+                                                <button 
+                                                    onClick={() => {
+                                                        setShowCommentsField(false);
+                                                        setCustomerComments("");
+                                                    }}
+                                                    className="text-[9px] font-bold text-red-400 hover:text-red-500 whitespace-nowrap"
+                                                >
+                                                    إلغاء
+                                                </button>
+                                            </div>
+                                            <textarea
+                                                value={customerComments}
+                                                onChange={(e) => setCustomerComments(e.target.value)}
+                                                placeholder="مثلاً: طول اليد، تغيير في شكل الرقبة، الخ..."
+                                                className="w-full h-20 p-3 text-[10px] bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-theme-primary focus:ring-0 transition-all resize-none font-medium text-gray-700"
+                                                dir="rtl"
+                                            />
                                         </div>
                                     )}
-                                    
-                                    {/* Arrows from template or default sequential */}
-                                    <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
-                                        <defs>
-                                            <marker id="arrowhead-mobile-v1" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
-                                                <path d="M0,0 L0,6 L6,3 z" fill="#10b981" />
-                                            </marker>
-                                        </defs>
-                                        {(template.arrows || []).map((arrow: any) => (
-                                            <line
-                                                key={arrow.id}
-                                                x1={arrow.startX * 100}
-                                                y1={arrow.startY * 100}
-                                                x2={arrow.endX * 100}
-                                                y2={arrow.endY * 100}
-                                                stroke="#10b981"
-                                                strokeWidth={0.45}
-                                                markerEnd="url(#arrowhead-mobile-v1)"
-                                                opacity={0.7}
-                                            />
-                                        ))}
-                                    </svg>
-                                    
-                                    {/* Point Overlays - Interactive Markers */}
-                                    {template.points.map((point: any) => (
-                                        <MobilePointMarker 
-                                            key={point.id} 
-                                            point={point} 
-                                            value={measurements[point.id]} 
-                                            onChange={handleMeasurementChange} 
-                                        />
-                                    ))}
                                 </div>
 
-                                {/* Proceed Button - only shown if measurements are being taken */}
-                                <div className="mt-4 pt-4 border-t border-gray-100">
-                                    {/* Comments Section Mobile */}
-                                    <div className="mb-4">
-                                        {!showCommentsField ? (
-                                            <button 
-                                                onClick={() => setShowCommentsField(true)}
-                                                className="flex items-center gap-2 text-[10px] font-bold text-gray-500 hover:text-theme-primary transition-colors"
-                                            >
-                                                <MessageSquare size={12} />
-                                                <span>إضافة ملاحظات إضافية للطلب؟</span>
-                                            </button>
-                                        ) : (
-                                            <div className="space-y-2 animate-in fade-in zoom-in duration-300">
-                                                <div className="flex items-center justify-between">
-                                                    <label className="text-[9px] font-black uppercase tracking-wider text-gray-400 text-right w-full">ملاحظاتك للخياط</label>
-                                                    <button 
-                                                        onClick={() => {
-                                                            setShowCommentsField(false);
-                                                            setCustomerComments("");
-                                                        }}
-                                                        className="text-[9px] font-bold text-red-400 hover:text-red-500 whitespace-nowrap"
-                                                    >
-                                                        إلغاء
-                                                    </button>
-                                                </div>
-                                                <textarea
-                                                    value={customerComments}
-                                                    onChange={(e) => setCustomerComments(e.target.value)}
-                                                    placeholder="مثلاً: طول اليد، تغيير في شكل الرقبة، الخ..."
-                                                    className="w-full h-20 p-3 text-[10px] bg-gray-50 border-2 border-gray-100 rounded-xl focus:border-theme-primary focus:ring-0 transition-all resize-none font-medium text-gray-700"
-                                                    dir="rtl"
-                                                />
+                                <button 
+                                    onClick={onPlaceOrder}
+                                    className="w-full h-14 bg-theme-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-theme-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
+                                >
+                                    <CheckCircle2 size={18} />
+                                    <span>مراجعة الطلب والمتابعة</span>
+                                    <ArrowRight size={18} className="rtl:rotate-180" />
+                                </button>
+                            </div>
+                        )}
+
+                        {showMeasurementDialog && template && template.points?.length > 0 && createPortal(
+                            <div className="fixed inset-0 z-[12000] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm" onClick={() => setShowMeasurementDialog(false)}>
+                                <div
+                                    className="relative w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh]"
+                                    onClick={(e) => e.stopPropagation()}
+                                    dir="rtl"
+                                >
+                                    <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-gray-50">
+                                        <div className="flex items-center gap-3">
+                                            <div className="w-9 h-9 rounded-xl bg-theme-primary/10 flex items-center justify-center text-theme-primary">
+                                                <Ruler size={16} />
                                             </div>
-                                        )}
+                                            <div>
+                                                <h3 className="text-sm font-normal text-gray-900">تسجيل المقاسات</h3>
+                                                <p className="text-[9px] text-gray-500 font-normal">{template.name}</p>
+                                            </div>
+                                        </div>
+                                        <button
+                                            onClick={() => setShowMeasurementDialog(false)}
+                                            title="إغلاق"
+                                            aria-label="إغلاق"
+                                            className="w-8 h-8 rounded-full bg-white flex items-center justify-center text-gray-400 hover:text-gray-900 transition-colors"
+                                        >
+                                            <X size={16} />
+                                        </button>
                                     </div>
 
-                                    {measurementError && (
-                                        <div className="mb-4 p-3 bg-amber-50 border border-amber-200 rounded-xl flex items-center gap-3 text-amber-700 text-[10px] font-bold animate-shake">
-                                            <AlertCircle size={14} />
-                                            <span>{measurementError}</span>
+                                    <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                                        <div className="p-4 bg-[#ededed] rounded-2xl border border-gray-100 space-y-3">
+                                            <div className="flex flex-col gap-1">
+                                                <p className="text-xs font-black text-gray-900">تعليمات القياس:</p>
+                                                <p className="text-[10px] text-gray-600 leading-relaxed font-bold">
+                                                    يرجى إدخال القياسات الصحيحة (بالسنتيمتر) في الخانات الموضحة أدناه. يمكنك النقر مباشرة على الخانة وتعديل الرقم.
+                                                </p>
+                                            </div>
+                                            <button
+                                                onClick={() => setShowVideoDialog(true)}
+                                                className="w-full py-3 rounded-xl bg-white border border-gray-200 text-gray-700 font-black text-[10px] flex items-center justify-center gap-2 hover:bg-gray-50 transition-colors shadow-sm"
+                                            >
+                                                <Play size={14} className="fill-emerald-500 text-emerald-500" />
+                                                <span>مشاهدة فيديو توضيحي</span>
+                                            </button>
                                         </div>
-                                    )}
-                                    <button 
-                                        onClick={onPlaceOrder}
-                                        className="w-full h-14 bg-theme-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest shadow-xl shadow-theme-primary/20 active:scale-95 transition-all flex items-center justify-center gap-2"
-                                    >
-                                        <CheckCircle2 size={18} />
-                                        <span>مراجعة الطلب والمتابعة</span>
-                                        <ArrowRight size={18} className="rtl:rotate-180" />
-                                    </button>
+
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={onApplyProfile}
+                                                className="flex items-center justify-center gap-2 py-2.5 bg-[#fbfbfb] border border-gray-100 rounded-xl text-[9px] font-black text-gray-500 hover:text-theme-primary transition-all active:scale-95"
+                                            >
+                                                <FolderOpen size={12} className="text-theme-primary" />
+                                                <span>تحميل مقاس محفوظ</span>
+                                            </button>
+                                            <button
+                                                onClick={onSaveToProfile}
+                                                className="flex items-center justify-center gap-2 py-2.5 bg-theme-primary/5 text-theme-primary border border-theme-primary/10 rounded-xl text-[9px] font-black hover:bg-theme-primary hover:text-white transition-all active:scale-95"
+                                            >
+                                                <Save size={12} />
+                                                <span>حفظ هذه المقاسات</span>
+                                            </button>
+                                        </div>
+
+                                        <div className="relative w-full aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-100 overflow-visible">
+                                            {template.baseImageUrl ? (
+                                                <img
+                                                    src={template.baseImageUrl}
+                                                    alt={template.name}
+                                                    className="absolute inset-0 w-full h-full object-contain pointer-events-none opacity-90 rounded-2xl"
+                                                    loading="lazy"
+                                                />
+                                            ) : (
+                                                <div className="absolute inset-0 flex items-center justify-center opacity-5">
+                                                    <img src="/logo_big.png?v=4" alt="" className="w-20 h-auto grayscale" />
+                                                </div>
+                                            )}
+
+                                            <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none">
+                                                <defs>
+                                                    <marker id="arrowhead-mobile-v1" markerWidth="6" markerHeight="6" refX="6" refY="3" orient="auto" markerUnits="strokeWidth">
+                                                        <path d="M0,0 L0,6 L6,3 z" fill="#10b981" />
+                                                    </marker>
+                                                </defs>
+                                                {(template.arrows || []).map((arrow: any) => (
+                                                    <line
+                                                        key={arrow.id}
+                                                        x1={arrow.startX * 100}
+                                                        y1={arrow.startY * 100}
+                                                        x2={arrow.endX * 100}
+                                                        y2={arrow.endY * 100}
+                                                        stroke="#10b981"
+                                                        strokeWidth={0.45}
+                                                        markerEnd="url(#arrowhead-mobile-v1)"
+                                                        opacity={0.7}
+                                                    />
+                                                ))}
+                                            </svg>
+
+                                            {template.points.map((point: any) => (
+                                                <MobilePointMarker
+                                                    key={point.id}
+                                                    point={point}
+                                                    value={measurements[point.id]}
+                                                    onChange={handleMeasurementChange}
+                                                />
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 bg-gray-50 border-t border-gray-100 space-y-2">
+                                        <span className="block text-[9px] text-gray-400 font-bold">أغلق النافذة بعد إكمال القياسات</span>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            <button
+                                                onClick={() => setShowMeasurementDialog(false)}
+                                                className="w-full px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-gray-700 bg-white border border-gray-200 rounded-xl transition-all active:scale-95"
+                                            >
+                                                إلغاء
+                                            </button>
+                                            <button
+                                                onClick={() => setShowMeasurementDialog(false)}
+                                                className="w-full px-4 py-2.5 text-[10px] font-bold uppercase tracking-widest text-white bg-theme-primary rounded-xl transition-all active:scale-95"
+                                            >
+                                                موافق
+                                            </button>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
+                            </div>,
+                            document.body
                         )}
                         
                         <VideoDialog 

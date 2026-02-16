@@ -102,7 +102,7 @@ export const TailorCard = React.memo(function TailorCard({ tailor }: { tailor: T
           
           {tailor.specialization && (
             <p className="mt-1 text-xs text-purple-600 dark:text-purple-400 font-medium">
-              {tailor.specialization === 'males' ? 'تفصيل رجالي' : tailor.specialization === 'females' ? 'تفصيل نسائي' : tailor.specialization}
+              {tailor.specialization === 'male' ? 'تفصيل رجالي' : tailor.specialization === 'female' ? 'تفصيل نسائي' : tailor.specialization}
             </p>
           )}
           

@@ -24,6 +24,7 @@ export interface MeasurementTemplate {
   name: string;
   baseImageUrl?: string;
   productType?: string;
+  genderGroup?: 'male' | 'female';
   description?: string;
   points: MeasurementPoint[];
   arrows: MeasurementArrow[];
@@ -52,6 +53,51 @@ export const measurementService = {
           current = parent;
         }
         return current || category;
+      };
+
+      const normalizeGender = (value: unknown) => {
+        const raw = String(value || '').toLowerCase();
+        if (!raw) return undefined;
+        if (raw === 'male' || raw === 'males' || raw === 'men') return 'male' as const;
+        if (raw === 'female' || raw === 'females' || raw === 'women') return 'female' as const;
+        return undefined;
+      };
+
+      const getGenderGroup = (category: any) => {
+        let cursor: any | null = category;
+        while (cursor) {
+          const directGender = normalizeGender(cursor.gender);
+          if (directGender) return directGender;
+          if (!cursor.parentId) break;
+          cursor = categoriesMap.get(cursor.parentId) || null;
+        }
+
+        const root = getRootCategory(category);
+        const rootAr = String(root?.nameAr || '').trim();
+        const rootEn = String(root?.nameEn || root?.name || '').toLowerCase();
+        const rootSlug = String(root?.slug || '').toLowerCase();
+
+        if (
+          rootAr.includes('رجالي') ||
+          rootAr.includes('الرجال') ||
+          rootEn.includes('men') ||
+          rootEn.includes('male') ||
+          rootSlug.includes('men')
+        ) {
+          return 'male' as const;
+        }
+
+        if (
+          rootAr.includes('نسائي') ||
+          rootAr.includes('النساء') ||
+          rootEn.includes('women') ||
+          rootEn.includes('female') ||
+          rootSlug.includes('women')
+        ) {
+          return 'female' as const;
+        }
+
+        return undefined;
       };
 
       const fashionRootIds = new Set(
@@ -86,6 +132,7 @@ export const measurementService = {
             id: cat.id,
             name: (t?.name as any) || cat.nameAr || cat.nameEn || cat.id,
             productType: (t?.productType as any) || 'dishdasha',
+            genderGroup: getGenderGroup(cat),
             description: (t?.description as any) || cat.descriptionAr || cat.descriptionEn || '',
             baseImageUrl: (t?.baseImageUrl as any) || '',
             points: (t?.points as any) || [],

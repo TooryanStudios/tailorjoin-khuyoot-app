@@ -472,15 +472,17 @@ export const getTailors = async (): Promise<Tailor[]> => {
     const { firebaseService } = await import('./firebase');
     const { getPortfolioItems } = await import('./interactionService');
     
-    // جلب الخياطين الموافق عليهم من Firebase فقط
-    const approvedTailors = await firebaseService.getApprovedTailors();
+    // جلب جميع الخياطين من Firebase (بغض النظر عن حالة الموافقة)
+    // This allows admin pages to show all tailors for approval management
+    const allUsers = await firebaseService.getAllUsers();
+    const tailorUsers = allUsers.filter(u => u.role === 'tailor');
     
     // جلب portfolio لكل خياط
     const realTailors: Tailor[] = await Promise.all(
-      approvedTailors.map(async (tailor) => {
+      tailorUsers.map(async (user) => {
         let portfolioUrls: string[] = [];
         try {
-          const portfolioItems = await getPortfolioItems(tailor.id);
+          const portfolioItems = await getPortfolioItems(user.id || user.uid || '');
           portfolioUrls = portfolioItems
             .filter(item => item.type === 'image')
             .map(item => item.mediaUrl);
@@ -488,16 +490,36 @@ export const getTailors = async (): Promise<Tailor[]> => {
           // No portfolio items available
         }
         
+        // Explicitly map User to Tailor with proper image field
         return {
-          ...tailor,
-          portfolio: portfolioUrls.length > 0 ? portfolioUrls : tailor.portfolio
-        };
+          id: user.id || user.uid,
+          name: user.name || 'خياط',
+          specialization: user.specialization || (user.tailorGender === 'male' ? 'male' : user.tailorGender === 'female' ? 'female' : 'general'),
+          rating: user.rating || user.ratingAvg || 4.5,
+          location: user.location || '',
+          region: user.region || '',
+          image: user.profileImage || user.image || '', // Properly map profileImage to image field
+          coverImage: user.coverImage,
+          experience: user.experience || '',
+          followers: user.followers || 0,
+          approvalStatus: user.approvalStatus || 'pending',
+          bio: user.bio,
+          email: user.email || user.loginId,
+          loginId: user.loginId,
+          phone: user.phone || user.contactNumber,
+          contactNumber: user.contactNumber,
+          portfolio: portfolioUrls.length > 0 ? portfolioUrls : (user.portfolio || []),
+          reviews: user.reviews || [],
+          tailorGender: user.tailorGender,
+          role: user.role,
+          uid: user.uid || user.id,
+        } as Tailor;
       })
     );
     
-    // إذا لم نجد أي خياطين حقيقيين، نرجع مصفوفة فارغة (بدون خلط مع البيانات النموذجية)
+    // إذا لم نجد أي خياطين حقيقيين، نرجع مصفوفة فارغة
     if (realTailors.length === 0) {
-      console.warn('⚠️ No Firebase tailors found - ensure Firestore has users with role=tailor and approvalStatus=approved');
+      console.warn('⚠️ No Firebase tailors found - ensure Firestore has users with role=tailor');
     }
     return realTailors;
   } catch (error) {
@@ -512,10 +534,11 @@ export const getAllShops = async (): Promise<Shop[]> => {
     // جلب الخياطين الحقيقيين من Firebase
     const tailors = await getTailors();
     
-    // إضافة type للخياطين
+    // إضافة type و shopType للخياطين
     const tailorsWithType: Shop[] = tailors.map(tailor => ({
       ...tailor,
       type: 'tailor' as const,
+      shopType: 'tailor' as const,
       description: tailor.bio || '',
     }));
     
@@ -529,10 +552,14 @@ export const getAllShops = async (): Promise<Shop[]> => {
     
     const realShops: Shop[] = shopsSnapshot.docs.map(doc => {
       const user = doc.data() as User;
+      const shopType = user.role === 'boutique' ? 'boutique' : user.role === 'fabric_store' ? 'fabric_store' : user.role === 'shop' ? 'shop' : 'other';
+      const type = shopType === 'shop' ? 'other' : shopType;
+      
       return {
         id: user.id,
         name: user.name,
-        type: user.role === 'boutique' ? 'boutique' : user.role === 'fabric_store' ? 'fabric_store' : 'other',
+        type: type as any,
+        shopType: shopType as any,
         username: user.username,
         specialization: user.specialization || 'غير محدد',
         rating: user.rating || 0,
@@ -555,10 +582,11 @@ export const getAllShops = async (): Promise<Shop[]> => {
       };
     });
     
-    // إضافة type للمحلات النموذجية
+    // إضافة type و shopType للمحلات النموذجية
     const mockShopsWithType: Shop[] = MOCK_SHOPS.map(shop => ({
       ...shop,
       type: shop.type || 'other',
+      shopType: (shop.type as any) || 'other',
     }));
     
     // دمج الخياطين مع البوتيكات والمحلات

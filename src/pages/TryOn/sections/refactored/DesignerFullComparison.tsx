@@ -37,6 +37,10 @@ export const DesignerFullComparison: React.FC<FullComparisonProps> = React.memo(
                 src={sourceForComparison}
                 alt="Source"
                 className="absolute inset-0 w-full h-full object-contain"
+                onError={(e) => {
+                  console.warn('Failed to load source image:', sourceForComparison);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             ) : null}
           </div>
@@ -51,6 +55,10 @@ export const DesignerFullComparison: React.FC<FullComparisonProps> = React.memo(
                 src={afterImage}
                 alt="Result"
                 className="absolute inset-0 w-full h-full object-contain"
+                onError={(e) => {
+                  console.warn('Failed to load result image:', afterImage);
+                  e.currentTarget.style.display = 'none';
+                }}
               />
             ) : (
               <div className="flex flex-col items-center justify-center gap-4 text-zinc-400 dark:text-zinc-500">

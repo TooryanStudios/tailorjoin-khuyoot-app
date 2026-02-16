@@ -520,7 +520,7 @@ export const LandingPageConfig: React.FC = () => {
   const TabButton = ({ id, label, icon: Icon }: { id: typeof activeTab, label: string, icon: any }) => (
     <button
       onClick={() => setActiveTab(id)}
-      className={`w-full flex items-center justify-center md:justify-start gap-3 px-2 md:px-4 py-3 rounded-xl text-[10px] md:text-sm font-bold transition-all ${
+      className={`w-full flex items-center justify-center md:justify-start gap-3 px-2 md:px-4 py-3 rounded-xl text-[10px] md:text-sm font-normal transition-all ${
         activeTab === id 
           ? 'bg-theme-primary text-white shadow-lg shadow-theme-primary/20 scale-[1.02]' 
           : 'text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800 hover:text-zinc-900 dark:hover:text-zinc-200'
@@ -574,16 +574,16 @@ export const LandingPageConfig: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-6 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh]" dir="rtl">
+    <div className="flex flex-col md:flex-row gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950" dir="rtl">
       {/* Sidebar Navigation */}
       <div className="w-full md:w-64 space-y-4 shrink-0">
-        <div className="bg-white dark:bg-zinc-900 rounded-[2rem] p-4 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-2 sticky top-24">
+        <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-2 sticky top-24">
           <div className="px-3 py-4 border-b border-zinc-50 dark:border-zinc-800 mb-2">
-            <h2 className="text-lg font-black uppercase text-zinc-900 dark:text-white flex items-center gap-2">
+            <h2 className="text-lg font-normal uppercase text-zinc-900 dark:text-white flex items-center gap-2">
               <Settings2 size={20} className="text-theme-primary" />
               تكوين المتجر
             </h2>
-            <p className="text-[9px] text-zinc-500 font-bold uppercase tracking-widest mt-1">تنسيق الواجهة الأمامية</p>
+            <p className="text-[9px] text-zinc-500 font-normal uppercase tracking-widest mt-1">تنسيق الواجهة الأمامية</p>
           </div>
           
           <div className="space-y-1">
@@ -594,11 +594,32 @@ export const LandingPageConfig: React.FC = () => {
             <TabButton id="promotion" label="العروض والترويج" icon={Sparkles} />
           </div>
 
-          <div className="mt-6 pt-6 border-t border-zinc-50 dark:border-zinc-800">
+          <div className="mt-6 pt-6 border-t border-zinc-50 dark:border-zinc-800 space-y-4">
+            {/* Gender Selection (accessible when on gender tab) */}
+            {activeTab === 'gender' && (
+              <div className="space-y-2">
+                <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest block px-2">اختر القسم</label>
+                <div className="flex gap-2 bg-zinc-100 dark:bg-zinc-800 p-2 rounded-xl border border-zinc-200 dark:border-zinc-700">
+                  <button
+                    onClick={() => setActiveGender('male')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-xs font-normal transition-all ${activeGender === 'male' ? 'bg-white dark:bg-zinc-700 shadow-sm text-theme-primary' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                  >
+                    رجالي
+                  </button>
+                  <button
+                    onClick={() => setActiveGender('female')}
+                    className={`flex-1 px-4 py-2 rounded-lg text-xs font-normal transition-all ${activeGender === 'female' ? 'bg-white dark:bg-zinc-700 shadow-sm text-theme-primary' : 'text-zinc-500 hover:text-zinc-700 dark:hover:text-zinc-300'}`}
+                  >
+                    نسائي
+                  </button>
+                </div>
+              </div>
+            )}
+            
             <button
               onClick={saveConfig}
               disabled={saving}
-              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-theme-primary text-white rounded-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all font-black uppercase text-xs shadow-lg shadow-theme-primary/20"
+              className="w-full flex items-center justify-center gap-2 px-6 py-3 bg-theme-primary text-white rounded-2xl hover:scale-[1.02] active:scale-[0.98] disabled:opacity-50 transition-all font-normal uppercase text-xs shadow-lg shadow-theme-primary/20"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <Save size={16} />}
               حفظ جميع التغييرات
@@ -608,74 +629,37 @@ export const LandingPageConfig: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 space-y-6">
-        {/* Header Summary (Desktop) */}
-        <div className="hidden md:flex items-center justify-between bg-white/50 dark:bg-zinc-900/50 backdrop-blur-md rounded-3xl p-6 border border-zinc-100 dark:border-zinc-800">
-          <div>
-            <h1 className="text-2xl font-black text-zinc-900 dark:text-white uppercase tracking-tighter">
-              {activeTab === 'hero' && 'تعديل القسم الرئيسي'}
-              {activeTab === 'gender' && 'تخصيص تجربة التصفح'}
-              {activeTab === 'regions' && 'إدارة المناطق النشطة'}
-              {activeTab === 'banner' && 'إدارة بانر الإكسسوارات'}
-              {activeTab === 'promotion' && 'تنسيق قسم العروض'}
-            </h1>
-            <p className="text-xs text-zinc-500 font-bold mt-1 uppercase tracking-widest">
-              {activeTab === 'hero' && 'إدارة الصور والعناوين الرئيسية للموقع'}
-              {activeTab === 'gender' && `تعديل محتوى قسم ${activeGender === 'male' ? 'الرجال' : 'النساء'}`}
-              {activeTab === 'regions' && 'تحديد المناطق الأكثر طلباً على الخريطة'}
-              {activeTab === 'banner' && 'عرض أو إخفاء ملاحظة الإكسسوارات القادمة'}
-              {activeTab === 'promotion' && 'نصوص وأزرار قسم الترويج التفاعلي'}
-            </p>
-          </div>
-          
-          {activeTab === 'gender' && (
-            <div className="flex bg-zinc-100 dark:bg-zinc-800 p-1.5 rounded-2xl border border-zinc-200 dark:border-zinc-700">
-              <button
-                onClick={() => setActiveGender('male')}
-                className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${activeGender === 'male' ? 'bg-white dark:bg-zinc-700 shadow-sm text-theme-primary' : 'text-zinc-500 hover:text-zinc-700'}`}
-              >
-                رجالي
-              </button>
-              <button
-                onClick={() => setActiveGender('female')}
-                className={`px-6 py-2 rounded-xl text-xs font-black transition-all ${activeGender === 'female' ? 'bg-white dark:bg-zinc-700 shadow-sm text-theme-primary' : 'text-zinc-500 hover:text-zinc-700'}`}
-              >
-                نسائي
-              </button>
-            </div>
-          )}
-        </div>
-
+      <div className="flex-1 space-y-3">
         {/* Dynamic Section Content */}
-        <div className="space-y-6 pb-20">
+        <div className="space-y-3 pb-20">
           
           {/* HERO SECTION */}
           {activeTab === 'hero' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                <div className="space-y-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="space-y-3">
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">العنوان الرئيسي</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">العنوان الرئيسي</label>
                     <textarea
                       value={config.hero.title}
                       onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, title: e.target.value }}))}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-theme-primary/20 transition-all outline-none min-h-[120px]"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-normal focus:ring-2 focus:ring-theme-primary/20 transition-all outline-none min-h-[120px]"
                       placeholder="استخدم \\n للسطر الجديد"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">الوصف الفرعي</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">الوصف الفرعي</label>
                     <textarea
                       value={config.hero.description}
                       onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, description: e.target.value }}))}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-xs font-medium text-zinc-500 focus:ring-2 focus:ring-theme-primary/20 transition-all outline-none min-h-[80px]"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-xs font-normal text-zinc-500 focus:ring-2 focus:ring-theme-primary/20 transition-all outline-none min-h-[80px]"
                     />
                   </div>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
                    <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">صورة الخلفية الكبيرة</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">صورة الخلفية الكبيرة</label>
                     <div className="flex items-center gap-4">
                       <div className="flex-1">
                         <input
@@ -699,7 +683,7 @@ export const LandingPageConfig: React.FC = () => {
                   <div className="grid grid-cols-2 gap-4">
                     <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-3xl space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase text-zinc-400">بطاقة الرجال</span>
+                        <span className="text-[9px] font-normal uppercase text-zinc-400">بطاقة الرجال</span>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setConfig(prev => ({ ...prev, hero: { ...prev.hero, maleCard: { ...prev.hero.maleCard, enabled: !(prev.hero.maleCard.enabled ?? true) }}}))}
@@ -731,14 +715,14 @@ export const LandingPageConfig: React.FC = () => {
                           type="text"
                           value={config.hero.maleCard.label}
                           onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, maleCard: { ...prev.hero.maleCard, label: e.target.value }}}))}
-                          className="flex-1 bg-white dark:bg-zinc-900 border-none rounded-lg px-2 py-1 text-[10px] font-bold outline-none"
+                          className="flex-1 bg-white dark:bg-zinc-900 border-none rounded-lg px-2 py-1 text-[10px] font-normal outline-none"
                         />
                       </div>
                     </div>
 
                     <div className="p-4 bg-zinc-50 dark:bg-zinc-800 rounded-3xl space-y-3">
                       <div className="flex items-center justify-between">
-                        <span className="text-[9px] font-black uppercase text-zinc-400">بطاقة النساء</span>
+                        <span className="text-[9px] font-normal uppercase text-zinc-400">بطاقة النساء</span>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setConfig(prev => ({ ...prev, hero: { ...prev.hero, femaleCard: { ...prev.hero.femaleCard, enabled: !(prev.hero.femaleCard.enabled ?? true) }}}))}
@@ -770,7 +754,7 @@ export const LandingPageConfig: React.FC = () => {
                           type="text"
                           value={config.hero.femaleCard.label}
                           onChange={(e) => setConfig(prev => ({ ...prev, hero: { ...prev.hero, femaleCard: { ...prev.hero.femaleCard, label: e.target.value }}}))}
-                          className="flex-1 bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-bold outline-none"
+                          className="flex-1 bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-normal outline-none"
                         />
                       </div>
                     </div>
@@ -782,17 +766,17 @@ export const LandingPageConfig: React.FC = () => {
 
           {/* GENDER CONTENT SECTION */}
           {activeTab === 'gender' && (
-            <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Best Tailors - Compact */}
-              <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-6">
+              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-3">
                 <div className="flex items-center gap-2 border-b border-zinc-50 dark:border-zinc-800 pb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-theme-primary"></span>
-                  <h3 className="text-sm font-black uppercase tracking-tighter">أفضل الخياطين المرشحين</h3>
+                  <h3 className="text-sm font-normal uppercase tracking-tighter">أفضل الخياطين المرشحين</h3>
                 </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {config[activeGender].bestTailors.map((tailor, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-800/50 border border-zinc-100 dark:border-zinc-800 group hover:border-theme-primary/30 transition-all">
+                    <div key={index} className="flex items-center gap-4 p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-800/50 border-[1.5px] border-black/10 dark:border-white/10 group hover:border-theme-primary/30 transition-all">
                       <CompactImage 
                         url={tailor.imageUrl}
                         onClear={() => {
@@ -811,20 +795,20 @@ export const LandingPageConfig: React.FC = () => {
                         <select
                           value={tailor.tailorId}
                           onChange={(e) => handleTailorSelect(index, e.target.value)}
-                          className="w-full bg-white dark:bg-zinc-900 border border-zinc-100 dark:border-zinc-800 rounded-xl px-3 py-1.5 text-[10px] font-bold outline-none focus:ring-1 focus:ring-theme-primary/20"
+                          className="w-full bg-white dark:bg-zinc-900 border-[1.5px] border-black/10 dark:border-white/10 rounded-xl px-3 py-1.5 text-[10px] font-normal outline-none focus:ring-1 focus:ring-theme-primary/20"
                         >
                           <option value="">اختر خياط...</option>
                           {tailors.map(t => <option key={t.id} value={t.id}>{t.shopName || t.name}</option>)}
                         </select>
                         <div className="flex items-center justify-between px-2">
-                           <span className="text-[9px] text-zinc-400 font-bold uppercase tracking-widest">{tailor.location || 'الموقع'}</span>
+                           <span className="text-[9px] text-zinc-400 font-normal uppercase tracking-widest">{tailor.location || 'الموقع'}</span>
                            <button 
                             onClick={() => {
                                 setSelectedTailorIndex(index);
                                 setShowImagePicker(true);
                                 loadTailorProducts(tailor.tailorId);
                             }}
-                            className="text-[9px] font-black text-theme-primary hover:underline uppercase"
+                            className="text-[9px] font-normal text-theme-primary hover:underline uppercase"
                            >
                             اختر صورة
                            </button>
@@ -836,19 +820,19 @@ export const LandingPageConfig: React.FC = () => {
               </div>
 
               {/* Categories - Compact Grid */}
-              <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-6">
+              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-3">
                  <div className="flex items-center gap-2 border-b border-zinc-50 dark:border-zinc-800 pb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-theme-primary"></span>
-                  <h3 className="text-sm font-black uppercase tracking-tighter">تقسيم التصنيفات</h3>
+                  <h3 className="text-sm font-normal uppercase tracking-tighter">تقسيم التصنيفات</h3>
                 </div>
 
-                <div className="space-y-6">
+                <div className="space-y-3">
                   {/* Large Categories */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                      {['largeCat1', 'largeCat2'].map((key) => {
                        const cat = config[activeGender].categories[key as 'largeCat1' | 'largeCat2'];
                        return (
-                        <div key={key} className="flex items-center gap-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border border-zinc-100 dark:border-zinc-800">
+                        <div key={key} className="flex items-center gap-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border-[1.5px] border-black/10 dark:border-white/10">
                           <CompactImage 
                             url={cat.imageUrl}
                             onClear={() => clearImage(`${activeGender}.categories.${key}`)}
@@ -858,7 +842,7 @@ export const LandingPageConfig: React.FC = () => {
                           <div className="flex-1 space-y-1">
                             <select
                               onChange={(e) => handleCategorySelect(key as 'largeCat1' | 'largeCat2', e.target.value)}
-                              className="w-full bg-transparent border-none text-[10px] font-black uppercase text-zinc-400 focus:ring-0 cursor-pointer"
+                              className="w-full bg-transparent border-none text-[10px] font-normal uppercase text-zinc-400 focus:ring-0 cursor-pointer"
                             >
                               <option value="">تغيير التصنيف ({cat.label})</option>
                               {filteredCategoriesByGender.map(c => <option key={c.id} value={c.id}>{c.nameAr}</option>)}
@@ -870,7 +854,7 @@ export const LandingPageConfig: React.FC = () => {
                                 const newCat = { ...cat, label: e.target.value };
                                 setConfig(prev => ({ ...prev, [activeGender]: { ...prev[activeGender], categories: { ...prev[activeGender].categories, [key]: newCat }}}));
                               }}
-                              className="w-full bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-xs font-bold border-none outline-none"
+                              className="w-full bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-xs font-normal border-none outline-none"
                             />
                           </div>
                         </div>
@@ -881,7 +865,7 @@ export const LandingPageConfig: React.FC = () => {
                   {/* Small Categories Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {config[activeGender].categories.smallCats.map((cat, index) => (
-                      <div key={index} className="flex flex-col items-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-3xl border border-zinc-100 dark:border-zinc-800 space-y-3">
+                      <div key={index} className="flex flex-col items-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 space-y-3">
                         <CompactImage 
                           url={cat.imageUrl}
                           onClear={() => clearImage(`${activeGender}.categories.smallCats.${index}`)}
@@ -892,7 +876,7 @@ export const LandingPageConfig: React.FC = () => {
                         <div className="w-full space-y-1">
                           <select
                             onChange={(e) => handleSmallCategorySelect(index, e.target.value)}
-                            className="w-full bg-transparent border-none text-[8px] font-black uppercase text-zinc-400 focus:ring-0 cursor-pointer text-center"
+                            className="w-full bg-transparent border-none text-[8px] font-normal uppercase text-zinc-400 focus:ring-0 cursor-pointer text-center"
                           >
                             <option value="">تغيير</option>
                             {filteredCategoriesByGender.map(c => <option key={c.id} value={c.id}>{c.nameAr}</option>)}
@@ -905,7 +889,7 @@ export const LandingPageConfig: React.FC = () => {
                               newCats[index].label = e.target.value;
                               setConfig(prev => ({ ...prev, [activeGender]: { ...prev[activeGender], categories: { ...prev[activeGender].categories, smallCats: newCats } } }));
                             }}
-                            className="w-full bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-bold border-none outline-none text-center"
+                            className="w-full bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-normal border-none outline-none text-center"
                           />
                         </div>
                       </div>
@@ -915,13 +899,13 @@ export const LandingPageConfig: React.FC = () => {
               </div>
 
               {/* Handpicked Products */}
-              <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-6">
+              <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-3">
                 <div className="flex items-center gap-2 border-b border-zinc-50 dark:border-zinc-800 pb-4">
                   <span className="w-1.5 h-1.5 rounded-full bg-theme-primary"></span>
-                  <h3 className="text-sm font-black uppercase tracking-tighter">المنتجات المرشحة يدوياً</h3>
+                  <h3 className="text-sm font-normal uppercase tracking-tighter">المنتجات المرشحة يدوياً</h3>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Recent Arrivals */}
                   <div className="p-6 bg-zinc-50 dark:bg-zinc-800 rounded-3xl space-y-4">
                     <div className="flex items-center justify-between">
@@ -935,22 +919,39 @@ export const LandingPageConfig: React.FC = () => {
                           />
                           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${config[activeGender].recentArrivals.enabled ? 'left-5' : 'left-1'}`}></div>
                         </div>
-                        <span className="text-xs font-black uppercase">عرض قسم "جديدنا"</span>
+                        <span className="text-xs font-normal uppercase">عرض قسم "جديدنا"</span>
                       </label>
                       <button 
                         onClick={() => setShowProductPicker({ type: 'recentArrivals', gender: activeGender })}
-                        className="p-1 px-3 bg-white dark:bg-zinc-900 rounded-lg text-[9px] font-black text-theme-primary shadow-sm hover:scale-105 transition-transform"
+                        className="p-1 px-3 bg-white dark:bg-zinc-900 rounded-lg text-[9px] font-normal text-theme-primary shadow-sm hover:scale-105 transition-transform"
                       >
                         تعديل القائمة
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-3 max-h-32 overflow-y-auto">
                       {config[activeGender].recentArrivals.productIds?.map(pid => {
                         const p = allProducts.find(x => x.id === pid);
+                        const imageUrl = p?.images?.[0] || p?.image;
                         return (
-                          <div key={pid} className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-zinc-900 rounded-full text-[9px] font-bold border border-zinc-100 dark:border-zinc-800">
-                            <span className="truncate max-w-[80px]">{p?.name || pid}</span>
-                            <X size={10} className="text-red-500 cursor-pointer" onClick={() => toggleProductSelection('recentArrivals', activeGender, pid)} />
+                          <div key={pid} className="relative group shrink-0">
+                            {imageUrl ? (
+                              <img 
+                                src={imageUrl} 
+                                alt={p?.name} 
+                                className="w-20 h-20 rounded-lg object-cover border-[1.5px] border-black/10 dark:border-white/10 shadow-sm"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-lg bg-zinc-200 dark:bg-zinc-700 border-[1.5px] border-black/10 dark:border-white/10 flex items-center justify-center text-[9px] text-zinc-400">
+                                لا توجد صورة
+                              </div>
+                            )}
+                            <button
+                              onClick={() => toggleProductSelection('recentArrivals', activeGender, pid)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              title={p?.name || pid}
+                            >
+                              <X size={12} />
+                            </button>
                           </div>
                         )
                       })}
@@ -970,22 +971,39 @@ export const LandingPageConfig: React.FC = () => {
                           />
                           <div className={`absolute top-1 w-4 h-4 rounded-full bg-white transition-all ${config[activeGender].bestSelling.enabled ? 'left-5' : 'left-1'}`}></div>
                         </div>
-                        <span className="text-xs font-black uppercase">عرض "الأكثر مبيعاً"</span>
+                        <span className="text-xs font-normal uppercase">عرض "الأكثر مبيعاً"</span>
                       </label>
                       <button 
                         onClick={() => setShowProductPicker({ type: 'bestSelling', gender: activeGender })}
-                        className="p-1 px-3 bg-white dark:bg-zinc-900 rounded-lg text-[9px] font-black text-theme-primary shadow-sm hover:scale-105 transition-transform"
+                        className="p-1 px-3 bg-white dark:bg-zinc-900 rounded-lg text-[9px] font-normal text-theme-primary shadow-sm hover:scale-105 transition-transform"
                       >
                         تعديل القائمة
                       </button>
                     </div>
-                    <div className="flex flex-wrap gap-2 max-h-24 overflow-y-auto">
+                    <div className="flex flex-wrap gap-3 max-h-32 overflow-y-auto">
                       {config[activeGender].bestSelling.productIds?.map(pid => {
                         const p = allProducts.find(x => x.id === pid);
+                        const imageUrl = p?.images?.[0] || p?.image;
                         return (
-                          <div key={pid} className="flex items-center gap-1.5 px-3 py-1 bg-white dark:bg-zinc-900 rounded-full text-[9px] font-bold border border-zinc-100 dark:border-zinc-800">
-                            <span className="truncate max-w-[80px]">{p?.name || pid}</span>
-                            <X size={10} className="text-red-500 cursor-pointer" onClick={() => toggleProductSelection('bestSelling', activeGender, pid)} />
+                          <div key={pid} className="relative group shrink-0">
+                            {imageUrl ? (
+                              <img 
+                                src={imageUrl} 
+                                alt={p?.name} 
+                                className="w-20 h-20 rounded-lg object-cover border-[1.5px] border-black/10 dark:border-white/10 shadow-sm"
+                              />
+                            ) : (
+                              <div className="w-20 h-20 rounded-lg bg-zinc-200 dark:bg-zinc-700 border-[1.5px] border-black/10 dark:border-white/10 flex items-center justify-center text-[9px] text-zinc-400">
+                                لا توجد صورة
+                              </div>
+                            )}
+                            <button
+                              onClick={() => toggleProductSelection('bestSelling', activeGender, pid)}
+                              className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-lg"
+                              title={p?.name || pid}
+                            >
+                              <X size={12} />
+                            </button>
                           </div>
                         )
                       })}
@@ -998,10 +1016,10 @@ export const LandingPageConfig: React.FC = () => {
 
           {/* REGIONS SECTION */}
           {activeTab === 'regions' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                   {config.regions?.map((region, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-3xl border border-zinc-100 dark:border-zinc-800 group transition-all">
+                    <div key={index} className="flex items-center gap-4 p-4 bg-zinc-50 dark:bg-zinc-800/50 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 group transition-all">
                        <CompactImage 
                         url={region.image}
                         onClear={() => updateRegion(index, 'image', '')}
@@ -1014,7 +1032,7 @@ export const LandingPageConfig: React.FC = () => {
                             type="text" 
                             value={region.name} 
                             onChange={(e) => updateRegion(index, 'name', e.target.value)}
-                            className="w-full bg-white dark:bg-zinc-900 rounded-lg px-3 py-1.5 text-xs font-black border-none outline-none"
+                            className="w-full bg-white dark:bg-zinc-900 rounded-lg px-3 py-1.5 text-xs font-normal border-none outline-none"
                             placeholder="اسم المنطقة"
                           />
                           <div className="flex items-center justify-between gap-2">
@@ -1022,7 +1040,7 @@ export const LandingPageConfig: React.FC = () => {
                               type="text" 
                               value={region.count} 
                               onChange={(e) => updateRegion(index, 'count', e.target.value)}
-                              className="w-16 bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-bold border-none outline-none"
+                              className="w-16 bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-[10px] font-normal border-none outline-none"
                               placeholder="العدد"
                             />
                             <div className="flex gap-1">
@@ -1039,15 +1057,15 @@ export const LandingPageConfig: React.FC = () => {
 
           {/* COMING SOON BANNER SECTION */}
           {activeTab === 'banner' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-              <div className="flex items-center justify-between p-6 bg-zinc-50 dark:bg-zinc-800 rounded-[2rem]">
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+              <div className="flex items-center justify-between p-6 bg-zinc-50 dark:bg-zinc-800 rounded-3xl">
                 <div className="space-y-1">
-                  <h4 className="text-sm font-black uppercase">الحالة الحالية</h4>
+                  <h4 className="text-sm font-normal uppercase">الحالة الحالية</h4>
                   <p className="text-xs text-zinc-500">تحكم بظهور بانر "قريباً.. قسم الإكسسوارات" في أسفل المتجر</p>
                 </div>
                 <button
                   onClick={() => setConfig(prev => ({ ...prev, accessoriesBanner: { ...(prev.accessoriesBanner || DEFAULT_CONFIG.accessoriesBanner!), enabled: !prev.accessoriesBanner?.enabled }}))}
-                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-black text-xs transition-all ${
+                  className={`flex items-center gap-2 px-6 py-3 rounded-2xl font-normal text-xs transition-all ${
                     config.accessoriesBanner?.enabled 
                       ? 'bg-green-500/10 text-green-500 border border-green-500/20' 
                       : 'bg-red-500/10 text-red-500 border border-red-500/20'
@@ -1058,34 +1076,34 @@ export const LandingPageConfig: React.FC = () => {
                 </button>
               </div>
 
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-                 <div className="space-y-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                 <div className="space-y-3">
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">النص الرئيسي للبانر</label>
+                      <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">النص الرئيسي للبانر</label>
                       <input 
                         type="text"
                         value={config.accessoriesBanner?.title || ''}
                         onChange={(e) => setConfig(prev => ({ ...prev, accessoriesBanner: { ...(prev.accessoriesBanner || DEFAULT_CONFIG.accessoriesBanner!), title: e.target.value }}))}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-theme-primary/20 outline-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-normal focus:ring-2 focus:ring-theme-primary/20 outline-none"
                       />
                     </div>
                     <div className="space-y-2">
-                      <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">نص زر الحركة</label>
+                      <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">نص زر الحركة</label>
                       <input 
                         type="text"
                         value={config.accessoriesBanner?.buttonText || ''}
                         onChange={(e) => setConfig(prev => ({ ...prev, accessoriesBanner: { ...(prev.accessoriesBanner || DEFAULT_CONFIG.accessoriesBanner!), buttonText: e.target.value }}))}
-                        className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-theme-primary/20 outline-none"
+                        className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-normal focus:ring-2 focus:ring-theme-primary/20 outline-none"
                       />
                     </div>
                  </div>
 
                  <div className="space-y-4">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">خلفية البانر (داكنة)</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">خلفية البانر (داكنة)</label>
                     <div className="relative group aspect-video rounded-3xl bg-zinc-100 dark:bg-zinc-800 overflow-hidden border border-zinc-200 dark:border-zinc-700">
                       <img src={config.accessoriesBanner?.imageUrl} className="w-full h-full object-cover opacity-60" alt="Banner Preview" />
                       <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
-                         <label className="px-6 py-3 bg-white text-black rounded-2xl font-black text-xs cursor-pointer hover:scale-105 transition-transform">
+                         <label className="px-6 py-3 bg-white text-black rounded-2xl font-normal text-xs cursor-pointer hover:scale-105 transition-transform">
                             تغيير خلفية البانر
                             <input type="file" className="hidden" accept="image/*" onChange={(e) => e.target.files?.[0] && handleImageUpload(e.target.files[0], 'accessoriesBanner')} />
                          </label>
@@ -1103,23 +1121,23 @@ export const LandingPageConfig: React.FC = () => {
 
           {/* PROMOTION SECTION */}
           {activeTab === 'promotion' && (
-            <div className="bg-white dark:bg-zinc-900 rounded-[2.5rem] p-8 border border-zinc-100 dark:border-zinc-800 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-               <div className="space-y-6">
+            <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+               <div className="space-y-3">
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">عنوان العرض</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">عنوان العرض</label>
                     <textarea 
                       value={config.promotion.title}
                       onChange={(e) => setConfig(prev => ({ ...prev, promotion: { ...prev.promotion, title: e.target.value }}))}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-theme-primary/20 outline-none min-h-[100px]"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-normal focus:ring-2 focus:ring-theme-primary/20 outline-none min-h-[100px]"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-[10px] uppercase font-black text-zinc-400 tracking-widest">نص الزر</label>
+                    <label className="text-[10px] uppercase font-normal text-zinc-400 tracking-widest">نص الزر</label>
                     <input 
                       type="text"
                       value={config.promotion.buttonText}
                       onChange={(e) => setConfig(prev => ({ ...prev, promotion: { ...prev.promotion, buttonText: e.target.value }}))}
-                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-bold focus:ring-2 focus:ring-theme-primary/20 outline-none"
+                      className="w-full bg-zinc-50 dark:bg-zinc-800 border-none rounded-2xl px-5 py-4 text-sm font-normal focus:ring-2 focus:ring-theme-primary/20 outline-none"
                     />
                   </div>
                </div>
@@ -1135,8 +1153,8 @@ export const LandingPageConfig: React.FC = () => {
             <div className="bg-white dark:bg-zinc-950 rounded-[3rem] w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-white/10">
                <div className="p-8 border-b border-zinc-50 dark:border-zinc-900 flex items-center justify-between">
                   <div>
-                    <h2 className="text-2xl font-black uppercase text-zinc-900 dark:text-white">اختر المنتجات المرشحة</h2>
-                    <p className="text-[10px] text-zinc-500 font-bold uppercase tracking-widest mt-1">تنسيق قسم {showProductPicker.type === 'recentArrivals' ? 'جديدنا' : 'الأكثر مبيعاً'}</p>
+                    <h2 className="text-2xl font-normal uppercase text-zinc-900 dark:text-white">اختر المنتجات المرشحة</h2>
+                    <p className="text-[10px] text-zinc-500 font-normal uppercase tracking-widest mt-1">تنسيق قسم {showProductPicker.type === 'recentArrivals' ? 'جديدنا' : 'الأكثر مبيعاً'}</p>
                   </div>
                   <button onClick={() => setShowProductPicker(null)} className="w-12 h-12 rounded-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center hover:rotate-90 transition-all"><X/></button>
                </div>
@@ -1153,7 +1171,7 @@ export const LandingPageConfig: React.FC = () => {
                         >
                           <img src={p.images?.[0] || p.imageUrl} className="w-full h-full object-cover transition-transform group-hover:scale-110" alt="" />
                           <div className={`absolute inset-0 flex items-end p-2 transition-opacity ${isSelected ? 'bg-theme-primary/20 opacity-100' : 'bg-black/60 opacity-0 group-hover:opacity-100'}`}>
-                             <p className="text-white text-[8px] font-black uppercase tracking-tighter line-clamp-1">{p.name}</p>
+                             <p className="text-white text-[8px] font-normal uppercase tracking-tighter line-clamp-1">{p.name}</p>
                           </div>
                           {isSelected && <div className="absolute top-2 right-2 bg-theme-primary text-white w-5 h-5 rounded-full flex items-center justify-center shadow-lg"><Check size={12} strokeWidth={4}/></div>}
                         </div>
@@ -1163,8 +1181,8 @@ export const LandingPageConfig: React.FC = () => {
                </div>
                
                <div className="p-8 border-t border-zinc-50 dark:border-zinc-900 bg-zinc-50/50 dark:bg-zinc-950 flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase text-zinc-400 tracking-widest">المحدد حالياً: {config[showProductPicker.gender][showProductPicker.type].productIds?.length || 0} منتج</span>
-                  <button onClick={() => setShowProductPicker(null)} className="bg-theme-primary text-white px-10 py-3 rounded-2xl font-black uppercase text-xs shadow-lg shadow-theme-primary/20">تأكيد وقبول الاختيار</button>
+                  <span className="text-[10px] font-normal uppercase text-zinc-400 tracking-widest">المحدد حالياً: {config[showProductPicker.gender][showProductPicker.type].productIds?.length || 0} منتج</span>
+                  <button onClick={() => setShowProductPicker(null)} className="bg-theme-primary text-white px-10 py-3 rounded-2xl font-normal uppercase text-xs shadow-lg shadow-theme-primary/20">تأكيد وقبول الاختيار</button>
                </div>
             </div>
          </div>
@@ -1175,7 +1193,7 @@ export const LandingPageConfig: React.FC = () => {
          <div className="fixed inset-0 bg-black/80 backdrop-blur-xl flex items-center justify-center z-[100] p-4 text-right" dir="rtl">
             <div className="bg-white dark:bg-zinc-950 rounded-[3rem] w-full max-w-5xl max-h-[80vh] overflow-hidden flex flex-col border border-white/10 shadow-2xl">
                <div className="p-8 border-b border-zinc-50 dark:border-zinc-900 flex items-center justify-between">
-                 <h2 className="text-xl font-black uppercase">منتجات الخياط: {config[activeGender].bestTailors[selectedTailorIndex].name}</h2>
+                 <h2 className="text-xl font-normal uppercase">منتجات الخياط: {config[activeGender].bestTailors[selectedTailorIndex].name}</h2>
                  <button onClick={() => { setShowImagePicker(false); setSelectedTailorIndex(null); }} className="w-10 h-10 rounded-full bg-zinc-50 dark:bg-zinc-900 flex items-center justify-center"><X size={18}/></button>
                </div>
                <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
@@ -1197,7 +1215,7 @@ export const LandingPageConfig: React.FC = () => {
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 gap-4">
                        <Loader2 className="animate-spin text-theme-primary" size={32}/>
-                       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">تحميل الكتالوج...</p>
+                       <p className="text-[10px] font-normal uppercase tracking-widest text-zinc-500">تحميل الكتالوج...</p>
                     </div>
                   )}
                </div>

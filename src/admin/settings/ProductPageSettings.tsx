@@ -91,11 +91,11 @@ export const ProductPageSettings = () => {
   }
 
   return (
-    <div className="space-y-8 max-w-4xl">
+    <div className="w-full max-w-4xl bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6 space-y-8">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-slate-900 dark:text-white">إعدادات صفحة المنتج</h2>
-          <p className="text-slate-500 mt-1">تخصيص مظهر وسلوك صفحة تفاصيل المنتج</p>
+          <h2 className="text-2xl font-normal text-zinc-900 dark:text-white">إعدادات صفحة المنتج</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">تخصيص مظهر وسلوك صفحة تفاصيل المنتج</p>
         </div>
         <button
           onClick={handleSave}

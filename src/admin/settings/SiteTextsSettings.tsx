@@ -80,50 +80,46 @@ export const SiteTextsSettings: React.FC = () => {
   };
 
   return (
-    <div className="bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 p-8 shadow-2xl relative overflow-hidden">
-      {/* Decorative background elements */}
-      <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl -mr-32 -mt-32" />
-      <div className="absolute bottom-0 left-0 w-64 h-64 bg-blue-500/5 rounded-full blur-3xl -ml-32 -mb-32" />
-
-      <div className="relative flex items-center gap-4 mb-10">
-        <div className="p-3 bg-indigo-500/20 rounded-2xl border border-indigo-500/20 shadow-inner">
-          <Type className="text-indigo-400" size={28} />
+    <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 p-6 shadow-sm">
+      <div className="flex items-center gap-4 mb-6">
+        <div className="p-3 bg-theme-primary/10 rounded-2xl border-[1.5px] border-theme-primary/20">
+          <Type className="text-theme-primary" size={24} />
         </div>
         <div>
-          <h2 className="text-2xl font-bold text-white tracking-tight">نصوص الموقع</h2>
-          <p className="text-slate-400 mt-1">تخصيص العناوين والنصوص الظاهرة في الموقع</p>
+          <h2 className="text-2xl font-normal text-zinc-900 dark:text-white tracking-tight">نصوص الموقع</h2>
+          <p className="text-zinc-500 dark:text-zinc-400 mt-1">تخصيص العناوين والنصوص الظاهرة في الموقع</p>
         </div>
       </div>
 
       <div className="relative space-y-10">
         {/* Featured Tailors Section */}
-        <div className="bg-white/5 rounded-2xl border border-white/5 p-6">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+        <div className="bg-white dark:bg-zinc-900/40 rounded-2xl border-[1.5px] border-zinc-200 dark:border-zinc-700 p-6">
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
             <div className="w-1.5 h-6 bg-indigo-500 rounded-full" />
             قسم الخياطين المتميزين
           </h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                 العنوان الرئيسي
               </label>
               <input
                 type="text"
                 value={texts.featuredTailorsTitle}
                 onChange={(e) => handleChange('featuredTailorsTitle', e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                 placeholder="خياطون متميزون"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                 العنوان الفرعي
               </label>
               <input
                 type="text"
                 value={texts.featuredTailorsSubtitle}
                 onChange={(e) => handleChange('featuredTailorsSubtitle', e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                 placeholder="تعرف على أفضل الخياطين المعتمدين"
               />
             </div>
@@ -131,34 +127,34 @@ export const SiteTextsSettings: React.FC = () => {
         </div>
 
         {/* Contact Footer */}
-        <div className="bg-white/5 rounded-2xl border border-white/5 p-6">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+        <div className="bg-white dark:bg-zinc-900/40 rounded-2xl border-[1.5px] border-zinc-200 dark:border-zinc-700 p-6">
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
             <div className="w-1.5 h-6 bg-blue-500 rounded-full" />
             قسم التواصل (Footer)
           </h3>
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+                <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                   عنوان القسم
                 </label>
                 <input
                   type="text"
                   value={texts.contactTitle}
                   onChange={(e) => handleChange('contactTitle', e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                  className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                   placeholder="تواصل معنا"
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+                <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                   النص الفرعي
                 </label>
                 <input
                   type="text"
                   value={texts.contactSubtitle}
                   onChange={(e) => handleChange('contactSubtitle', e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                  className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                   placeholder="نحن هنا لمساعدتك في أي وقت"
                 />
               </div>
@@ -202,14 +198,14 @@ export const SiteTextsSettings: React.FC = () => {
               </div>
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+              <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                 نص الحقوق المحفوظة
               </label>
               <input
                 type="text"
                 value={texts.footerCopyright}
                 onChange={(e) => handleChange('footerCopyright', e.target.value)}
-                className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                 placeholder="© 2024 خيوط. جميع الحقوق محفوظة."
               />
             </div>
@@ -217,22 +213,22 @@ export const SiteTextsSettings: React.FC = () => {
         </div>
 
         {/* Other Sections */}
-        <div className="bg-white/5 rounded-2xl border border-white/5 p-6">
-          <h3 className="text-lg font-bold text-white mb-6 flex items-center gap-2">
+        <div className="bg-white dark:bg-zinc-900/40 rounded-2xl border-[1.5px] border-zinc-200 dark:border-zinc-700 p-6">
+          <h3 className="text-lg font-bold text-zinc-900 dark:text-white mb-6 flex items-center gap-2">
             <div className="w-1.5 h-6 bg-purple-500 rounded-full" />
             نصوص أخرى
           </h3>
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div>
-                <label className="block text-sm font-medium text-slate-400 mb-2 mr-1">
+                <label className="block text-sm font-medium text-zinc-600 dark:text-zinc-400 mb-2 mr-1">
                   نص زر تصفح المحلات
                 </label>
                 <input
                   type="text"
                   value={texts.browseShopsText}
                   onChange={(e) => handleChange('browseShopsText', e.target.value)}
-                  className="w-full px-4 py-3 bg-slate-900/50 border border-white/10 rounded-xl text-white focus:ring-2 focus:ring-indigo-500/50 focus:border-indigo-500/50 transition-all outline-none"
+                  className="w-full px-4 py-3 bg-white dark:bg-zinc-900/40 border border-zinc-200 dark:border-zinc-700 rounded-2xl text-zinc-900 dark:text-white placeholder:text-zinc-400 dark:placeholder:text-zinc-500 focus:ring-2 focus:ring-indigo-500/40 focus:border-indigo-500/50 transition-all outline-none"
                   placeholder="تصفح المحلات"
                 />
               </div>

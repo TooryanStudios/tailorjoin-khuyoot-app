@@ -132,7 +132,7 @@ export const TryOn: React.FC = () => {
         <Sidebar {...(logic as any)._stable || logic} />
 
         <div className="flex-1 flex overflow-hidden bg-[#e5e5e5]">
-          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-scroll custom-scrollbar border-l border-zinc-200 pb-6 rounded-3xl bg-white shadow-sm">
+          <div className="flex-1 flex flex-col min-w-0 relative overflow-y-scroll custom-scrollbar border-l border-zinc-200 pb-6">
             <DesignerViewport {...logic} />
 
             {features.showFullComparison && (

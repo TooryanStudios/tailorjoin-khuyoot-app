@@ -1053,7 +1053,7 @@ export const firebaseService = {
         return {
           id: docSnap.id,
           name: d.name || 'خياط',
-          specialization: d.specialization || (d.tailorGender === 'male' ? 'males' : d.tailorGender === 'female' ? 'females' : 'general'),
+          specialization: d.specialization || (d.tailorGender === 'male' ? 'male' : d.tailorGender === 'female' ? 'female' : 'general'),
           rating: d.rating || d.ratingAvg || 4.5,
           location: d.location || '',
           region: d.region || '',
@@ -1097,7 +1097,7 @@ export const firebaseService = {
         return {
           id: docSnap.id,
           name: d.name || 'خياط',
-          specialization: d.specialization || (d.tailorGender === 'male' ? 'males' : d.tailorGender === 'female' ? 'females' : 'general'),
+          specialization: d.specialization || (d.tailorGender === 'male' ? 'male' : d.tailorGender === 'female' ? 'female' : 'general'),
           rating: d.rating || d.ratingAvg || 4.5,
           location: d.location || '',
           region: d.region || '',

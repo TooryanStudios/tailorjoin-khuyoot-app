@@ -345,7 +345,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
     <motion.aside 
       initial={false}
       animate={{ width: isSidebarCollapsed ? 80 : 320 }}
-      className={`h-full bg-[#ededed] flex flex-col items-center z-50 relative rounded-3xl`}
+      className={`h-full bg-[#ededed] flex flex-col items-center z-50 relative`}
     >
       {/* Black divider line at the end of the sidebar */}
       <div className="absolute left-0 top-0 bottom-0 w-px bg-gray-300 z-[100]" />

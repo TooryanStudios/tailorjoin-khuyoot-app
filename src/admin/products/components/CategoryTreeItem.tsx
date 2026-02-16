@@ -23,20 +23,20 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div className="select-none relative">
+    <div className="select-none relative font-['Tajawal'] font-normal">
       {/* خط التفرع الرأسي */}
       {level > 0 && (
         <div 
-          className="absolute top-0 bottom-0 border-r-2 border-slate-300 dark:border-slate-600"
+          className="absolute top-0 bottom-0 border-r border-zinc-200 dark:border-zinc-700"
           style={{ right: `${level * 24 - 12}px` }}
         />
       )}
       
-      <div className="group flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors relative">
+      <div className="group flex items-center gap-2 py-1.5 px-2 hover:bg-zinc-50 dark:hover:bg-zinc-800/40 transition-colors relative border-b border-zinc-300 dark:border-zinc-700">
         {/* خط التفرع الأفقي */}
         {level > 0 && (
           <div 
-            className="absolute top-1/2 border-t-2 border-slate-300 dark:border-slate-600"
+            className="absolute top-1/2 border-t border-zinc-200 dark:border-zinc-700"
             style={{ 
               right: `${level * 24 - 12}px`,
               width: '20px'
@@ -50,16 +50,16 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
         {/* Toggle Arrow */}
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className={`p-1 hover:bg-slate-200 dark:hover:bg-slate-600 rounded transition-transform z-10 ${
+          className={`p-1 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-transform z-10 ${
             hasChildren ? 'visible' : 'invisible'
           } ${isExpanded ? 'rotate-90' : ''}`}
         >
-          <ChevronRight size={16} />
+          <ChevronRight size={14} />
         </button>
 
         {/* الصورة */}
         {node.image && (
-          <div className="w-10 h-10 rounded-lg overflow-hidden flex-shrink-0 border border-slate-200 dark:border-slate-600">
+          <div className="w-9 h-9 rounded-xl overflow-hidden flex-shrink-0 border border-zinc-200 dark:border-zinc-700">
             <img
               src={node.image}
               alt={node.nameAr}
@@ -71,25 +71,25 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
         {/* المعلومات */}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
-            <h4 className="font-semibold text-slate-800 dark:text-white truncate">
+            <h4 className="font-normal text-zinc-900 dark:text-white truncate">
               {node.nameAr}
             </h4>
-            <span className="text-xs text-slate-500 dark:text-slate-400">
+            <span className="text-xs text-zinc-500 dark:text-zinc-400">
               {node.nameEn}
             </span>
           </div>
-          <p className="text-xs text-slate-400 dark:text-slate-500 truncate">
+          <p className="text-[11px] text-zinc-400 dark:text-zinc-500 truncate">
             ID: {node.id} • Level: {node.level}
           </p>
           {node.productsCount !== undefined && (
-            <p className="text-xs text-slate-500 dark:text-slate-400">
+            <p className="text-[11px] text-zinc-500 dark:text-zinc-400">
               {node.productsCount} منتج
             </p>
           )}
         </div>
 
         {/* الحالة */}
-        <div className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-semibold ${
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-2xl text-[11px] font-normal ${
           node.isActive 
             ? 'bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300'
             : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-300'
@@ -101,19 +101,19 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
         {/* زر التعديل */}
         <button
           onClick={() => onEdit(node)}
-          className="opacity-0 group-hover:opacity-100 p-2 hover:bg-blue-100 dark:hover:bg-blue-900/30 text-blue-600 dark:text-blue-400 rounded-lg transition-all"
+          className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-xl transition-all"
           title="تعديل"
         >
-          <Edit size={16} />
+          <Edit size={14} />
         </button>
 
         {/* القائمة المنسدلة */}
         <div className="relative opacity-0 group-hover:opacity-100 transition-opacity">
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className="p-2 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg transition-colors"
+            className="p-1.5 hover:bg-zinc-200 dark:hover:bg-zinc-700 rounded-xl transition-colors"
           >
-            <MoreVertical size={16} />
+            <MoreVertical size={14} />
           </button>
 
           {showMenu && (
@@ -122,15 +122,15 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
                 className="fixed inset-0 z-10"
                 onClick={() => setShowMenu(false)}
               />
-              <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-slate-800 rounded-lg shadow-lg border border-slate-200 dark:border-slate-700 z-20 overflow-hidden">
+              <div className="absolute left-0 top-full mt-1 w-48 bg-white dark:bg-zinc-900 rounded-xl shadow-lg border border-zinc-200 dark:border-zinc-700 z-20 overflow-hidden">
                 <button
                   onClick={() => {
                     onEdit(node);
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-right transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs text-right transition-colors"
                 >
-                  <Edit size={16} />
+                  <Edit size={14} />
                   تعديل
                 </button>
                 <button
@@ -138,9 +138,9 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
                     onAddChild(node.id);
                     setShowMenu(false);
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm text-right transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-zinc-50 dark:hover:bg-zinc-800 text-xs text-right transition-colors"
                 >
-                  <Plus size={16} />
+                  <Plus size={14} />
                   إضافة تصنيف فرعي
                 </button>
                 <button
@@ -153,9 +153,9 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
                       onDelete(node.id);
                     }
                   }}
-                  className="w-full flex items-center gap-2 px-4 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-sm text-right text-red-600 dark:text-red-400 transition-colors"
+                  className="w-full flex items-center gap-2 px-3 py-2 hover:bg-red-50 dark:hover:bg-red-900/20 text-xs text-right text-red-600 dark:text-red-400 transition-colors"
                 >
-                  <Trash2 size={16} />
+                  <Trash2 size={14} />
                   حذف
                 </button>
               </div>
