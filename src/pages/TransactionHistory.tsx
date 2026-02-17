@@ -76,17 +76,17 @@ export const TransactionHistory: React.FC = () => {
         setLoading(true);
         setError('');
 
-        console.log('🔍 Loading purchase history for user:', user.id);
+        console.log('🔍 Loading purchase history...');
 
         const history = await firebaseService.getPurchaseHistory({
           userId: user.id || user.uid,
           limit: 100,
         });
 
-        console.log('📦 Purchase history results:', history?.length || 0, 'records');
+        console.log('📦 Purchase history loaded:', history?.length || 0, 'records');
 
         if (history && history.length > 0) {
-          console.log('✅ Found purchase_history records:', history);
+          console.log('✅ Found purchase_history records');
           setPurchases(history as PurchaseRecord[]);
           return;
         }

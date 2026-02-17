@@ -10,7 +10,7 @@
 
 import { getAuth, signInWithCustomToken } from 'firebase/auth';
 
-const API_KEY = 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
+const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
 
 interface RestSignInResponse {
   kind: string;
@@ -70,11 +70,7 @@ export async function signInWithEmailPasswordREST(
         const errorData: RestSignInError = await response.json();
         const errorMessage = errorData.error?.message || 'Unknown error';
 
-        console.error('[REST Auth] Sign-in failed:', {
-          status: response.status,
-          errorMessage,
-          fullError: errorData,
-        });
+        console.error(`[REST Auth] Sign-in failed (status ${response.status}, code ${errorMessage})`);
 
         // Map Firebase error codes to user-friendly messages
         let userMessage = errorMessage;
@@ -110,14 +106,14 @@ export async function signInWithEmailPasswordREST(
           error.message.includes('fetch'));
 
       if (isNetworkError && attempt < retries) {
-        console.warn(`[REST Auth] Attempt ${attempt}/${retries} failed, retrying...`, error);
+        console.warn(`[REST Auth] Attempt ${attempt}/${retries} failed, retrying...`);
         // Exponential backoff: 500ms, 1s, 2s
         const delayMs = Math.pow(2, attempt - 1) * 500;
         await new Promise((resolve) => setTimeout(resolve, delayMs));
         continue; // Retry
       }
 
-      console.error('[REST Auth] Sign-in error on attempt', attempt, error);
+      console.error(`[REST Auth] Sign-in error on attempt ${attempt}`);
     }
   }
 
@@ -168,8 +164,6 @@ export async function signInWithRestTokens(idToken: string, refreshToken: string
   // For now, we'll store the tokens and manually trigger the auth state listener
   // This is a temporary hack until we can implement proper custom token generation
 
-  console.warn('?? Using REST-based auth bypass. Tokens will be stored manually.');
-
   // Store tokens in the same format Firebase SDK expects
   const authKey = `firebase:authUser:${API_KEY}:[DEFAULT]`;
   const userData = {
@@ -200,14 +194,10 @@ export async function signInWithRestTokens(idToken: string, refreshToken: string
  * Call this instead of signInWithEmailAndPassword().
  */
 export async function signInWithEmailPasswordBypass(email: string, password: string) {
-  console.log('?? Using REST API bypass for sign-in...');
-
   const result = await signInWithEmailPasswordREST(email, password);
   if (!result.success) {
     throw new Error((result as any).error);
   }
-
-  console.log('? REST sign-in successful. Setting up SDK state...');
 
   // Store the tokens in SDK-compatible format
   const auth = getAuth();
@@ -242,14 +232,12 @@ export async function signInWithEmailPasswordBypass(email: string, password: str
   // Store in localStorage (AuthProvider will pick it up immediately)
   localStorage.setItem(authKey, JSON.stringify(userData));
 
-  console.log('? Tokens stored in localStorage');
     const customToken = await exchangeCustomToken(result.data.idToken);
     if (customToken) {
       try {
         await signInWithCustomToken(auth, customToken);
-        console.log('? Firebase SDK signed in with custom token');
-      } catch (e) {
-        console.warn('?? Firebase SDK sign-in with custom token failed:', e);
+      } catch {
+        console.warn('?? Firebase SDK sign-in with custom token failed');
       }
     }
 

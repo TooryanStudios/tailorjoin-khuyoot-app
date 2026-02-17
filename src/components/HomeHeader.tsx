@@ -8,16 +8,6 @@ export const HomeHeader = React.memo(function HomeHeader() {
   const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = React.useState('');
 
-  // Debug logging
-  React.useEffect(() => {
-    console.log('[HomeHeader] User state:', { 
-      hasUser: !!user, 
-      userId: user?.id, 
-      userName: user?.name,
-      authLoading 
-    });
-  }, [user, authLoading]);
-
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {

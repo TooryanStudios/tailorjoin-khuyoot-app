@@ -645,8 +645,6 @@ export const useDesignerLogic = () => {
       throw new Error(t('mustLoginFirst'));
     }
 
-    console.log('[Designer] User ID:', currentUser.uid);
-    
     // Use user-allowed purchase flow (Firestore rules block admin/manual adjustments for regular users)
     try {
       console.log('[Designer] Calling Firebase purchaseCredits...');
@@ -664,10 +662,10 @@ export const useDesignerLogic = () => {
         isSubscription: false,
       });
       
-      console.log('[Designer] Firebase result:', result);
+      console.log('[Designer] Firebase purchase completed');
       
       if (result?.new_balance != null) {
-        console.log('[Designer] New balance:', result.new_balance);
+        console.log('[Designer] Credit balance updated');
         try {
           window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(result.new_balance));
         } catch (e) {
@@ -727,7 +725,8 @@ export const useDesignerLogic = () => {
   const loadedProductRef = React.useRef<string | null>(null);
   
   // Blob cache for instant image switching (used by product images and history)
-  // No blob caching needed - using browser's native cache via fetch cache: 'force-cache'
+  const blobCache = React.useRef<Map<string, string>>(new Map());
+  const MAX_CACHE_SIZE = 10;
 
   // Load product image if productId is in URL
   // FIX: Removed function dependencies (setSourcePreviewUrl, setSourceForComparison, persistTemplateSelection)
@@ -2216,7 +2215,7 @@ export const useDesignerLogic = () => {
   }, [handleFabricSwap, isProcessing, uiState.generationDisabled, uiState.inputsDisabled]);
 
   return {
-    t, i18n, navigate, taskId: urlTaskId, user, isAdminUser,
+    t, i18n, navigate, taskId: urlTaskId, productId, user, isAdminUser,
     features, setFeatures, uiState,        
     selectedModel, setSelectedModel, refinementPrompt, setRefinementPrompt,
     sourcePreviewUrl, setSourcePreviewUrl, sourceImageBase64, setSourceImageBase64, sourceImageMimeType, setSourceImageMimeType,

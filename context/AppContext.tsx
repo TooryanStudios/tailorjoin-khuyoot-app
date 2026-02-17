@@ -157,17 +157,6 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         const profileImage = u.profileImage || u.photoURL || u.avatar || u.avatar_url || (u as any).profile_image;
         const phone = u.phone || u.phoneNumber || (u as any).phone_number || (u as any).contactNumber || (u as any).mobile || (u as any).tel;
 
-        console.log(`[AppContext] Normalizing user ${u.uid}:`, { 
-            inputRole: u.role,
-            resolvedRole: role,
-            inputPhoto: { photoURL: u.photoURL, profileImage: u.profileImage, avatar: u.avatar },
-            resolvedPhoto: profileImage,
-            hasPhone: !!phone, 
-            phoneValue: phone,
-            hasImage: !!profileImage,
-            isDefaultRole: !!(u as any)._isDefaultRole,
-            sourceKeys: Object.keys(u)
-        });
 
         const base = {
             id: u.uid || u.id,
@@ -196,16 +185,6 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             metadata: u.metadata || {}
         };
         
-        console.log('[AppContext] Normalized result:', {
-            uid: result.uid,
-            role: result.role,
-            profileImage: result.profileImage,
-            photoURL: result.photoURL,
-            avatar: result.avatar,
-            name: result.name,
-            displayName: result.displayName
-        });
-        
         return result;
     };
 
@@ -220,7 +199,6 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                     const parsed = JSON.parse(cachedRaw);
                     if (parsed && (parsed.uid === authUser.uid || parsed.id === authUser.uid)) {
                         const normalized = normalizeUser(parsed);
-                        console.log(`[AppContext] Hydrated from profile cache`, normalized?.name, normalized?.role);
                         return normalized;
                     }
                 }
@@ -230,14 +208,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             // This prevents the "Flash of Customer Role" before the profile syncs.
             const initial = normalizeUser(authUser);
             if (initial && initial.role === 'customer') {
-                console.log(`[AppContext] Auth snapshot has role 'customer' - waiting for profile sync instead.`);
                 return null; 
             }
-            
-            console.log(`[AppContext] Hydrated from AuthProvider snapshot`, initial?.name, initial?.role);
             return initial;
         }
-        console.log(`[AppContext] No initial user found`);
         return null;
     });
 
@@ -312,29 +286,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
         // If authUser already has rich data (from backend refresh) AND IT'S NOT A PLACEHOLDER, use it immediately
         if ((authUser as any).billing && !(authUser as any)._isDefaultRole) {
-            console.log('[AppContext] ========== USING AUTH PROVIDER DATA ==========');
-            console.log('[AppContext] authUser received:', {
-                uid: authUser.uid,
-                email: authUser.email,
-                role: authUser.role,
-                displayName: authUser.displayName,
-                photoURL: authUser.photoURL,
-                profileImage: (authUser as any).profileImage,
-                avatar: (authUser as any).avatar,
-                billing: (authUser as any).billing
-            });
-            
             const normalized = normalizeUser(authUser);
-            
-            console.log('[AppContext] Normalized user:', {
-                uid: normalized?.uid,
-                role: normalized?.role,
-                profileImage: normalized?.profileImage,
-                photoURL: (normalized as any)?.photoURL,
-                name: normalized?.name,
-                displayName: (normalized as any)?.displayName
-            });
-            console.log('[AppContext] ===============================================');
             
             setUser(normalized);
             try {
@@ -354,16 +306,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 
                 // UNIVERSAL APPROACH: Fetch enriched user profile from /api/auth/me
                 // This includes: displayName, photoURL, credits, billing, history, closet
-                console.log('[AppContext] Fetching profile from /api/auth/me for UID:', authUser.uid);
                 try {
                     // Disable internal retry to prevent infinite loops (since retry triggers auth state change which triggers re-sync)
                     const serverData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
-                    console.log('[AppContext] /api/auth/me response:', { 
-                        hasData: !!serverData, 
-                        role: serverData?.role || serverData?.user?.role,
-                        hasPhotoURL: !!(serverData?.photoURL || serverData?.profileImage || serverData?.user?.photoURL),
-                        keys: serverData ? Object.keys(serverData) : []
-                    });
                     if (cancelled) return;
                     
                     if (serverData) {
@@ -386,19 +331,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                             });
                         }
                         
-                        console.log('[AppContext] Merged user data before normalization:', {
-                            role: mergedUser.role,
-                            photoURL: mergedUser.photoURL,
-                            profileImage: mergedUser.profileImage,
-                            displayName: mergedUser.displayName,
-                            name: mergedUser.name
-                        });
-                        
                         const normalized = normalizeUser(mergedUser);
                         
                         setUser(normalized);
                         localStorage.setItem(cacheKey, JSON.stringify(normalized));
-                        console.log('[AppContext] Profile hydrated from /api/auth/me', normalized?.email, 'Credits:', normalized?.credits);
                         return;
                     }
                 } catch (apiError) {
@@ -410,7 +346,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         }
                         return;
                     }
-                    console.warn('[AppContext] /api/auth/me failed, falling back to Firebase:', apiError);
+                    console.warn('[AppContext] /api/auth/me failed, falling back to Firebase');
                 }
 
                 // FALLBACK: If /api/auth/me fails and Firebase is available, use it
@@ -436,8 +372,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                 } else if (!user) {
                     setUser(normalizeUser(authUser));
                 }
-            } catch (e) {
-                console.warn('[AppContext] Profile sync failed', e);
+            } catch {
+                console.warn('[AppContext] Profile sync failed');
                 if (!user) setUser(normalizeUser(authUser));
             } finally {
                 if (!cancelled) setProfileLoading(false);
@@ -495,7 +431,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             if (user?.uid) {
                 const cacheKey = `khuyoot:user-profile:${user.uid}`;
                 localStorage.removeItem(cacheKey);
-                console.log('[AppContext] Cleared profile cache for:', user.uid);
+                console.log('[AppContext] Cleared profile cache');
             }
             
             // Clear user state
@@ -514,8 +450,8 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             
             console.log('[AppContext] Complete logout - all state cleared');
             
-        } catch (error) {
-            console.error('Logout failed', error);
+        } catch {
+            console.error('Logout failed');
         } finally {
             setAuthActionLoading(false);
         }

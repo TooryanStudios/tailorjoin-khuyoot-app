@@ -277,7 +277,7 @@ const ImageGallery = React.memo(({
   );
 });
 
-const MeasurementEditDialog = React.memo(({ 
+export const MeasurementEditDialog = React.memo(({ 
   isOpen,
   onClose,
   template,
@@ -505,7 +505,7 @@ const MeasurementInstructionsCollapsible = React.memo(({
 });
 
 // --- Saved Measurements Modal ---
-const SavedMeasurementsSheet = React.memo(({ 
+export const SavedMeasurementsSheet = React.memo(({ 
     isOpen, 
     onClose, 
     profiles, 
@@ -581,7 +581,7 @@ const SavedMeasurementsSheet = React.memo(({
     );
 });
 
-  const MeasurementSaveDialog = React.memo(({
+  export const MeasurementSaveDialog = React.memo(({
       isOpen,
       name,
       error,
@@ -632,7 +632,7 @@ const SavedMeasurementsSheet = React.memo(({
       );
     });
 
-  const ConfirmationDialog = React.memo(({
+  export const ConfirmationDialog = React.memo(({ 
       isOpen,
       title,
       description,
@@ -671,7 +671,7 @@ const SavedMeasurementsSheet = React.memo(({
       );
     });
 
-const InfoDialog = React.memo(({
+export const InfoDialog = React.memo(({ 
       isOpen,
       title,
       message,

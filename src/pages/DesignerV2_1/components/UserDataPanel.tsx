@@ -25,8 +25,8 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
     try {
       const data = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
       setServerUser(data); sessionStorage.setItem("designer_user_cache", JSON.stringify(data));
-    } catch (err: any) {
-      console.error('Failed to fetch user data:', err);
+    } catch {
+      console.error('Failed to fetch user data');
     } finally {
       setUserLoading(false);
     }
@@ -38,8 +38,8 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
     try {
       const data = await apiJson<any>('/api/designer-v2-1/history?limit=20', { retryOnUnauthorized: false });
       const historyData = data.generations || data || []; setGenerationHistory(historyData); sessionStorage.setItem("designer_history_cache", JSON.stringify(historyData));
-    } catch (err: any) {
-      console.error('Failed to fetch generation history:', err);
+    } catch {
+      console.error('Failed to fetch generation history');
       setGenerationHistory([]);
     } finally {
       setHistoryLoading(false);
@@ -54,8 +54,8 @@ export const UserDataPanel: React.FC<UserDataPanelProps> = ({ className = '' }) 
       } else {
         setClosetItems([]);
       }
-    } catch (err: any) {
-      console.error('Failed to fetch closet:', err);
+    } catch {
+      console.error('Failed to fetch closet');
       setClosetItems([]);
     } finally {
       setClosetLoading(false);

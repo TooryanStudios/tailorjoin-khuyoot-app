@@ -210,9 +210,6 @@ export const CustomizationPage = () => {
       return;
     }
 
-    console.log('[DEBUG] handleNext - User:', user);
-    console.log('[DEBUG] handleNext - User ID:', user.id);
-
     try {
       setIsSaving(true);
 
@@ -225,7 +222,6 @@ export const CustomizationPage = () => {
         aiTips: state.aiTips
       };
 
-      console.log('[DEBUG] Saving customization with userId:', user.id);
       const customizationId = await firebaseService.saveCustomization(user.id, customizationData);
 
       // Navigate to measurements page with temporary fabric preview in state

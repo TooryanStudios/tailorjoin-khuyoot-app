@@ -93,7 +93,7 @@ export const AdminApp = () => {
   // Force refresh user profile when accessing admin panel
   React.useEffect(() => {
     if (user && user.role !== 'admin') {
-      console.log('[AdminApp] User role is not admin, forcing profile refresh...');
+      console.log('[AdminApp] Non-admin session detected, forcing profile refresh...');
       refreshUser?.();
     }
   }, [user?.uid, user?.role]);
@@ -326,8 +326,8 @@ export const AdminApp = () => {
         // Stay on the admin page (which will show login form) instead of redirecting
         // Using reload ensures clean state
         window.location.reload();
-      } catch (error) {
-        console.error('Logout error:', error);
+      } catch {
+        console.error('Logout error');
         window.location.reload();
       }
   };
@@ -336,7 +336,7 @@ export const AdminApp = () => {
     e.preventDefault();
     setLoginError('');
     setIsLoggingIn(true);
-    console.log('🚀 [AdminApp] Attempting admin login for:', loginEmail);
+    console.log('🚀 [AdminApp] Attempting admin login');
     
     try {
       await login(loginEmail, loginPassword);
@@ -346,17 +346,17 @@ export const AdminApp = () => {
       console.log('⏳ [AdminApp] Waiting for profile hydration...');
       setTimeout(() => {
         setIsLoggingIn(false);
-        console.log('🏁 [AdminApp] Login flow finished. User:', user?.email, 'Role:', user?.role);
+        console.log('🏁 [AdminApp] Login flow finished');
         if (user?.role === 'admin') {
           setShowLoginForm(false);
         } else {
-          console.warn('❌ [AdminApp] User logged in but role is NOT admin:', user?.role);
+          console.warn('❌ [AdminApp] User logged in but role is not admin');
           setLoginError(`تم تسجيل الدخول بنجاح، ولكن دور الحساب هو "${user?.role}". يرجى التأكد من أنك تستخدم حساب مسؤول.`);
         }
       }, 2000);
       
     } catch (error: any) {
-      console.error('❌ [AdminApp] Login error:', error);
+      console.error('❌ [AdminApp] Login error');
       setLoginError(error.message || 'فشل تسجيل الدخول. تحقق من البيانات.');
       setIsLoggingIn(false);
     }

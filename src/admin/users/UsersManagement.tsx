@@ -159,12 +159,12 @@ export const UsersManagement = () => {
       // Load from Firebase
       const data = await firebaseService.getAllUsers();
       
-      console.log('📥 Loaded users from Firestore:', data.map(u => ({ id: u.id, name: u.name, region: u.region, ageGroup: u.ageGroup })));
+      console.log(`📥 Loaded ${data.length} users from Firestore`);
       
       setUsers(data);
       setFilteredUsers(data);
-    } catch (error) {
-      console.error('Error loading users:', error);
+    } catch {
+      console.error('Error loading users');
     } finally {
       setLoading(false);
     }
@@ -270,9 +270,7 @@ export const UsersManagement = () => {
         return acc;
       }, {} as Partial<User>);
       
-      console.log('📤 Sending update data:', cleanedData);
-      console.log('👤 User role:', selectedUser.role);
-      console.log('📝 Form data:', editForm);
+      console.log('📤 Sending user update request');
 
       // Debug snapshot
       setDebugInfo(prev => ({
@@ -314,11 +312,11 @@ export const UsersManagement = () => {
         loadRegions()
       ]).then(() => {
         console.log('🔄 Background refresh complete');
-      }).catch(err => {
-        console.error('Background refresh error:', err);
+      }).catch(() => {
+        console.error('Background refresh error');
       });
     } catch (error) {
-      console.error('❌ Error updating user:', error);
+      console.error('❌ Error updating user');
       setDebugInfo(prev => ({
         ...prev,
         lastError: error instanceof Error ? error.message : String(error)
@@ -617,7 +615,7 @@ export const UsersManagement = () => {
         const userId = userAny.id || userAny.uid || '';
         const isTailor = user.role === 'tailor' || user.role === 'shop' || user.role === 'boutique' || userAny.shopType;
         
-        console.log(`\n👤 Processing: ${user.name} (${user.role}) [${userId}]`);
+        console.log('\n👤 Processing user record');
         
         const updates: any = {};
         let needsUpdate = false;
@@ -677,7 +675,7 @@ export const UsersManagement = () => {
         if (!user.region && user.location) {
           updates.region = user.location;
           needsUpdate = true;
-          console.log(`  ➕ Adding region from location: ${user.location}`);
+          console.log('  ➕ Adding region from location');
         } else if (!user.region) {
           updates.region = '';
           needsUpdate = true;
@@ -738,9 +736,9 @@ export const UsersManagement = () => {
             await firebaseService.updateUser(user.id, updates);
             updatedCount++;
             console.log('  ✅ Updated successfully');
-          } catch (error) {
+          } catch {
             errorCount++;
-            console.error('  ❌ Error:', error);
+            console.error('  ❌ Error while updating record');
           }
         } else {
           skippedCount++;
@@ -759,8 +757,8 @@ export const UsersManagement = () => {
       
       await loadUsers();
       showToast(`✅ تم ترحيل ${updatedCount} مستخدم بنجاح!`, 'success', 5000);
-    } catch (error) {
-      console.error('💥 Migration failed:', error);
+    } catch {
+      console.error('💥 Migration failed');
       showToast('❌ فشل الترحيل', 'error');
     } finally {
       setMigrating(false);

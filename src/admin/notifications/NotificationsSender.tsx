@@ -75,12 +75,10 @@ export const NotificationsSender = () => {
       });
       
       console.log(`✅ تم تحميل ${loadedUsers.length} مستخدم`);
-      console.log('المستخدمون:', loadedUsers);
       setUsers(loadedUsers);
       setFilteredUsers(loadedUsers);
     } catch (error: any) {
-      console.error('❌ خطأ في تحميل المستخدمين:', error);
-      console.error('تفاصيل الخطأ:', error.message);
+      console.error('❌ خطأ في تحميل المستخدمين');
       setErrorMessage(`فشل تحميل المستخدمين: ${error.message}`);
     }
   };

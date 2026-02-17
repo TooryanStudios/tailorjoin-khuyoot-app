@@ -28,22 +28,11 @@ export const MontHeader = React.memo(function MontHeader() {
   const roleLinks = useMemo(() => {
     // Determine user role - handle legacy roles and new shopType model
     if (!user) {
-      console.log('[MontHeader] No user - returning empty links');
       return [];
     }
     
     let role = user.role;
     const shopType = (user as any).shopType;
-    
-    // Debug logging with actual values
-    console.log('[MontHeader] User role detection:', { 
-      originalRole: user.role,
-      roleType: typeof user.role,
-      shopType, 
-      userName: user.name,
-      email: user.email,
-      userKeys: Object.keys(user)
-    });
     
     if (role === 'tailor' && shopType) {
       if (shopType === 'boutique') role = 'boutique';
@@ -82,7 +71,6 @@ export const MontHeader = React.memo(function MontHeader() {
     };
 
     const result = links[role as keyof typeof links] || [];
-    console.log('[MontHeader] Final roleLinks:', { role, linksCount: result.length, links: result });
     return result;
   }, [user, ordersCount]);
 

@@ -186,7 +186,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         }
       }
 
-      console.log('[CreditManager] Reserving credits:', { uid, action, cost, currentBalance });
+      console.log('[CreditManager] Reserving credits for action');
 
       let reservation: { transaction_id: string; new_balance: number } | null = null;
       try {
@@ -201,7 +201,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         );
         reservation = (await Promise.race([reservePromise, timeoutPromise])) as any;
         
-        console.log('[CreditManager] Reservation successful:', reservation);
+        console.log('[CreditManager] Reservation successful');
         
         // Optimistically update local state if using profile fallback
         setProfile((prev) => (prev ? { ...prev, credit_balance: reservation!.new_balance } : prev));

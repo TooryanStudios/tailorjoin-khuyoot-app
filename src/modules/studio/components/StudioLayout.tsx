@@ -153,8 +153,9 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                   </div>
                 )}
 
-                <button
-                  type="button"
+                <div
+                  role="button"
+                  tabIndex={0}
                   aria-label="Fabric"
                   onClick={() => {
                     if (onBrowseFabric) {
@@ -168,8 +169,23 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                       // ignore
                     }
                   }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      if (onBrowseFabric) {
+                        onBrowseFabric();
+                        return;
+                      }
+                      try {
+                        window.dispatchEvent(new CustomEvent('khuyoot:studio-sheet-expand'));
+                        window.dispatchEvent(new CustomEvent('khuyoot:studio-open-tab', { detail: 'fabric' }));
+                      } catch {
+                        // ignore
+                      }
+                    }
+                  }}
                   className={
-                    "relative h-[124px] w-[124px] rounded-xl bg-white border border-zinc-300 ring-1 ring-zinc-500/70 text-zinc-600 shadow-lg shadow-black/10 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-50 hover:border-purple-400 " +
+                    "relative h-[124px] w-[124px] rounded-xl bg-white border border-zinc-300 ring-1 ring-zinc-500/70 text-zinc-600 shadow-lg shadow-black/10 transition-all active:scale-[0.98] overflow-hidden hover:bg-zinc-50 hover:border-purple-400 cursor-pointer " +
                     (shouldNudgeFabric ? "animate-bounce border-pink-500/60 shadow-pink-500/30" : "")
                   }
                 >
@@ -215,7 +231,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                       )}
                     </div>
                   )}
-                </button>
+                </div>
               </div>
 
               {onClear && (templateThumbUrl || fabricThumbUrl) && (
@@ -248,10 +264,10 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
                 disabled={!generateAction.canGenerate || generateAction.isProcessing}
                 onClick={generateAction.onGenerate}
                 className={
-                  'flex-1 h-[124px] rounded-2xl font-extrabold shadow-lg transition-all flex items-center justify-center gap-2 tracking-wide text-sm focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
+                  'flex-1 h-[124px] rounded-2xl font-normal shadow-xl transition-all flex items-center justify-center gap-2 tracking-widest text-xs focus:outline-none focus:ring-2 focus:ring-purple-500/40 border ' +
                   (!generateAction.canGenerate || generateAction.isProcessing
-                    ? 'bg-purple-600/60 text-white cursor-not-allowed border-purple-500/20 opacity-50'
-                    : 'bg-purple-600 hover:bg-purple-500 text-white active:scale-[0.98] border-purple-500/40 hover:border-purple-400/60')
+                    ? 'bg-zinc-100 text-zinc-600 cursor-not-allowed border-zinc-200 opacity-60'
+                    : 'bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white active:scale-[0.98] shadow-theme-primary/30 border-white/20')
                 }
               >
                 {generateAction.isProcessing ? (
@@ -272,7 +288,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
               <button
                 type="button"
                 onClick={stitchAction.onClick}
-                className="mt-2 w-full h-12 rounded-xl bg-gradient-to-r from-blue-600 to-blue-500 text-white font-black text-[11px] uppercase tracking-widest hover:from-blue-500 hover:to-blue-400 transition-all active:scale-95 shadow-sm"
+                className="mt-2 w-full h-12 rounded-xl bg-gradient-to-r from-[#63498b] to-[#7a5fa3] text-white font-normal text-[11px] uppercase tracking-widest hover:from-[#7a5fa3] hover:to-[#63498b] transition-all active:scale-95 shadow-sm"
               >
                 {stitchAction.label}
               </button>

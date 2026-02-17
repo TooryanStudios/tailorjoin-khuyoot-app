@@ -610,8 +610,6 @@ export const useDesignerLogic = () => {
       throw new Error(t('mustLoginFirst'));
     }
 
-    console.log('[Designer] User ID:', currentUser.uid);
-    
     // Use user-allowed purchase flow (Firestore rules block admin/manual adjustments for regular users)
     try {
       console.log('[Designer] Calling Firebase purchaseCredits...');
@@ -629,10 +627,10 @@ export const useDesignerLogic = () => {
         isSubscription: false,
       });
       
-      console.log('[Designer] Firebase result:', result);
+      console.log('[Designer] Firebase purchase completed');
       
       if (result?.new_balance != null) {
-        console.log('[Designer] New balance:', result.new_balance);
+        console.log('[Designer] Credit balance updated');
         try {
           window.localStorage.setItem(`khuyoot:credits:lastBalance:${currentUser.uid}`, String(result.new_balance));
         } catch (e) {

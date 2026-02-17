@@ -274,7 +274,8 @@ export function DemoShellLayout() {
           {/* Designer: keep mounted for persistent state; hidden when not active */}
           {designerMounted && (
             <div 
-              aria-hidden={!isDesignerRoute ? "true" : "false"}
+              aria-hidden={isDesignerRoute ? undefined : true}
+              {...(!isDesignerRoute ? ({ inert: '' } as any) : {})}
               className={`${isDesignerRoute ? 'block h-full' : 'hidden h-full pointer-events-none opacity-0 invisible absolute inset-0 -z-50'}`}
             >
               <DesignerKeepAlive />

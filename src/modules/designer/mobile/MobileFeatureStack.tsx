@@ -8,6 +8,7 @@ import { SelectionPanel } from '../../studio/components/SelectionPanel';
 import { GenerationHistory } from '../../history/components/GenerationHistory';
 import { useTemplateStore } from '../../TemplatePicker/useTemplateStore';
 import { ImagePrepModal } from '../../../components/image/ImagePrepModal';
+import { LightingPresets } from '../../../pages/TryOn/components/LightingPresets';
 import { Check, X } from 'lucide-react';
 
 const safeId = () => {
@@ -90,6 +91,9 @@ export type MobileDesignerV2Props = {
 
   // UI gating
   inputsDisabled?: boolean;
+
+  // Measurements
+  onOpenMeasurements?: () => void;
 };
 
 export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: MobileDesignerV2Props) {
@@ -136,6 +140,7 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
     activeHistoryId,
     onSelectHistoryItem,
     inputsDisabled,
+    onOpenMeasurements,
   } = props;
   const navigate = useNavigate();
   const { productId } = useParams<{ productId?: string }>();
@@ -388,8 +393,12 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
         onOpen: openTiling,
       }}
       stitchAction={{
-        label: 'Start Stitching',
+        label: 'إبدأ التفصيل',
         onClick: () => {
+          if (onOpenMeasurements) {
+            onOpenMeasurements();
+            return;
+          }
           const idToUse = productId || 'default';
           navigate(`/studio/measurements/${idToUse}`);
         },
@@ -416,29 +425,8 @@ export const MobileDesignerV2 = React.memo(function MobileDesignerV2(props: Mobi
         onGenerate,
       }}
       lighting={
-        <div className="flex w-full gap-2 px-3 py-2 justify-center">
-          {([
-            { id: 'night', label: 'Night' },
-            { id: 'day', label: 'Day' },
-            { id: 'cinematic', label: 'Cinematic' },
-          ] as const).map((o) => {
-            const active = lightingPreset === o.id;
-            return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onSelectLightingPreset(o.id)}
-                className={
-                  'h-9 px-4 rounded-full border text-[11px] font-black uppercase tracking-wider transition-all ' +
-                  (active
-                    ? 'bg-purple-600 border-purple-600 text-white shadow-md shadow-purple-200'
-                    : 'bg-white border-zinc-200 text-zinc-500 hover:border-purple-300 hover:text-purple-600 shadow-sm')
-                }
-              >
-                {o.label}
-              </button>
-            );
-          })}
+        <div className="px-3 py-2">
+          <LightingPresets value={lightingPreset} onChange={onSelectLightingPreset} />
         </div>
       }
       history={

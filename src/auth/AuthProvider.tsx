@@ -60,8 +60,8 @@ function getInitialAuthState(): AuthState {
         idToken: userData.stsTokenManager?.accessToken || null,
       };
     }
-  } catch (e) {
-    console.warn('[AuthProvider] Initial state error:', e);
+  } catch {
+    console.warn('[AuthProvider] Initial state error');
   }
   return initialState;
 }
@@ -70,9 +70,9 @@ function getInitialAuthState(): AuthState {
 // CRITICAL: Wrap in try-catch for private browsing mode compatibility
 try {
   setAuthStateSnapshot(getInitialAuthState());
-} catch (error) {
+} catch {
   // Private browsing mode or localStorage disabled - use default state
-  console.warn('[AuthProvider] Failed to initialize auth snapshot:', error);
+  console.warn('[AuthProvider] Failed to initialize auth snapshot');
   setAuthStateSnapshot(initialState);
 }
 
@@ -166,21 +166,6 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
         // Remove the default role marker since we now have real data
         delete (user as any)._isDefaultRole;
 
-        console.log('[AuthProvider] ========== PROFILE REFRESH COMPLETE ==========');
-        console.log('[AuthProvider] Raw API response:', JSON.stringify(userData, null, 2));
-        console.log('[AuthProvider] Processed user object:', {
-          uid: user.uid,
-          email: user.email,
-          role: user.role,
-          displayName: user.displayName,
-          photoURL: user.photoURL,
-          profileImage: user.profileImage,
-          avatar: user.avatar,
-          hasPhoto: !!(user.photoURL || user.profileImage || user.avatar),
-          credits: user.billing?.credits,
-          fullUser: JSON.stringify(user, null, 2)
-        });
-
         // ALWAYS update state when we get fresh profile data to ensure UI reflects backend reality
         const next: AuthState = { 
           status: 'authenticated' as const, 
@@ -188,22 +173,14 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           idToken: snapshot.idToken 
         };
         
-        console.log('[AuthProvider] Setting new auth state:', {
-          role: next.user?.role,
-          photoURL: next.user?.photoURL,
-          displayName: next.user?.displayName
-        });
-        
         setAuthStateSnapshot(next);
         try { 
           localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user: next.user, idToken: next.idToken })); 
-          console.log('[AuthProvider] Cached to localStorage');
-        } catch (e) {
-          console.error('[AuthProvider] Failed to cache:', e);
+        } catch {
+          console.error('[AuthProvider] Failed to cache');
         }
         
         setState(next);
-        console.log('[AuthProvider] ========================================');
       }
     } catch (err: any) {
       if (err.status === 401) {
@@ -233,7 +210,7 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
       }
 
       // Background refreshes should be silent-ish for non-auth failures
-      console.warn("[AuthProvider] Profile refresh failed:", err.message || err);
+      console.warn('[AuthProvider] Profile refresh failed');
       {
         setState(prev => {
           if (prev.user) return { ...prev, status: 'authenticated' };
@@ -310,8 +287,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           // Trigger a profile refresh once cookie is established to get full user data.
           // This avoids the 401 race condition where components call /api/auth/me before the cookie is set.
           refreshProfile(true);
-        } catch (err) {
-          console.warn('[AuthProvider] Cookie sync failed in syncCookie effect (will retry):', err);
+          } catch {
+           console.warn('[AuthProvider] Cookie sync failed in syncCookie effect (will retry)');
           // Simple retry backup for flaky networks during login
           setTimeout(async () => {
              try {
@@ -321,8 +298,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
                   headers: { 'Content-Type': 'application/json' }
                 });
                 refreshProfile(true);
-             } catch (e) {
-                console.warn('[AuthProvider] Cookie sync retry failed:', e);
+             } catch {
+               console.warn('[AuthProvider] Cookie sync retry failed');
              }
           }, 2000);
         }
@@ -390,8 +367,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
                 try { localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user: next.user, idToken: next.idToken })); } catch {}
                 return next;
               });
-            } catch (err: any) {
-              console.warn('[AuthProvider] Failed to refresh ID token:', err.message);
+            } catch {
+              console.warn('[AuthProvider] Failed to refresh ID token');
               // Fallback: stay authenticated with existing token if possible
               setState(prev => prev.status === 'authenticated' ? prev : { ...prev, status: 'unauthenticated' });
             }
@@ -414,8 +391,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
           localStorage.removeItem(UI_CACHE_KEY);
           localStorage.removeItem('khuyoot:has_session');
         });
-      } catch (e) {
-        console.warn('[AuthProvider] SDK Listener error:', e);
+      } catch {
+        console.warn('[AuthProvider] SDK Listener error');
       }
     };
 

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useNavigate } from 'react-router-dom';
-import { Heart, Share2, ArrowLeft, Bookmark, ArrowRight, MoreVertical, Star, MapPin, ShoppingBag, MessageCircle, Layers, Clock, Shirt, Ruler, Play, X, ChevronLeft, Palette, AlertCircle, CheckCircle2, MessageSquare, Save, FolderOpen } from 'lucide-react';
+import { Heart, Share2, ArrowLeft, Bookmark, ArrowRight, MoreVertical, Star, MapPin, ShoppingBag, MessageCircle, Layers, Clock, Shirt, Ruler, Play, X, ChevronLeft, Palette, AlertCircle, CheckCircle2, MessageSquare, Save, FolderOpen, User } from 'lucide-react';
 import { Product, Tailor } from '../../../types';
 import { StableImage } from '../../../components/StableImage';
 
@@ -143,17 +143,17 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     const navigate = useNavigate();
     const [showVideoDialog, setShowVideoDialog] = useState(false);
     const [showMeasurementDialog, setShowMeasurementDialog] = useState(false);
-    const carouselRef = React.useRef<HTMLDivElement>(null);
 
     // Use hook's state if available, otherwise local for safety (though it should always be there now)
     const measurements = measurementHook?.measurements || {};
     const handleMeasurementChange = measurementHook?.handleMeasurementChange || (() => {});
 
     React.useEffect(() => {
-        if (carouselRef.current) {
-            carouselRef.current.style.transform = `translateX(-${currentImageIndex * 100}%)`;
+        if (productImages.length === 0) return;
+        if (currentImageIndex > productImages.length - 1) {
+            setCurrentImageIndex(0);
         }
-    }, [currentImageIndex]);
+    }, [productImages.length, currentImageIndex, setCurrentImageIndex]);
 
     React.useEffect(() => {
         if (!openMeasurementsToken) return;
@@ -201,18 +201,24 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
     return (
         <>
             <div className="min-h-screen bg-[#ededed] pb-20 relative flex flex-col">
-                {/* Fixed Back Button - Top Right (Above Credit Bar) */}
-                <button 
-                    onClick={onBack}
-                    className="fixed top-4 right-4 z-[10001] w-10 h-10 flex items-center justify-center rounded-full bg-white shadow-lg border border-gray-200 text-gray-900 transition-transform active:scale-95"
-                    title="رجوع"
-                    aria-label="رجوع"
-                >
-                    <ArrowLeft size={20} />
-                </button>
+                {/* Header Bar with Back Arrow - Separate from Image */}
+                <div className="relative z-10 w-full px-4 pt-4 pb-2">
+                    <div className="flex items-center justify-between">
+                        <button 
+                            onClick={onBack}
+                            title="رجوع"
+                            aria-label="رجوع"
+                            className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white shadow-lg border border-gray-200 text-gray-900 transition-transform active:scale-95"
+                        >
+                            <ArrowRight size={20} />
+                        </button>
+                        <div className="text-xs font-black text-gray-500 uppercase tracking-widest">صور المنتج</div>
+                        <div className="w-10"></div>
+                    </div>
+                </div>
 
                 {/* Simplified Header for Mobile */}
-                <div className="relative z-10 w-full px-4 pt-4">
+                <div className="relative z-10 w-full px-4">
                     {/* Product Images Widget Card */}
                     <div 
                         className="relative w-full aspect-[4/5] rounded-3xl overflow-hidden shadow-sm border border-black/5 bg-white mb-4"
@@ -222,21 +228,14 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                     >
                         {/* Main Product Image Slider */}
                         {productImages.length > 0 ? (
-                            <div 
-                                ref={carouselRef}
-                                className="flex w-full h-full transition-transform duration-300 ease-out"
-                            >
-                                {productImages.map((img, index) => (
-                                    <div key={index} className="w-full h-full flex-shrink-0 flex items-center justify-center p-4 bg-[#fbfbfb]">
-                                        <StableImage 
-                                            src={img} 
-                                            alt={`${product.name} - ${index + 1}`}
-                                            aspectClass="h-full w-auto" 
-                                            className="h-full w-auto" 
-                                            imgClassName="h-full w-auto object-contain drop-shadow-xl"
-                                        />
-                                    </div>
-                                ))}
+                            <div className="w-full h-full flex items-center justify-center p-4 bg-[#fbfbfb]">
+                                <StableImage 
+                                    src={productImages[currentImageIndex]}
+                                    alt={`${product.name} - ${currentImageIndex + 1}`}
+                                    aspectClass="h-full w-auto"
+                                    className="h-full w-auto"
+                                    imgClassName="h-full w-auto object-contain drop-shadow-xl"
+                                />
                             </div>
                         ) : (
                             <div className="w-full h-full bg-[#fbfbfb] flex items-center justify-center">
@@ -245,15 +244,7 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                         )}
 
                         {/* Top Card Icons */}
-                        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-between z-10">
-                            <button 
-                                onClick={onBack}
-                                title="Back"
-                                aria-label="Back"
-                                className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white/90 backdrop-blur-md text-gray-900 shadow-lg border border-gray-100 transition-transform active:scale-95"
-                            >
-                                <ArrowRight size={20} className="rtl:rotate-180" />
-                            </button>
+                        <div className="absolute top-0 left-0 right-0 p-4 flex items-center justify-end z-10">
                             <div className="flex items-center gap-2">
                                 <button 
                                     onClick={onLikeToggle}
@@ -272,26 +263,28 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                                 </button>
                             </div>
                         </div>
-
-                        {/* Image Indicators - Bottom of Card */}
-                        {productImages.length > 1 && (
-                            <div className="absolute bottom-6 left-1/2 -translate-x-1/2 flex gap-1.5 z-10" dir="ltr">
-                                {productImages.map((_, index) => (
-                                    <button
-                                        key={index}
-                                        onClick={() => setCurrentImageIndex(index)}
-                                        title={`Go to image ${index + 1}`}
-                                        aria-label={`Go to image ${index + 1}`}
-                                        className={`h-1.5 rounded-full transition-all ${
-                                            index === currentImageIndex 
-                                                ? 'w-8 bg-theme-primary' 
-                                                : 'w-2 bg-gray-300'
-                                        }`}
-                                    />
-                                ))}
-                            </div>
-                        )}
                     </div>
+
+                    {/* Thumbnails - Below Image Card */}
+                    {productImages.length > 1 && (
+                        <div className="w-full mb-4 px-1 flex justify-center gap-2 overflow-x-auto" dir="ltr">
+                            {productImages.map((img, index) => (
+                                <button
+                                    key={`${img}-${index}`}
+                                    onClick={() => setCurrentImageIndex(index)}
+                                    title={`Go to image ${index + 1}`}
+                                    aria-label={`Go to image ${index + 1}`}
+                                    className={`relative w-14 h-14 flex-shrink-0 rounded-xl overflow-hidden border-2 transition-all ${
+                                        index === currentImageIndex
+                                            ? 'border-theme-primary ring-2 ring-theme-primary/20'
+                                            : 'border-gray-200 opacity-70'
+                                    }`}
+                                >
+                                    <img src={img} alt="" className="w-full h-full object-cover" loading="lazy" />
+                                </button>
+                            ))}
+                        </div>
+                    )}
 
                     {/* Content Section - now flows naturally */}
                     <div className="w-full flex flex-col items-center gap-4">
@@ -385,6 +378,16 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                                 </div>
                             </div>
                         </div>
+                        
+                        {/* Description - After Product Details */}
+                        {product.description && (
+                            <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6 text-right">
+                                <h3 className="font-black text-gray-900 mb-4 text-sm uppercase tracking-wide">الوصف</h3>
+                                <p className="text-sm text-gray-600 leading-relaxed">
+                                    {product.description}
+                                </p>
+                            </div>
+                        )}
                         
                         {/* Order Notes + Review */}
                         {template && template.points?.length > 0 && (
@@ -568,16 +571,6 @@ export const MobileProductDetails: React.FC<MobileProductDetailsProps> = ({
                             onClose={() => setShowVideoDialog(false)} 
                             videoUrl={videoUrl} 
                         />
-
-                        {/* Description */}
-                        {product.description && (
-                            <div className="w-full bg-white border border-black/5 shadow-sm rounded-3xl p-6 text-right">
-                                <h3 className="font-black text-gray-900 mb-4 text-sm uppercase tracking-wide">الوصف</h3>
-                                <p className="text-sm text-gray-600 leading-relaxed">
-                                    {product.description}
-                                </p>
-                            </div>
-                        )}
                     </div>
                 </div>
             </div>

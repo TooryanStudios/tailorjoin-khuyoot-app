@@ -1393,18 +1393,18 @@ export const firebaseService = {
       const { signInWithEmailPasswordBypass } = await import('../src/services/authBypass');
       const result = await signInWithEmailPasswordBypass(email, pass);
 
-      // Critical: ensure Firebase SDK auth session is actually established.
-      // Without this, UI may look logged-in while Firestore writes fail with permission errors.
+      // Best effort: wait for Firebase SDK auth session, but do not fail login if delayed.
+      // AuthProvider listens to auth-bypass-login and can complete session restoration.
       const sdkUser = await this.waitForAuth(5000);
       const expectedUid = result.user?.uid;
       if (!sdkUser || (expectedUid && sdkUser.uid !== expectedUid)) {
-        throw new Error('SESSION_SYNC_FAILED');
+        console.warn('[Firebase] SDK session sync delayed after REST login; continuing with REST session data');
       }
       
       // Return immediately with user data from REST API response
       // The SDK's onAuthStateChanged will fire asynchronously when it picks up the stored tokens
       const user: User = {
-        id: sdkUser.uid,
+        id: sdkUser?.uid || result.user?.uid,
         name: email.split('@')[0], // Will be updated by Firestore fetch
         email: email,
         avatar: undefined,

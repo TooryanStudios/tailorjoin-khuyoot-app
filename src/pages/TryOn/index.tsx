@@ -63,58 +63,67 @@ export const TryOn: React.FC = () => {
 
   if (isMobile) {
     return (
-      <MobileDesignerV2
-        beforeImage={logic.sourceForComparison || ''}
-        afterImage={logic.afterImage || ''}
-        sliderPos={logic.sliderPos}
-        onSliderChange={logic.setSliderPos}
-        isProcessing={logic.isProcessing}
-        onSelectTemplate={logic.handleTemplateSelect}
-        currentTemplateId={logic.selectedTemplate?.id}
-        isSubscribedToPremiumTemplates={Boolean(logic.isSubscribed)}
-        onPremiumTemplateClick={() => logic.openUpgradeModal('mobile_premium_template')}
-        privacy={{
-          isPrivacyMode: logic.isPrivacyMode,
-          setPrivacyMode: logic.setPrivacyMode,
-          maskingStyle: logic.maskingStyle,
-          setMaskingStyle: logic.setMaskingStyle,
-          blurStrength: logic.blurStrength,
-          setBlurStrength: logic.setBlurStrength,
-          selectedEmoji: logic.selectedEmoji,
-          setSelectedEmoji: logic.setSelectedEmoji,
-          isProcessingPrivacy: logic.isProcessingPrivacy,
-          canApplyToCurrentTemplate: Boolean(logic.sourcePreviewUrl),
-          onApplyToCurrentTemplate: () => undefined,
-          disabled: Boolean(logic.uiState.inputsDisabled),
-        }}
-        fabricPreviewUrl={logic.fabricPreviewUrl || undefined}
-        fabricImageBase64={logic.fabricImageBase64}
-        fabricImageMimeType={logic.fabricImageMimeType}
-        originalFabricData={logic.originalFabricData}
-        setFabricPreviewUrl={logic.setFabricPreviewUrl}
-        setFabricImageBase64={logic.setFabricImageBase64}
-        setFabricImageMimeType={logic.setFabricImageMimeType}
-        setOriginalFabricData={logic.setOriginalFabricData}
-        onUploadFabric={logic.onPickFabric}
-        lightingPreset={logic.lightingPreset}
-        onSelectLightingPreset={logic.setLightingPreset}
-        selectedModel={logic.selectedModel}
-        onChangeSelectedModel={logic.setSelectedModel}
-        upscaleEngine={logic.upscaleEngine}
-        onChangeUpscaleEngine={logic.setUpscaleEngine}
-        outputFit={logic.outputFit}
-        onChangeOutputFit={logic.setOutputFit}
-        generationCost={logic.generationCost}
-        canGenerate={!logic.uiState.generationDisabled}
-        onGenerate={logic.handleFabricSwap}
-        onRefillCredits={() => logic.openUpgradeModal('mobile_credit_chip')}
-        onClearSelections={logic.handleClearSelections}
-        history={logic.history}
-        historyLoading={logic.isLoading}
-        activeHistoryId={logic.activeId}
-        onSelectHistoryItem={logic.handleHistorySelect}
-        inputsDisabled={logic.uiState.inputsDisabled}
-      />
+      <>
+        <MobileDesignerV2
+          beforeImage={logic.sourceForComparison || ''}
+          afterImage={logic.afterImage || ''}
+          sliderPos={logic.sliderPos}
+          onSliderChange={logic.setSliderPos}
+          isProcessing={logic.isProcessing}
+          onSelectTemplate={logic.handleTemplateSelect}
+          currentTemplateId={logic.selectedTemplate?.id}
+          isSubscribedToPremiumTemplates={Boolean(logic.isSubscribed)}
+          onPremiumTemplateClick={() => logic.openUpgradeModal('mobile_premium_template')}
+          privacy={{
+            isPrivacyMode: logic.isPrivacyMode,
+            setPrivacyMode: logic.setPrivacyMode,
+            maskingStyle: logic.maskingStyle,
+            setMaskingStyle: logic.setMaskingStyle,
+            blurStrength: logic.blurStrength,
+            setBlurStrength: logic.setBlurStrength,
+            selectedEmoji: logic.selectedEmoji,
+            setSelectedEmoji: logic.setSelectedEmoji,
+            isProcessingPrivacy: logic.isProcessingPrivacy,
+            canApplyToCurrentTemplate: Boolean(logic.sourcePreviewUrl),
+            onApplyToCurrentTemplate: () => undefined,
+            disabled: Boolean(logic.uiState.inputsDisabled),
+          }}
+          fabricPreviewUrl={logic.fabricPreviewUrl || undefined}
+          fabricImageBase64={logic.fabricImageBase64}
+          fabricImageMimeType={logic.fabricImageMimeType}
+          originalFabricData={logic.originalFabricData}
+          setFabricPreviewUrl={logic.setFabricPreviewUrl}
+          setFabricImageBase64={logic.setFabricImageBase64}
+          setFabricImageMimeType={logic.setFabricImageMimeType}
+          setOriginalFabricData={logic.setOriginalFabricData}
+          onUploadFabric={logic.onPickFabric}
+          lightingPreset={logic.lightingPreset}
+          onSelectLightingPreset={logic.setLightingPreset}
+          selectedModel={logic.selectedModel}
+          onChangeSelectedModel={logic.setSelectedModel}
+          upscaleEngine={logic.upscaleEngine}
+          onChangeUpscaleEngine={logic.setUpscaleEngine}
+          outputFit={logic.outputFit}
+          onChangeOutputFit={logic.setOutputFit}
+          generationCost={logic.generationCost}
+          canGenerate={!logic.uiState.generationDisabled}
+          onGenerate={logic.handleFabricSwap}
+          onRefillCredits={() => logic.openUpgradeModal('mobile_credit_chip')}
+          onClearSelections={logic.handleClearSelections}
+          history={logic.history}
+          historyLoading={logic.isLoading}
+          activeHistoryId={logic.activeId}
+          onSelectHistoryItem={logic.handleHistorySelect}
+          inputsDisabled={logic.uiState.inputsDisabled}
+          onOpenMeasurements={logic.openMeasurementsModal}
+        />
+
+        <MeasurementsModal
+          isOpen={logic.isMeasurementsModalOpen}
+          onClose={logic.closeMeasurementsModal}
+          productId={logic.productId || undefined}
+        />
+      </>
     );
   }
 
@@ -164,7 +173,7 @@ export const TryOn: React.FC = () => {
       <MeasurementsModal
         isOpen={logic.isMeasurementsModalOpen}
         onClose={logic.closeMeasurementsModal}
-        productId={logic.activeId || logic.currentTaskId || undefined}
+        productId={logic.productId || undefined}
       />
     </div>
   );
