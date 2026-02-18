@@ -17,20 +17,60 @@ declare global {
 // i18n (language + RTL/LTR) must initialize before React renders
 import './src/i18n/i18n';
 
+function isDevLikeRuntimeHost(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = (window.location.hostname || '').toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === 'dev.khuyoot.app' ||
+      host.startsWith('dev.') ||
+      host.startsWith('staging.')
+    );
+  } catch {
+    return false;
+  }
+}
+
+async function clearServiceWorkersAndCachesSafely(): Promise<void> {
+  try {
+    if ('serviceWorker' in navigator) {
+      const regs = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(regs.map((reg) => reg.unregister().catch(() => false)));
+    }
+  } catch {
+    // ignore
+  }
+
+  try {
+    if ('caches' in window) {
+      const names = await caches.keys();
+      await Promise.all(names.map((name) => caches.delete(name)));
+    }
+  } catch {
+    // ignore
+  }
+}
+
 // PWA Service Worker registration (production only)
 // - Forces immediate activation on deploy (paired with workbox.skipWaiting/clientsClaim)
 // - Forces a reload when an updated SW is ready so users don't stay on stale bundles
 // CRITICAL: Skip in private browsing mode where service workers are blocked
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   try {
+    if (isDevLikeRuntimeHost()) {
+      void clearServiceWorkersAndCachesSafely();
+    } else {
     // IMPORTANT: Do NOT import `virtual:pwa-register` from here.
     // Vite will try to resolve it during dev transforms and throw 500s.
     // Instead, dynamically import a local production-only module.
-    import('./src/pwa/registerProd').then(({ registerProdServiceWorker }) => {
-      registerProdServiceWorker();
-    }).catch((err) => {
-      console.warn('[PWA] Service worker registration failed (likely private browsing):', err);
-    });
+      import('./src/pwa/registerProd').then(({ registerProdServiceWorker }) => {
+        registerProdServiceWorker();
+      }).catch((err) => {
+        console.warn('[PWA] Service worker registration failed (likely private browsing):', err);
+      });
+    }
   } catch (err) {
     console.warn('[PWA] Service worker not available:', err);
   }

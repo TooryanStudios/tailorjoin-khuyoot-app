@@ -381,7 +381,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         };
         syncProfile();
         return () => { cancelled = true; };
-    }, [authStatus, authUser, authUser?.uid]);
+    }, [authStatus, authUser?.uid]);
 
     // Listen for data refresh events (from mutations in Designer or other components)
     useEffect(() => {

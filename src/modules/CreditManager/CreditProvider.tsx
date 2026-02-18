@@ -44,7 +44,7 @@ function readCachedBalance(uid: string): number | null {
 
 export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) => {
   
-  const { user: authUser } = useAuth();
+  const { user: authUser, status: authStatus } = useAuth();
   
   // Unify UID access
   const authUid = React.useMemo(() => {
@@ -87,7 +87,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
   );
 
   const refresh = React.useCallback(async () => {
-    if (!authUid) return;
+    if (!authUid || authStatus !== 'authenticated') return;
     try {
       setIsLoading(true);
       const data: any = await firebaseService.getUserCreditProfile(authUid);
@@ -102,20 +102,20 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
     } finally {
       setIsLoading(false);
     }
-  }, [authUid]);
+  }, [authUid, authStatus]);
 
   React.useEffect(() => {
-    if (authUid) {
+    if (authUid && authStatus === 'authenticated') {
       refresh();
     } else {
       setIsLoading(false);
       setProfile(null);
     }
-  }, [authUid, refresh]);
+  }, [authUid, authStatus, refresh]);
 
   // Listen for credit updates from purchase events
   React.useEffect(() => {
-    if (!authUid) return;
+    if (!authUid || authStatus !== 'authenticated') return;
 
     const handleCreditsUpdated = (event: CustomEvent) => {
       const newBalance = event.detail?.balance;
@@ -132,7 +132,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
       window.removeEventListener('khuyoot:credits-updated', handleCreditsUpdated as EventListener);
       window.removeEventListener('khuyoot:refresh-user-data', refresh as EventListener);
     };
-  }, [authUid]);
+  }, [authUid, authStatus, refresh]);
 
   const executeCreditAction = React.useCallback<CreditsContextValue['executeCreditAction']>(
     async (action, callback) => {

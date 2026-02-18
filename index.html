@@ -63,13 +63,19 @@
       }, true);
     </script>
 
-    <!-- DEV: If a stale PWA Service Worker is controlling localhost, it can serve old cached JS
-         (causing blank-first-render + share-modal.js errors). Redirect to the SW cleanup page. -->
+    <!-- DEV/STAGING: If a stale PWA Service Worker is controlling the page, it can serve old cached JS.
+         Redirect to SW cleanup page on development-like hosts (including dev.khuyoot.app). -->
     <script>
       (function () {
         try {
-          var isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-          if (!isDev) return;
+          var host = (location.hostname || '').toLowerCase();
+          var isDevLike =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === 'dev.khuyoot.app' ||
+            host.indexOf('dev.') === 0 ||
+            host.indexOf('staging.') === 0;
+          if (!isDevLike) return;
           if (!('serviceWorker' in navigator)) return;
 
           // If a SW is currently controlling this page, fix it deterministically.
@@ -219,12 +225,18 @@
           })();
         </script>
 
-    <!-- DEV: Remove any active Service Workers + caches to keep Vite dev deterministic -->
+    <!-- DEV/STAGING: Remove any active Service Workers + caches on development-like hosts -->
     <script>
       (function() {
         try {
-          const isDev = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
-          if (!isDev) return;
+          var host = (location.hostname || '').toLowerCase();
+          var isDevLike =
+            host === 'localhost' ||
+            host === '127.0.0.1' ||
+            host === 'dev.khuyoot.app' ||
+            host.indexOf('dev.') === 0 ||
+            host.indexOf('staging.') === 0;
+          if (!isDevLike) return;
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
           }
