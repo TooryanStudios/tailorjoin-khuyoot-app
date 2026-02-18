@@ -42,7 +42,8 @@ import {
   setLogLevel,
   collectionGroup,
   serverTimestamp,
-  runTransaction
+  runTransaction,
+  writeBatch
 } from 'firebase/firestore';
 import { getStorage, ref as storageRef, deleteObject, listAll, getDownloadURL, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { urlCache } from '../src/utils/urlCache';
@@ -82,6 +83,8 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 
 const UI_AUTH_CACHE_KEY = 'khuyoot:ui:auth_cache';
+let lastSessionRestoreFailureAt = 0;
+const SESSION_RESTORE_COOLDOWN_MS = 30_000;
 
 function getStoredIdTokenCandidate(): string | null {
   try {
@@ -603,6 +606,23 @@ export const firebaseService = {
       if (!isFirebaseInitialized) return null;
       if (auth.currentUser) return auth.currentUser;
 
+      try {
+        const hasSessionEvidence =
+          localStorage.getItem('khuyoot:has_session') === 'true' ||
+          !!localStorage.getItem(UI_AUTH_CACHE_KEY) ||
+          !!localStorage.getItem('khuyoot:auth:token');
+
+        if (!hasSessionEvidence) {
+          return null;
+        }
+      } catch {
+        // ignore localStorage availability issues
+      }
+
+      if (lastSessionRestoreFailureAt && Date.now() - lastSessionRestoreFailureAt < SESSION_RESTORE_COOLDOWN_MS) {
+        return null;
+      }
+
       const idToken = getStoredIdTokenCandidate();
       if (!idToken) return null;
 
@@ -618,6 +638,15 @@ export const firebaseService = {
         });
 
         if (!res.ok) {
+          if (res.status === 401 || res.status === 403) {
+            lastSessionRestoreFailureAt = Date.now();
+            try {
+              localStorage.removeItem('khuyoot:has_session');
+              localStorage.removeItem('khuyoot:auth:token');
+            } catch {
+              // ignore
+            }
+          }
           return null;
         }
 
@@ -628,6 +657,7 @@ export const firebaseService = {
         const credential = await signInWithCustomToken(auth, customToken);
         return credential?.user || auth.currentUser;
       } catch (error) {
+        lastSessionRestoreFailureAt = Date.now();
         console.warn('[Firebase] Failed to restore SDK auth session from stored token:', error);
         return null;
       }

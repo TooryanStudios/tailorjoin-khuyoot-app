@@ -770,15 +770,21 @@ export const useMeasurementTemplates = () => {
     });
   };
 
-  const handleSetActiveVariation = (variationId: string | null) => {
+  const handleSetActiveVariation = useCallback((variationId: string | null) => {
+    if (activeVariationId === variationId) {
+      return;
+    }
+
     setActiveVariationId(variationId);
+
     if (!variationId) {
       setArrows((draft?.arrows || []).map((arrow) => ({ ...arrow })));
       return;
     }
+
     const selectedVariation = (draft?.variations || []).find((variation) => variation.id === variationId);
     setArrows((selectedVariation?.arrows || []).map((arrow) => ({ ...arrow })));
-  };
+  }, [activeVariationId, draft]);
 
   const handleAddPointAt = (x: number, y: number) => {
     if (!draft) return;

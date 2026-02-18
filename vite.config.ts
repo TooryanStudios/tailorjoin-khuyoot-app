@@ -68,8 +68,13 @@ export default defineConfig(({ mode }) => {
           // Immediate activation on update.
           skipWaiting: true,
           clientsClaim: true,
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024, // 5MB
+          cleanupOutdatedCaches: true,
+          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
           globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,webp}'],
+          globIgnores: [
+            'assets/index-*.js',
+            'images/Khuyoot Background 07.png',
+          ],
           navigateFallback: '/index.html',
           // Exclude dev-related files from caching
           navigateFallbackDenylist: [/^\/\@vite/, /^\/\@react-refresh/, /^\/node_modules/],
@@ -107,7 +112,14 @@ export default defineConfig(({ mode }) => {
                 return request.destination === 'script' || request.destination === 'style';
               },
               handler: 'StaleWhileRevalidate',
-              options: { cacheName: 'assets' },
+              options: {
+                cacheName: 'assets',
+                expiration: {
+                  maxEntries: 30,
+                  maxAgeSeconds: 60 * 60 * 24 * 14,
+                  purgeOnQuotaError: true,
+                },
+              },
             },
             {
               urlPattern: ({ request, url }) => {
@@ -127,7 +139,11 @@ export default defineConfig(({ mode }) => {
                 // Cross-origin <img> requests (e.g. Firebase Storage) often produce opaque responses (status 0).
                 // Allow caching both 200 and opaque responses so images persist across visits.
                 cacheableResponse: { statuses: [0, 200] },
-                expiration: { maxEntries: 200, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                expiration: {
+                  maxEntries: 80,
+                  maxAgeSeconds: 60 * 60 * 24 * 14,
+                  purgeOnQuotaError: true,
+                },
               },
             },
           ],
