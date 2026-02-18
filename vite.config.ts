@@ -63,8 +63,8 @@ export default defineConfig(({ mode }) => {
         },
         includeAssets: ['favicon.ico', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'],
         workbox: {
-          // Clean-break: avoid cache collisions across deploys.
-          cacheId: `khuyoot-${buildStamp}`,
+          // Keep a stable cache ID so old deploy caches are replaced instead of accumulating.
+          cacheId: 'khuyoot',
           // Immediate activation on update.
           skipWaiting: true,
           clientsClaim: true,

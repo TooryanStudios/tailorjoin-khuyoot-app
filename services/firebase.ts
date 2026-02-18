@@ -83,8 +83,37 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 
 const UI_AUTH_CACHE_KEY = 'khuyoot:ui:auth_cache';
+const SESSION_RESTORE_BLOCK_UNTIL_KEY = 'khuyoot:session_restore_block_until';
 let lastSessionRestoreFailureAt = 0;
 const SESSION_RESTORE_COOLDOWN_MS = 30_000;
+const SESSION_RESTORE_BLOCK_MS = 10 * 60_000;
+
+function getStoredSessionRestoreBlockUntil(): number {
+  try {
+    const raw = localStorage.getItem(SESSION_RESTORE_BLOCK_UNTIL_KEY);
+    const parsed = Number(raw || 0);
+    return Number.isFinite(parsed) ? parsed : 0;
+  } catch {
+    return 0;
+  }
+}
+
+function setSessionRestoreBlockFor(durationMs: number): void {
+  const until = Date.now() + durationMs;
+  try {
+    localStorage.setItem(SESSION_RESTORE_BLOCK_UNTIL_KEY, String(until));
+  } catch {
+    // ignore
+  }
+}
+
+function clearSessionRestoreBlock(): void {
+  try {
+    localStorage.removeItem(SESSION_RESTORE_BLOCK_UNTIL_KEY);
+  } catch {
+    // ignore
+  }
+}
 
 function getStoredIdTokenCandidate(): string | null {
   try {
@@ -606,6 +635,11 @@ export const firebaseService = {
       if (!isFirebaseInitialized) return null;
       if (auth.currentUser) return auth.currentUser;
 
+      const restoreBlockedUntil = getStoredSessionRestoreBlockUntil();
+      if (restoreBlockedUntil > Date.now()) {
+        return null;
+      }
+
       try {
         const hasSessionEvidence =
           localStorage.getItem('khuyoot:has_session') === 'true' ||
@@ -640,9 +674,13 @@ export const firebaseService = {
         if (!res.ok) {
           if (res.status === 401 || res.status === 403) {
             lastSessionRestoreFailureAt = Date.now();
+            setSessionRestoreBlockFor(SESSION_RESTORE_BLOCK_MS);
             try {
               localStorage.removeItem('khuyoot:has_session');
               localStorage.removeItem('khuyoot:auth:token');
+              localStorage.removeItem(UI_AUTH_CACHE_KEY);
+              const authKey = `firebase:authUser:${firebaseConfig.apiKey || ''}:[DEFAULT]`;
+              localStorage.removeItem(authKey);
             } catch {
               // ignore
             }
@@ -655,9 +693,11 @@ export const firebaseService = {
         if (!customToken) return null;
 
         const credential = await signInWithCustomToken(auth, customToken);
+        clearSessionRestoreBlock();
         return credential?.user || auth.currentUser;
       } catch (error) {
         lastSessionRestoreFailureAt = Date.now();
+        setSessionRestoreBlockFor(SESSION_RESTORE_BLOCK_MS);
         console.warn('[Firebase] Failed to restore SDK auth session from stored token:', error);
         return null;
       }

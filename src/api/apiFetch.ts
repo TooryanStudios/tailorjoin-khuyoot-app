@@ -7,6 +7,13 @@ export type ApiFetchOptions = RequestInit & {
   retryOnUnauthorized?: boolean;
 };
 
+const authUnauthorizedCooldownByPath = new Map<string, number>();
+const AUTH_UNAUTHORIZED_COOLDOWN_MS = 10_000;
+
+function isAuthEndpointPath(path: string): boolean {
+  return path.includes('/api/auth/me') || path.includes('/api/auth/custom-token');
+}
+
 function getApiUrl(path: string): string {
   if (/^https?:\/\//i.test(path)) return path;
   const base = (import.meta as any).env?.VITE_API_BASE_URL || '';
@@ -33,6 +40,13 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   const snapshot = getAuthStateSnapshot();
   const requireAuth = options.requireAuth === true;
 
+  if (isAuthEndpointPath(path)) {
+    const blockedUntil = authUnauthorizedCooldownByPath.get(path) || 0;
+    if (blockedUntil > Date.now()) {
+      throw new ApiUnauthorizedError();
+    }
+  }
+
   const hasToken = !!snapshot.idToken;
   const isAuthOrLoadingWithToken = snapshot.status === 'authenticated' || (snapshot.status === 'loading' && hasToken);
 
@@ -56,6 +70,10 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
   let res = await exec();
 
   if (res.status === 401) {
+    if (isAuthEndpointPath(path)) {
+      authUnauthorizedCooldownByPath.set(path, Date.now() + AUTH_UNAUTHORIZED_COOLDOWN_MS);
+    }
+
     if (!retryOnUnauthorized) throw new ApiUnauthorizedError();
     
     // Retry if authenticated OR if we have a token (even if loading from cache)
@@ -89,6 +107,9 @@ export async function apiFetch(path: string, options: ApiFetchOptions = {}): Pro
           
           if (res.ok) {
             console.log('[apiFetch] Retry succeeded!');
+            if (isAuthEndpointPath(path)) {
+              authUnauthorizedCooldownByPath.delete(path);
+            }
           } else {
             console.warn(`[apiFetch] Retry got status ${res.status}`);
           }
