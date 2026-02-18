@@ -295,42 +295,7 @@ export const AuthModal = () => {
     
     try {
       if (isLogin) {
-        const diag = await firebaseService.diagnoseAuthConnectivity();
-        console.log('[AuthModal] Auth diagnostics:', diag);
-
-        const identityV1 = (diag as any).identityToolkitV1 ?? (diag as any).identityToolkit;
-        const identityV3 = (diag as any).identityToolkitV3;
-
-        if (!diag.online) {
-          setStatusText('لا يوجد اتصال بالإنترنت. تأكد من الشبكة ثم أعد المحاولة.');
-          setSubmitting(false);
-          return;
-        }
-
-        if (!identityV1?.ok) {
-          setStatusText('تعذر الاتصال بخدمة تسجيل الدخول. تحقق من الشبكة أو مانع الإعلانات.');
-          setSubmitting(false);
-          return;
-        }
-
-        const identityBlocked =
-          (identityV1?.ok && identityV1?.status === 403) ||
-          (identityV3?.ok && identityV3?.status === 403);
-
-        if (identityBlocked) {
-          setStatusText(
-            'تم حظر طلبات تسجيل الدخول (403) من Google Identity Toolkit. هذا غالباً بسبب قيود API key (API restrictions) في Google Cloud.\n' +
-              'الحل: من Google Cloud Console → APIs & Services → Credentials → API key: فعّل/اسمح بـ Identity Toolkit API (أو Firebase Authentication API) أو أزل قيود API مؤقتاً للتأكد.'
-          );
-          setSubmitting(false);
-          return;
-        }
-
-        if (!diag.secureToken.ok) {
-          setStatusText('تحذير: خدمة الجلسة غير متاحة حالياً. قد يفشل تجديد الجلسة لاحقاً.');
-        } else {
-          setStatusText('جاري تسجيل الدخول...');
-        }
+        setStatusText('جاري تسجيل الدخول...');
 
         await login(email, password);
       } else {

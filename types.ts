@@ -627,6 +627,12 @@ export interface MeasurementProfile {
   userId: string;
   name: string; // اسم المقاس (مثل: "مقاسي الشخصي"، "مقاس أحمد")
   type: GarmentType;
+  templateId?: string;
+  templateName?: string;
+  templateUrl?: string;
+  selectedVariationId?: string;
+  selectedVariationName?: string;
+  selectedVariationImageUrl?: string;
   metrics: Record<string, number>; // e.g., { chest: 40, length: 150, shoulder: 45 }
   notes?: string;
   createdAt: string;

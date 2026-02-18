@@ -2244,25 +2244,42 @@ export const firebaseService = {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
-      const userId = measurement.userId;
+      const removeUndefinedDeep = (value: any): any => {
+        if (Array.isArray(value)) {
+          return value.map((item) => removeUndefinedDeep(item)).filter((item) => item !== undefined);
+        }
+
+        if (value && typeof value === 'object') {
+          return Object.entries(value).reduce((acc, [key, nestedValue]) => {
+            if (nestedValue === undefined) return acc;
+            acc[key] = removeUndefinedDeep(nestedValue);
+            return acc;
+          }, {} as Record<string, any>);
+        }
+
+        return value;
+      };
+
+      const cleanMeasurement = removeUndefinedDeep(measurement);
+      const userId = cleanMeasurement.userId;
       if (!userId) throw new Error("userId is required for measurements");
       
-      if (measurement.id && measurement.id.startsWith('measurement_')) {
+      if (cleanMeasurement.id && cleanMeasurement.id.startsWith('measurement_')) {
         // New measurement - create with auto ID
         const measurementsRef = collection(db, `users/${userId}/measurements`);
-        const docRef = doc(measurementsRef, measurement.id);
-        await setDoc(docRef, measurement);
-        return measurement.id;
-      } else if (measurement.id) {
+        const docRef = doc(measurementsRef, cleanMeasurement.id);
+        await setDoc(docRef, cleanMeasurement);
+        return cleanMeasurement.id;
+      } else if (cleanMeasurement.id) {
         // Update existing measurement
-        const measurementRef = doc(db, `users/${userId}/measurements`, measurement.id);
-        await setDoc(measurementRef, measurement, { merge: true });
-        return measurement.id;
+        const measurementRef = doc(db, `users/${userId}/measurements`, cleanMeasurement.id);
+        await setDoc(measurementRef, cleanMeasurement, { merge: true });
+        return cleanMeasurement.id;
       } else {
         // Create new with Firestore auto ID
         const measurementsRef = collection(db, `users/${userId}/measurements`);
         const docRef = doc(measurementsRef);
-        await setDoc(docRef, { ...measurement, id: docRef.id });
+        await setDoc(docRef, { ...cleanMeasurement, id: docRef.id });
         return docRef.id;
       }
     } catch (error) {
@@ -2681,6 +2698,94 @@ export const firebaseService = {
       console.warn('Error fetching measurement templates, using local fallback:', error);
       const localTemplates = loadLocalMeasurementTemplates().map((t) => normalizeTemplate(t, t.id));
       return productType ? localTemplates.filter(t => t.productType === productType) : localTemplates;
+    }
+  },
+
+  async getMeasurementTemplateById(templateId: string): Promise<MeasurementTemplate | null> {
+    const normalizeTemplate = (template: any, fallbackId?: string): MeasurementTemplate => {
+      const basePoints = Array.isArray(template?.points) ? template.points : [];
+      const baseArrows = Array.isArray(template?.arrows) ? template.arrows : [];
+
+      const rawVariations = Array.isArray(template?.variations)
+        ? template.variations
+        : Array.isArray(template?.variationImageUrls)
+          ? template.variationImageUrls.map((imageUrl: string, index: number) => ({
+              id: `legacy-${index}`,
+              name: `متغيّر ${index + 1}`,
+              imageUrl,
+              enabled: true,
+              points: basePoints,
+              arrows: baseArrows,
+            }))
+          : [];
+
+      const normalizedVariations = rawVariations
+        .filter((variation: any) => variation && typeof variation.imageUrl === 'string' && variation.imageUrl.length > 0)
+        .map((variation: any, index: number) => {
+          const hasAbsolutePoints = Array.isArray(variation.points);
+          const hasAbsoluteArrows = Array.isArray(variation.arrows);
+
+          const offsetPointsX = Number(variation.pointsOffset?.x || 0);
+          const offsetPointsY = Number(variation.pointsOffset?.y || 0);
+          const offsetArrowsX = Number(variation.arrowsOffset?.x || 0);
+          const offsetArrowsY = Number(variation.arrowsOffset?.y || 0);
+
+          const variationPoints = hasAbsolutePoints
+            ? variation.points
+            : basePoints.map((point: any) => ({
+                ...point,
+                x: Math.min(1, Math.max(0, Number(point.x || 0) + offsetPointsX)),
+                y: Math.min(1, Math.max(0, Number(point.y || 0) + offsetPointsY)),
+              }));
+
+          const variationArrows = hasAbsoluteArrows
+            ? variation.arrows
+            : baseArrows.map((arrow: any) => ({
+                ...arrow,
+                startX: Math.min(1, Math.max(0, Number(arrow.startX || 0) + offsetArrowsX)),
+                startY: Math.min(1, Math.max(0, Number(arrow.startY || 0) + offsetArrowsY)),
+                endX: Math.min(1, Math.max(0, Number(arrow.endX || 0) + offsetArrowsX)),
+                endY: Math.min(1, Math.max(0, Number(arrow.endY || 0) + offsetArrowsY)),
+              }));
+
+          return {
+            id: String(variation.id || `variation-${index}`),
+            name: String(variation.name || `متغيّر ${index + 1}`),
+            imageUrl: String(variation.imageUrl),
+            enabled: variation.enabled !== false,
+            points: variationPoints,
+            arrows: variationArrows,
+          };
+        });
+
+      return {
+        ...(template || {}),
+        id: template?.id || fallbackId,
+        productType: (template?.productType as any) || 'dishdasha',
+        variations: normalizedVariations,
+      } as MeasurementTemplate;
+    };
+
+    if (!templateId) return null;
+
+    if (!isFirebaseInitialized) {
+      const localTemplate = loadLocalMeasurementTemplates().find((t) => t.id === templateId);
+      return localTemplate ? normalizeTemplate(localTemplate, localTemplate.id) : null;
+    }
+
+    try {
+      const templateRef = doc(db, 'measurementTemplates', templateId);
+      const snap = await getDoc(templateRef);
+      if (snap.exists()) {
+        return normalizeTemplate(snap.data(), snap.id);
+      }
+
+      const localTemplate = loadLocalMeasurementTemplates().find((t) => t.id === templateId);
+      return localTemplate ? normalizeTemplate(localTemplate, localTemplate.id) : null;
+    } catch (error) {
+      console.warn('Error fetching measurement template by ID, using local fallback:', error);
+      const localTemplate = loadLocalMeasurementTemplates().find((t) => t.id === templateId);
+      return localTemplate ? normalizeTemplate(localTemplate, localTemplate.id) : null;
     }
   },
 

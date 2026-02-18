@@ -1313,6 +1313,7 @@ export const ProductDetails = ({
   const [pendingOpenMeasurements, setPendingOpenMeasurements] = useState(false);
   const [customerComments, setCustomerComments] = useState("");
   const [showCommentsField, setShowCommentsField] = useState(false);
+  const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
   const [savedMeasurementProfiles, setSavedMeasurementProfiles] = useState<any[]>([]);
   const [showSavedMeasurementsModal, setShowSavedMeasurementsModal] = useState(false);
   const [isSavingMeasurement, setIsSavingMeasurement] = useState(false);
@@ -1326,6 +1327,20 @@ export const ProductDetails = ({
 
   const product = productQuery.data ?? null;
   const measurementHook = useMeasurementTemplate({ template });
+  const selectedVariation = useMemo(() => {
+    if (!selectedVariationId || !template?.variations?.length) return null;
+    return template.variations.find((variation: any) => variation.id === selectedVariationId) || null;
+  }, [template?.variations, selectedVariationId]);
+  const displayTemplate = useMemo(() => {
+    if (!template) return null;
+    if (!selectedVariation) return template;
+    return {
+      ...template,
+      baseImageUrl: selectedVariation.imageUrl || template.baseImageUrl,
+      points: selectedVariation.points || template.points,
+      arrows: selectedVariation.arrows || template.arrows,
+    };
+  }, [template, selectedVariation]);
   const productType = product?.category || product?.type;
   const [showSaveDialog, setShowSaveDialog] = useState(false);
   const [saveDialogName, setSaveDialogName] = useState('');
@@ -1413,6 +1428,12 @@ export const ProductDetails = ({
         productId: product?.id,
         name: trimmedName,
         type: product?.category || product?.type || 'dress',
+        templateId: template?.id,
+        templateName: template?.name,
+        templateUrl: selectedVariation?.imageUrl || template?.baseImageUrl,
+        selectedVariationId: selectedVariation?.id ?? null,
+        selectedVariationName: selectedVariation?.name ?? null,
+        selectedVariationImageUrl: selectedVariation?.imageUrl ?? null,
         metrics: measurementHook.measurements,
         notes: customerComments,
         createdAt: new Date().toISOString(),
@@ -1445,26 +1466,45 @@ export const ProductDetails = ({
     setShowApplyConfirmation(false);
   };
 
-  const handleApplyProfile = (profile: any) => {
-    if (profile.metrics) {
-      // Only apply measurements that exist in the current template
-      const currentPointIds = new Set(template?.points?.map((p: any) => p.id) || []);
-      const filteredMetrics: Record<string, number> = {};
-      
-      Object.entries(profile.metrics).forEach(([id, val]) => {
-        if (currentPointIds.has(id)) {
-          filteredMetrics[id] = val as number;
-        }
-      });
+  const handleApplyProfile = async (profile: any) => {
+    if (!profile.metrics) return;
 
-      measurementHook.setMeasurements(filteredMetrics);
-      
-      if (profile.notes) {
-        setCustomerComments(profile.notes);
-        setShowCommentsField(true);
+    let effectiveTemplate = template;
+    if (profile.templateId && profile.templateId !== template?.id) {
+      const exactTemplate = await measurementService.getTemplateById(profile.templateId);
+      if (!exactTemplate) {
+        setInfoDialog({ message: 'القالب المرتبط بهذا المقاس لم يعد متاحاً. يرجى اختيار نوع ملبس آخر.' });
+        return;
       }
-      setShowSavedMeasurementsModal(false);
+
+      effectiveTemplate = exactTemplate;
+      setTemplate(exactTemplate);
     }
+
+    const profileVariation = profile.selectedVariationId
+      ? effectiveTemplate?.variations?.find((variation: any) => variation.id === profile.selectedVariationId)
+      : null;
+
+    setSelectedVariationId(profileVariation?.id || null);
+
+    const pointsSource = profileVariation?.points || effectiveTemplate?.points || [];
+    const currentPointIds = new Set(pointsSource.map((p: any) => p.id));
+    const filteredMetrics: Record<string, number> = {};
+
+    Object.entries(profile.metrics).forEach(([id, val]) => {
+      if (currentPointIds.has(id)) {
+        filteredMetrics[id] = val as number;
+      }
+    });
+
+    measurementHook.setMeasurements(filteredMetrics);
+
+    if (profile.notes) {
+      setCustomerComments(profile.notes);
+      setShowCommentsField(true);
+    }
+
+    setShowSavedMeasurementsModal(false);
   };
 
 
@@ -1491,6 +1531,9 @@ export const ProductDetails = ({
         if (parsed.showComments) {
           setShowCommentsField(true);
         }
+        if (typeof parsed.selectedVariationId === 'string') {
+          setSelectedVariationId(parsed.selectedVariationId || null);
+        }
       } catch (e) {
         console.error("Error loading saved customization", e);
       }
@@ -1508,17 +1551,39 @@ export const ProductDetails = ({
       const dataToSave = {
         measurements: measurementHook.measurements,
         comments: customerComments,
-        showComments: showCommentsField
+        showComments: showCommentsField,
+        selectedVariationId,
       };
       localStorage.setItem(storageKey, JSON.stringify(dataToSave));
     }
-  }, [measurementHook.measurements, customerComments, showCommentsField, storageKey]);
+  }, [measurementHook.measurements, customerComments, showCommentsField, selectedVariationId, storageKey]);
 
   useEffect(() => {
     if (product) {
        measurementService.getTemplateForProduct(product).then(setTemplate);
     }
   }, [product]);
+
+  useEffect(() => {
+    if (!selectedVariationId) return;
+    const exists = Boolean(template?.variations?.some((variation: any) => variation.id === selectedVariationId));
+    if (!exists) {
+      setSelectedVariationId(null);
+    }
+  }, [template?.id, template?.variations, selectedVariationId]);
+
+  useEffect(() => {
+    if (!template || selectedVariationId) return;
+    if (Array.isArray(template.points) && template.points.length > 0) return;
+
+    const firstRenderableVariation = (template.variations || []).find(
+      (variation: any) => variation.enabled !== false && Array.isArray(variation.points) && variation.points.length > 0
+    );
+
+    if (firstRenderableVariation?.id) {
+      setSelectedVariationId(firstRenderableVariation.id);
+    }
+  }, [template, selectedVariationId]);
   
   const [isMobile, setIsMobile] = React.useState(() => {
     if (typeof window === 'undefined') return false;
@@ -1575,9 +1640,10 @@ export const ProductDetails = ({
   };
 
   const handleReviewOrder = () => {
-    if (!template?.points) return;
+    const effectiveTemplate = displayTemplate || template;
+    if (!effectiveTemplate?.points) return;
     
-    const missingPoints = template.points.filter((p: any) => !measurementHook.measurements[p.id]);
+    const missingPoints = effectiveTemplate.points.filter((p: any) => !measurementHook.measurements[p.id]);
     
     if (missingPoints.length > 0) {
       setMeasurementError("يرجى ملأ جميع بيانات المقاسات في الرسم التوضيحي للمتابعة");
@@ -1662,15 +1728,17 @@ export const ProductDetails = ({
     
     setIsSubmittingOrder(true);
     try {
+      const effectiveTemplate = displayTemplate || template;
+
       // Create a mapping of measurement point IDs to labels for the tailor
       const measurementLabels: Record<string, string> = {};
-      template?.points?.forEach((p: any) => {
+      effectiveTemplate?.points?.forEach((p: any) => {
         measurementLabels[p.id] = p.label || p.name || p.id;
       });
 
       // Filter measurements to only include those in the current template
       const filteredMeasurements: Record<string, number> = {};
-      template?.points?.forEach((p: any) => {
+      effectiveTemplate?.points?.forEach((p: any) => {
         if (measurementHook.measurements[p.id] !== undefined) {
           filteredMeasurements[p.id] = measurementHook.measurements[p.id];
         }
@@ -1706,10 +1774,10 @@ export const ProductDetails = ({
         tailorLocation: tailor.location || tailor.region,
         measurements: filteredMeasurements,
         measurementLabels: measurementLabels,
-        templateId: template?.id,
-        templateUrl: template?.imageUrl || template?.baseImageUrl,
-        templatePoints: template?.points || [],
-        templateArrows: template?.arrows || [],
+        templateId: effectiveTemplate?.id,
+        templateUrl: effectiveTemplate?.imageUrl || effectiveTemplate?.baseImageUrl,
+        templatePoints: effectiveTemplate?.points || [],
+        templateArrows: effectiveTemplate?.arrows || [],
         comments: customerComments,
         customerName: user?.displayName || (user as any)?.name || 'عميل خيوط',
         customerEmail: user?.email || '',
@@ -1769,7 +1837,7 @@ export const ProductDetails = ({
           product={product}
           tailor={tailor}
           measurements={measurementHook.measurements}
-          template={template}
+          template={displayTemplate || template}
           onConfirm={handlePlaceOrder}
           isSubmitting={isSubmittingOrder}
           isSuccess={isOrderSuccess}
@@ -2045,7 +2113,7 @@ export const ProductDetails = ({
         product={product}
         tailor={tailor}
         measurements={measurementHook.measurements}
-        template={template}
+        template={displayTemplate || template}
         onConfirm={handlePlaceOrder}
         isSubmitting={isSubmittingOrder}
         isSuccess={isOrderSuccess}

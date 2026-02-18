@@ -1,5 +1,5 @@
 import { firebaseService } from '@/src/services/firebase';
-import { getAllCategories } from '@/src/admin/products/services';
+import { getAllCategories, getCategoryById } from '@/src/admin/products/services';
 
 export interface MeasurementPoint {
   id: string;
@@ -168,19 +168,78 @@ export const measurementService = {
       .replace(/[\-–—]/g, '');
   },
 
+  async getTemplateById(templateId: string): Promise<MeasurementTemplate | null> {
+    if (!templateId) return null;
+
+    try {
+      const [savedTemplate, category] = await Promise.all([
+        firebaseService.getMeasurementTemplateById(templateId),
+        getCategoryById(templateId).catch(() => null),
+      ]);
+
+      if (!savedTemplate && !category) return null;
+
+      const normalizeGender = (value: unknown) => {
+        const raw = String(value || '').toLowerCase();
+        if (!raw) return undefined;
+        if (raw === 'male' || raw === 'males' || raw === 'men') return 'male' as const;
+        if (raw === 'female' || raw === 'females' || raw === 'women') return 'female' as const;
+        return undefined;
+      };
+
+      const mergedTemplate: MeasurementTemplate = {
+        id: templateId,
+        name:
+          (savedTemplate?.name as any) ||
+          (category as any)?.nameAr ||
+          (category as any)?.nameEn ||
+          templateId,
+        productType: (savedTemplate?.productType as any) || 'dishdasha',
+        genderGroup: normalizeGender((savedTemplate as any)?.genderGroup) || normalizeGender((category as any)?.gender),
+        description:
+          (savedTemplate?.description as any) ||
+          (category as any)?.descriptionAr ||
+          (category as any)?.descriptionEn ||
+          '',
+        baseImageUrl: (savedTemplate?.baseImageUrl as any) || '',
+        points: (savedTemplate?.points as any) || [],
+        arrows: (savedTemplate as any)?.arrows || [],
+        pointSize: (savedTemplate as any)?.pointSize || 44,
+        pointOpacity: (savedTemplate as any)?.pointOpacity || 90,
+        ...(savedTemplate || {}),
+      } as MeasurementTemplate;
+
+      return mergedTemplate;
+    } catch (error) {
+      console.error('[measurementService] Error loading template by id:', error);
+      return null;
+    }
+  },
+
   /**
    * Matches a product to its ideal measurement template.
    */
   async getTemplateForProduct(product: any, providedTemplates?: MeasurementTemplate[]): Promise<MeasurementTemplate | null> {
     if (!product) return null;
+
+    const hasRenderablePoints = (template: MeasurementTemplate | null) => {
+      if (!template) return false;
+      if (Array.isArray(template.points) && template.points.length > 0) return true;
+      return Boolean((template.variations || []).some((variation: any) => Array.isArray(variation.points) && variation.points.length > 0));
+    };
+
+    const categoryId = product.categoryId;
+    if (categoryId) {
+      const byDirectId = await this.getTemplateById(categoryId);
+      if (hasRenderablePoints(byDirectId)) return byDirectId;
+    }
     
     const templates = providedTemplates || await this.getTemplates();
     if (!templates.length) return null;
 
     // 1. Try Match by ID (CategoryId)
-    const categoryId = product.categoryId;
     const byId = templates.find((t) => t.id === categoryId) || null;
-    if (byId && byId.points?.length > 0) return byId;
+    if (hasRenderablePoints(byId)) return byId;
 
     // 2. Try Match by Normalized Name
     const categoryNameCandidates = [
@@ -198,7 +257,7 @@ export const measurementService = {
       return categoryNameCandidates.some((n) => normalizedTemplateName === n || normalizedTemplateName.includes(n) || n.includes(normalizedTemplateName));
     }) || null;
 
-    if (byName && byName.points?.length > 0) return byName;
+    if (hasRenderablePoints(byName)) return byName;
 
     // 3. Match by Product Category Mapping (if applicable in product data)
     // ... possibly check more fields ...

@@ -8,6 +8,7 @@
 :root {
   --app-height: 100vh;
   --footer-height: 74px;
+  --account-header-height: 72px;
   
   /* 🎨 Master Theme (Unified App Identity) */
   --theme-primary-rgb: 99 73 139;

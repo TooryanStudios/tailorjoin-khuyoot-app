@@ -5,7 +5,7 @@ import { useModalStore } from '../src/store/useModalStore';
 import { 
   LogOut, Ruler, ShoppingBag, Edit2, Crown, 
   Package, Wallet, User as UserIcon, ArrowRight, Phone, RefreshCw, AlertTriangle, X,
-  Camera, Save, Mail, MapPin, Calendar, Users, Trash2, Shield, Scissors
+  Camera, Save, Mail, MapPin, Calendar, Users, Trash2, Shield, Scissors, ChevronDown
 } from 'lucide-react';
 import { FamilyMember, GarmentType, Gender } from '../types';
 import { firebaseService } from '../services/firebase';
@@ -176,12 +176,33 @@ const MeasurementEditorDialog = ({
 }: {
   isOpen: boolean;
   onClose: () => void;
-  initialData?: { name?: string; type?: string; metrics?: Record<string, number>; notes?: string };
-  onSave: (data: { name: string; type: string; metrics: Record<string, number>; notes: string }) => Promise<void>;
+  initialData?: {
+    name?: string;
+    type?: string;
+    metrics?: Record<string, number>;
+    notes?: string;
+    templateId?: string;
+    templateName?: string;
+    selectedVariationId?: string;
+    selectedVariationName?: string;
+  };
+  onSave: (data: {
+    name: string;
+    type: string;
+    metrics: Record<string, number>;
+    notes: string;
+    templateId?: string;
+    templateName?: string;
+    templateUrl?: string;
+    selectedVariationId?: string;
+    selectedVariationName?: string;
+    selectedVariationImageUrl?: string;
+  }) => Promise<void>;
   userGender?: Gender;
 }) => {
   const [templates, setTemplates] = useState<MeasurementTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [selectedVariationId, setSelectedVariationId] = useState<string | null>(null);
   const [isTypePickerOpen, setIsTypePickerOpen] = useState(false);
   const [typePickerTab, setTypePickerTab] = useState<'female' | 'male'>('female');
   const [name, setName] = useState('');
@@ -189,9 +210,11 @@ const MeasurementEditorDialog = ({
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
+  const [isMeasurementListExpanded, setIsMeasurementListExpanded] = useState(false);
   const lastAutoNameRef = useRef<string>('');
   
   const selectedTemplate = templates.find(t => t.id === selectedTemplateId);
+  const selectedVariation = selectedTemplate?.variations?.find(v => v.id === selectedVariationId) || null;
   const femaleTemplates = templates.filter(t => t.genderGroup === 'female');
   const maleTemplates = templates.filter(t => t.genderGroup === 'male');
   const visibleTemplates = typePickerTab === 'female' ? femaleTemplates : maleTemplates;
@@ -201,13 +224,24 @@ const MeasurementEditorDialog = ({
     initialMeasurements: initialData?.metrics
   });
 
+  const hasRenderablePoints = (template?: MeasurementTemplate | null) => {
+    if (!template) return false;
+    if (Array.isArray(template.points) && template.points.length > 0) return true;
+    return Boolean((template.variations || []).some((variation) => Array.isArray(variation.points) && variation.points.length > 0));
+  };
+
+  const pickPreferredTemplate = (sourceTemplates: MeasurementTemplate[]) => {
+    if (sourceTemplates.length === 0) return null;
+    return sourceTemplates.find((template) => hasRenderablePoints(template)) || sourceTemplates[0];
+  };
+
   useEffect(() => {
-    if (selectedTemplate?.genderGroup) {
-      setTypePickerTab(selectedTemplate.genderGroup);
-      return;
+    if (!selectedVariationId || !selectedTemplate) return;
+    const exists = Boolean(selectedTemplate?.variations?.some((v) => v.id === selectedVariationId));
+    if (!exists) {
+      setSelectedVariationId(null);
     }
-    setTypePickerTab(defaultTabFromUser);
-  }, [selectedTemplate?.id, selectedTemplate?.genderGroup, defaultTabFromUser]);
+  }, [selectedTemplate, selectedVariationId]);
 
   useEffect(() => {
     if (isTypePickerOpen) {
@@ -217,47 +251,151 @@ const MeasurementEditorDialog = ({
   }, [isTypePickerOpen, selectedTemplate?.genderGroup, defaultTabFromUser]);
 
   useEffect(() => {
-    if (isOpen) {
-        setIsLoadingTemplates(true);
-        measurementService.getTemplates().then(data => {
-            setTemplates(data);
-            setIsLoadingTemplates(false);
-            
-            // If editing existing, try to match garment type to template
-            if (initialData?.type) {
-                const match = data.find(t => 
-                    t.productType === initialData.type || 
-                    t.name === initialData.type ||
-                    t.id === initialData.type 
-                );
-                if (match) setSelectedTemplateId(match.id);
-                // Fallback: try to normalize
-                else {
-                    const norm = normalizeGarmentType(initialData.type);
-                    const matchNorm = data.find(t => t.productType === norm);
-                    if (matchNorm) setSelectedTemplateId(matchNorm.id);
-                    else if (data.length > 0) setSelectedTemplateId(data[0].id);
-                }
-            } else if (data.length > 0 && !selectedTemplateId) {
-                setSelectedTemplateId(data[0].id);
-            }
-        });
+    if (!isOpen) return;
 
-        if (initialData) {
-            setName(initialData.name || '');
-            setNotes(initialData.notes || '');
-            if (initialData.metrics) {
-                measurementHook.setMeasurements(initialData.metrics);
-            }
-        } else {
-            setName('');
-            setNotes('');
-            measurementHook.setMeasurements({});
+    const applyInitialState = (
+      sourceTemplates: MeasurementTemplate[],
+      preferredTemplateId?: string,
+      options?: { strictTemplateId?: string }
+    ) => {
+      const strictTemplateId = options?.strictTemplateId;
+      if (initialData) {
+        setName(initialData.name || '');
+        setNotes(initialData.notes || '');
+        if (initialData.metrics) {
+          measurementHook.setMeasurements(initialData.metrics);
         }
-        setNameTouched(false);
-        lastAutoNameRef.current = '';
+
+        const match =
+          (preferredTemplateId ? sourceTemplates.find((template) => template.id === preferredTemplateId) : null) ||
+          sourceTemplates.find((template) => template.id === initialData.templateId) ||
+          (!strictTemplateId
+            ? sourceTemplates.find((template) => template.productType === initialData.type || template.name === initialData.type || template.id === initialData.type)
+            : null);
+
+        if (match) {
+          setSelectedTemplateId(match.id);
+          const variationExists = Boolean(
+            initialData.selectedVariationId &&
+            (match.variations || []).some((variation) => variation.id === initialData.selectedVariationId)
+          );
+          setSelectedVariationId(variationExists ? initialData.selectedVariationId! : null);
+        } else {
+          if (strictTemplateId) {
+            setSelectedTemplateId('');
+            setSelectedVariationId(null);
+            setNameTouched(false);
+            lastAutoNameRef.current = '';
+            return;
+          }
+
+          const norm = normalizeGarmentType(initialData.type || '');
+          const normalizedMatch = sourceTemplates.find((template) => template.productType === norm && hasRenderablePoints(template));
+          if (normalizedMatch) {
+            setSelectedTemplateId(normalizedMatch.id);
+          } else {
+            const fallbackTemplate = pickPreferredTemplate(sourceTemplates);
+            if (fallbackTemplate) {
+              setSelectedTemplateId(fallbackTemplate.id);
+            }
+          }
+          setSelectedVariationId(null);
+        }
+      } else {
+        setName('');
+        setNotes('');
+        setSelectedVariationId(null);
+        measurementHook.setMeasurements({});
+        if (sourceTemplates.length > 0 && !selectedTemplateId) {
+          const fallbackTemplate = pickPreferredTemplate(sourceTemplates);
+          if (fallbackTemplate) {
+            setSelectedTemplateId(fallbackTemplate.id);
+          }
+        }
+      }
+
+      setNameTouched(false);
+      lastAutoNameRef.current = '';
+    };
+
+    if (initialData?.templateId && templates.some((template) => template.id === initialData.templateId)) {
+      applyInitialState(templates, initialData.templateId, { strictTemplateId: initialData.templateId });
+      return;
     }
-  }, [isOpen, initialData]);
+
+    if (!initialData?.templateId && templates.length > 0) {
+      applyInitialState(templates);
+      return;
+    }
+
+    let cancelled = false;
+    const openWithExactTemplate = async (templateId: string) => {
+      setIsLoadingTemplates(true);
+      try {
+        const exactTemplate = await measurementService.getTemplateById(templateId);
+        if (cancelled) return;
+
+        if (exactTemplate) {
+          setTemplates([exactTemplate]);
+          applyInitialState([exactTemplate], exactTemplate.id, { strictTemplateId: templateId });
+        }
+
+        const fullTemplates = await measurementService.getTemplates();
+        if (cancelled) return;
+        setTemplates(fullTemplates);
+        applyInitialState(fullTemplates, exactTemplate?.id || templateId, { strictTemplateId: templateId });
+      } catch (error) {
+        if (cancelled) return;
+        console.error('[Account Dialog] Failed exact template flow:', error);
+      } finally {
+        if (!cancelled) setIsLoadingTemplates(false);
+      }
+    };
+
+    const openWithTemplateList = async () => {
+      if (templates.length > 0) {
+        applyInitialState(templates);
+        return;
+      }
+
+      setIsLoadingTemplates(true);
+      try {
+        const data = await measurementService.getTemplates();
+        if (cancelled) return;
+        console.log('[Account Dialog] Loaded templates:', data.length, data.map((t) => ({ id: t.id, name: t.name, points: t.points?.length })));
+        setTemplates(data);
+        applyInitialState(data);
+      } catch (error) {
+        if (cancelled) return;
+        console.error('[Account Dialog] Failed to load templates:', error);
+      } finally {
+        if (!cancelled) setIsLoadingTemplates(false);
+      }
+    };
+
+    if (initialData?.templateId) {
+      openWithExactTemplate(initialData.templateId);
+    } else {
+      openWithTemplateList();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, initialData, templates]);
+
+  useEffect(() => {
+    if (!selectedTemplate || selectedVariationId) return;
+    if (Array.isArray(selectedTemplate.points) && selectedTemplate.points.length > 0) return;
+
+    const firstRenderableVariation = (selectedTemplate.variations || []).find(
+      (variation) => variation.enabled !== false && Array.isArray(variation.points) && variation.points.length > 0
+    );
+
+    if (firstRenderableVariation?.id) {
+      setSelectedVariationId(firstRenderableVariation.id);
+    }
+  }, [selectedTemplate, selectedVariationId]);
 
   useEffect(() => {
     if (!selectedTemplate || initialData?.name) return;
@@ -274,9 +412,15 @@ const MeasurementEditorDialog = ({
     try {
         await onSave({
             name,
-            type: selectedTemplate?.productType || selectedTemplate?.name || 'dishdasha',
+            type: selectedTemplate?.name || selectedTemplate?.productType || 'dishdasha',
             metrics: measurementHook.measurements,
-            notes
+          notes,
+          templateId: selectedTemplate?.id,
+          templateName: selectedTemplate?.name,
+          templateUrl: selectedVariation?.imageUrl || selectedTemplate?.baseImageUrl,
+          selectedVariationId: selectedVariation?.id ?? null,
+          selectedVariationName: selectedVariation?.name ?? null,
+          selectedVariationImageUrl: selectedVariation?.imageUrl ?? null,
         });
         onClose();
     } catch (e) {
@@ -289,10 +433,10 @@ const MeasurementEditorDialog = ({
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10001] overflow-y-auto" onClick={onClose}>
-      <div className="bg-white rounded-xl p-5 max-w-4xl w-full my-8 max-h-[90vh] overflow-y-auto shadow-2xl" onClick={(e) => e.stopPropagation()} dir="rtl">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-200">
+    <div className="fixed inset-0 bg-black/60 flex items-center justify-center p-4 z-[10001]" onClick={onClose}>
+      <div className="bg-white rounded-xl max-w-xl w-full my-8 max-h-[90vh] shadow-2xl flex flex-col" onClick={(e) => e.stopPropagation()} dir="rtl">
+        {/* Header - Fixed */}
+        <div className="flex items-center justify-between px-5 pt-5 pb-3 border-b border-slate-200">
           <h3 className="text-base font-bold text-slate-900">
             {initialData ? 'تعديل القياسات' : 'إضافة قياس جديد'}
           </h3>
@@ -305,13 +449,16 @@ const MeasurementEditorDialog = ({
           </button>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative">
-            <div className="space-y-4">
-                 {/* Name Field */}
+        {/* Content - Scrollable */}
+        <div className="flex-1 overflow-y-auto px-5 py-4">
+          <div className="flex flex-col gap-4 relative">
+            {/* Template Selection, Measurement Name & Variations - Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* Template Selection */}
                 {isLoadingTemplates ? (
                     <div className="py-10 text-center"><RefreshCw className="animate-spin mx-auto text-slate-400" /></div>
                 ) : (
-                    <div className="mb-4">
+                    <div className="mb-2">
                         <label className="block text-xs font-medium text-slate-700 mb-1.5">نوع الملبس</label>
                         <button
                           type="button"
@@ -338,6 +485,7 @@ const MeasurementEditorDialog = ({
                     </div>
                 )}
 
+                {/* Measurement Name */}
                 <div>
                     <label className="block text-xs font-medium text-slate-700 mb-1.5">اسم القياس</label>
                     <input
@@ -347,90 +495,154 @@ const MeasurementEditorDialog = ({
                       setNameTouched(true);
                       setName(e.target.value);
                     }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm mb-4"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
                     placeholder="مثال: قياسي الشخصي"
                     />
                 </div>
-                 
-                {/* Visual Editor */}
-                {selectedTemplate && (
-                    <MeasurementTemplateContent
-                        template={selectedTemplate}
-                        measurements={measurementHook.measurements}
-                        onMeasurementChange={measurementHook.handleMeasurementChange}
-                        onShowVideo={() => measurementHook.setShowVideoDialog(true)}
-                        PointMarkerComponent={PointMarker}
+            </div>
+            
+            {/* Visual Editor - Preview Image with Points */}
+            {selectedTemplate && (
+                <div className="w-full bg-white rounded-xl border border-slate-200 p-4">
+                    {console.log('[Account] Selected template:', selectedTemplate?.id, selectedTemplate?.name, 'points:', selectedTemplate?.points?.length, 'variation:', selectedVariation?.id)}
+                    
+                    {/* Build display template using variation if selected */}
+                    {(() => {
+                        const displayTemplate = selectedVariation 
+                            ? {
+                                ...selectedTemplate,
+                                baseImageUrl: selectedVariation.imageUrl,
+                                points: selectedVariation.points || selectedTemplate.points,
+                                arrows: selectedVariation.arrows || selectedTemplate.arrows,
+                              }
+                            : selectedTemplate;
+                        
+                        return displayTemplate?.points && displayTemplate.points.length > 0 ? (
+                            <MeasurementTemplateContent
+                                template={displayTemplate}
+                                measurements={measurementHook.measurements}
+                                onMeasurementChange={measurementHook.handleMeasurementChange}
+                                onShowVideo={() => measurementHook.setShowVideoDialog(true)}
+                                PointMarkerComponent={PointMarker}
+                                toolbar={selectedTemplate?.variations && selectedTemplate.variations.length > 0 ? (
+                                  <select
+                                    value={selectedVariationId || ''}
+                                    onChange={(e) => setSelectedVariationId(e.target.value || null)}
+                                    className="w-[4.5rem] px-2 py-1 border border-slate-200 rounded-md focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-[11px] bg-white/95 shadow-sm"
+                                    title={selectedVariation?.name || selectedTemplate.baseImageName || selectedTemplate.name || 'اختر نمط الملبس'}
+                                  >
+                                    <option value="">{selectedTemplate.baseImageName || selectedTemplate.name || 'الصورة الأساسية'}</option>
+                                    {selectedTemplate.variations.map((variation, index) => (
+                                      <option
+                                        key={variation.id}
+                                        value={variation.id}
+                                        disabled={!variation.enabled}
+                                      >
+                                        {variation.name || `متغيّر ${index + 1}`}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : undefined}
+                            />
+                        ) : (
+                            <div className="flex flex-col items-center justify-center p-8 text-center space-y-2">
+                                <div className="w-20 h-20 rounded-full bg-slate-100 flex items-center justify-center">
+                                    <Ruler size={32} className="text-slate-400" />
+                                </div>
+                                <p className="text-sm font-medium text-slate-600">يتم تحميل القالب...</p>
+                                <p className="text-xs text-slate-400">إذا استمرت هذه الحالة، تحقق من نوع الملبس المختار</p>
+                            </div>
+                        );
+                    })()}
+                </div>
+            )}
+
+            {/* Notes Field */}
+            <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1.5">ملاحظات (اختياري)</label>
+                <textarea
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
+                    rows={3}
+                    placeholder="أي ملاحظات إضافية..."
+                />
+            </div>
+            
+            {/* Collapsible Measurement List */}
+            <div className="bg-slate-50 rounded-xl border border-slate-100 overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => setIsMeasurementListExpanded(!isMeasurementListExpanded)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-slate-100 transition-colors"
+                >
+                    <h4 className="text-xs font-bold text-slate-700">قائمة القياسات</h4>
+                    <ChevronDown 
+                        size={16} 
+                        className={`text-slate-400 transition-transform ${
+                            isMeasurementListExpanded ? 'rotate-180' : ''
+                        }`}
                     />
+                </button>
+                
+                {isMeasurementListExpanded && (
+                    <div className="px-4 pb-4 border-t border-slate-100 space-y-2 max-h-40 overflow-y-auto">
+                        {selectedTemplate ? (
+                            <div className="space-y-2">
+                                 {selectedTemplate.points.map(p => (
+                                     <div key={p.id} className="flex justify-between items-center text-xs">
+                                         <span className="text-slate-600">{p.label || p.name}</span>
+                                         <div className="flex items-center gap-2">
+                                             <input 
+                                                type="number" 
+                                                value={measurementHook.measurements[p.id] || ''}
+                                                onChange={(e) => measurementHook.handleMeasurementChange(p.id, e.target.value)}
+                                                className="w-16 px-2 py-1 rounded border border-slate-200 text-center"
+                                                placeholder="0"
+                                             />
+                                             <span className="text-slate-400 w-6">سم</span>
+                                         </div>
+                                     </div>
+                                 ))}
+                            </div>
+                        ) :  (
+                            <p className="text-xs text-slate-400 italic text-center py-4">اختر نوع الملبس لعرض القياسات</p>
+                        )}
+                    </div>
                 )}
             </div>
 
-            <div className="flex flex-col h-full"> 
-                 {/* Notes Field */}
-                <div className="mb-4">
-                    <label className="block text-xs font-medium text-slate-700 mb-1.5">ملاحظات (اختياري)</label>
-                    <textarea
-                        value={notes}
-                        onChange={(e) => setNotes(e.target.value)}
-                        className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
-                        rows={3}
-                        placeholder="أي ملاحظات إضافية..."
-                    />
-                </div>
-                
-                 {/* Text Inputs Summary (Optional, if users prefer typing) */}
-                 <div className="bg-slate-50 rounded-xl p-4 border border-slate-100 flex-1 overflow-y-auto mb-4">
-                    <h4 className="text-xs font-bold text-slate-700 mb-3">قائمة القياسات</h4>
-                    {selectedTemplate ? (
-                        <div className="space-y-2">
-                             {selectedTemplate.points.map(p => (
-                                 <div key={p.id} className="flex justify-between items-center text-xs">
-                                     <span className="text-slate-600">{p.label || p.name}</span>
-                                     <div className="flex items-center gap-2">
-                                         <input 
-                                            type="number" 
-                                            value={measurementHook.measurements[p.id] || ''}
-                                            onChange={(e) => measurementHook.handleMeasurementChange(p.id, e.target.value)}
-                                            className="w-16 px-2 py-1 rounded border border-slate-200 text-center"
-                                            placeholder="0"
-                                         />
-                                         <span className="text-slate-400 w-6">سم</span>
-                                     </div>
-                                 </div>
-                             ))}
-                        </div>
-                    ) :  (
-                        <p className="text-xs text-slate-400 italic text-center py-4">اختر نوع الملبس لعرض القياسات</p>
-                    )}
-                 </div>
+            {/* Action Buttons - will be in fixed footer */}
 
-                 {/* Action Buttons */}
-                <div className="flex gap-2 pt-3 border-t border-slate-200 mt-auto">
-                    <button
-                        onClick={onClose}
-                        disabled={isSaving}
-                        className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
-                    >
-                        إلغاء
-                    </button>
-                    <button
-                        onClick={handleSave}
-                        disabled={isSaving || !name.trim()}
-                        className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                        {isSaving ? (
-                        <>
-                            <RefreshCw size={14} className="animate-spin" />
-                            جاري الحفظ...
-                        </>
-                        ) : (
-                        <>
-                            <Save size={14} />
-                            حفظ
-                        </>
-                        )}
-                    </button>
-                </div>
-            </div>
+          </div>
+        </div>
+
+        {/* Footer - Fixed */}
+        <div className="px-5 py-3 border-t border-slate-200 flex gap-2">
+          <button
+              onClick={onClose}
+              disabled={isSaving}
+              className="flex-1 h-10 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-sm font-medium transition-all"
+          >
+              إلغاء
+          </button>
+          <button
+              onClick={handleSave}
+              disabled={isSaving || !name.trim()}
+              className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+              {isSaving ? (
+              <>
+                  <RefreshCw size={14} className="animate-spin" />
+                  جاري الحفظ...
+              </>
+              ) : (
+              <>
+                  <Save size={14} />
+                  حفظ
+              </>
+              )}
+          </button>
         </div>
       </div>
 
@@ -485,6 +697,7 @@ const MeasurementEditorDialog = ({
                     type="button"
                     onClick={() => {
                       setSelectedTemplateId(t.id);
+                      setSelectedVariationId(null);
                       setIsTypePickerOpen(false);
                     }}
                     className={`text-right p-3 rounded-xl border transition-all ${
@@ -576,7 +789,6 @@ export const Account = () => {
   const [activeTab, setActiveTab] = useState<TabType>(getTabFromPath());
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [showFamilyDialog, setShowFamilyDialog] = useState(false);
-  const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
   const [measurements, setMeasurements] = useState<any[]>([]);
   const [loadingMeasurements, setLoadingMeasurements] = useState(false);
   const [deletingMeasurement, setDeletingMeasurement] = useState<any | null>(null);
@@ -624,14 +836,16 @@ export const Account = () => {
       if (!headerEl) return;
       const measuredHeight = headerEl.getBoundingClientRect().height;
       if (measuredHeight > 0) {
-        setHeaderHeight(measuredHeight);
+        document.documentElement.style.setProperty('--account-header-height', `${measuredHeight}px`);
       }
     };
 
+    document.documentElement.style.setProperty('--account-header-height', `${DEFAULT_HEADER_SPACER_HEIGHT}px`);
     updateHeaderHeight();
     window.addEventListener('resize', updateHeaderHeight);
     return () => {
       window.removeEventListener('resize', updateHeaderHeight);
+      document.documentElement.style.setProperty('--account-header-height', `${DEFAULT_HEADER_SPACER_HEIGHT}px`);
     };
   }, []);
 
@@ -927,12 +1141,10 @@ export const Account = () => {
       <MontHeader />
       <div
         aria-hidden="true"
-        className="pointer-events-none"
-        style={{ height: headerHeight }}
+        className="pointer-events-none h-[var(--account-header-height)]"
       />
       <div
-        className="flex-1 overflow-y-auto"
-        style={{ scrollPaddingTop: headerHeight }}
+        className="flex-1 overflow-y-auto [scroll-padding-top:var(--account-header-height)]"
       >
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
@@ -1199,7 +1411,7 @@ export const Account = () => {
                             {measurement.name || 'قياس بدون اسم'}
                           </h4>
                           <p className="text-xs text-slate-600">
-                            {template?.label || measurement.type || 'نوع غير محدد'}
+                            {measurement.templateName || template?.label || measurement.type || 'نوع غير محدد'}
                           </p>
                         </div>
                       </div>

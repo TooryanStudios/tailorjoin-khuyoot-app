@@ -72,7 +72,19 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
   showVideo,
   videoUrl
 }) => {
-  if (!template || !template.points?.length) return null;
+  // Log for debugging
+  console.log('[MeasurementTemplateContent] Template:', template?.id, 'Points:', template?.points?.length);
+  
+  if (!template) return null;
+  if (!template.points?.length) {
+    // Show fallback instead of returning null
+    return (
+      <div className="flex flex-col items-center justify-center p-8 text-center space-y-3">
+        <Ruler size={40} className="text-slate-300" />
+        <p className="text-xs text-slate-500">لم تحتوي هذه القالب على نقاط قياس محددة</p>
+      </div>
+    );
+  }
 
   const ordered = [...template.points].sort((a: any, b: any) => (a.order || 0) - (b.order || 0));
   const showFallbackBg = !template.baseImageUrl;
@@ -174,10 +186,13 @@ export const MeasurementTemplateContent: React.FC<MeasurementTemplateContentProp
         </button>
       </div>
 
-      {toolbar}
-
       {/* Interactive Measurement Diagram */}
       <div className="relative w-full max-w-md mx-auto aspect-[3/4] bg-[#fdfdfd] rounded-2xl border border-gray-200 overflow-visible">
+        {toolbar && (
+          <div className="absolute top-2 right-2 z-20">
+            {toolbar}
+          </div>
+        )}
         {template.baseImageUrl ? (
           <img 
             src={template.baseImageUrl} 
