@@ -71,23 +71,24 @@
           var host = (location.hostname || '').toLowerCase();
           var isDevLike =
             host === 'localhost' ||
-            host === '127.0.0.1' ||
-            host === 'dev.khuyoot.app' ||
-            host.indexOf('dev.') === 0 ||
-            host.indexOf('staging.') === 0;
-          if (!isDevLike) return;
-          if (!('serviceWorker' in navigator)) return;
+             host === '127.0.0.1';
+           if (!isDevLike) return;
+           if (!('serviceWorker' in navigator)) return;
 
-          // If a SW is currently controlling this page, fix it deterministically.
-          if (navigator.serviceWorker.controller && !location.pathname.startsWith('/clear-sw.html')) {
-            var returnTo = location.pathname + (location.search || '') + (location.hash || '');
-            location.replace('/clear-sw.html?auto=1&return=' + encodeURIComponent(returnTo));
-          }
-        } catch {
-          // no-op
-        }
-      })();
-    </script>
+           // If a SW is currently controlling this page, fix it deterministically (with anti-loop).
+           if (navigator.serviceWorker.controller && !location.pathname.startsWith('/clear-sw.html')) {
+             var returnTo = location.pathname + (location.search || '') + (location.hash || '');
+             var MAX_REDIRECT_ATTEMPTS = 3;
+             var attemptKey = 'khuyoot:sw-redirect-attempts';
+             var attemptStr = localStorage.getItem(attemptKey) || '0';
+             var attempts = parseInt(attemptStr, 10);
+             if (attempts < MAX_REDIRECT_ATTEMPTS) {
+               localStorage.setItem(attemptKey, String(attempts + 1));
+               location.replace('/clear-sw.html?auto=1&return=' + encodeURIComponent(returnTo));
+             } else {
+               localStorage.removeItem(attemptKey);
+               console.warn('[boot] Max SW cleanup redirects reached, continuing');
+             }
 
     <!-- CRITICAL: Apply language before React loads to prevent flash -->
     <script>
@@ -232,10 +233,7 @@
           var host = (location.hostname || '').toLowerCase();
           var isDevLike =
             host === 'localhost' ||
-            host === '127.0.0.1' ||
-            host === 'dev.khuyoot.app' ||
-            host.indexOf('dev.') === 0 ||
-            host.indexOf('staging.') === 0;
+            host === '127.0.0.1';
           if (!isDevLike) return;
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
@@ -243,9 +241,6 @@
           if ('caches' in window) {
             caches.keys().then((names) => names.forEach((n) => caches.delete(n)));
           }
-          // Remove manifest link in development to avoid unnecessary requests
-          const manifestLink = document.querySelector('link[rel="manifest"]');
-          if (manifestLink) manifestLink.remove();
         } catch {
           // no-op
         }

@@ -18,7 +18,7 @@ export async function fetchAdminConfig(): Promise<AppSettings> {
     let result: AppSettings;
 
     if (typeof anyService.getGlobalSettingsStrict === 'function') {
-      result = (await anyService.getGlobalSettingsStrict({ timeoutMs: 15000 })) as AppSettings;
+      result = (await anyService.getGlobalSettingsStrict({ timeoutMs: 7000 })) as AppSettings;
     } else {
       // Fallback if strict API isn't available yet
       console.log('[fetchAdminConfig] Using standard fetch...');

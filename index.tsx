@@ -23,10 +23,7 @@ function isDevLikeRuntimeHost(): boolean {
     const host = (window.location.hostname || '').toLowerCase();
     return (
       host === 'localhost' ||
-      host === '127.0.0.1' ||
-      host === 'dev.khuyoot.app' ||
-      host.startsWith('dev.') ||
-      host.startsWith('staging.')
+      host === '127.0.0.1'
     );
   } catch {
     return false;

@@ -47,13 +47,14 @@ export function AppInitializer({ children }: AppInitializerProps) {
     }
 
     // If config doesn't load in time, fall back to defaults (avoid blank screens).
-    // Keep this less aggressive to reduce noisy warnings on slower connections.
+    // Aggressive timeout: if config doesn't come in 4s, bail immediately.
+    // This prevents devkhuyoot.app from hanging if a stale SW is intercepting Firestore calls.
     if (data || useFallback) return;
-    const timeoutMs = 6000;
+    const timeoutMs = 4000; // Reduced from 6000 to catch hangs faster
     const timer = window.setTimeout(() => {
       if (warnedRef.current) return;
       warnedRef.current = true;
-      console.warn(`[AppInitializer] Config load timeout after ${timeoutMs}ms - using defaults`);
+      console.warn(`[AppInitializer] Config load timeout after ${timeoutMs}ms - using fallback`);
       setUseFallback(true);
     }, timeoutMs);
     return () => window.clearTimeout(timer);

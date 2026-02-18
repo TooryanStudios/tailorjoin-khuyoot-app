@@ -2209,7 +2209,7 @@ export const firebaseService = {
 
     if (!isFirebaseInitialized) return defaultSettings;
 
-    const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 15000;
+    const timeoutMs = typeof options?.timeoutMs === 'number' ? options.timeoutMs : 7000;
 
     const settingsRef = doc(db, 'system', 'settings');
     const fetchSettings = (async () => {
