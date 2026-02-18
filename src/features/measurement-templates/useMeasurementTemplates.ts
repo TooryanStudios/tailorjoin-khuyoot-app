@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { MeasurementPoint, MeasurementTemplate, GarmentType } from '../../../types';
+import { MeasurementPoint, MeasurementTemplate, MeasurementTemplateVariation, GarmentType } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
 import { useApp } from '../../../context/AppContext';
 import { Arrow, ToolMode } from './types';
 import { getAllCategories } from '../../admin/products/services';
+import { showToast } from '../../../utils/notifications';
 
 type MeasurementTemplateWithMeta = MeasurementTemplate & {
   parentId?: string | null;
@@ -22,6 +23,7 @@ const createEmptyTemplate = (): MeasurementTemplateWithMeta => {
     name: 'قالب جديد',
     productType: 'dishdasha',
     baseImageUrl: '',
+    baseImageName: 'الصورة الأساسية',
     categoryImageUrl: '',
     vectorUrl: '',
     points: [],
@@ -32,6 +34,13 @@ const createEmptyTemplate = (): MeasurementTemplateWithMeta => {
     createdAt: now,
     updatedAt: now,
   };
+};
+
+const createVariationId = () => {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return `variation-${crypto.randomUUID()}`;
+  }
+  return `variation-${Date.now()}`;
 };
 
 export const useMeasurementTemplates = () => {
@@ -54,6 +63,8 @@ export const useMeasurementTemplates = () => {
   const [history, setHistory] = useState<Array<{ draft: MeasurementTemplateWithMeta; arrows: Arrow[] }>>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const [pointColor, setPointColor] = useState<string>('#10b981');
+  const [deprecatedFieldsCleanupDone, setDeprecatedFieldsCleanupDone] = useState(false);
+  const [activeVariationId, setActiveVariationId] = useState<string | null>(null);
 
   const activeIdRef = useRef<string | null>(null);
   useEffect(() => {
@@ -171,6 +182,7 @@ export const useMeasurementTemplates = () => {
             ? {
                 ...savedTemplate,
                 baseImageUrl: normalizedBaseImageUrl,
+                baseImageName: savedTemplate.baseImageName || 'الصورة الأساسية',
                 categoryImageUrl,
               }
             : {
@@ -178,6 +190,7 @@ export const useMeasurementTemplates = () => {
                 name: cat.nameAr,
                 productType: 'dishdasha' as GarmentType,
                 baseImageUrl: '',
+                baseImageName: 'الصورة الأساسية',
                 categoryImageUrl,
                 vectorUrl: '',
                 points: [],
@@ -265,6 +278,20 @@ export const useMeasurementTemplates = () => {
     loadTemplates();
   }, [loadTemplates]);
 
+  useEffect(() => {
+    if (deprecatedFieldsCleanupDone) return;
+
+    const runCleanup = async () => {
+      const cleanedCount = await firebaseService.cleanupMeasurementTemplateDeprecatedFields();
+      if (cleanedCount > 0) {
+        showToast('✅ تم تنظيف البيانات القديمة', `تمت إزالة حقل النوع من ${cleanedCount} قالب`, 'success');
+      }
+      setDeprecatedFieldsCleanupDone(true);
+    };
+
+    runCleanup();
+  }, [deprecatedFieldsCleanupDone]);
+
   // Cancel arrow draft if we leave arrow tool
   useEffect(() => {
     if (toolMode !== 'arrow' && arrowDraft) {
@@ -301,8 +328,12 @@ export const useMeasurementTemplates = () => {
 
   const orderedPoints = useMemo(() => {
     if (!draft) return [] as MeasurementPoint[];
-    return [...draft.points].sort((a, b) => (a.order || 0) - (b.order || 0));
-  }, [draft]);
+    const activeVariation = activeVariationId
+      ? (draft.variations || []).find((variation) => variation.id === activeVariationId)
+      : null;
+    const pointsSource = activeVariation ? activeVariation.points || [] : draft.points;
+    return [...pointsSource].sort((a, b) => (a.order || 0) - (b.order || 0));
+  }, [draft, activeVariationId]);
 
   const handleSelectTemplate = (templateId: string) => {
     console.log('[handleSelectTemplate] Called with templateId:', templateId);
@@ -310,6 +341,7 @@ export const useMeasurementTemplates = () => {
     console.log('[handleSelectTemplate] Found template:', selected?.name, 'Level:', selected?.level, 'ParentId:', selected?.parentId);
     
     setActiveId(selected ? selected.id : templateId);
+    setActiveVariationId(null);
     setDraft(selected ? { ...selected } : null);
 
     if (selected) {
@@ -375,11 +407,45 @@ export const useMeasurementTemplates = () => {
   };
 
   const handleUpdatePoint = (pointId: string, updates: Partial<MeasurementPoint>) => {
+    const updateKeys = Object.keys(updates);
+    const isLocationOnlyUpdate =
+      updateKeys.length > 0 && updateKeys.every((key) => key === 'x' || key === 'y' || key === 'direction');
+
     setDraft((prev) => {
       if (!prev) return prev;
+
+      if (activeVariationId) {
+        if (isLocationOnlyUpdate) {
+          return {
+            ...prev,
+            variations: (prev.variations || []).map((variation) =>
+              variation.id === activeVariationId
+                ? {
+                    ...variation,
+                    points: (variation.points || []).map((p) => (p.id === pointId ? { ...p, ...updates } : p)),
+                  }
+                : variation,
+            ),
+          };
+        }
+
+        return {
+          ...prev,
+          points: prev.points.map((p) => (p.id === pointId ? { ...p, ...updates } : p)),
+          variations: (prev.variations || []).map((variation) => ({
+              ...variation,
+              points: (variation.points || []).map((p) => (p.id === pointId ? { ...p, ...updates } : p)),
+            })),
+        };
+      }
+
       return {
         ...prev,
         points: prev.points.map((p) => (p.id === pointId ? { ...p, ...updates } : p)),
+        variations: (prev.variations || []).map((variation) => ({
+          ...variation,
+          points: (variation.points || []).map((p) => (p.id === pointId ? { ...p, ...updates } : p)),
+        })),
       };
     });
   };
@@ -387,17 +453,38 @@ export const useMeasurementTemplates = () => {
   const handleDeletePoint = (pointId: string) => {
     setDraft((prev) => {
       if (!prev) return prev;
-      return { ...prev, points: prev.points.filter((p) => p.id !== pointId) };
+
+      return {
+        ...prev,
+        points: prev.points.filter((p) => p.id !== pointId),
+        variations: (prev.variations || []).map((variation) => ({
+          ...variation,
+          points: (variation.points || []).filter((p) => p.id !== pointId),
+        })),
+      };
     });
   };
 
   const handleDeleteArrow = (arrowId: string) => {
-    setArrows(arrows.filter((a) => a.id !== arrowId));
+    const nextArrows = arrows.filter((a) => a.id !== arrowId);
+    setArrows(nextArrows);
+
+    if (activeVariationId) {
+      setDraft((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          variations: (prev.variations || []).map((variation) =>
+            variation.id === activeVariationId ? { ...variation, arrows: nextArrows } : variation,
+          ),
+        };
+      });
+    }
   };
 
   const handleImageUpload = (
     file: File,
-    key: 'baseImageUrl' | 'vectorUrl',
+    key: 'baseImageUrl' | 'vectorUrl' | 'variationImageUrl',
     callback?: (success: boolean) => void,
   ) => {
     if (!draft) {
@@ -443,6 +530,32 @@ export const useMeasurementTemplates = () => {
 
         setDraft((prev) => {
           if (!prev) return prev;
+          if (key === 'variationImageUrl') {
+            const existingVariations = Array.isArray(prev.variations) ? prev.variations : [];
+            const nextNumber = existingVariations.length + 1;
+            const newVariation: MeasurementTemplateVariation = {
+              id: createVariationId(),
+              name: `متغيّر ${nextNumber}`,
+              imageUrl: dataUrl,
+              enabled: true,
+              points: (prev.points || []).map((point) => ({ ...point })),
+              arrows: (arrows || []).map((arrow) => ({ ...arrow })),
+            };
+            return {
+              ...prev,
+              variations: [...existingVariations, newVariation],
+            };
+          }
+
+          if (key === 'baseImageUrl') {
+            const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '').trim();
+            return {
+              ...prev,
+              baseImageUrl: dataUrl,
+              baseImageName: fileNameWithoutExt || prev.baseImageName || 'الصورة الأساسية',
+            };
+          }
+
           return { ...prev, [key]: dataUrl };
         });
         callback?.(true);
@@ -477,28 +590,46 @@ export const useMeasurementTemplates = () => {
     if (!draft) return;
     setIsSaving(true);
 
-    const updatedDraft = {
+    const updatedDraftBase = {
       ...draft,
       pointSize,
       pointOpacity,
-      arrows,
     };
 
-    const saved = await firebaseService.saveMeasurementTemplate(updatedDraft);
-    const existingTemplate = templates.find((t) => t.id === saved.id);
-    const enrichedTemplate: MeasurementTemplateWithMeta = existingTemplate
-      ? { ...existingTemplate, ...saved }
-      : { ...saved };
+    const updatedDraft = activeVariationId
+      ? {
+          ...updatedDraftBase,
+          variations: (updatedDraftBase.variations || []).map((variation) =>
+            variation.id === activeVariationId ? { ...variation, arrows: [...arrows] } : variation,
+          ),
+        }
+      : {
+          ...updatedDraftBase,
+          arrows,
+        };
 
-    setTemplates((prev) => {
-      if (existingTemplate) {
-        return prev.map((t) => (t.id === saved.id ? enrichedTemplate : t));
-      }
-      return [...prev, enrichedTemplate];
-    });
-    setDraft(enrichedTemplate);
-    setActiveId(enrichedTemplate.id);
-    setIsSaving(false);
+    try {
+      const saved = await firebaseService.saveMeasurementTemplate(updatedDraft);
+      const existingTemplate = templates.find((t) => t.id === saved.id);
+      const enrichedTemplate: MeasurementTemplateWithMeta = existingTemplate
+        ? { ...existingTemplate, ...saved }
+        : { ...saved };
+
+      setTemplates((prev) => {
+        if (existingTemplate) {
+          return prev.map((t) => (t.id === saved.id ? enrichedTemplate : t));
+        }
+        return [...prev, enrichedTemplate];
+      });
+      setDraft(enrichedTemplate);
+      setActiveId(enrichedTemplate.id);
+      showToast('✅ تم الحفظ بنجاح', `تم حفظ قالب القياسات: ${enrichedTemplate.name || 'قالب'}`, 'success');
+    } catch (error) {
+      console.error('Failed to save measurement template:', error);
+      showToast('❌ فشل الحفظ', 'تعذر حفظ قالب القياسات. تحقق من الصلاحيات أو الاتصال.', 'error');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
@@ -548,7 +679,8 @@ export const useMeasurementTemplates = () => {
 
   const handleDuplicatePoint = (pointId: string) => {
     if (!draft) return;
-    const point = draft.points.find((p) => p.id === pointId);
+    const basePoint = draft.points.find((p) => p.id === pointId);
+    const point = basePoint || draft.points[0];
     if (!point) return;
 
     const newPoint = {
@@ -559,8 +691,140 @@ export const useMeasurementTemplates = () => {
       order: (draft.points.length ? Math.max(...draft.points.map((p) => p.order || 0)) : 0) + 1,
     };
 
-    setDraft({ ...draft, points: [...draft.points, newPoint] });
+    setDraft({
+      ...draft,
+      points: [...draft.points, newPoint],
+      variations: (draft.variations || []).map((variation) => {
+        const sourceVariationPoint = (variation.points || []).find((p) => p.id === pointId);
+        const variationNewPoint = sourceVariationPoint
+          ? {
+              ...sourceVariationPoint,
+              id: newPoint.id,
+              label: newPoint.label,
+              note: newPoint.note,
+              order: newPoint.order,
+              x: Math.min((sourceVariationPoint.x || 0) + 0.05, 1),
+              y: Math.min((sourceVariationPoint.y || 0) + 0.05, 1),
+            }
+          : { ...newPoint };
+
+        return {
+          ...variation,
+          points: [...(variation.points || []), variationNewPoint],
+        };
+      }),
+    });
     saveToHistory();
+  };
+
+  const handleRemoveVariationImage = (variationIndex: number) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const existingVariations = Array.isArray(prev.variations) ? prev.variations : [];
+      return {
+        ...prev,
+        variations: existingVariations.filter((_, idx) => idx !== variationIndex),
+      };
+    });
+  };
+
+  const handleRemoveVariation = (variationId: string) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const existingVariations = Array.isArray(prev.variations) ? prev.variations : [];
+      return {
+        ...prev,
+        variations: existingVariations.filter((variation) => variation.id !== variationId),
+      };
+    });
+
+    if (activeVariationId === variationId) {
+      setActiveVariationId(null);
+      setArrows((draft?.arrows || []).map((arrow) => ({ ...arrow })));
+    }
+  };
+
+  const handleRenameVariation = (variationId: string, name: string) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const existingVariations = Array.isArray(prev.variations) ? prev.variations : [];
+      return {
+        ...prev,
+        variations: existingVariations.map((variation) =>
+          variation.id === variationId ? { ...variation, name: name.trim() || variation.name } : variation,
+        ),
+      };
+    });
+  };
+
+  const handleToggleVariationEnabled = (variationId: string, enabled: boolean) => {
+    setDraft((prev) => {
+      if (!prev) return prev;
+      const existingVariations = Array.isArray(prev.variations) ? prev.variations : [];
+      return {
+        ...prev,
+        variations: existingVariations.map((variation) =>
+          variation.id === variationId ? { ...variation, enabled } : variation,
+        ),
+      };
+    });
+  };
+
+  const handleSetActiveVariation = (variationId: string | null) => {
+    setActiveVariationId(variationId);
+    if (!variationId) {
+      setArrows((draft?.arrows || []).map((arrow) => ({ ...arrow })));
+      return;
+    }
+    const selectedVariation = (draft?.variations || []).find((variation) => variation.id === variationId);
+    setArrows((selectedVariation?.arrows || []).map((arrow) => ({ ...arrow })));
+  };
+
+  const handleAddPointAt = (x: number, y: number) => {
+    if (!draft) return;
+
+    const nextOrder = (draft.points.length ? Math.max(...draft.points.map((p) => p.order || 0)) : 0) + 1;
+    const newPoint = {
+      id: `point-${Date.now()}`,
+      label: `نقطة ${nextOrder}`,
+      x,
+      y,
+      direction: 0,
+      order: nextOrder,
+    };
+
+    setDraft({
+      ...draft,
+      points: [...draft.points, newPoint],
+      variations: (draft.variations || []).map((variation) => ({
+        ...variation,
+        points: [...(variation.points || []), { ...newPoint }],
+      })),
+    });
+  };
+
+  const handleAddArrow = (startX: number, startY: number, endX: number, endY: number) => {
+    const newArrow = {
+      id: `arrow-${Date.now()}`,
+      startX,
+      startY,
+      endX,
+      endY,
+    };
+    const nextArrows = [...arrows, newArrow];
+    setArrows(nextArrows);
+
+    if (activeVariationId) {
+      setDraft((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          variations: (prev.variations || []).map((variation) =>
+            variation.id === activeVariationId ? { ...variation, arrows: nextArrows } : variation,
+          ),
+        };
+      });
+    }
   };
 
   return {
@@ -585,6 +849,7 @@ export const useMeasurementTemplates = () => {
     history,
     historyIndex,
     pointColor,
+    activeVariationId,
     reloadTemplates: loadTemplates,
     handleSelectRoot,
     // Setters
@@ -611,6 +876,13 @@ export const useMeasurementTemplates = () => {
     handleUndo,
     handleRedo,
     handleDuplicatePoint,
+    handleRemoveVariationImage,
+    handleRemoveVariation,
+    handleRenameVariation,
+    handleToggleVariationEnabled,
+    handleSetActiveVariation,
+    handleAddPointAt,
+    handleAddArrow,
     saveToHistory,
   };
 };

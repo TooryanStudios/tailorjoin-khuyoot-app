@@ -839,8 +839,8 @@ export const firebaseService = {
     const snap = await getDoc(refDoc);
     if (snap.exists()) return;
     
-    // Grant initial credits to new users (100 credits = ~3 generations or 10 upscales)
-    const INITIAL_CREDITS = 100;
+    // Starter balance for new users.
+    const INITIAL_CREDITS = 90;
     
     await setDoc(
       refDoc,
@@ -1081,6 +1081,7 @@ export const firebaseService = {
     if (!auth.currentUser || auth.currentUser.uid !== uid) {
       throw new Error('AUTH_REQUIRED');
     }
+    await this.ensureUserCreditProfile(uid);
     const amount = Math.floor(Number(params.amount || 0));
     if (!Number.isFinite(amount) || amount <= 0) throw new Error('amount must be a positive integer');
 
@@ -1470,6 +1471,7 @@ export const firebaseService = {
       }
 
       await setDoc(doc(db, 'users', credential.user.uid), userData);
+      await this.ensureUserCreditProfile(credential.user.uid);
     } catch (e) {
       console.error("Error saving user data", e);
     }
@@ -2592,25 +2594,93 @@ export const firebaseService = {
   },
 
   async getMeasurementTemplates(productType?: string): Promise<MeasurementTemplate[]> {
+    const normalizeTemplate = (template: any, fallbackId?: string): MeasurementTemplate => {
+      const basePoints = Array.isArray(template?.points) ? template.points : [];
+      const baseArrows = Array.isArray(template?.arrows) ? template.arrows : [];
+
+      const rawVariations = Array.isArray(template?.variations)
+        ? template.variations
+        : Array.isArray(template?.variationImageUrls)
+          ? template.variationImageUrls.map((imageUrl: string, index: number) => ({
+              id: `legacy-${index}`,
+              name: `متغيّر ${index + 1}`,
+              imageUrl,
+              enabled: true,
+              points: basePoints,
+              arrows: baseArrows,
+            }))
+          : [];
+
+      const normalizedVariations = rawVariations
+        .filter((variation: any) => variation && typeof variation.imageUrl === 'string' && variation.imageUrl.length > 0)
+        .map((variation: any, index: number) => {
+          const hasAbsolutePoints = Array.isArray(variation.points);
+          const hasAbsoluteArrows = Array.isArray(variation.arrows);
+
+          const offsetPointsX = Number(variation.pointsOffset?.x || 0);
+          const offsetPointsY = Number(variation.pointsOffset?.y || 0);
+          const offsetArrowsX = Number(variation.arrowsOffset?.x || 0);
+          const offsetArrowsY = Number(variation.arrowsOffset?.y || 0);
+
+          const variationPoints = hasAbsolutePoints
+            ? variation.points
+            : basePoints.map((point: any) => ({
+                ...point,
+                x: Math.min(1, Math.max(0, Number(point.x || 0) + offsetPointsX)),
+                y: Math.min(1, Math.max(0, Number(point.y || 0) + offsetPointsY)),
+              }));
+
+          const variationArrows = hasAbsoluteArrows
+            ? variation.arrows
+            : baseArrows.map((arrow: any) => ({
+                ...arrow,
+                startX: Math.min(1, Math.max(0, Number(arrow.startX || 0) + offsetArrowsX)),
+                startY: Math.min(1, Math.max(0, Number(arrow.startY || 0) + offsetArrowsY)),
+                endX: Math.min(1, Math.max(0, Number(arrow.endX || 0) + offsetArrowsX)),
+                endY: Math.min(1, Math.max(0, Number(arrow.endY || 0) + offsetArrowsY)),
+              }));
+
+          return {
+            id: String(variation.id || `variation-${index}`),
+            name: String(variation.name || `متغيّر ${index + 1}`),
+            imageUrl: String(variation.imageUrl),
+            enabled: variation.enabled !== false,
+            points: variationPoints,
+            arrows: variationArrows,
+          };
+        });
+
+      return {
+        ...(template || {}),
+        id: template?.id || fallbackId,
+        productType: (template?.productType as any) || 'dishdasha',
+        variations: normalizedVariations,
+      } as MeasurementTemplate;
+    };
+
     if (!isFirebaseInitialized) {
-      const templates = loadLocalMeasurementTemplates();
+      const templates = loadLocalMeasurementTemplates().map((t) => normalizeTemplate(t, t.id));
       return productType ? templates.filter(t => t.productType === productType) : templates;
     }
 
     try {
       const templatesRef = collection(db, 'measurementTemplates');
       const snapshot = await getDocs(templatesRef);
-      if (snapshot.empty) return loadLocalMeasurementTemplates();
+      if (snapshot.empty) {
+        const localTemplates = loadLocalMeasurementTemplates().map((t) => normalizeTemplate(t, t.id));
+        return productType ? localTemplates.filter(t => t.productType === productType) : localTemplates;
+      }
 
       const templates: MeasurementTemplate[] = [];
       snapshot.forEach((docSnap) => {
         const data = docSnap.data();
-        templates.push({ id: docSnap.id, ...data } as MeasurementTemplate);
+        templates.push(normalizeTemplate(data, docSnap.id));
       });
       return productType ? templates.filter(t => t.productType === productType) : templates;
     } catch (error) {
       console.warn('Error fetching measurement templates, using local fallback:', error);
-      return loadLocalMeasurementTemplates();
+      const localTemplates = loadLocalMeasurementTemplates().map((t) => normalizeTemplate(t, t.id));
+      return productType ? localTemplates.filter(t => t.productType === productType) : localTemplates;
     }
   },
 
@@ -2622,29 +2692,91 @@ export const firebaseService = {
       updatedAt: now
     };
 
+    const removeUndefinedDeep = (value: any): any => {
+      if (Array.isArray(value)) {
+        return value
+          .map((item) => removeUndefinedDeep(item))
+          .filter((item) => item !== undefined);
+      }
+
+      if (value && typeof value === 'object') {
+        const cleaned = Object.entries(value).reduce((acc, [key, nestedValue]) => {
+          if (nestedValue === undefined) return acc;
+          acc[key] = removeUndefinedDeep(nestedValue);
+          return acc;
+        }, {} as Record<string, any>);
+        return cleaned;
+      }
+
+      return value;
+    };
+
+    const firestorePayload = removeUndefinedDeep(payload) as MeasurementTemplate;
+    const persistedPayload = (({ productType, variationImageUrls, ...rest }) => rest)(firestorePayload as any) as Record<string, any>;
+
     if (!isFirebaseInitialized) {
       const existing = loadLocalMeasurementTemplates();
-      const idx = existing.findIndex(t => t.id === payload.id);
+      const idx = existing.findIndex(t => t.id === firestorePayload.id);
       if (idx >= 0) {
-        existing[idx] = payload;
+        existing[idx] = persistedPayload as any;
       } else {
-        existing.push(payload);
+        existing.push(persistedPayload as any);
       }
       persistLocalMeasurementTemplates(existing);
-      return payload;
+      return firestorePayload;
     }
 
     try {
-      if (payload.id) {
-        await setDoc(doc(db, 'measurementTemplates', payload.id), payload, { merge: true });
-        return payload;
+      if (firestorePayload.id) {
+        await setDoc(
+          doc(db, 'measurementTemplates', firestorePayload.id),
+          {
+            ...persistedPayload,
+            productType: deleteField(),
+            variationImageUrls: deleteField(),
+          },
+          { merge: true }
+        );
+        return firestorePayload;
       }
 
-      const docRef = await addDoc(collection(db, 'measurementTemplates'), payload);
-      return { ...payload, id: docRef.id };
+      const docRef = await addDoc(collection(db, 'measurementTemplates'), persistedPayload);
+      return { ...firestorePayload, id: docRef.id };
     } catch (error) {
       console.error('Error saving measurement template:', error);
-      return payload;
+      throw error;
+    }
+  },
+
+  async cleanupMeasurementTemplateDeprecatedFields(): Promise<number> {
+    if (!isFirebaseInitialized) return 0;
+
+    try {
+      const templatesRef = collection(db, 'measurementTemplates');
+      const snapshot = await getDocs(templatesRef);
+      if (snapshot.empty) return 0;
+
+      const templatesWithDeprecatedField = snapshot.docs.filter((docSnap) => {
+        const data = docSnap.data() as any;
+        return Object.prototype.hasOwnProperty.call(data, 'productType');
+      });
+
+      if (templatesWithDeprecatedField.length === 0) return 0;
+
+      const batch = writeBatch(db);
+      templatesWithDeprecatedField.forEach((docSnap) => {
+        batch.set(
+          doc(db, 'measurementTemplates', docSnap.id),
+          { productType: deleteField() },
+          { merge: true }
+        );
+      });
+
+      await batch.commit();
+      return templatesWithDeprecatedField.length;
+    } catch (error) {
+      console.error('Error cleaning deprecated measurement template fields:', error);
+      return 0;
     }
   },
 

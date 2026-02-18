@@ -594,12 +594,23 @@ export interface MeasurementPoint {
   order?: number; // sequencing for arrows
 }
 
+export interface MeasurementTemplateVariation {
+  id: string;
+  name: string;
+  imageUrl: string;
+  enabled: boolean;
+  points?: MeasurementPoint[];
+  arrows?: { id: string; startX: number; startY: number; endX: number; endY: number }[];
+}
+
 export interface MeasurementTemplate {
   id: string;
   name: string;
   productType: GarmentType; // deprecated - استخدم categoryId بدلاً منه
   categoryId?: string; // معرف التصنيف من نظام التصنيفات الجديد
   baseImageUrl?: string; // uploaded image for the template
+  baseImageName?: string; // editable display name for base image
+  variations?: MeasurementTemplateVariation[]; // additional images that share points/arrows with variation-level offsets
   categoryImageUrl?: string; // الصورة المصغرة للتصنيف المرتبط
   vectorUrl?: string; // optional vector (SVG) reference
   points: MeasurementPoint[];

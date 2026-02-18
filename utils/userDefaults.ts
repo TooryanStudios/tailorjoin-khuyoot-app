@@ -12,6 +12,10 @@ import type { UserProfile, UserBase, TailorProfile, CustomerProfile } from '../t
  */
 export function applyUserDefaults(rawUser: any, docId: string): UserProfile {
   const now = new Date().toISOString();
+  const creditBalance = Number(
+    rawUser?.credit_balance ?? rawUser?.credits ?? rawUser?.billing?.credits ?? 0
+  );
+  const normalizedCredits = Number.isFinite(creditBalance) ? Math.max(0, Math.floor(creditBalance)) : 0;
   
   // Determine role from existing data
   const role = determineRole(rawUser);
@@ -81,13 +85,30 @@ export function applyUserDefaults(rawUser: any, docId: string): UserProfile {
   };
   
   // Role-specific defaults
-  if (role === 'tailor') {
-    return applyTailorDefaults(rawUser, base as any);
-  } else if (role === 'admin') {
-    return base as any;
-  } else {
-    return applyCustomerDefaults(rawUser, base as any);
-  }
+  const normalizedCore =
+    role === 'tailor'
+      ? applyTailorDefaults(rawUser, base as any)
+      : role === 'admin'
+        ? (base as any)
+        : applyCustomerDefaults(rawUser, base as any);
+
+  const billingTier =
+    (normalizedCore as any)?.billing?.tier ||
+    rawUser?.billing?.tier ||
+    rawUser?.tier ||
+    (normalizedCore as any)?.subscription?.tier ||
+    'free';
+
+  return {
+    ...(normalizedCore as any),
+    credit_balance: normalizedCredits,
+    credits: normalizedCredits,
+    billing: {
+      ...((normalizedCore as any)?.billing || {}),
+      credits: normalizedCredits,
+      tier: billingTier,
+    },
+  } as any;
 }
 
 /**

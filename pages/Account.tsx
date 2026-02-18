@@ -1072,7 +1072,7 @@ export const Account = () => {
           </div>
         </section>
 
-        <main className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto pb-8">
+        <main className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto pb-[calc(var(--footer-height)+env(safe-area-inset-bottom)+16px)] md:pb-8">
           {/* Tabs Navigation */}
           <div className="mb-4" dir="rtl">
             <div className="bg-white rounded-lg p-1.5 shadow-sm border border-slate-100 flex gap-1">

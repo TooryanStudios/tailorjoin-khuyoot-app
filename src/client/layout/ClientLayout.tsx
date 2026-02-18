@@ -56,7 +56,8 @@ export const ClientLayout: React.FC = () => {
   // UPDATED: Hide header on ALL mobile pages
   // ALSO: Hide header for Tailor Orders and Account as they use MontHeader
   const hideHeader = isMobile || isDesignerRoute || isTailorOrdersRoute || isTailorCollectionsRoute || isTailorDashboardRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute || isRegionsRoute;
-  const hideChrome = pathname.startsWith('/designer-v2-1') || isTailorOrdersRoute || isTailorCollectionsRoute || pathname.startsWith('/account') || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute || isRegionsRoute;
+  const hideAccountChrome = pathname.startsWith('/account') && !isMobile;
+  const hideChrome = pathname.startsWith('/designer-v2-1') || isTailorOrdersRoute || isTailorCollectionsRoute || hideAccountChrome || isTransactionHistoryRoute || isFamilyMeasurementsRoute || isOrdersRoute || isRegionsRoute;
 
   React.useLayoutEffect(() => {
     if (hideHeader) {

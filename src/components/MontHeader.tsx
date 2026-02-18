@@ -130,6 +130,17 @@ export const MontHeader = React.memo(function MontHeader() {
               ))}
 
               <button
+                onClick={() => navigate('/tryon')}
+                className={`transition-colors ${
+                  isLinkActive('/tryon')
+                    ? 'bg-[var(--theme-primary)] text-white rounded-md px-3 py-1.5'
+                    : 'text-black hover:text-black rounded-md px-3 py-1.5'
+                }`}
+              >
+                تجربة القماش
+              </button>
+
+              <button
                 onClick={() => navigate('/tailors')}
                 className={`transition-colors ${
                   isLinkActive('/tailors')
@@ -279,6 +290,15 @@ export const MontHeader = React.memo(function MontHeader() {
                 );
               })}
               
+              <a 
+                href="#" 
+                className={`border-b border-black/5 pb-4 flex items-center gap-2 ${isLinkActive('/tryon') ? 'text-[var(--theme-primary)] font-bold' : ''}`}
+                onClick={(e) => { e.preventDefault(); navigate('/tryon'); setIsMobileMenuOpen(false); }}
+              >
+                <Scissors size={20} />
+                تجربة القماش
+              </a>
+
               <a 
                 href="#" 
                 className={`border-b border-black/5 pb-4 flex items-center gap-2 ${isLinkActive('/tailors') ? 'text-[var(--theme-primary)] font-bold' : ''}`}

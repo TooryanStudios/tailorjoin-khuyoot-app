@@ -25,7 +25,12 @@ export function showToast(
     info: 'bg-blue-600 text-white border-blue-500'
   };
   
-  toast.className = `fixed top-6 left-1/2 -translate-x-1/2 z-[10100] px-6 py-3 rounded-full shadow-2xl border font-bold text-sm flex items-center gap-2 animate-in slide-in-from-top-4 ${typeStyles[type]}`;
+  toast.className = `px-6 py-3 rounded-full shadow-2xl border font-bold text-sm flex items-center gap-2 animate-in slide-in-from-top-4 ${typeStyles[type]}`;
+  toast.style.position = 'fixed';
+  toast.style.top = '12px';
+  toast.style.left = '50%';
+  toast.style.transform = 'translateX(-50%)';
+  toast.style.zIndex = '2147483647';
   toast.style.direction = 'rtl';
   toast.innerHTML = `
     ${type === 'success' ? '<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>' : ''}

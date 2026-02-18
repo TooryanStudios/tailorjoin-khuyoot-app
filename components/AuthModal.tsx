@@ -148,6 +148,43 @@ export const AuthModal = () => {
   const allowRegistrations = appSettings?.allowNewRegistrations !== false;
   const [specializationError, setSpecializationError] = useState('');
 
+  const resetTransientAuthState = React.useCallback(() => {
+    setSubmitting(false);
+    setStatusText('');
+    setSpecializationError('');
+    setFallbackUid('');
+    setFallbackUserData(null);
+    setFallbackEmail('');
+    setShowFallback(false);
+  }, []);
+
+  const resetRegisterFormState = React.useCallback(() => {
+    setEmail('');
+    setPassword('');
+    setConfirmPassword('');
+    setName('');
+    setRole('user');
+    setShopType('tailor');
+    setGender('not_specified');
+    setAgeGroup('not_specified');
+    setRegion('');
+    setPhone('');
+    setLocation('');
+    setExperience('');
+    setTailorGender('');
+    resetTransientAuthState();
+  }, [resetTransientAuthState]);
+
+  const handleCloseAuthModal = React.useCallback(() => {
+    if (!isLogin) {
+      resetRegisterFormState();
+    } else {
+      resetTransientAuthState();
+    }
+    toggleAuthModal(false);
+    setShowForm(false);
+  }, [isLogin, resetRegisterFormState, resetTransientAuthState, toggleAuthModal]);
+
   // Sync local mode with context mode when it changes
   React.useEffect(() => {
     if (authModalMode === 'register' && allowRegistrations) {
@@ -172,10 +209,14 @@ export const AuthModal = () => {
   }, [isAuthModalOpen]);
 
   useEffect(() => {
+    if (!isLogin) {
+      resetRegisterFormState();
+      return;
+    }
     setPassword('');
     setConfirmPassword('');
-    setSpecializationError('');
-  }, [isLogin]);
+    resetTransientAuthState();
+  }, [isLogin, resetRegisterFormState, resetTransientAuthState]);
 
   // Clear tailorGender when role changes to user
   useEffect(() => {
@@ -384,22 +425,22 @@ export const AuthModal = () => {
 
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4" data-overlay="khuyoot-modal">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={() => { toggleAuthModal(false); setShowForm(false); }} />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm transition-opacity" onClick={handleCloseAuthModal} />
 
       <div
-        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border-2 border-dashed border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]"
+        className="relative w-full max-w-md bg-white rounded-2xl shadow-2xl border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-300 flex flex-col max-h-[90vh]"
         onClick={(e) => e.stopPropagation()}
       >
         <button
-          onClick={() => { toggleAuthModal(false); setShowForm(false); }}
-          className="absolute top-4 left-4 z-30 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-dashed border-slate-300 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors shadow-sm"
+          onClick={handleCloseAuthModal}
+          className="absolute top-4 left-4 z-30 w-8 h-8 rounded-full bg-white/80 backdrop-blur-sm border border-slate-300 hover:bg-slate-100 text-slate-500 flex items-center justify-center transition-colors shadow-sm"
           aria-label="إغلاق"
         >
           <X size={14} />
         </button>
 
         {/* Compact Header with Logo */}
-        <div className="relative p-3 bg-slate-50/50 border-b border-dashed border-slate-200 flex-shrink-0 flex items-center gap-4">
+        <div className="relative p-3 bg-slate-50/50 border-b border-slate-200 flex-shrink-0 flex items-center gap-4">
           <img
             src="/logo_big.png"
             alt="Khuyoot"
@@ -523,15 +564,17 @@ export const AuthModal = () => {
                       <button
                         type="button"
                         onClick={() => setGender('male')}
-                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border border-dashed transition-all ${gender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                        className={`relative flex-1 py-2 rounded-lg text-[11px] font-black border-2 transition-all ${gender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-md shadow-[var(--theme-primary)]/25 scale-[1.02]' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}
                       >
+                        {gender === 'male' && <BadgeCheck size={12} className="absolute top-1.5 left-1.5 text-white" />}
                         ذكر
                       </button>
                       <button
                         type="button"
                         onClick={() => setGender('female')}
-                        className={`flex-1 py-1.5 rounded-lg text-[10px] font-bold border border-dashed transition-all ${gender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'}`}
+                        className={`relative flex-1 py-2 rounded-lg text-[11px] font-black border-2 transition-all ${gender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-md shadow-[var(--theme-primary)]/25 scale-[1.02]' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'}`}
                       >
+                        {gender === 'female' && <BadgeCheck size={12} className="absolute top-1.5 left-1.5 text-white" />}
                         أنثى
                       </button>
                     </div>
@@ -561,10 +604,11 @@ export const AuthModal = () => {
                           key={item.key}
                           type="button"
                           onClick={() => setRole(item.key)}
-                          className={`p-2 rounded-lg border border-dashed transition-all ${active ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-slate-800 border-solid' : 'border-slate-300 hover:border-slate-400 text-slate-500'}`}
+                          className={`relative p-2.5 rounded-lg border-2 transition-all ${active ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-slate-900 shadow-sm shadow-[var(--theme-primary)]/20 ring-1 ring-[var(--theme-primary)]/30' : 'border-slate-300 bg-white hover:border-slate-400 text-slate-600'}`}
                         >
-                          <ActiveIcon className={`mx-auto mb-1 ${active ? 'text-[var(--theme-primary)]' : 'text-slate-400'}`} size={16} />
-                          <div className="text-[10px] font-bold uppercase tracking-tight">{item.label}</div>
+                          {active && <BadgeCheck size={13} className="absolute top-1.5 left-1.5 text-[var(--theme-primary)]" />}
+                          <ActiveIcon className={`mx-auto mb-1 ${active ? 'text-[var(--theme-primary)]' : 'text-slate-400'}`} size={17} />
+                          <div className={`text-[11px] font-black uppercase tracking-tight ${active ? 'text-[var(--theme-primary)]' : ''}`}>{item.label}</div>
                         </button>
                       );
                     })}
@@ -580,15 +624,17 @@ export const AuthModal = () => {
                       <button
                         type="button"
                         onClick={() => { setTailorGender('male'); setSpecializationError(''); }}
-                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
+                        className={`relative py-2 rounded-lg text-[11px] font-black border-2 transition-all ${tailorGender === 'male' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-md shadow-[var(--theme-primary)]/25 scale-[1.01]' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
                       >
+                        {tailorGender === 'male' && <BadgeCheck size={12} className="absolute top-1.5 left-1.5 text-white" />}
                         رجالي
                       </button>
                       <button
                         type="button"
                         onClick={() => { setTailorGender('female'); setSpecializationError(''); }}
-                        className={`py-2 rounded-lg text-[11px] font-bold border border-dashed transition-all ${tailorGender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] border-solid' : 'border-slate-300 text-slate-500 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
+                        className={`relative py-2 rounded-lg text-[11px] font-black border-2 transition-all ${tailorGender === 'female' ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)] text-white shadow-md shadow-[var(--theme-primary)]/25 scale-[1.01]' : 'border-slate-300 bg-white text-slate-600 hover:border-slate-400'} ${specializationError ? 'border-red-300' : ''}`}
                       >
+                        {tailorGender === 'female' && <BadgeCheck size={12} className="absolute top-1.5 left-1.5 text-white" />}
                         نسائي
                       </button>
                     </div>
@@ -615,7 +661,7 @@ export const AuthModal = () => {
         </div>
 
         {/* Fixed Footer with Submit Button */}
-        <div className="flex-shrink-0 p-4 bg-slate-50/50 border-t border-dashed border-slate-200">
+        <div className="flex-shrink-0 p-4 bg-slate-50/50 border-t border-slate-200">
           <button
             type="submit"
             form="auth-form"

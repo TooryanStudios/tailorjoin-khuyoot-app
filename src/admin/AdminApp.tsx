@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../../context/AppContext';
-import { firebaseService } from '../services/firebase';
+import { db, firebaseService } from '../services/firebase';
+import { collection, getDocs } from 'firebase/firestore';
 import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Zap, Eye, EyeOff, Settings } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
-import { getUsers, getTailors, getAllShops, MOCK_ORDERS } from '../../services/mockService';
+import { getTailors, getAllShops } from '../../services/mockService';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
 import { DevSectionAnchor } from './components/DevSectionAnchor';
@@ -174,7 +175,7 @@ export const AdminApp = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [tailors, setTailors] = useState<Tailor[]>([]);
   const [allShops, setAllShops] = useState<Shop[]>([]);
-  const [orders, setOrders] = useState<Order[]>(MOCK_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
   
   // Mock Data
   const [logs] = useState<SystemLog[]>([
@@ -216,8 +217,33 @@ export const AdminApp = () => {
 
   useEffect(() => {
     setLocalSettings(appSettings);
-    getUsers().then(setUsers);
+    firebaseService
+      .getAllUsers()
+      .then((allUsers) => setUsers(allUsers as User[]))
+      .catch(() => setUsers([]));
+
     getTailors().then(setTailors);
+
+    getDocs(collection(db, 'orders'))
+      .then((snapshot) => {
+        const realOrders = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data() as any;
+          return {
+            id: docSnap.id,
+            productId: String(data.productId || ''),
+            productName: String(data.productName || data.title || 'طلب'),
+            productImage: String(data.productImage || ''),
+            price: Number(data.price || 0),
+            tailorName: String(data.tailorName || ''),
+            tailorId: String(data.tailorId || ''),
+            userId: String(data.userId || ''),
+            status: (data.status || 'pending') as Order['status'],
+            orderDate: String(data.orderDate || data.createdAt || ''),
+          } as Order;
+        });
+        setOrders(realOrders);
+      })
+      .catch(() => setOrders([]));
     
     // تحميل جميع المحلات (خياطين + بوتيكات + محلات أقمشة + مستلزمات)
     getAllShops().then((shopsData) => {
