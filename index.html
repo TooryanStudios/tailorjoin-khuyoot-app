@@ -153,8 +153,25 @@
           // Apply theme colors early to avoid flash (ENFORCED - Purple theme)
           const primary = '#63498b';  // Royal Purple - ENFORCED
           const secondary = '#b5e58d'; // Lime Green - ENFORCED
-          
-          document.documentElement.style.setProperty('--theme-primary', primary);
+
+          // Always set the full set of CSS variables using the default color first
+          (function(hex) {
+            try {
+              const h = hex.replace('#', '');
+              const num = parseInt(h, 16);
+              if (isNaN(num)) return;
+              const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+              const dr = Math.round(r * 0.78), dg = Math.round(g * 0.78), db = Math.round(b * 0.78);
+              const root = document.documentElement;
+              root.style.setProperty('--theme-primary-rgb', r + ' ' + g + ' ' + b);
+              root.style.setProperty('--theme-primary-dark-rgb', dr + ' ' + dg + ' ' + db);
+              root.style.setProperty('--theme-primary', 'rgb(' + r + ' ' + g + ' ' + b + ')');
+              root.style.setProperty('--theme-primary-dark', 'rgb(' + dr + ' ' + dg + ' ' + db + ')');
+              root.style.setProperty('--theme-primary-glow', 'rgb(' + r + ' ' + g + ' ' + b + ' / 0.15)');
+              root.style.setProperty('--theme-master', 'rgb(' + r + ' ' + g + ' ' + b + ')');
+            } catch(e) {}
+          })(primary);
+
           document.documentElement.style.setProperty('--theme-secondary', secondary);
 
           // Restore admin-selected primary color (AdminColorPicker) — remove this block to disable

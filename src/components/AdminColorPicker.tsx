@@ -74,7 +74,7 @@ export function applyPrimaryColor(hex: string) {
 
 export function restoreAdminPrimaryColor() {
   const saved = localStorage.getItem(STORAGE_KEY);
-  if (saved) applyPrimaryColor(saved);
+  applyPrimaryColor(saved || '#63498B');
 }
 
 export function getCurrentAdminPrimaryColor(): string {
