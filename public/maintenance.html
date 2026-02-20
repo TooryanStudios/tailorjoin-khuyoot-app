@@ -4,6 +4,280 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>خيوط - قيد الصيانة | Khuyoot - Under Maintenance</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        :root {
+            --purple: #63498b;
+            --purple-light: #8a6bbf;
+            --purple-glow: rgba(99, 73, 139, 0.4);
+            --green: #b5e58d;
+            --bg: #07080f;
+            --bg2: #0f1020;
+            --card: rgba(255,255,255,0.04);
+            --border: rgba(255,255,255,0.08);
+            --text: #e2e8f0;
+            --muted: #64748b;
+        }
+
+        body {
+            font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow: hidden;
+        }
+
+        /* Animated background blobs */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(80px);
+            opacity: 0.18;
+            animation: drift 14s ease-in-out infinite alternate;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .blob-1 { width: 500px; height: 500px; background: var(--purple); top: -120px; right: -100px; animation-delay: 0s; }
+        .blob-2 { width: 400px; height: 400px; background: #3b82f6; bottom: -100px; left: -100px; animation-delay: -5s; }
+        .blob-3 { width: 300px; height: 300px; background: var(--green); top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: -10s; opacity: 0.07; }
+        @keyframes drift {
+            from { transform: translate(0, 0) scale(1); }
+            to   { transform: translate(30px, 20px) scale(1.08); }
+        }
+
+        .card {
+            position: relative;
+            z-index: 1;
+            background: var(--card);
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 56px 48px;
+            max-width: 560px;
+            width: 100%;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 32px 80px rgba(0,0,0,0.5), 0 0 60px var(--purple-glow);
+        }
+
+        /* Logo + Icon */
+        .logo-wrap {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 80px; height: 80px;
+            border-radius: 20px;
+            background: linear-gradient(135deg, var(--purple), var(--purple-light));
+            margin-bottom: 28px;
+            box-shadow: 0 8px 32px var(--purple-glow);
+            font-size: 38px;
+            animation: float 4s ease-in-out infinite;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50%       { transform: translateY(-8px); }
+        }
+
+        .logo-name {
+            font-size: 28px;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+            background: linear-gradient(90deg, #fff 30%, var(--purple-light));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 6px;
+        }
+        .logo-sub {
+            font-size: 13px;
+            color: var(--muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            margin-bottom: 36px;
+        }
+
+        /* Status pill */
+        .status-pill {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            background: rgba(99,73,139,0.2);
+            border: 1px solid rgba(99,73,139,0.4);
+            border-radius: 999px;
+            padding: 6px 16px;
+            font-size: 13px;
+            color: var(--purple-light);
+            margin-bottom: 32px;
+        }
+        .dot {
+            width: 8px; height: 8px;
+            border-radius: 50%;
+            background: var(--purple-light);
+            animation: blink 1.5s ease-in-out infinite;
+        }
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.2; }
+        }
+
+        h1 {
+            font-size: 26px;
+            font-weight: 700;
+            color: #fff;
+            margin-bottom: 12px;
+            line-height: 1.3;
+        }
+        .subtitle {
+            font-size: 15px;
+            color: var(--muted);
+            line-height: 1.8;
+            margin-bottom: 36px;
+        }
+
+        /* Feature cards */
+        .features {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 36px;
+        }
+        .feature {
+            background: rgba(255,255,255,0.03);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 16px 10px;
+            font-size: 12px;
+            color: var(--muted);
+        }
+        .feature-icon { font-size: 22px; margin-bottom: 6px; }
+
+        /* Divider */
+        .divider {
+            width: 100%;
+            height: 1px;
+            background: var(--border);
+            margin: 0 0 24px;
+        }
+
+        .en-text {
+            font-size: 14px;
+            color: var(--muted);
+            direction: ltr;
+            margin-bottom: 28px;
+            line-height: 1.7;
+        }
+
+        .footer {
+            font-size: 12px;
+            color: #334155;
+            line-height: 1.8;
+        }
+        .footer span { color: var(--purple-light); }
+
+        /* Build timestamp badge */
+        .build-badge {
+            position: fixed;
+            bottom: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 10;
+            background: rgba(0,0,0,0.6);
+            border: 1px solid rgba(255,255,255,0.07);
+            border-radius: 8px;
+            padding: 4px 12px;
+            font-size: 11px;
+            color: #475569;
+            font-family: monospace;
+            white-space: nowrap;
+            backdrop-filter: blur(8px);
+        }
+
+        @media (max-width: 480px) {
+            .card { padding: 36px 24px; }
+            .features { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+            h1 { font-size: 22px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+
+    <div class="card">
+        <div class="logo-wrap">🧵</div>
+        <div class="logo-name">خيوط | Khuyoot</div>
+        <div class="logo-sub">منصة تفصيل الملابس</div>
+
+        <div class="status-pill">
+            <div class="dot"></div>
+            <span>قيد الصيانة · Under Maintenance</span>
+        </div>
+
+        <h1>نعمل على تحسين تجربتك</h1>
+        <p class="subtitle">
+            نقوم بتحديث المنصة وإضافة مميزات جديدة<br>
+            سنعود خلال وقت قصير
+        </p>
+
+        <div class="features">
+            <div class="feature">
+                <div class="feature-icon">⚡</div>
+                أداء أسرع
+            </div>
+            <div class="feature">
+                <div class="feature-icon">✨</div>
+                مميزات جديدة
+            </div>
+            <div class="feature">
+                <div class="feature-icon">🔒</div>
+                أمان أفضل
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <p class="en-text">
+            We're upgrading the platform with new features and improvements.<br>
+            Expected to be back within a few hours.
+        </p>
+
+        <div class="footer">
+            <span>💜</span> فريق خيوط | Khuyoot Team<br>
+            شكرًا لصبركم · Thank you for your patience
+        </div>
+    </div>
+
+    <div class="build-badge" id="build-badge">
+        Build: <span id="build-time">—</span>
+    </div>
+
+    <script>
+        // Display human-readable timestamp
+        try {
+            var d = new Date();
+            var pad = function(n){ return n < 10 ? '0' + n : n; };
+            var ts = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
+                   + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ' UTC'
+                   .replace('UTC', ('+'+(-(d.getTimezoneOffset()/60))).replace('+-','-'));
+            // Use the page's Last-Modified if available, else current server time
+            var lm = document.lastModified;
+            document.getElementById('build-time').textContent = lm && lm !== '01/01/1970 00:00:00'
+                ? 'page modified ' + lm
+                : 'served ' + d.toISOString().replace('T',' ').slice(0,19) + ' UTC';
+        } catch(e) {}
+    </script>
+</body>
+</html>
     <style>
         * {
             margin: 0;

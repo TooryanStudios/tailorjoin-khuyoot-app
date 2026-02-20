@@ -26,6 +26,8 @@ export default defineConfig(({ mode }) => {
   const devPort = Number(env.VITE_DEV_PORT || env.PORT || 3000);
   const hmrHost = env.VITE_HMR_HOST?.trim();
 
+  const buildTimestamp = new Date().toISOString();
+
   return {
     server: {
       port: devPort,
@@ -51,6 +53,16 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [
       react(),
+      // Inject build timestamp into HTML as a comment and a hidden element
+      {
+        name: 'inject-build-timestamp',
+        transformIndexHtml(html: string) {
+          return html.replace(
+            '</body>',
+            `<script>window.__BUILD_TIMESTAMP__="${buildTimestamp}";<\/script>\n<!-- BUILD:${buildTimestamp} -->\n</body>`
+          );
+        },
+      },
       // Keep the plugin present in dev so `virtual:pwa-register` is resolvable,
       // but keep SW behavior disabled in dev.
       VitePWA({
@@ -180,6 +192,7 @@ export default defineConfig(({ mode }) => {
     define: {
       // Never inject any AI keys into the client bundle.
       __APP_BUILD_ID__: JSON.stringify(buildStamp),
+      __BUILD_TIMESTAMP__: JSON.stringify(new Date().toISOString()),
     },
     resolve: {
       alias: {
