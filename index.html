@@ -70,15 +70,18 @@
       }, true);
     </script>
 
-    <!-- DEV/STAGING: If a stale PWA Service Worker is controlling the page, it can serve old cached JS.
-         Redirect to SW cleanup page on development-like hosts (including dev.khuyoot.app). -->
+        <!-- If a stale PWA Service Worker is controlling the page, it can serve old cached JS.
+          Redirect to SW cleanup page on khuyoot hosts to recover from stale deployments. -->
     <script>
       (function () {
         try {
           var host = (location.hostname || '').toLowerCase();
-          var isDevLike =
+           var isDevLike =
             host === 'localhost' ||
-             host === '127.0.0.1';
+             host === '127.0.0.1' ||
+             host === 'dev.khuyoot.app' ||
+             host === 'www.khuyoot.app' ||
+             host === 'khuyoot.app';
            if (!isDevLike) return;
            if (!('serviceWorker' in navigator)) return;
 
@@ -241,14 +244,17 @@
           })();
         </script>
 
-    <!-- DEV/STAGING: Remove any active Service Workers + caches on development-like hosts -->
+    <!-- Remove active Service Workers + caches on khuyoot hosts to prevent stale shell/assets -->
     <script>
       (function() {
         try {
           var host = (location.hostname || '').toLowerCase();
           var isDevLike =
             host === 'localhost' ||
-            host === '127.0.0.1';
+            host === '127.0.0.1' ||
+            host === 'dev.khuyoot.app' ||
+            host === 'www.khuyoot.app' ||
+            host === 'khuyoot.app';
           if (!isDevLike) return;
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
