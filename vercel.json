@@ -11,36 +11,6 @@
     },
     {
       "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "tailorjoin.khuyoot.app"
-        }
-      ],
-      "destination": "/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "dev.khuyoot.app"
-        }
-      ],
-      "destination": "/index.html"
-    },
-    {
-      "source": "/(.*)",
-      "has": [
-        {
-          "type": "host",
-          "value": "www.khuyoot.app"
-        }
-      ],
-      "destination": "/index.html"
-    },
-    {
-      "source": "/(.*)",
       "destination": "/index.html"
     }
   ],
