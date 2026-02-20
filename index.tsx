@@ -30,6 +30,22 @@ function isDevLikeRuntimeHost(): boolean {
   }
 }
 
+function shouldForceSwCleanupHost(): boolean {
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = (window.location.hostname || '').toLowerCase();
+    return (
+      host === 'localhost' ||
+      host === '127.0.0.1' ||
+      host === 'dev.khuyoot.app' ||
+      host === 'www.khuyoot.app' ||
+      host === 'khuyoot.app'
+    );
+  } catch {
+    return false;
+  }
+}
+
 async function clearServiceWorkersAndCachesSafely(): Promise<void> {
   try {
     if ('serviceWorker' in navigator) {
@@ -56,7 +72,7 @@ async function clearServiceWorkersAndCachesSafely(): Promise<void> {
 // CRITICAL: Skip in private browsing mode where service workers are blocked
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   try {
-    if (isDevLikeRuntimeHost()) {
+    if (shouldForceSwCleanupHost()) {
       void clearServiceWorkersAndCachesSafely();
     } else {
     // IMPORTANT: Do NOT import `virtual:pwa-register` from here.
