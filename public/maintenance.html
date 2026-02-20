@@ -9,20 +9,17 @@
     <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@300;400;500;700&display=swap" rel="stylesheet">
     <style>
         *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
-
         :root {
             --purple: #63498b;
             --purple-light: #8a6bbf;
             --purple-glow: rgba(99, 73, 139, 0.4);
             --green: #b5e58d;
             --bg: #07080f;
-            --bg2: #0f1020;
             --card: rgba(255,255,255,0.04);
             --border: rgba(255,255,255,0.08);
             --text: #e2e8f0;
             --muted: #64748b;
         }
-
         body {
             font-family: 'Tajawal', -apple-system, BlinkMacSystemFont, sans-serif;
             background: var(--bg);
@@ -35,8 +32,6 @@
             padding: 24px;
             overflow: hidden;
         }
-
-        /* Animated background blobs */
         .blob {
             position: fixed;
             border-radius: 50%;
@@ -46,14 +41,12 @@
             pointer-events: none;
             z-index: 0;
         }
-        .blob-1 { width: 500px; height: 500px; background: var(--purple); top: -120px; right: -100px; animation-delay: 0s; }
-        .blob-2 { width: 400px; height: 400px; background: #3b82f6; bottom: -100px; left: -100px; animation-delay: -5s; }
-        .blob-3 { width: 300px; height: 300px; background: var(--green); top: 50%; left: 50%; transform: translate(-50%,-50%); animation-delay: -10s; opacity: 0.07; }
+        .blob-1 { width: 500px; height: 500px; background: var(--purple); top: -120px; right: -100px; }
+        .blob-2 { width: 400px; height: 400px; background: #3b82f6; bottom: -100px; left: -100px; }
         @keyframes drift {
             from { transform: translate(0, 0) scale(1); }
             to   { transform: translate(30px, 20px) scale(1.08); }
         }
-
         .card {
             position: relative;
             z-index: 1;
@@ -68,8 +61,6 @@
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 0 0 1px rgba(255,255,255,0.04), 0 32px 80px rgba(0,0,0,0.5), 0 0 60px var(--purple-glow);
         }
-
-        /* Logo + Icon */
         .logo-wrap {
             display: inline-flex;
             align-items: center;
@@ -80,17 +71,10 @@
             margin-bottom: 28px;
             box-shadow: 0 8px 32px var(--purple-glow);
             font-size: 38px;
-            animation: float 4s ease-in-out infinite;
         }
-        @keyframes float {
-            0%, 100% { transform: translateY(0); }
-            50%       { transform: translateY(-8px); }
-        }
-
         .logo-name {
             font-size: 28px;
             font-weight: 700;
-            letter-spacing: -0.5px;
             background: linear-gradient(90deg, #fff 30%, var(--purple-light));
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
@@ -100,12 +84,10 @@
         .logo-sub {
             font-size: 13px;
             color: var(--muted);
-            letter-spacing: 3px;
+            letter-spacing: 2px;
             text-transform: uppercase;
-            margin-bottom: 36px;
+            margin-bottom: 26px;
         }
-
-        /* Status pill */
         .status-pill {
             display: inline-flex;
             align-items: center;
@@ -116,7 +98,7 @@
             padding: 6px 16px;
             font-size: 13px;
             color: var(--purple-light);
-            margin-bottom: 32px;
+            margin-bottom: 24px;
         }
         .dot {
             width: 8px; height: 8px;
@@ -126,9 +108,8 @@
         }
         @keyframes blink {
             0%, 100% { opacity: 1; }
-            50%       { opacity: 0.2; }
+            50% { opacity: 0.2; }
         }
-
         h1 {
             font-size: 26px;
             font-weight: 700;
@@ -140,50 +121,21 @@
             font-size: 15px;
             color: var(--muted);
             line-height: 1.8;
-            margin-bottom: 36px;
+            margin-bottom: 28px;
         }
-
-        /* Feature cards */
-        .features {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 12px;
-            margin-bottom: 36px;
-        }
-        .feature {
-            background: rgba(255,255,255,0.03);
-            border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 16px 10px;
-            font-size: 12px;
-            color: var(--muted);
-        }
-        .feature-icon { font-size: 22px; margin-bottom: 6px; }
-
-        /* Divider */
-        .divider {
-            width: 100%;
-            height: 1px;
-            background: var(--border);
-            margin: 0 0 24px;
-        }
-
         .en-text {
             font-size: 14px;
             color: var(--muted);
             direction: ltr;
-            margin-bottom: 28px;
+            margin-bottom: 20px;
             line-height: 1.7;
         }
-
         .footer {
             font-size: 12px;
             color: #334155;
             line-height: 1.8;
         }
         .footer span { color: var(--purple-light); }
-
-        /* Build timestamp badge */
         .build-badge {
             position: fixed;
             bottom: 12px;
@@ -195,23 +147,15 @@
             border-radius: 8px;
             padding: 4px 12px;
             font-size: 11px;
-            color: #475569;
+            color: #64748b;
             font-family: monospace;
             white-space: nowrap;
-            backdrop-filter: blur(8px);
-        }
-
-        @media (max-width: 480px) {
-            .card { padding: 36px 24px; }
-            .features { grid-template-columns: repeat(3, 1fr); gap: 8px; }
-            h1 { font-size: 22px; }
         }
     </style>
 </head>
 <body>
     <div class="blob blob-1"></div>
     <div class="blob blob-2"></div>
-    <div class="blob blob-3"></div>
 
     <div class="card">
         <div class="logo-wrap">🧵</div>
@@ -229,23 +173,6 @@
             سنعود خلال وقت قصير
         </p>
 
-        <div class="features">
-            <div class="feature">
-                <div class="feature-icon">⚡</div>
-                أداء أسرع
-            </div>
-            <div class="feature">
-                <div class="feature-icon">✨</div>
-                مميزات جديدة
-            </div>
-            <div class="feature">
-                <div class="feature-icon">🔒</div>
-                أمان أفضل
-            </div>
-        </div>
-
-        <div class="divider"></div>
-
         <p class="en-text">
             We're upgrading the platform with new features and improvements.<br>
             Expected to be back within a few hours.
@@ -257,127 +184,42 @@
         </div>
     </div>
 
-    <div class="build-badge" id="build-badge">
-        Build: <span id="build-time">—</span>
-    </div>
+    <div class="build-badge">Build: <span id="build-time">—</span></div>
 
     <script>
-        // Display human-readable timestamp
         try {
-            var d = new Date();
-            var pad = function(n){ return n < 10 ? '0' + n : n; };
-            var ts = d.getFullYear() + '-' + pad(d.getMonth()+1) + '-' + pad(d.getDate())
-                   + ' ' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ' UTC'
-                   .replace('UTC', ('+'+(-(d.getTimezoneOffset()/60))).replace('+-','-'));
-            // Use the page's Last-Modified if available, else current server time
             var lm = document.lastModified;
             document.getElementById('build-time').textContent = lm && lm !== '01/01/1970 00:00:00'
-                ? 'page modified ' + lm
-                : 'served ' + d.toISOString().replace('T',' ').slice(0,19) + ' UTC';
+                ? lm
+                : new Date().toISOString().replace('T',' ').slice(0,19) + ' UTC';
         } catch(e) {}
-    </script>
-</body>
-</html>
-    <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 20px;
-        }
-        .container {
-            background: white;
-            border-radius: 20px;
-            padding: 60px 40px;
-            max-width: 600px;
-            text-align: center;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-        }
-        .logo {
-            font-size: 48px;
-            font-weight: 700;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
-            margin-bottom: 30px;
-        }
-        h1 {
-            font-size: 32px;
-            color: #2d3748;
-            margin-bottom: 20px;
-            font-weight: 700;
-        }
-        p {
-            font-size: 18px;
-            color: #4a5568;
-            line-height: 1.8;
-            margin-bottom: 15px;
-        }
-        .icon {
-            font-size: 80px;
-            margin-bottom: 30px;
-            animation: pulse 2s ease-in-out infinite;
-        }
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); opacity: 1; }
-            50% { transform: scale(1.1); opacity: 0.8; }
-        }
-        .contact {
-            margin-top: 40px;
-            padding-top: 30px;
-            border-top: 2px solid #e2e8f0;
-        }
-        .contact p {
-            font-size: 16px;
-            color: #718096;
-            margin-bottom: 8px;
-        }
-        .rtl {
-            direction: rtl;
-        }
-        .ltr {
-            direction: ltr;
-            margin-top: 20px;
-            padding-top: 20px;
-            border-top: 1px solid #e2e8f0;
-        }
-        h2 {
-            font-size: 20px !important;
-        }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="icon">🧵</div>
-        <div class="logo">خيوط | Khuyoot</div>
-        
-        <div class="rtl">
-            <h1>موقعنا قيد الصيانة الآن</h1>
-            <p>نعمل حاليًا على تحسين تجربتك وإضافة مميزات جديدة</p>
-            <p>سنعود قريبًا جدًا مع تحديثات مهمة وتحسينات في الأداء</p>
-            <p style="font-size: 16px; color: #718096; margin-top: 20px;">⏱️ متوقع العودة خلال ساعات قليلة</p>
-        </div>
 
-        <div class="ltr">
-            <h2 style="font-size: 20px; color: #2d3748; margin-top: 30px; margin-bottom: 15px;">We're Coming Back Soon!</h2>
-            <p style="font-size: 16px;">We're working to improve your experience with new features and better performance.</p>
-            <p style="font-size: 16px;">Expected to be back within a few hours.</p>
-        </div>
-        
-        <div class="contact rtl">
-            <p>شكرًا لصبركم وثقتكم بنا</p>
-            <p>Thank you for your patience and support</p>
-            <p style="margin-top: 15px;">💜 فريق خيوط | Khuyoot Team</p>
-        </div>
-    </div>
+        (function () {
+            try {
+                var host = (location.hostname || '').toLowerCase();
+                var isKhuyootHost = host === 'www.khuyoot.app' || host === 'khuyoot.app' || host === 'dev.khuyoot.app';
+                if (!isKhuyootHost) return;
+                if (!('serviceWorker' in navigator)) return;
+
+                var key = 'khuyoot:maintenance-selfheal-v1';
+                if (sessionStorage.getItem(key) === '1') return;
+                sessionStorage.setItem(key, '1');
+
+                navigator.serviceWorker.getRegistrations()
+                    .then(function (regs) { return Promise.all(regs.map(function (reg) { return reg.unregister(); })); })
+                    .then(function () {
+                        if (!('caches' in window)) return;
+                        return caches.keys().then(function (names) { return Promise.all(names.map(function (n) { return caches.delete(n); })); });
+                    })
+                    .finally(function () {
+                        setTimeout(function () {
+                            location.replace('/?bust=' + Date.now());
+                        }, 600);
+                    });
+            } catch (_) {
+                // no-op
+            }
+        })();
+    </script>
 </body>
 </html>
