@@ -158,6 +158,12 @@ export const HistoryFilmstrip: React.FC<HistoryFilmstripProps> = React.memo(({
                             className="w-full h-full object-cover"
                             loading="lazy"
                             decoding="async"
+                            onError={(e) => {
+                              const full = (item as GenerationRecord).fullImageUrl;
+                              if (full && e.currentTarget.src !== full) {
+                                e.currentTarget.src = full;
+                              }
+                            }}
                           />
                         ) : (
                           <div className="w-full h-full bg-zinc-50 flex items-center justify-center text-[10px] text-zinc-400 font-bold">

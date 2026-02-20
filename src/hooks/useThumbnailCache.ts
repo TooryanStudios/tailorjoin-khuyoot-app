@@ -114,10 +114,10 @@ function touch(url: string) {
   writeMeta();
 }
 
-async function fetchAsBlobUrl(remoteUrl: string): Promise<string> {
+async function fetchAsBlobUrl(remoteUrl: string): Promise<string | null> {
   // 💾 Persistent Cache Layer (Cache API)
   let blob: Blob | null = null;
-  
+
   if (typeof caches !== 'undefined') {
     try {
       const cache = await caches.open(PERSISTENT_CACHE_NAME);
@@ -131,15 +131,20 @@ async function fetchAsBlobUrl(remoteUrl: string): Promise<string> {
           blob = await res.blob();
         }
       }
-    } catch (e) {
-      console.warn('[Thumbnail Cache] Cache API failure, falling back to network:', e);
+    } catch {
+      // Cache API or CORS failure — try direct network fetch below
     }
   }
 
   if (!blob) {
-    const res = await fetch(remoteUrl);
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    blob = await res.blob();
+    try {
+      const res = await fetch(remoteUrl);
+      if (!res.ok) return null; // 404 or other error — img src will use remote URL directly
+      blob = await res.blob();
+    } catch {
+      // CORS or network error — img src will use remote URL directly
+      return null;
+    }
   }
 
   return URL.createObjectURL(blob);
@@ -171,6 +176,7 @@ function ensure(remoteUrl: string, maxEntries: number) {
   const p = (async () => {
     try {
       const blobUrl = await fetchAsBlobUrl(remoteUrl);
+      if (!blobUrl) return; // fetch failed (CORS/404) — img src will use remote URL directly
 
       // Add as newest
       entries.set(remoteUrl, { blobUrl, lastAccess: Date.now() });
@@ -178,6 +184,8 @@ function ensure(remoteUrl: string, maxEntries: number) {
       writeMeta();
       bump();
       return blobUrl;
+    } catch {
+      // Silently ignore unexpected errors — img src will use remote URL directly
     } finally {
       inFlight.delete(remoteUrl);
     }

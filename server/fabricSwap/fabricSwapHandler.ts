@@ -280,7 +280,7 @@ export async function handleFabricSwap(body: any, ctx: HandlerContext): Promise<
       console.log('[Fabric Swap] userId:', req.userId);
       
       const jobId = uuidv4();
-      const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'khuyoot-app.appspot.com';
+      const bucketName = process.env.FIREBASE_STORAGE_BUCKET || 'khuyoot-app01.firebasestorage.app';
       
       // Predicted URLs so the frontend gets them immediately
       generationUrls = {
