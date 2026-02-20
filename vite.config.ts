@@ -64,7 +64,7 @@ export default defineConfig(({ mode }) => {
         includeAssets: ['favicon.ico', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/maskable-512.png'],
         workbox: {
           // Keep a stable cache ID so old deploy caches are replaced instead of accumulating.
-          cacheId: 'khuyoot',
+          cacheId: 'khuyoot-v3',
           // Immediate activation on update.
           skipWaiting: true,
           clientsClaim: true,
@@ -74,6 +74,7 @@ export default defineConfig(({ mode }) => {
           globIgnores: [
             'assets/index-*.js',
             'images/Khuyoot Background 07.png',
+            'share-modal.js',
           ],
           navigateFallback: '/index.html',
           // Exclude dev-related files from caching
