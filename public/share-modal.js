@@ -1,5 +1,9 @@
-// Deprecated: Share modal functionality has been moved to React components
-// This file is kept for backwards compatibility with cached service workers
-(function() {
-  // No-op: prevents "Cannot read properties of null" errors from legacy code
+// Deprecated: Share modal functionality has been moved to React components.
+// Keep this file as a safe stub for legacy pages/caches.
+(function () {
+  try {
+    window.__KHUYOOT_SHARE_MODAL_STUB__ = 'v2';
+  } catch (_) {
+    // no-op
+  }
 })();
