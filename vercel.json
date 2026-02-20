@@ -33,7 +33,7 @@
           "value": "www.khuyoot.app"
         }
       ],
-      "destination": "/maintenance.html"
+      "destination": "/index.html"
     },
     {
       "source": "/(.*)",
