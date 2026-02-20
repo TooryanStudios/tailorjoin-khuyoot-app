@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package, Home } from 'lucide-react';
+import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package, Home, Palette } from 'lucide-react';
+import { AdminColorPicker, restoreAdminPrimaryColor } from './AdminColorPicker';
 import { useApp } from '../../context/AppContext';
 
 const MONT_HEADER_ID = 'khuyoot-mont-header';
@@ -10,8 +11,12 @@ export const MontHeader = React.memo(function MontHeader() {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [showColorPicker, setShowColorPicker] = useState(false);
   const { user, loading, logout, toggleAuthModal, cartCount, ordersCount } = useApp();
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  // Restore admin-selected primary color on mount
+  useEffect(() => { restoreAdminPrimaryColor(); }, []);
 
   // Close user menu on outside click
   useEffect(() => {
@@ -180,8 +185,8 @@ export const MontHeader = React.memo(function MontHeader() {
                 </button>
 
                 {userMenuOpen && (
-                  <div className="absolute left-0 mt-2 w-48 bg-white border border-zinc-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200 z-[9999]">
-                    <div className="px-4 py-3 border-b border-zinc-100 bg-zinc-50/50">
+                  <div className="absolute left-0 mt-2 w-48 bg-white border border-zinc-200 rounded-2xl shadow-xl animate-in fade-in slide-in-from-top-2 duration-200 z-[9999]">
+                    <div className="px-4 py-3 border-b border-zinc-100 bg-zinc-50/50 rounded-t-2xl">
                       <p className="text-xs font-bold text-zinc-900 truncate">{user.name}</p>
                       <p className="text-[10px] text-zinc-500 truncate">{user.email}</p>
                     </div>
@@ -213,18 +218,37 @@ export const MontHeader = React.memo(function MontHeader() {
                       <span>{user.role === 'admin' ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
                     </button>
 
+                    {/* ── Admin: Primary Colour Picker ── */}
+                    {user.role === 'admin' && (
+                      <button
+                        onClick={() => setShowColorPicker(p => !p)}
+                        className="w-full px-4 py-2.5 text-[11px] font-bold text-left text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center gap-2"
+                      >
+                        <Palette size={14} className="text-[var(--theme-primary)]"/>
+                        <span>لون الهوية</span>
+                      </button>
+                    )}
+
                     <button
                       onClick={async () => {
                         setUserMenuOpen(false);
                         await logout();
                         navigate('/');
                       }}
-                      className="w-full px-4 py-2.5 text-[11px] font-bold text-left text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2"
+                      className="w-full px-4 py-2.5 text-[11px] font-bold text-left text-red-600 hover:bg-red-50 transition-colors flex items-center gap-2 rounded-b-2xl"
                     >
                       <LogOut size={14} />
                       <span>تسجيل الخروج</span>
                     </button>
                   </div>
+                )}
+
+                {/* Color picker floats outside the dropdown so it is never clipped */}
+                {showColorPicker && (
+                  <AdminColorPicker
+                    onClose={() => setShowColorPicker(false)}
+                    anchorRef={userMenuRef as React.RefObject<HTMLElement>}
+                  />
                 )}
               </div>
             ) : (

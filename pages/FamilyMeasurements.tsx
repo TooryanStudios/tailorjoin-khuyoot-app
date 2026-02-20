@@ -172,8 +172,8 @@ export const FamilyMeasurements = () => {
   if (loading || isLoading) {
     return (
       <div className="min-h-screen bg-[#ededed] flex flex-col items-center justify-center gap-4">
-        <Loader2 className="w-12 h-12 text-[#63498b] animate-spin" />
-        <p className="text-[#63498b] font-bold text-lg animate-pulse">جاري تحميل البيانات...</p>
+        <Loader2 className="w-12 h-12 text-[var(--theme-primary)] animate-spin" />
+        <p className="text-[var(--theme-primary)] font-bold text-lg animate-pulse">جاري تحميل البيانات...</p>
       </div>
     );
   }
@@ -184,7 +184,7 @@ export const FamilyMeasurements = () => {
         <MontHeader />
         <div className="flex-1 flex items-center justify-center p-4">
           <div className="w-full max-w-md bg-white rounded-[32px] overflow-hidden shadow-sm">
-            <div className="bg-[#63498b] p-8 text-center text-white">
+            <div className="bg-[var(--theme-primary)] p-8 text-center text-white">
               <div className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4">
                 <Users size={40} className="text-white" />
               </div>
@@ -194,7 +194,7 @@ export const FamilyMeasurements = () => {
             <div className="p-8">
               <button
                 onClick={() => navigate('/login')}
-                className="w-full h-14 bg-[#63498b] text-white rounded-2xl font-bold hover:bg-[#523d74] transition-all"
+                className="w-full h-14 bg-[var(--theme-primary)] text-white rounded-2xl font-bold hover:bg-[#523d74] transition-all"
               >
                 تسجيل الدخول
               </button>
@@ -214,7 +214,7 @@ export const FamilyMeasurements = () => {
       <div className="flex-1 overflow-y-auto">
         {/* Header Banner */}
         <section className="px-4 md:px-8 py-6 max-w-[1400px] mx-auto">
-          <div className="bg-gradient-to-r from-[#63498b] to-pink-600 rounded-2xl p-6 md:p-8 text-white">
+          <div className="bg-gradient-to-r from-[var(--theme-primary)] to-pink-600 rounded-2xl p-6 md:p-8 text-white">
             <div className="flex items-center gap-4 mb-2">
               <div className="w-12 h-12 bg-white/20 rounded-xl flex items-center justify-center">
                 <Users size={24} />
@@ -233,7 +233,7 @@ export const FamilyMeasurements = () => {
             <div className="mb-6">
               <button
                 onClick={handleAddNew}
-                className="w-full px-6 py-3 bg-[#63498b] text-white rounded-xl font-bold hover:bg-[#523d74] transition-all flex items-center justify-center gap-2"
+                className="w-full px-6 py-3 bg-[var(--theme-primary)] text-white rounded-xl font-bold hover:bg-[#523d74] transition-all flex items-center justify-center gap-2"
               >
                 <Plus size={20} />
                 إضافة عضو جديد
@@ -253,7 +253,7 @@ export const FamilyMeasurements = () => {
               </p>
               <button
                 onClick={handleAddNew}
-                className="px-6 py-3 bg-[#63498b] text-white rounded-xl font-bold hover:bg-[#523d74] transition-all flex items-center gap-2"
+                className="px-6 py-3 bg-[var(--theme-primary)] text-white rounded-xl font-bold hover:bg-[#523d74] transition-all flex items-center gap-2"
               >
                 <Plus size={18} />
                 إضافة أول عضو
@@ -289,7 +289,7 @@ export const FamilyMeasurements = () => {
                         value={formData.name || ''}
                         onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                         placeholder="مثال: فاطمة"
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent"
                       />
                     </div>
 
@@ -301,7 +301,7 @@ export const FamilyMeasurements = () => {
                       <select
                         value={formData.relationship || 'sister'}
                         onChange={(e) => setFormData({ ...formData, relationship: e.target.value })}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent"
                         aria-label="اختر نوع العلاقة العائلية"
                       >
                         {FAMILY_RELATIONSHIPS.map(rel => (
@@ -318,7 +318,7 @@ export const FamilyMeasurements = () => {
                       <select
                         value={measurementUnit}
                         onChange={(e) => setMeasurementUnit(e.target.value)}
-                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent"
+                        className="w-full px-4 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent"
                         aria-label="اختر وحدة القياس"
                       >
                         {MEASUREMENT_UNITS.map(unit => (
@@ -344,7 +344,7 @@ export const FamilyMeasurements = () => {
                               value={formData.measurements?.[field.key] || ''}
                               onChange={(e) => handleMeasurementChange(field.key, e.target.value)}
                               placeholder="0"
-                              className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-center focus:ring-2 focus:ring-[#63498b] focus:border-transparent"
+                              className="flex-1 px-3 py-1.5 border border-slate-200 rounded-lg text-center focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent"
                             />
                           </div>
                         ))}
@@ -355,7 +355,7 @@ export const FamilyMeasurements = () => {
                     <div className="flex gap-3 pt-4">
                       <button
                         onClick={handleSave}
-                        className="flex-1 px-6 py-2 bg-[#63498b] text-white rounded-lg font-bold hover:bg-[#523d74] transition-all flex items-center justify-center gap-2"
+                        className="flex-1 px-6 py-2 bg-[var(--theme-primary)] text-white rounded-lg font-bold hover:bg-[#523d74] transition-all flex items-center justify-center gap-2"
                       >
                         <Save size={18} />
                         حفظ

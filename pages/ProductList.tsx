@@ -484,7 +484,7 @@ export const ProductList = () => {
       >
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
-          <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+          <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
             

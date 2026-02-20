@@ -215,6 +215,22 @@ service firebase.storage {
     }
 
     // ===========================================
+    // User Design Uploads (for custom design uploads)
+    // ===========================================
+    // Path: user_designs/{userId}/{timestamp}_{filename}.{ext}
+    // Examples:
+    // - user_designs/user123/1234567890_my_dress.jpg
+    // - user_designs/user123/1234567891_custom_design.png
+    match /user_designs/{userId}/{fileName} {
+      allow write: if request.auth != null && 
+                      request.auth.uid == userId && 
+                      isValidImage() &&
+                      request.resource.size < 5 * 1024 * 1024; // 5MB max for design uploads
+      allow delete: if request.auth != null && request.auth.uid == userId;
+      allow read: if true;  // Anyone can read user designs
+    }
+
+    // ===========================================
     // Settings (admin-managed homepage media, logos, etc.)
     // ===========================================
     // Path: settings/{path=**}

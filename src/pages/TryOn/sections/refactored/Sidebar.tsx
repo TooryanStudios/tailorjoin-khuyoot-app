@@ -826,7 +826,7 @@ export const Sidebar: React.FC<SidebarProps> = (props) => {
                   className={`w-full py-3 rounded-xl text-white font-normal text-[11px] uppercase tracking-widest transition-all shadow-sm ${
                     !currentTaskId && !sourcePreviewUrl
                       ? 'bg-gradient-to-r from-zinc-300 to-zinc-400 cursor-not-allowed opacity-50'
-                      : 'bg-gradient-to-r from-[#63498b] to-[#7a5fa3] hover:from-[#7a5fa3] hover:to-[#63498b] active:scale-95'
+                      : 'bg-gradient-to-r from-[var(--theme-primary)] to-[#7a5fa3] hover:from-[#7a5fa3] hover:to-[var(--theme-primary)] active:scale-95'
                   }`}
                 >
                   إبدأ التفصيل

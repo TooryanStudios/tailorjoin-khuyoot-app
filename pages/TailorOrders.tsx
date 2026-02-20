@@ -1,4 +1,4 @@
-﻿import React, { useState, useEffect, useLayoutEffect } from 'react';
+import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Order, OrderStatus } from '../types';
 import { 
   Check, 
@@ -71,8 +71,8 @@ export const TailorOrders = () => {
   const [headerHeight, setHeaderHeight] = useState(DEFAULT_HEADER_SPACER_HEIGHT);
   
   const theme = {
-    primary: '#63498b',
-    accent: '#63498b',
+    primary: 'var(--theme-primary)',
+    accent: 'var(--theme-primary)',
     bg: '#ededed'
   };
 
@@ -161,13 +161,13 @@ export const TailorOrders = () => {
         createNotification(
           order.userId,
           'order',
-          'تحديث حالة طلبك',
-          `تم تحديث حالة طلبك إلى: ${getStatusLabel(newStatus)}`,
+          '????? ???? ????',
+          `?? ????? ???? ???? ???: ${getStatusLabel(newStatus)}`,
           order.id
         );
       }
     } catch (error) {
-      alert('فشل تحديث حالة الطلب');
+      alert('??? ????? ???? ?????');
     }
   };
 
@@ -203,7 +203,7 @@ export const TailorOrders = () => {
 
     try {
       if (accepted) {
-        await updateOrderProgress(id, 'pending', `تم قبول السعر المقترح: ${order.requestedPrice} ر.ع`);
+        await updateOrderProgress(id, 'pending', `?? ???? ????? ???????: ${order.requestedPrice} ?.?`);
         setOrders(prev => prev.map(o => 
           o.id === id 
             ? { ...o, price: o.requestedPrice || o.price, negotiationStatus: 'accepted' }
@@ -213,12 +213,12 @@ export const TailorOrders = () => {
         createNotification(
           order.userId,
           'order',
-          'تم قبول سعرك المقترح',
-          `وافق الخياط على السعر ${order.requestedPrice} ر.ع`,
+          '?? ???? ???? ???????',
+          `???? ?????? ??? ????? ${order.requestedPrice} ?.?`,
           order.id
         );
       } else {
-        await sendNoteToCustomer(id, 'عذرا لا يمكننا قبول السعر المقترح', false);
+        await sendNoteToCustomer(id, '???? ?? ?????? ???? ????? ???????', false);
         setOrders(prev => prev.map(o => 
           o.id === id 
             ? { ...o, negotiationStatus: 'rejected' }
@@ -226,7 +226,7 @@ export const TailorOrders = () => {
         ));
       }
     } catch (error) {
-      alert('فشل معالجة التفاوض');
+      alert('??? ?????? ???????');
     }
   };
 
@@ -235,9 +235,9 @@ export const TailorOrders = () => {
       await acceptOrderService(id);
       await loadOrders();
       setAcceptConfirmModal({ order: null, show: false });
-      alert('تم قبول الطلب بنجاح');
+      alert('?? ???? ????? ?????');
     } catch (error) {
-      alert('فشل قبول الطلب');
+      alert('??? ???? ?????');
     }
   };
 
@@ -256,7 +256,7 @@ export const TailorOrders = () => {
   const handleRejectOrder = async () => {
     if (rejectReasons.length === 0 || !rejectModal.orderId) return;
     
-    let fullReason = rejectReasons.join('، ');
+    let fullReason = rejectReasons.join('? ');
     if (rejectCustomNote) {
       fullReason += ` - ${rejectCustomNote}`;
     }
@@ -268,9 +268,9 @@ export const TailorOrders = () => {
       setRejectModal({ orderId: '', show: false });
       setRejectReasons([]);
       setRejectCustomNote('');
-      alert('تم رفض الطلب');
+      alert('?? ??? ?????');
     } catch (error) {
-      alert('فشل رفض الطلب');
+      alert('??? ??? ?????');
     } finally {
       setIsRejecting(false);
     }
@@ -284,9 +284,9 @@ export const TailorOrders = () => {
       await loadOrders(); // Reload to update chat history
       setNoteModal({ orderId: '', show: false });
       setNote('');
-      alert('تم إرسال الملاحظة');
+      alert('?? ????? ????????');
     } catch (error) {
-      alert('فشل إرسال الملاحظة');
+      alert('??? ????? ????????');
     } finally {
       setSendingNote(false);
     }
@@ -298,7 +298,7 @@ export const TailorOrders = () => {
       setSendingClarification(true);
       await sendNoteToCustomer(
         clarificationModal.orderId, 
-        `طلب توضيح من الخياط: ${clarification}`, 
+        `??? ????? ?? ??????: ${clarification}`, 
         true
       );
       
@@ -307,8 +307,8 @@ export const TailorOrders = () => {
         createNotification(
           order.userId,
           'order',
-          'طلب توضيح من الخياط',
-          `يطلب الخياط بعض التوضيحات حول طلبك`,
+          '??? ????? ?? ??????',
+          `???? ?????? ??? ????????? ??? ????`,
           order.id
         );
       }
@@ -316,9 +316,9 @@ export const TailorOrders = () => {
       await loadOrders(); // Reload to update chat history
       setClarificationModal({ orderId: '', show: false });
       setClarification('');
-      alert('تم إرسال طلب التوضيح للعميل');
+      alert('?? ????? ??? ??????? ??????');
     } catch (error) {
-      alert('فشل إرسال طلب التوضيح');
+      alert('??? ????? ??? ???????');
     } finally {
       setSendingClarification(false);
     }
@@ -326,14 +326,14 @@ export const TailorOrders = () => {
 
   const getStatusLabel = (status: OrderStatus): string => {
     const labels: Record<OrderStatus, string> = {
-      pending: 'قيد الانتظار',
-      measuring: 'أخذ المقاسات',
-      cutting: 'قص',
-      sewing: 'خياطة',
-      ready: 'جاهز',
-      delivered: 'تم التسليم',
-      cancelled: 'ملغي',
-      rejected: 'مرفوض'
+      pending: '??? ????????',
+      measuring: '??? ????????',
+      cutting: '??',
+      sewing: '?????',
+      ready: '????',
+      delivered: '?? ???????',
+      cancelled: '????',
+      rejected: '?????'
     };
     return labels[status] || status;
   };
@@ -345,7 +345,7 @@ export const TailorOrders = () => {
     history.push({
       id: `order-${order.id}-created`,
       sender: 'customer',
-      message: `تم إنشاء طلب جديد لمنتج: ${order.productName}`,
+      message: `?? ????? ??? ???? ?????: ${order.productName}`,
       timestamp: order.orderDate,
       type: 'note'
     });
@@ -366,7 +366,7 @@ export const TailorOrders = () => {
       history.push({
         id: `order-${order.id}-accepted`,
         sender: 'tailor',
-        message: 'تم قبول الطلب وبدء العمل عليه',
+        message: '?? ???? ????? ???? ????? ????',
         timestamp: order.acceptedAt,
         type: 'acceptance'
       });
@@ -386,11 +386,11 @@ export const TailorOrders = () => {
     // Parse comments for clarifications and notes
     if (order.comments) {
       // Check if it's a clarification request (starts with specific prefix)
-      if (order.comments.includes('طلب توضيح من الخياط:')) {
+      if (order.comments.includes('??? ????? ?? ??????:')) {
         history.push({
           id: `order-${order.id}-clarification`,
           sender: 'tailor',
-          message: order.comments.replace('طلب توضيح من الخياط: ', ''),
+          message: order.comments.replace('??? ????? ?? ??????: ', ''),
           timestamp: new Date().toISOString(),
           type: 'clarification'
         });
@@ -416,15 +416,23 @@ export const TailorOrders = () => {
     return (
       <div className="min-h-screen bg-[#ededed] flex items-center justify-center p-6">
         <div className="text-center">
-          <h2 className="text-2xl text-gray-800 mb-2">غير مصرح</h2>
-          <p className="text-gray-600">هذه الصفحة متاحة للخياطين فقط</p>
+          <h2 className="text-2xl text-gray-800 mb-2">??? ????</h2>
+          <p className="text-gray-600">??? ?????? ????? ???????? ???</p>
+          <div className="mt-4 flex justify-center">
+            <Button
+              variant="secondary"
+              onClick={() => { window.location.href = '/'; }}
+            >
+              ?????? ????????
+            </Button>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"
@@ -437,32 +445,32 @@ export const TailorOrders = () => {
       >
       {/* --- HERO / BANNER SECTION --- */}
       <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
-        <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+        <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
           
           <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4" dir="rtl">
             <div className="space-y-1">
-              <h1 className="text-xl md:text-2xl text-white leading-tight">الطلبات الواردة</h1>
-              <p className="text-white/70 text-xs md:text-sm max-w-sm">إدارة طلبات التفصيل الخاصة بك بكفاءة ومتابعة التقدم مع العملاء.</p>
+              <h1 className="text-xl md:text-2xl text-white leading-tight">??????? ???????</h1>
+              <p className="text-white/70 text-xs md:text-sm max-w-sm">????? ????? ??????? ?????? ?? ?????? ??????? ?????? ?? ???????.</p>
             </div>
             
             <div className="flex gap-3">
                <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
                   <span className="text-xl text-white">{stats.pending}</span>
-                  <span className="text-[9px] text-white/60">طلب جديد</span>
+                  <span className="text-[9px] text-white/60">??? ????</span>
                </div>
                <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[70px]">
                   <span className="text-xl text-white">{stats.active}</span>
-                  <span className="text-[9px] text-white/60">قيد التنفيذ</span>
+                  <span className="text-[9px] text-white/60">??? ???????</span>
                </div>
                <div className="bg-white/10 backdrop-blur-md rounded-lg p-3 border border-white/10 flex flex-col items-center justify-center min-w-[90px]">
                   <span className="text-xl text-white">{stats.totalActiveAmount.toFixed(3)}</span>
-                  <span className="text-[9px] text-white/60">إجمالي المبلغ</span>
+                  <span className="text-[9px] text-white/60">?????? ??????</span>
                </div>
                <button 
                 onClick={handleRefresh}
-                title="تحديث البيانات"
+                title="????? ????????"
                 className="px-3 py-3 bg-white/10 backdrop-blur-md rounded-lg border border-white/10 flex items-center justify-center text-white hover:bg-white/20 transition-all"
                >
                  <RefreshCw size={18} className={refreshing ? 'animate-spin' : ''} />
@@ -479,10 +487,10 @@ export const TailorOrders = () => {
            <div className="relative flex-1">
               <input 
                 type="text"
-                placeholder="ابحث برقم الطلب أو اسم العميل..."
+                placeholder="???? ???? ????? ?? ??? ??????..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full h-11 bg-white rounded-lg border border-gray-200 px-4 pr-10 text-sm shadow-sm focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all"
+                className="w-full h-11 bg-white rounded-lg border border-gray-200 px-4 pr-10 text-sm shadow-sm focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all"
               />
               <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
            </div>
@@ -490,15 +498,15 @@ export const TailorOrders = () => {
               <div className="flex bg-white rounded-lg border border-gray-200 p-1">
                 <button 
                   onClick={() => setViewMode('list')}
-                  className={`px-3 py-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-[#63498b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                  title="عرض قائمة"
+                  className={`px-3 py-2 rounded-md transition-all ${viewMode === 'list' ? 'bg-[var(--theme-primary)] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  title="??? ?????"
                 >
                   <List size={16} />
                 </button>
                 <button 
                   onClick={() => setViewMode('grid')}
-                  className={`px-3 py-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-[#63498b] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
-                  title="عرض شبكة"
+                  className={`px-3 py-2 rounded-md transition-all ${viewMode === 'grid' ? 'bg-[var(--theme-primary)] text-white' : 'text-slate-600 hover:bg-slate-100'}`}
+                  title="??? ????"
                 >
                   <LayoutGrid size={16} />
                 </button>
@@ -506,33 +514,33 @@ export const TailorOrders = () => {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="h-11 px-4 bg-white rounded-lg text-sm border border-gray-200 focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all"
+                className="h-11 px-4 bg-white rounded-lg text-sm border border-gray-200 focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all"
               >
-                <option value="all">جميع الطلبات</option>
-                <option value="pending">قيد الانتظار</option>
-                <option value="active">نشطة</option>
-                <option value="completed">مكتملة</option>
-                <option value="cancelled">ملغاة / مرفوضة</option>
+                <option value="all">???? ???????</option>
+                <option value="pending">??? ????????</option>
+                <option value="active">????</option>
+                <option value="completed">??????</option>
+                <option value="cancelled">????? / ??????</option>
               </select>
               <button className="h-11 px-5 bg-white rounded-lg text-sm flex items-center gap-2 shadow-sm hover:bg-slate-50 transition-colors border border-gray-200">
                 <Calendar size={14} />
-                التاريخ
+                ???????
               </button>
            </div>
         </div>
 
         {loading && !refreshing ? (
           <div className="flex flex-col items-center justify-center py-20 grayscale opacity-20">
-             <div className="w-12 h-12 border-4 border-[#63498b] border-t-transparent rounded-full animate-spin mb-4"></div>
-             <p className="text-xs uppercase tracking-widest">جاري التحميل...</p>
+             <div className="w-12 h-12 border-4 border-[var(--theme-primary)] border-t-transparent rounded-full animate-spin mb-4"></div>
+             <p className="text-xs uppercase tracking-widest">???? ???????...</p>
           </div>
         ) : filteredOrders.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center" dir="rtl">
              <div className="w-20 h-20 bg-white rounded-lg flex items-center justify-center mb-4 shadow-sm border border-gray-100">
                <LayoutGrid size={32} className="text-slate-300" />
              </div>
-             <h3 className="text-lg text-slate-500">لا توجد طلبات لعرضها</h3>
-             <p className="text-sm text-slate-400 mt-1">حاول تغيير كلمة البحث أو انتظر طلبات جديدة</p>
+             <h3 className="text-lg text-slate-500">?? ???? ????? ??????</h3>
+             <p className="text-sm text-slate-400 mt-1">???? ????? ???? ????? ?? ????? ????? ?????</p>
           </div>
         ) : (
           <div className={viewMode === 'grid' ? 'grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4' : 'space-y-4'} dir="rtl">
@@ -557,25 +565,25 @@ export const TailorOrders = () => {
                       </div>
                       <div className="min-w-0">
                          <h4 className="text-sm text-slate-900 line-clamp-1">{order.productName}</h4>
-                         <p className="text-base text-[#63498b] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
+                         <p className="text-base text-[var(--theme-primary)] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
                          <div className="mt-2 flex flex-col gap-1.5">
                             <span className={`px-2.5 py-1 text-xs rounded-md inline-block w-fit ${
                               order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                               order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                              'bg-purple-100 text-[#63498b]'
+                              'bg-purple-100 text-[var(--theme-primary)]'
                             }`}>
                               {getStatusLabel(order.status)}
                             </span>
                             {order.status === 'cancelled' && order.rejectionReason && (
                               <p className="text-xs text-red-600 bg-red-50 px-2 py-1 rounded border border-red-200">
-                                السبب: {order.rejectionReason}
+                                ?????: {order.rejectionReason}
                               </p>
                             )}
                          </div>
                       </div>
                    </div>
                    <div className="flex flex-col items-end gap-1">
-                      <span className="text-lg text-slate-900">{order.price?.toFixed(3)} ر.ع</span>
+                      <span className="text-lg text-slate-900">{order.price?.toFixed(3)} ?.?</span>
                       <span className="text-xs text-slate-400 flex items-center gap-1">
                         <Calendar size={11} />
                         {new Date(order.orderDate).toLocaleDateString('ar-OM', { day: 'numeric', month: 'short' })}
@@ -592,8 +600,8 @@ export const TailorOrders = () => {
                          <UserIcon size={12} />
                       </div>
                       <div className="min-w-0">
-                         <p className="text-xs text-slate-400 leading-none">العميل</p>
-                         <p className="text-sm text-slate-900 truncate">{order.customerName || 'عميل مجهول'}</p>
+                         <p className="text-xs text-slate-400 leading-none">??????</p>
+                         <p className="text-sm text-slate-900 truncate">{order.customerName || '???? ?????'}</p>
                       </div>
                    </div>
                 </div>
@@ -604,29 +612,29 @@ export const TailorOrders = () => {
                      <>
                        <button 
                          onClick={() => showOrderDetails(order)}
-                         className="flex-1 h-10 bg-white text-[#63498b] rounded-lg text-sm hover:bg-slate-50 transition-all border border-[#63498b] flex items-center justify-center gap-2"
+                         className="flex-1 h-10 bg-white text-[var(--theme-primary)] rounded-lg text-sm hover:bg-slate-50 transition-all border border-[var(--theme-primary)] flex items-center justify-center gap-2"
                        >
                           <Eye size={16} />
-                          عرض التفاصيل
+                          ??? ????????
                        </button>
                        <button 
                          onClick={() => setAcceptConfirmModal({ order, show: true })}
-                         className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all flex items-center justify-center gap-2"
+                         className="flex-1 h-10 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all flex items-center justify-center gap-2"
                        >
                           <Check size={16} />
-                          قبول
+                          ????
                        </button>
                        <button 
                          onClick={() => setChatHistoryModal({ order, show: true })}
-                         title="سجل المحادثة"
-                         className="w-10 h-10 bg-white text-[#63498b] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[#63498b]"
+                         title="??? ????????"
+                         className="w-10 h-10 bg-white text-[var(--theme-primary)] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[var(--theme-primary)]"
                        >
                           <MessageCircle size={16} />
                        </button>
                        <button 
                          onClick={() => setChatHistoryModal({ order, show: true })}
-                         className="w-10 h-10 bg-white text-[#63498b] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[#63498b]"
-                         title="سجل المحادثة"
+                         className="w-10 h-10 bg-white text-[var(--theme-primary)] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[var(--theme-primary)]"
+                         title="??? ????????"
                        >
                           <MessageCircle size={16} />
                        </button>
@@ -641,15 +649,15 @@ export const TailorOrders = () => {
                      <div className="flex-1 flex gap-2">
                        <button 
                          onClick={() => showOrderDetails(order)}
-                         className="flex-1 h-10 bg-white text-[#63498b] rounded-lg text-sm hover:bg-slate-50 transition-all border border-[#63498b] flex items-center justify-center gap-2"
+                         className="flex-1 h-10 bg-white text-[var(--theme-primary)] rounded-lg text-sm hover:bg-slate-50 transition-all border border-[var(--theme-primary)] flex items-center justify-center gap-2"
                        >
                           <Eye size={16} />
-                          التفاصيل
+                          ????????
                        </button>
                        <button 
                          onClick={() => setChatHistoryModal({ order, show: true })}
-                         className="w-10 h-10 bg-white text-[#63498b] border border-[#63498b] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors"
-                         title="سجل المحادثة"
+                         className="w-10 h-10 bg-white text-[var(--theme-primary)] border border-[var(--theme-primary)] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors"
+                         title="??? ????????"
                        >
                          <MessageCircle size={16} />
                        </button>
@@ -660,11 +668,11 @@ export const TailorOrders = () => {
                           {/* Status Tabs */}
                           <div className="flex gap-1 bg-slate-50 p-1 rounded-lg">
                             {[
-                              { value: 'measuring', label: 'قياس', icon: '📏' },
-                              { value: 'cutting', label: 'قص', icon: '✂️' },
-                              { value: 'sewing', label: 'خياطة', icon: '🧵' },
-                              { value: 'ready', label: 'جاهز', icon: '✅' },
-                              { value: 'delivered', label: 'مسلّم', icon: '📦' }
+                              { value: 'measuring', label: '????', icon: '??' },
+                              { value: 'cutting', label: '??', icon: '??' },
+                              { value: 'sewing', label: '?????', icon: '??' },
+                              { value: 'ready', label: '????', icon: '?' },
+                              { value: 'delivered', label: '?????', icon: '??' }
                             ].map((status) => {
                               const currentStatus = getCurrentStatus(order.id, order.status);
                               const isActive = currentStatus === status.value;
@@ -674,8 +682,8 @@ export const TailorOrders = () => {
                                   onClick={() => handleStatusChange(order.id, status.value as OrderStatus)}
                                   className={`flex-1 px-2 py-1.5 rounded-md text-xs font-medium transition-all ${
                                     isActive
-                                      ? 'bg-[#63498b] text-white shadow-sm'
-                                      : 'text-slate-600 hover:bg-white hover:text-[#63498b]'
+                                      ? 'bg-[var(--theme-primary)] text-white shadow-sm'
+                                      : 'text-slate-600 hover:bg-white hover:text-[var(--theme-primary)]'
                                   }`}
                                   title={status.label}
                                 >
@@ -690,25 +698,25 @@ export const TailorOrders = () => {
                           <div className="flex gap-2">
                             <button 
                               onClick={() => showOrderDetails(order)}
-                              className="h-9 px-3 bg-white text-[#63498b] rounded-lg text-xs hover:bg-slate-50 transition-all border border-[#63498b] flex items-center justify-center gap-1.5"
+                              className="h-9 px-3 bg-white text-[var(--theme-primary)] rounded-lg text-xs hover:bg-slate-50 transition-all border border-[var(--theme-primary)] flex items-center justify-center gap-1.5"
                             >
                                <Eye size={14} />
-                               <span className="hidden sm:inline">التفاصيل</span>
+                               <span className="hidden sm:inline">????????</span>
                             </button>
                             
                             {pendingStatusChanges[order.id] && (
                               <>
                                 <button 
                                   onClick={() => confirmStatusChange(order.id)}
-                                  className="flex-1 h-9 bg-[#63498b] text-white rounded-lg text-xs hover:bg-[#63498b]/90 transition-all flex items-center justify-center gap-1.5 font-medium"
+                                  className="flex-1 h-9 bg-[var(--theme-primary)] text-white rounded-lg text-xs hover:bg-[var(--theme-primary)]/90 transition-all flex items-center justify-center gap-1.5 font-medium"
                                 >
                                    <Check size={14} />
-                                   تأكيد التحديث
+                                   ????? ???????
                                 </button>
                                 <button 
                                   onClick={() => cancelStatusChange(order.id)}
                                   className="h-9 px-3 bg-slate-100 text-slate-600 rounded-lg text-xs hover:bg-slate-200 transition-all flex items-center justify-center"
-                                  title="إلغاء"
+                                  title="?????"
                                 >
                                    <X size={14} />
                                 </button>
@@ -720,21 +728,21 @@ export const TailorOrders = () => {
                                 <button 
                                   onClick={() => setClarificationModal({ orderId: order.id, show: true })}
                                   className="h-9 px-3 bg-white text-amber-600 border border-amber-600 rounded-lg flex items-center justify-center hover:bg-amber-50 transition-colors text-xs"
-                                  title="طلب توضيح"
+                                  title="??? ?????"
                                 >
                                   <AlertCircle size={14} />
                                 </button>
                                 <button 
                                   onClick={() => setChatHistoryModal({ order, show: true })}
-                                  className="h-9 px-3 bg-white text-[#63498b] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[#63498b] text-xs"
-                                  title="سجل المحادثة"
+                                  className="h-9 px-3 bg-white text-[var(--theme-primary)] rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors border border-[var(--theme-primary)] text-xs"
+                                  title="??? ????????"
                                 >
                                   <MessageCircle size={14} />
                                 </button>
                                 <button 
                                   onClick={() => setNoteModal({ orderId: order.id, show: true })}
                                   className="h-9 px-3 bg-white text-slate-500 border border-gray-200 rounded-lg flex items-center justify-center hover:bg-slate-50 transition-colors text-xs"
-                                  title="إرسال ملاحظة"
+                                  title="????? ??????"
                                 >
                                   <FileText size={14} />
                                 </button>
@@ -760,24 +768,24 @@ export const TailorOrders = () => {
                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
                   <Check size={20} />
                </div>
-               <h3 className="text-lg text-slate-900">تأكيد قبول الطلب</h3>
+               <h3 className="text-lg text-slate-900">????? ???? ?????</h3>
             </div>
             
             <div className="mb-6">
-              <p className="text-sm text-slate-600 mb-4">هل أنت متأكد من قبول هذا الطلب؟</p>
+              <p className="text-sm text-slate-600 mb-4">?? ??? ????? ?? ???? ??? ??????</p>
               
               <div className="p-4 bg-slate-50 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">رقم الطلب</span>
-                  <span className="text-sm text-[#63498b] font-medium">#{acceptConfirmModal.order.id.slice(-6).toUpperCase()}</span>
+                  <span className="text-xs text-slate-500">??? ?????</span>
+                  <span className="text-sm text-[var(--theme-primary)] font-medium">#{acceptConfirmModal.order.id.slice(-6).toUpperCase()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">العميل</span>
-                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.customerName || 'غير محدد'}</span>
+                  <span className="text-xs text-slate-500">??????</span>
+                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.customerName || '??? ????'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">المبلغ</span>
-                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.price?.toFixed(3)} ر.ع</span>
+                  <span className="text-xs text-slate-500">??????</span>
+                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.price?.toFixed(3)} ?.?</span>
                 </div>
               </div>
             </div>
@@ -787,14 +795,14 @@ export const TailorOrders = () => {
                 onClick={() => setAcceptConfirmModal({ order: null, show: false })}
                 className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200 transition-all"
               >
-                إلغاء
+                ?????
               </button>
               <button
                 onClick={() => acceptConfirmModal.order && acceptOrder(acceptConfirmModal.order.id)}
-                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all flex items-center justify-center gap-2"
               >
                 <Check size={16} />
-                تأكيد القبول
+                ????? ??????
               </button>
             </div>
           </div>
@@ -806,24 +814,24 @@ export const TailorOrders = () => {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" onClick={() => setNoteModal({ orderId: '', show: false })}>
           <div className="bg-white rounded-xl p-6 max-w-md w-full animate-in zoom-in duration-300" onClick={(e) => e.stopPropagation()} dir="rtl">
             <div className="flex items-center gap-3 mb-4">
-               <div className="w-9 h-9 rounded-full bg-[#63498b]/10 flex items-center justify-center text-[#63498b]">
+               <div className="w-9 h-9 rounded-full bg-[var(--theme-primary)]/10 flex items-center justify-center text-[var(--theme-primary)]">
                   <MessageCircle size={18} />
                </div>
-               <h3 className="text-lg text-slate-900">إرسال ملاحظة</h3>
+               <h3 className="text-lg text-slate-900">????? ??????</h3>
             </div>
             <textarea
               value={note}
               onChange={(e) => setNote(e.target.value)}
-              placeholder="اكتب ملاحظتك للعميل هنا..."
-              className="w-full h-32 px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 text-sm resize-none focus:outline-none focus:border-[#63498b] transition-all"
+              placeholder="???? ??????? ?????? ???..."
+              className="w-full h-32 px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 text-sm resize-none focus:outline-none focus:border-[var(--theme-primary)] transition-all"
             />
             <div className="flex gap-3 mt-4">
               <button
                 onClick={handleSendNote}
                 disabled={!note.trim() || sendingNote}
-                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 disabled:opacity-50 transition-all"
+                className="flex-1 h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 disabled:opacity-50 transition-all"
               >
-                {sendingNote ? 'جاري الإرسال...' : 'إرسال الملاحظة'}
+                {sendingNote ? '???? ???????...' : '????? ????????'}
               </button>
             </div>
           </div>
@@ -837,11 +845,11 @@ export const TailorOrders = () => {
             {/* Fixed Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-200">
                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#63498b]/10 flex items-center justify-center text-[#63498b]">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--theme-primary)]/10 flex items-center justify-center text-[var(--theme-primary)]">
                      <MessageCircle size={20} />
                   </div>
                   <div>
-                    <h3 className="text-xl text-slate-900">سجل المحادثة</h3>
+                    <h3 className="text-xl text-slate-900">??? ????????</h3>
                     <p className="text-sm text-slate-500">#{chatHistoryModal.order.id.slice(-6).toUpperCase()}</p>
                   </div>
                </div>
@@ -865,7 +873,7 @@ export const TailorOrders = () => {
                   >
                     <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
                       msg.sender === 'tailor' 
-                        ? 'bg-[#63498b] text-white' 
+                        ? 'bg-[var(--theme-primary)] text-white' 
                         : 'bg-slate-200 text-slate-600'
                     }`}>
                       {msg.sender === 'tailor' ? (
@@ -888,19 +896,19 @@ export const TailorOrders = () => {
                         {msg.type === 'acceptance' && (
                           <div className="flex items-center gap-2 mb-1">
                             <Check size={14} className="text-green-600" />
-                            <span className="text-xs text-green-600">تم القبول</span>
+                            <span className="text-xs text-green-600">?? ??????</span>
                           </div>
                         )}
                         {msg.type === 'rejection' && (
                           <div className="flex items-center gap-2 mb-1">
                             <X size={14} className="text-red-600" />
-                            <span className="text-xs text-red-600">تم الرفض</span>
+                            <span className="text-xs text-red-600">?? ?????</span>
                           </div>
                         )}
                         {msg.type === 'clarification' && (
                           <div className="flex items-center gap-2 mb-1">
                             <AlertCircle size={14} className="text-amber-600" />
-                            <span className="text-xs text-amber-600">طلب توضيح</span>
+                            <span className="text-xs text-amber-600">??? ?????</span>
                           </div>
                         )}
                         <p className="text-sm text-slate-900">{msg.message}</p>
@@ -922,7 +930,7 @@ export const TailorOrders = () => {
                     <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mx-auto mb-3">
                       <MessageCircle size={28} className="text-slate-300" />
                     </div>
-                    <p className="text-sm text-slate-400">لا توجد رسائل حتى الآن</p>
+                    <p className="text-sm text-slate-400">?? ???? ????? ??? ????</p>
                   </div>
                 )}
               </div>
@@ -932,9 +940,9 @@ export const TailorOrders = () => {
             <div className="p-4 border-t border-slate-200">
               <button 
                 onClick={() => setChatHistoryModal({ order: null, show: false })}
-                className="w-full h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all font-medium"
+                className="w-full h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all font-medium"
               >
-                إغلاق
+                ?????
               </button>
             </div>
           </div>
@@ -949,20 +957,20 @@ export const TailorOrders = () => {
                <div className="w-9 h-9 rounded-full bg-red-500/10 flex items-center justify-center text-red-600">
                   <X size={18} />
                </div>
-               <h3 className="text-lg text-slate-900">رفض الطلب</h3>
+               <h3 className="text-lg text-slate-900">??? ?????</h3>
             </div>
-            <p className="text-sm text-slate-600 mb-4">الرجاء اختيار سبب (أو أكثر) لرفض الطلب</p>
+            <p className="text-sm text-slate-600 mb-4">?????? ?????? ??? (?? ????) ???? ?????</p>
             
             {/* Predefined Reasons */}
             <div className="space-y-2 mb-4">
               {[
-                'مشغول بطلبات أخرى حالياً',
-                'المقاسات غير واضحة',
-                'التصميم معقد جداً',
-                'لا أملك القماش المطلوب',
-                'الوقت المطلوب غير كافٍ',
-                'خارج نطاق تخصصي',
-                'سبب آخر'
+                '????? ?????? ???? ??????',
+                '???????? ??? ?????',
+                '??????? ???? ????',
+                '?? ???? ?????? ???????',
+                '????? ??????? ??? ????',
+                '???? ???? ?????',
+                '??? ???'
               ].map((reason) => (
                 <label 
                   key={reason}
@@ -985,11 +993,11 @@ export const TailorOrders = () => {
 
             {/* Optional Custom Note */}
             <div className="mb-4">
-              <label className="text-xs text-slate-600 mb-2 block">ملاحظات إضافية (اختياري)</label>
+              <label className="text-xs text-slate-600 mb-2 block">??????? ?????? (???????)</label>
               <textarea
                 value={rejectCustomNote}
                 onChange={(e) => setRejectCustomNote(e.target.value)}
-                placeholder="أضف أي تفاصيل إضافية..."
+                placeholder="??? ?? ?????? ??????..."
                 className="w-full h-24 px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 text-sm resize-none focus:outline-none focus:border-red-500 transition-all"
               />
             </div>
@@ -1004,14 +1012,14 @@ export const TailorOrders = () => {
                 }}
                 className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200 transition-all"
               >
-                إلغاء
+                ?????
               </button>
               <button
                 onClick={handleRejectOrder}
                 disabled={rejectReasons.length === 0 || isRejecting}
                 className="flex-1 h-11 bg-red-500 text-white rounded-lg text-sm hover:bg-red-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
               >
-                {isRejecting ? 'جاري الرفض...' : 'تأكيد الرفض'}
+                {isRejecting ? '???? ?????...' : '????? ?????'}
               </button>
             </div>
           </div>
@@ -1026,13 +1034,13 @@ export const TailorOrders = () => {
                <div className="w-9 h-9 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
                   <AlertCircle size={18} />
                </div>
-               <h3 className="text-lg text-slate-900">طلب توضيح من العميل</h3>
+               <h3 className="text-lg text-slate-900">??? ????? ?? ??????</h3>
             </div>
-            <p className="text-sm text-slate-600 mb-4">اكتب سؤالك أو طلب التوضيح الذي تحتاجه من العميل</p>
+            <p className="text-sm text-slate-600 mb-4">???? ????? ?? ??? ??????? ???? ?????? ?? ??????</p>
             <textarea
               value={clarification}
               onChange={(e) => setClarification(e.target.value)}
-              placeholder="مثال: هل تفضل أن يكون الطول أطول بمقدار 2 بوصة؟"
+              placeholder="????: ?? ???? ?? ???? ????? ???? ?????? 2 ?????"
               className="w-full h-32 px-4 py-3 border-2 border-slate-200 rounded-lg bg-white text-slate-900 text-sm resize-none focus:outline-none focus:border-amber-500 transition-all"
             />
             <div className="flex gap-3 mt-4">
@@ -1040,14 +1048,14 @@ export const TailorOrders = () => {
                 onClick={() => setClarificationModal({ orderId: '', show: false })}
                 className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200 transition-all"
               >
-                إلغاء
+                ?????
               </button>
               <button
                 onClick={handleSendClarification}
                 disabled={!clarification.trim() || sendingClarification}
                 className="flex-1 h-11 bg-amber-500 text-white rounded-lg text-sm hover:bg-amber-600 disabled:opacity-50 transition-all"
               >
-                {sendingClarification ? 'جاري الإرسال...' : 'إرسال الطلب'}
+                {sendingClarification ? '???? ???????...' : '????? ?????'}
               </button>
             </div>
           </div>
@@ -1062,24 +1070,24 @@ export const TailorOrders = () => {
                <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center text-green-600">
                   <Check size={20} />
                </div>
-               <h3 className="text-lg text-slate-900">تأكيد قبول الطلب</h3>
+               <h3 className="text-lg text-slate-900">????? ???? ?????</h3>
             </div>
             
             <div className="mb-6">
-              <p className="text-sm text-slate-600 mb-4">هل أنت متأكد من قبول هذا الطلب؟</p>
+              <p className="text-sm text-slate-600 mb-4">?? ??? ????? ?? ???? ??? ??????</p>
               
               <div className="p-4 bg-slate-50 rounded-lg space-y-2">
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">رقم الطلب</span>
-                  <span className="text-sm text-[#63498b] font-medium">#{acceptConfirmModal.order.id.slice(-6).toUpperCase()}</span>
+                  <span className="text-xs text-slate-500">??? ?????</span>
+                  <span className="text-sm text-[var(--theme-primary)] font-medium">#{acceptConfirmModal.order.id.slice(-6).toUpperCase()}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">العميل</span>
-                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.customerName || 'غير محدد'}</span>
+                  <span className="text-xs text-slate-500">??????</span>
+                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.customerName || '??? ????'}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-xs text-slate-500">المبلغ</span>
-                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.price?.toFixed(3)} ر.ع</span>
+                  <span className="text-xs text-slate-500">??????</span>
+                  <span className="text-sm text-slate-900">{acceptConfirmModal.order.price?.toFixed(3)} ?.?</span>
                 </div>
               </div>
             </div>
@@ -1089,14 +1097,14 @@ export const TailorOrders = () => {
                 onClick={() => setAcceptConfirmModal({ order: null, show: false })}
                 className="flex-1 h-11 bg-slate-100 text-slate-700 rounded-lg text-sm hover:bg-slate-200 transition-all"
               >
-                إلغاء
+                ?????
               </button>
               <button
                 onClick={() => acceptConfirmModal.order && acceptOrder(acceptConfirmModal.order.id)}
-                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all flex items-center justify-center gap-2"
+                className="flex-1 h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all flex items-center justify-center gap-2"
               >
                 <Check size={16} />
-                تأكيد القبول
+                ????? ??????
               </button>
             </div>
           </div>

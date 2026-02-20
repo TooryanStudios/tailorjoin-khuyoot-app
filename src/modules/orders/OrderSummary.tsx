@@ -68,8 +68,8 @@ const TailorCard = React.memo(function TailorCard({
   const rating = typeof tailor?.rating === 'number' ? tailor.rating : 5.0;
 
   return (
-    <div className="group bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 hover:bg-white hover:border-purple-600/30 transition-all duration-300 shadow-sm hover:shadow-md">
-      <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 border border-zinc-200/50 group-hover:border-purple-500/30 transition-colors">
+    <div className="group bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 hover:bg-white hover:border-[var(--theme-primary)]/30 transition-all duration-300 shadow-sm hover:shadow-md">
+      <div className="w-16 h-16 rounded-xl overflow-hidden bg-zinc-100 flex-shrink-0 border border-zinc-200/50 group-hover:border-[var(--theme-primary)]/30 transition-colors">
         {imageSrc ? (
           <img
             src={imageSrc}
@@ -87,7 +87,7 @@ const TailorCard = React.memo(function TailorCard({
       <div className="min-w-0 flex-1">
         <div className="flex items-center justify-between gap-2">
           <h4 className="text-zinc-900 font-bold truncate">{tailor?.name || tCommon('roleTailor')}</h4>
-          <div className="flex items-center gap-1 text-purple-600 text-xs font-bold bg-purple-50 px-1.5 py-0.5 rounded-md">
+          <div className="flex items-center gap-1 text-[var(--theme-primary)] text-xs font-bold bg-[var(--theme-primary)]/8 px-1.5 py-0.5 rounded-md">
             <Star size={12} fill="currentColor" />
             <span>{rating.toFixed(1)}</span>
           </div>
@@ -100,7 +100,7 @@ const TailorCard = React.memo(function TailorCard({
       <button
         onClick={() => onSelect(tailor)}
         disabled={disabled}
-        className="px-5 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold shadow-lg shadow-purple-600/10 active:scale-95 transition-all uppercase tracking-wider"
+        className="px-5 py-2.5 bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] disabled:bg-zinc-200 disabled:text-zinc-400 disabled:cursor-not-allowed text-white rounded-xl text-sm font-bold shadow-lg shadow-[var(--theme-primary)]/10 active:scale-95 transition-all uppercase tracking-wider"
       >
         {t('send')}
       </button>
@@ -140,7 +140,7 @@ const SubmissionDialog = React.memo(function SubmissionDialog({
       <div className="absolute inset-0 bg-[#000000]/60 backdrop-blur-md transition-all duration-500" onClick={onClose} />
       <div className="relative w-full max-w-md rounded-[2.5rem] border border-zinc-200 bg-white p-8 shadow-[0_32px_128px_-16px_rgba(0,0,0,0.1)] overflow-hidden">
         {/* Purple pulse glow for "Pending/Submitted" state */}
-        <div className="absolute -top-32 -left-32 w-64 h-64 bg-purple-500/10 blur-[96px] rounded-full pointer-events-none animate-pulse" />
+        <div className="absolute -top-32 -left-32 w-64 h-64 bg-[var(--theme-primary)]/10 blur-[96px] rounded-full pointer-events-none animate-pulse" />
         
         <button
           type="button"
@@ -154,8 +154,8 @@ const SubmissionDialog = React.memo(function SubmissionDialog({
         </button>
 
         <div className="text-center relative z-10 mt-4">
-          <div className="w-20 h-20 bg-purple-100 rounded-full flex items-center justify-center mx-auto mb-6 scale-110 shadow-[0_0_40px_rgba(147,51,234,0.1)]">
-            <Check className="text-purple-600" size={40} strokeWidth={3} />
+          <div className="w-20 h-20 bg-[var(--theme-primary)]/15 rounded-full flex items-center justify-center mx-auto mb-6 scale-110 shadow-[0_0_40px_rgba(99,73,139,0.1)]">
+            <Check className="text-[var(--theme-primary)]" size={40} strokeWidth={3} />
           </div>
           
           <h3 className="text-zinc-900 font-black text-2xl tracking-tight">{t('dialog.title')}</h3>
@@ -163,8 +163,8 @@ const SubmissionDialog = React.memo(function SubmissionDialog({
           
           {tailorName && (
              <div className="mt-6 p-4 rounded-2xl bg-zinc-50 border border-zinc-200 inline-flex items-center gap-3">
-               <div className="w-8 h-8 rounded-full bg-purple-100 flex items-center justify-center">
-                 <Scissors size={14} className="text-purple-600" />
+               <div className="w-8 h-8 rounded-full bg-[var(--theme-primary)]/15 flex items-center justify-center">
+                 <Scissors size={14} className="text-[var(--theme-primary)]" />
                </div>
                <span className="text-zinc-900 text-sm font-bold">{tailorName}</span>
              </div>
@@ -176,7 +176,7 @@ const SubmissionDialog = React.memo(function SubmissionDialog({
             type="button"
             onClick={onTrackOrder}
             disabled={disableActions}
-            className="w-full h-14 rounded-2xl bg-purple-600 text-white font-black uppercase tracking-tight shadow-xl shadow-purple-600/20 hover:bg-purple-700 active:scale-95 transition-all flex items-center justify-center gap-2"
+            className="w-full h-14 rounded-2xl bg-[var(--theme-primary)] text-white font-black uppercase tracking-tight shadow-xl shadow-[var(--theme-primary)]/20 hover:bg-[var(--theme-primary-dark)] active:scale-95 transition-all flex items-center justify-center gap-2"
           >
             <History size={20} strokeWidth={3} />
             {t('viewMyOrders')}
@@ -424,8 +424,8 @@ export const OrderSummary: React.FC = () => {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-4">
         <div className="relative">
-          <div className="w-24 h-24 border-[3px] border-purple-600/10 rounded-full animate-pulse" />
-          <div className="absolute inset-0 w-24 h-24 border-t-[3px] border-purple-600 rounded-full animate-spin" />
+          <div className="w-24 h-24 border-[3px] border-[var(--theme-primary)]/10 rounded-full animate-pulse" />
+          <div className="absolute inset-0 w-24 h-24 border-t-[3px] border-[var(--theme-primary)] rounded-full animate-spin" />
           <p className="absolute -bottom-10 left-1/2 -translate-x-1/2 text-zinc-400 text-xs font-bold whitespace-nowrap tracking-widest uppercase">
             {t('loadingOrderDetails')}
           </p>
@@ -473,7 +473,7 @@ export const OrderSummary: React.FC = () => {
             <input 
               type="text" 
               placeholder={tCommon('searchPlaceholder') || 'Search...'} 
-              className="w-full h-14 bg-zinc-50 border border-zinc-200 rounded-2xl pl-12 pr-6 text-zinc-900 text-sm focus:ring-2 focus:ring-purple-600/20 transition-all outline-none"
+              className="w-full h-14 bg-zinc-50 border border-zinc-200 rounded-2xl pl-12 pr-6 text-zinc-900 text-sm focus:ring-2 focus:ring-[var(--theme-primary)]/20 transition-all outline-none"
             />
           </div>
 
@@ -487,7 +487,7 @@ export const OrderSummary: React.FC = () => {
 
             {isTailorsLoading ? (
               <div className="flex flex-col items-center justify-center h-64 gap-4">
-                 <div className="w-10 h-10 border-2 border-purple-600/20 border-t-purple-600 rounded-full animate-spin" />
+                 <div className="w-10 h-10 border-2 border-[var(--theme-primary)]/20 border-t-[var(--theme-primary)] rounded-full animate-spin" />
               </div>
             ) : tailors.length > 0 ? (
                tailors.map(tailor => (
@@ -517,7 +517,7 @@ export const OrderSummary: React.FC = () => {
           onClose={() => setIsSubmittedDialogOpen(false)}
           onTrackOrder={() => {
             setIsSubmittedDialogOpen(false);
-            navigate('/account');
+            navigate('/orders');
           }}
           onGoHome={() => {
             setIsSubmittedDialogOpen(false);
@@ -535,7 +535,7 @@ export const OrderSummary: React.FC = () => {
 
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 py-3 border-b border-zinc-200">
            <button onClick={() => navigate(-1)} className="flex items-center gap-3 text-zinc-500 hover:text-zinc-900 transition-all group">
-             <div className="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 border border-zinc-200 group-hover:border-purple-600/30 transition-all shadow-sm">
+             <div className="w-9 h-9 rounded-full bg-zinc-100 flex items-center justify-center group-hover:bg-zinc-200 border border-zinc-200 group-hover:border-[var(--theme-primary)]/30 transition-all shadow-sm">
                 <ArrowRight size={18} className={`transition-transform text-zinc-900 ${i18n.language === 'ar' ? 'rotate-180 group-hover:-translate-x-0.5' : 'group-hover:translate-x-0.5'}`} />
              </div>
              <span className="text-[12px] font-black uppercase tracking-[0.15em]">{t('back')}</span>
@@ -543,7 +543,7 @@ export const OrderSummary: React.FC = () => {
            
            <div className="flex items-center gap-5">
               <div className="text-end flex flex-col items-end">
-                <h4 className="text-[9px] font-black text-purple-600 uppercase tracking-[0.2em] mb-0.5">{tCommon('order') || 'Order'}</h4>
+                <h4 className="text-[9px] font-black text-[var(--theme-primary)] uppercase tracking-[0.2em] mb-0.5">{tCommon('order') || 'Order'}</h4>
                 <div className="flex items-center gap-2">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" />
                   <span className="text-zinc-900 text-[11px] font-mono select-all bg-zinc-100 px-3 py-1 rounded-lg border border-zinc-200 tabular-nums">#{orderId?.toUpperCase()}</span>
@@ -568,7 +568,7 @@ export const OrderSummary: React.FC = () => {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div 
                   onClick={() => product?.id && navigate(`/product/${product.id}`)}
-                  className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 group cursor-pointer hover:bg-white hover:border-purple-600/30 transition-all shadow-sm"
+                  className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 group cursor-pointer hover:bg-white hover:border-[var(--theme-primary)]/30 transition-all shadow-sm"
                 >
                   <div className="w-16 h-20 rounded-xl overflow-hidden bg-zinc-100 border border-zinc-200/50 flex-shrink-0 relative">
                     {productImage ? (
@@ -580,10 +580,10 @@ export const OrderSummary: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <ShoppingBag className="text-purple-600" size={12} />
+                      <ShoppingBag className="text-[var(--theme-primary)]" size={12} />
                       <h2 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{t('productSection')}</h2>
                     </div>
-                    <h3 className="text-zinc-900 font-bold text-base truncate group-hover:text-purple-600 transition-colors">{productName}</h3>
+                    <h3 className="text-zinc-900 font-bold text-base truncate group-hover:text-[var(--theme-primary)] transition-colors">{productName}</h3>
                     <div className="flex items-center gap-2 text-zinc-500 text-[10px] font-medium mt-1">
                       <span>{categoryName}</span>
                       <span className="w-1 h-1 rounded-full bg-zinc-200" />
@@ -597,9 +597,9 @@ export const OrderSummary: React.FC = () => {
                     const shopId = product?.tailorId || order?.tailorId || null;
                     if (shopId) navigate(`/tailor/${shopId}`);
                   }}
-                  className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 text-start cursor-pointer hover:bg-white hover:border-purple-600/30 transition-all shadow-sm group"
+                  className="bg-zinc-50 rounded-2xl border border-zinc-200 p-4 flex items-center gap-4 text-start cursor-pointer hover:bg-white hover:border-[var(--theme-primary)]/30 transition-all shadow-sm group"
                 >
-                  <div className="w-16 h-20 rounded-xl bg-purple-50 border border-purple-100 flex flex-col items-center justify-center flex-shrink-0 text-purple-600 overflow-hidden">
+                  <div className="w-16 h-20 rounded-xl bg-[var(--theme-primary)]/8 border border-[var(--theme-primary)]/15 flex flex-col items-center justify-center flex-shrink-0 text-[var(--theme-primary)] overflow-hidden">
                      {tailorUser?.image || tailorUser?.profileImage ? (
                        <img src={tailorUser.image || tailorUser.profileImage} alt={shopName} className="w-full h-full object-cover group-hover:scale-110 transition-transform" />
                      ) : (
@@ -611,17 +611,17 @@ export const OrderSummary: React.FC = () => {
                   </div>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 mb-0.5">
-                      <MapPin className="text-purple-600" size={12} />
+                      <MapPin className="text-[var(--theme-primary)]" size={12} />
                       <h2 className="text-[9px] font-black text-zinc-400 uppercase tracking-widest">{t('shopSection')}</h2>
                     </div>
-                    <h3 className="text-zinc-900 font-bold text-base truncate group-hover:text-purple-600 transition-colors">{shopName}</h3>
+                    <h3 className="text-zinc-900 font-bold text-base truncate group-hover:text-[var(--theme-primary)] transition-colors">{shopName}</h3>
                     <div className="flex items-center gap-1.5 mt-1 text-zinc-500">
                       <span className="text-[10px] font-medium truncate max-w-[150px]">{shopLocation}</span>
                     </div>
                     <div className="mt-2">
                       {order?.requestedTailorName ? (
-                         <div className="text-purple-600 text-[9px] font-black uppercase inline-flex items-center gap-1.5">
-                            <div className="w-1.5 h-1.5 rounded-full bg-purple-600 animate-pulse" />
+                         <div className="text-[var(--theme-primary)] text-[9px] font-black uppercase inline-flex items-center gap-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-[var(--theme-primary)] animate-pulse" />
                             {order.requestedTailorName}
                          </div>
                       ) : (
@@ -635,7 +635,7 @@ export const OrderSummary: React.FC = () => {
             <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden shadow-sm text-start">
                <div className="px-5 py-3.5 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
                  <div className="flex items-center gap-2.5">
-                   <Ruler className="text-purple-600" size={16} />
+                   <Ruler className="text-[var(--theme-primary)]" size={16} />
                    <h2 className="text-sm font-black text-zinc-900 uppercase tracking-tight">{t('measurementsSection')}</h2>
                  </div>
                  <button
@@ -654,7 +654,7 @@ export const OrderSummary: React.FC = () => {
                       const measurementValue = order.measurements?.[measurementKey] || Object.values(order.measurements || {})[idx] || '—';
                       const pointName = point.label || point.name || formatMeasurementKey(measurementKey);
                       return (
-                        <div key={point.id} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 group hover:border-purple-600/30 transition-all hover:bg-white shadow-sm">
+                        <div key={point.id} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 group hover:border-[var(--theme-primary)]/30 transition-all hover:bg-white shadow-sm">
                           <p className="text-zinc-500 text-[9px] font-black uppercase mb-1.5 truncate tracking-widest">{pointName}</p>
                           <p className="text-zinc-900 font-black text-lg font-mono flex items-baseline gap-1">
                             {measurementValue}<span className="text-[8px] text-zinc-400 font-sans uppercase">{t('unitCm')}</span>
@@ -662,7 +662,7 @@ export const OrderSummary: React.FC = () => {
                         </div>
                       );
                     }) || (order.measurements && Object.entries(order.measurements).map(([key, value]: [string, any]) => (
-                      <div key={key} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 group hover:border-purple-600/30 transition-colors shadow-sm">
+                      <div key={key} className="bg-zinc-50 rounded-xl p-3 border border-zinc-200 group hover:border-[var(--theme-primary)]/30 transition-colors shadow-sm">
                         <p className="text-zinc-500 text-[9px] font-black uppercase mb-1.5 truncate tracking-widest">{formatMeasurementKey(key)}</p>
                         <p className="text-zinc-900 font-black text-lg font-mono">
                           {value}<span className="text-[8px] text-zinc-400 font-sans ml-1 uppercase">{t('unitCm')}</span>
@@ -676,7 +676,7 @@ export const OrderSummary: React.FC = () => {
             <div className="bg-white rounded-2xl border border-zinc-200 overflow-hidden text-start shadow-sm">
                <div className="px-5 py-3.5 border-b border-zinc-200 flex items-center justify-between bg-zinc-50">
                  <div className="flex items-center gap-2.5">
-                   <Layers className="text-purple-600" size={16} />
+                   <Layers className="text-[var(--theme-primary)]" size={16} />
                    <h2 className="text-sm font-black text-zinc-900 uppercase tracking-tight">{t('fabricSourceSection')}</h2>
                  </div>
                </div>
@@ -694,7 +694,7 @@ export const OrderSummary: React.FC = () => {
                         onClick={() => setFabricSource(tab.id as any)}
                         className={`h-9 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all ${
                           fabricSource === tab.id
-                            ? 'bg-purple-600 text-white shadow-lg'
+                            ? 'bg-[var(--theme-primary)] text-white shadow-lg'
                             : tab.disabled 
                               ? 'text-zinc-400 cursor-not-allowed opacity-50' 
                               : 'text-zinc-500 hover:text-zinc-900 hover:bg-zinc-200/50'
@@ -721,14 +721,14 @@ export const OrderSummary: React.FC = () => {
                               onClick={() => setDeliveryMethod(opt.id as any)}
                               className={`flex flex-col items-center justify-center gap-2 p-3 rounded-xl border transition-all text-center group ${
                                 deliveryMethod === opt.id
-                                  ? 'bg-purple-50 border-purple-200 shadow-sm'
+                                  ? 'bg-[var(--theme-primary)]/8 border-[var(--theme-primary)]/20 shadow-sm'
                                   : opt.disabled
                                     ? 'bg-zinc-50 border-zinc-100 opacity-40 cursor-not-allowed'
                                     : 'bg-zinc-50 border-zinc-200 hover:border-zinc-300 hover:bg-zinc-100'
                               }`}
                             >
                               <div className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                                deliveryMethod === opt.id ? 'bg-purple-600 text-white' : 'bg-zinc-200 text-zinc-500 group-hover:text-zinc-900'
+                                deliveryMethod === opt.id ? 'bg-[var(--theme-primary)] text-white' : 'bg-zinc-200 text-zinc-500 group-hover:text-zinc-900'
                               }`}>
                                 <opt.icon size={16} />
                               </div>
@@ -746,7 +746,7 @@ export const OrderSummary: React.FC = () => {
                   )}
                   
                   <p className="text-zinc-500 text-[9px] font-bold italic flex items-center gap-2 px-1">
-                     <Shield size={10} className="text-purple-600" />
+                     <Shield size={10} className="text-[var(--theme-primary)]" />
                      {t('fabricOnlyCustomerAvailableNote')}
                   </p>
                </div>
@@ -775,7 +775,7 @@ export const OrderSummary: React.FC = () => {
                       </div>
                       <div className="h-px bg-zinc-200 my-1" />
                       <div className="flex justify-between items-center">
-                         <span className="text-[10px] font-black uppercase text-purple-600 tracking-widest">Total Amount</span>
+                         <span className="text-[10px] font-black uppercase text-[var(--theme-primary)] tracking-widest">Total Amount</span>
                          <span className="text-xl font-black text-zinc-900 font-mono">{totalAmount.toFixed(3)} OMR</span>
                       </div>
                    </div>
@@ -784,12 +784,12 @@ export const OrderSummary: React.FC = () => {
                  <div className="space-y-2">
                    <button
                      type="button"
-                     onClick={() => !currentUser ? import('../../auth/authEvents').then(m => m.requestLoginPrompt('user_action')) : (order?.submissionStatus === 'submitted' ? navigate('/account') : submitOrder())}
+                     onClick={() => !currentUser ? import('../../auth/authEvents').then(m => m.requestLoginPrompt('user_action')) : (order?.submissionStatus === 'submitted' ? navigate('/orders') : submitOrder())}
                      disabled={isSubmitting}
                      className={`w-full h-12 rounded-xl font-black text-sm shadow-xl active:scale-95 transition-all flex flex-col items-center justify-center leading-none ${
                        order?.submissionStatus === 'submitted'
                          ? 'bg-amber-500 text-white shadow-amber-500/10 hover:bg-amber-400'
-                         : 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-600/20'
+                         : 'bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] text-white shadow-[var(--theme-primary)]/20'
                      }`}
                    >
                      {isSubmitting ? (
@@ -834,9 +834,9 @@ export const OrderSummary: React.FC = () => {
                  </div>
                </div>
 
-               <div className="bg-purple-50 rounded-2xl border border-purple-100 p-5 space-y-3 text-start">
+               <div className="bg-[var(--theme-primary)]/8 rounded-2xl border border-[var(--theme-primary)]/15 p-5 space-y-3 text-start">
                  <div>
-                    <h4 className="text-purple-600 font-black text-[9px] uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
+                    <h4 className="text-[var(--theme-primary)] font-black text-[9px] uppercase tracking-[0.2em] mb-1.5 flex items-center gap-2">
                       <Shield size={12} />
                       {tCommon('securePayment') || 'Payment & Terms'}
                     </h4>
@@ -846,7 +846,7 @@ export const OrderSummary: React.FC = () => {
                  </div>
                  
                  <div className="pt-2 border-t border-zinc-200">
-                    <button className="flex items-center gap-2 text-zinc-500 hover:text-purple-600 transition-colors">
+                    <button className="flex items-center gap-2 text-zinc-500 hover:text-[var(--theme-primary)] transition-colors">
                        <FileText size={12} />
                        <span className="text-[9px] font-black uppercase tracking-widest">{t('termsAndConditions')}</span>
                     </button>

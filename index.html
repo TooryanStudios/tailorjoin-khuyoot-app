@@ -156,6 +156,28 @@
           
           document.documentElement.style.setProperty('--theme-primary', primary);
           document.documentElement.style.setProperty('--theme-secondary', secondary);
+
+          // Restore admin-selected primary color (AdminColorPicker) — remove this block to disable
+          (function() {
+            try {
+              const adminColor = localStorage.getItem('khuyoot_admin_primary_color');
+              if (adminColor) {
+                const hex = adminColor.replace('#', '');
+                const num = parseInt(hex, 16);
+                if (!isNaN(num)) {
+                  const r = (num >> 16) & 255, g = (num >> 8) & 255, b = num & 255;
+                  const dr = Math.round(r * 0.78), dg = Math.round(g * 0.78), db = Math.round(b * 0.78);
+                  const root = document.documentElement;
+                  root.style.setProperty('--theme-primary-rgb', r + ' ' + g + ' ' + b);
+                  root.style.setProperty('--theme-primary-dark-rgb', dr + ' ' + dg + ' ' + db);
+                  root.style.setProperty('--theme-primary', 'rgb(' + r + ' ' + g + ' ' + b + ')');
+                  root.style.setProperty('--theme-primary-dark', 'rgb(' + dr + ' ' + dg + ' ' + db + ')');
+                  root.style.setProperty('--theme-primary-glow', 'rgb(' + r + ' ' + g + ' ' + b + ' / 0.15)');
+                  root.style.setProperty('--theme-master', 'rgb(' + r + ' ' + g + ' ' + b + ')');
+                }
+              }
+            } catch(e) {}
+          })();
         } catch (e) {
           // Fallback to dark mode on error
           document.documentElement.classList.add('dark');

@@ -1113,7 +1113,7 @@ export const TailorCollections = () => {
   }, [filteredProducts]);
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"
@@ -1126,7 +1126,7 @@ export const TailorCollections = () => {
       >
         {/* --- HERO / BANNER SECTION --- */}
         <section className="px-4 md:px-6 lg:px-8 py-3 max-w-[1400px] mx-auto">
-        <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+        <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
           <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
           <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
           
@@ -1171,7 +1171,7 @@ export const TailorCollections = () => {
                  onClick={() => setViewMode('list')}
                  className={`p-2 rounded transition ${
                    viewMode === 'list'
-                     ? 'bg-[#63498b] text-white shadow'
+                     ? 'bg-[var(--theme-primary)] text-white shadow'
                      : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض قائمة"
@@ -1182,7 +1182,7 @@ export const TailorCollections = () => {
                  onClick={() => setViewMode('grid')}
                  className={`p-2 rounded transition ${
                    viewMode === 'grid'
-                     ? 'bg-[#63498b] text-white shadow'
+                     ? 'bg-[var(--theme-primary)] text-white shadow'
                      : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض شبكة"
@@ -1193,7 +1193,7 @@ export const TailorCollections = () => {
                  onClick={() => setViewMode('compact')}
                  className={`p-2 rounded transition ${
                    viewMode === 'compact'
-                     ? 'bg-[#63498b] text-white shadow'
+                     ? 'bg-[var(--theme-primary)] text-white shadow'
                      : 'text-slate-600 hover:bg-slate-100'
                  }`}
                  title="عرض مضغوط"
@@ -1204,7 +1204,7 @@ export const TailorCollections = () => {
              
              <button
                onClick={() => setShowAddForm(true)}
-               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[#63498b] text-white font-medium text-sm transition-all shadow-sm hover:bg-[#63498b]/90"
+               className="flex items-center gap-2 px-4 py-2 rounded-lg bg-[var(--theme-primary)] text-white font-medium text-sm transition-all shadow-sm hover:bg-[var(--theme-primary)]/90"
              >
                <Plus size={16} /> إضافة منتج
              </button>
@@ -1224,7 +1224,7 @@ export const TailorCollections = () => {
               onClick={() => setFilterMode('all')}
               className={`px-4 py-2 rounded-lg text-sm font-medium transition whitespace-nowrap ${
                 filterMode === 'all'
-                  ? 'bg-[#63498b] text-white'
+                  ? 'bg-[var(--theme-primary)] text-white'
                   : 'bg-white text-slate-600 border border-gray-200 hover:bg-slate-50'
               }`}
             >
@@ -1349,7 +1349,7 @@ export const TailorCollections = () => {
                         <div className="flex items-center gap-2">
                           <button 
                             onClick={() => startEditProduct(product)} 
-                            className="text-[#63498b] hover:text-[#63498b]/80 p-1"
+                            className="text-[var(--theme-primary)] hover:text-[var(--theme-primary)]/80 p-1"
                             title="تعديل المنتج"
                           >
                             <Edit size={16} />
@@ -1364,7 +1364,7 @@ export const TailorCollections = () => {
                         </div>
                       </div>
                       <div className="flex items-center gap-4 text-sm">
-                        <span className="font-bold text-[#63498b]">{product.price.toFixed(3)} ر.ع</span>
+                        <span className="font-bold text-[var(--theme-primary)]">{product.price.toFixed(3)} ر.ع</span>
                         <span className="text-slate-400 text-xs flex items-center gap-1">
                           <Clock size={12} /> {product.duration}
                         </span>
@@ -1380,7 +1380,7 @@ export const TailorCollections = () => {
                       {product.tags && product.tags.length > 0 && (
                         <div className="flex flex-wrap gap-1 mt-2">
                           {product.tags.slice(0, 3).map((tag, idx) => (
-                            <span key={idx} className="text-xs bg-purple-100 text-[#63498b] px-2 py-0.5 rounded">
+                            <span key={idx} className="text-xs bg-purple-100 text-[var(--theme-primary)] px-2 py-0.5 rounded">
                               {tag}
                             </span>
                           ))}
@@ -1406,7 +1406,7 @@ export const TailorCollections = () => {
                           </span>
                         </div>
                         {products.length > 4 && (
-                           <button className="text-xs font-semibold text-[#63498b] hover:underline">
+                           <button className="text-xs font-semibold text-[var(--theme-primary)] hover:underline">
                              عرض الكل
                            </button>
                         )}
@@ -1446,7 +1446,7 @@ export const TailorCollections = () => {
                                <div className="absolute top-2 right-2 flex flex-col gap-2 translate-x-10 group-hover:translate-x-0 transition-transform duration-300">
                                  <button 
                                    onClick={(e) => { e.stopPropagation(); startEditProduct(product); }} 
-                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-[#63498b] hover:bg-[#63498b] hover:text-white transition shadow-lg"
+                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white transition shadow-lg"
                                    title="تعديل"
                                  >
                                    <Edit size={14} />
@@ -1473,7 +1473,7 @@ export const TailorCollections = () => {
                              
                              {/* Footer Clean */}
                              <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
-                               <p className="font-bold text-[#63498b] text-sm">
+                               <p className="font-bold text-[var(--theme-primary)] text-sm">
                                  {product.price.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">ر.ع</span>
                                </p>
                                {product.likes > 0 && (
@@ -1510,7 +1510,7 @@ export const TailorCollections = () => {
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
                         <button 
                           onClick={() => startEditProduct(product)} 
-                          className="bg-white p-2 rounded-lg text-[#63498b] hover:bg-[#63498b] hover:text-white transition"
+                          className="bg-white p-2 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white transition"
                           title="تعديل"
                         >
                           <Edit size={14} />
@@ -1527,7 +1527,7 @@ export const TailorCollections = () => {
                     <div className="p-2">
                       <h3 className="font-bold text-xs text-slate-900 truncate">{product.name}</h3>
                       <div className="flex items-center justify-between mt-1">
-                        <span className="font-bold text-xs text-[#63498b]">{product.price.toFixed(2)} ر.ع</span>
+                        <span className="font-bold text-xs text-[var(--theme-primary)]">{product.price.toFixed(2)} ر.ع</span>
                         {product.likes && product.likes > 0 && (
                           <span className="text-red-400 text-xs">♥ {product.likes}</span>
                         )}
@@ -1546,7 +1546,7 @@ export const TailorCollections = () => {
             </p>
             <button
               onClick={() => setShowAddForm(true)}
-              className="mt-4 px-6 py-2 bg-[#63498b] text-white rounded-lg hover:bg-[#63498b]/90 transition"
+              className="mt-4 px-6 py-2 bg-[var(--theme-primary)] text-white rounded-lg hover:bg-[var(--theme-primary)]/90 transition"
             >
               إضافة منتج جديد
             </button>
@@ -1560,7 +1560,7 @@ export const TailorCollections = () => {
             <div className="sticky top-0 bg-white border-b border-slate-200 p-6 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                  <ImagePlus size={24} className="text-[#63498b]" />
+                  <ImagePlus size={24} className="text-[var(--theme-primary)]" />
                   اختر صورة افتراضية للمنتج
                 </h3>
                 <p className="text-sm text-slate-500 mt-1">
@@ -1579,7 +1579,7 @@ export const TailorCollections = () => {
             <div className="p-6">
               {loadingLibrary ? (
                 <div className="text-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#63498b] mx-auto mb-4"></div>
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[var(--theme-primary)] mx-auto mb-4"></div>
                   <p className="text-slate-600">جاري تحميل المكتبة...</p>
                 </div>
               ) : libraryImages.length === 0 ? (
@@ -1613,7 +1613,7 @@ export const TailorCollections = () => {
                         }, 100);
                       }
                     }}
-                      className="group relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[#63498b] transition-all hover:shadow-md"
+                      className="group relative aspect-[3/4] rounded-lg overflow-hidden border-2 border-slate-200 hover:border-[var(--theme-primary)] transition-all hover:shadow-md"
                     >
                       <img
                         src={imageOption.url}
@@ -1625,7 +1625,7 @@ export const TailorCollections = () => {
                           <p className="text-xs font-medium line-clamp-2">{imageOption.label}</p>
                         </div>
                       </div>
-                      <div className="absolute top-1 right-1 w-6 h-6 bg-[#63498b] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                      <div className="absolute top-1 right-1 w-6 h-6 bg-[var(--theme-primary)] rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                         <ImagePlus size={14} className="text-white" />
                       </div>
                     </button>

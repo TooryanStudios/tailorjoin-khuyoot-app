@@ -129,7 +129,7 @@ export const TailorSelectionModal: React.FC<TailorSelectionModalProps> = ({
             placeholder="ابحث عن الاسم أو الموقع..."
             value={searching}
             onChange={(e) => handleSearch(e.target.value)}
-            className="w-full h-10 bg-white rounded-lg border border-slate-200 px-3 pr-9 text-sm focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all"
+            className="w-full h-10 bg-white rounded-lg border border-slate-200 px-3 pr-9 text-sm focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all"
           />
           <Search className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
         </div>
@@ -138,7 +138,7 @@ export const TailorSelectionModal: React.FC<TailorSelectionModalProps> = ({
       <div className="flex-1 overflow-y-auto p-4 space-y-2">
         {loading ? (
           <div className="flex flex-col items-center justify-center py-12">
-            <Loader className="w-6 h-6 text-[#63498b] animate-spin mb-2" />
+            <Loader className="w-6 h-6 text-[var(--theme-primary)] animate-spin mb-2" />
             <p className="text-xs text-slate-500">جاري تحميل الخياطين...</p>
           </div>
         ) : filteredTailors.length === 0 ? (
@@ -156,7 +156,7 @@ export const TailorSelectionModal: React.FC<TailorSelectionModalProps> = ({
               onClick={() => setSelectedTailorId(tailor.id)}
               className={`p-3 rounded-lg border-2 transition-all cursor-pointer ${
                 selectedTailorId === tailor.id
-                  ? 'border-[#63498b] bg-[#63498b]/5'
+                  ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/5'
                   : 'border-slate-200 hover:border-slate-300'
               }`}
             >
@@ -179,7 +179,7 @@ export const TailorSelectionModal: React.FC<TailorSelectionModalProps> = ({
                   <div className="flex items-center justify-between gap-2">
                     <h4 className="text-sm font-medium text-slate-900 truncate">{tailor.name}</h4>
                     {selectedTailorId === tailor.id && (
-                      <div className="w-5 h-5 rounded-full bg-[#63498b] flex items-center justify-center text-white shrink-0">
+                      <div className="w-5 h-5 rounded-full bg-[var(--theme-primary)] flex items-center justify-center text-white shrink-0">
                         ✓
                       </div>
                     )}
@@ -227,7 +227,7 @@ export const TailorSelectionModal: React.FC<TailorSelectionModalProps> = ({
             }
           }}
           disabled={!selectedTailorId || isAssigning}
-          className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
+          className="flex-1 h-10 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
         >
           {isAssigning ? (
             <>

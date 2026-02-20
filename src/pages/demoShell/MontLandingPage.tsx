@@ -3,6 +3,7 @@ import { useOutletContext, useNavigate, useParams, useLocation } from 'react-rou
 import { Search, ShoppingBag, ArrowUpRight, ArrowRight, Star, ChevronLeft, ChevronRight, MessageSquare, Instagram, Twitter, Facebook, Mail, Phone, MapPin, LayoutGrid, Tag, ScanFace, Scissors, Truck, Ruler, Palette, PenTool, Menu, X } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup } from 'firebase/firestore';
 import { db } from '../../services/firebase';
+import { UploadDesignDialog } from '../../components/demoShell/UploadDesignDialog';
 import type { DemoShellOutletContext } from './DemoShellLayout';
 
 const ProductCard = React.memo(({ product, navigate }: { product: any, navigate: any }) => {
@@ -85,12 +86,12 @@ const MontLandingPage = () => {
     lime: { 
       id: 'lime',
       label: 'Royal Purple & Lime',
-      primary: '#63498b', 
+      primary: 'var(--theme-primary)', 
       secondary: '#b5e58d',
-      border: '#63498b',
-      faint: '#63498b33',
-      semi: '#63498b80',
-      text_accent: '#63498b'
+      border: 'var(--theme-primary)',
+      faint: 'var(--theme-primary)33',
+      semi: 'var(--theme-primary)80',
+      text_accent: 'var(--theme-primary)'
     },
     sage: { 
       id: 'sage',
@@ -136,9 +137,28 @@ const MontLandingPage = () => {
   
   const theme = themes[activeTheme || 'lime'] || themes.lime;
 
+  // Admin primary-color override (from AdminColorPicker)
+  const [adminColorOverride, setAdminColorOverride] = useState<string | null>(
+    () => localStorage.getItem('khuyoot_admin_primary_color')
+  );
+  useEffect(() => {
+    const handler = (e: Event) => {
+      setAdminColorOverride((e as CustomEvent).detail as string);
+    };
+    window.addEventListener('khuyoot:primary-color-changed', handler);
+    return () => window.removeEventListener('khuyoot:primary-color-changed', handler);
+  }, []);
+  const effectiveTheme = adminColorOverride
+    ? { ...theme, primary: adminColorOverride, border: adminColorOverride, faint: adminColorOverride + '33', semi: adminColorOverride + '80', text_accent: adminColorOverride }
+    : theme;
+
   // Landing page configuration from Firestore (Loaded from Parent Layout)
   const [config, setConfig] = useState<any>(landingConfig);
   const [loading, setLoading] = useState(!landingConfig);
+  const [selectedAudience, setSelectedAudience] = useState<'male' | 'female'>(
+    location.pathname.startsWith('/male') ? 'male' : 'female'
+  );
+  const [isUploadDialogOpen, setIsUploadDialogOpen] = useState(false);
 
   useEffect(() => {
     if (landingConfig) {
@@ -162,6 +182,12 @@ const MontLandingPage = () => {
   // Save gender preference to localStorage whenever it changes
   React.useEffect(() => {
     localStorage.setItem('khuyoot:lastGender', genderFilter);
+  }, [genderFilter]);
+
+  React.useEffect(() => {
+    if (genderFilter === 'male' || genderFilter === 'female') {
+      setSelectedAudience(genderFilter);
+    }
   }, [genderFilter]);
 
   const handleCategoryClick = (label: string, customPath?: string) => {
@@ -287,12 +313,12 @@ const MontLandingPage = () => {
   }
   return (
     <div className="bg-[#ededed] text-[#1a1a1a] font-['Tajawal'] overflow-x-hidden selection:bg-[var(--theme-primary)] selection:text-white" style={{
-        '--theme-primary': theme.primary,
-        '--theme-secondary': theme.secondary,
-        '--theme-border': theme.border,
-        '--theme-faint': theme.faint,
-        '--theme-semi': theme.semi,
-        '--theme-text-accent': theme.text_accent || theme.primary
+        '--theme-primary': effectiveTheme.primary,
+        '--theme-secondary': effectiveTheme.secondary,
+        '--theme-border': effectiveTheme.border,
+        '--theme-faint': effectiveTheme.faint,
+        '--theme-semi': effectiveTheme.semi,
+        '--theme-text-accent': effectiveTheme.text_accent || effectiveTheme.primary
     } as React.CSSProperties}>
       {/* Mobile Search Bar - Top of Page */}
       <div className="px-4 py-2 md:hidden max-w-[1400px] mx-auto z-20 relative">
@@ -434,83 +460,104 @@ const MontLandingPage = () => {
         </div>
       </section>
 
-      {/* --- HOW IT WORKS SECTION --- */}
+      {/* --- QUICK SELECTION SECTION --- */}
       <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto" style={{
-          '--theme-primary': theme.primary,
-          '--theme-secondary': theme.secondary,
-          '--theme-border': theme.border,
-          '--theme-faint': theme.faint,
-          '--theme-text-accent': theme.text_accent || theme.primary
+          '--theme-primary': effectiveTheme.primary,
+          '--theme-secondary': effectiveTheme.secondary,
+          '--theme-border': effectiveTheme.border,
+          '--theme-faint': effectiveTheme.faint,
+          '--theme-text-accent': effectiveTheme.text_accent || effectiveTheme.primary
       } as React.CSSProperties}>
-        <div className="bg-white rounded-3xl p-4 md:p-16 shadow-sm" dir="rtl">
-          
-          <div className="flex flex-col md:flex-row items-end justify-between gap-4 md:gap-10 mb-6 md:mb-12">
-             <div className="space-y-2 md:space-y-4 max-w-xl w-full md:w-auto ml-auto text-right">
-                <h2 className="text-lg md:text-3xl uppercase leading-[0.85] tracking-tighter text-right">خطوات التفصيل في خيوط</h2>
-                <p className="hidden md:block text-zinc-500 text-xs md:text-sm font-medium leading-relaxed text-right">
-                  لأن الخياطة فن، جعلنا رحلتك معنا تبدأ بخطوة وتنتهي بتحفة فنية.
-                </p>
-             </div>
-             
+        <div className="bg-white rounded-3xl p-4 md:p-8 border-2 border-dashed border-[var(--theme-border)]" dir="rtl">
+          <div className="mb-6 md:mb-8 text-right">
+            <h2 className="text-lg md:text-2xl uppercase leading-[0.9] tracking-tighter">إبدأ من هنا</h2>
+            <p className="text-zinc-500 text-xs md:text-sm mt-2">اختر الطريقة التي تناسبك لبدء رحلتك معنا</p>
           </div>
 
-          <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-8 relative z-10 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0">
-             {[
-               { icon: <LayoutGrid size={16} />, title: "تصفح الموديلات", desc: "اختر تصميمك المفضل من تشكيلتنا" },
-               { icon: <Ruler size={16} />, title: "أدخل المقاسات", desc: "أضف مقاساتك بدقة للحصول على تفصيل مثالي" },
-               { icon: <Palette size={16} />, title: "جرب الأقمشة", desc: "شاهد القماش على الموديل فوراً" },
-               { icon: <Scissors size={16} />, title: "اطلب خياطك", desc: "تنفيذ بجودة عالية وتوصيل لبابك" }
-             ].map((item, i) => (
-                <div key={i} className="shrink-0 w-[140px] md:w-auto snap-center group relative bg-[#fcfcfc] border border-dashed border-[var(--theme-border)] p-3 md:p-6 rounded-2xl md:rounded-3xl md:hover:bg-[var(--theme-primary)] transition-all duration-500 md:hover:shadow-xl cursor-default h-full">
-                   
-                   {/* Number Watermark */}
-                   <div className="absolute top-3 left-3 md:top-5 md:left-6 text-[var(--theme-faint)] md:group-hover:text-white/10 transition-colors text-3xl md:text-5xl font-black select-none font-mono">
-                      0{i + 1}
-                   </div>
-
-                   {/* Sequence Arrows */}
-                   {i < 3 && (
-                     <>
-                        {/* Desktop Arrow (Pointing Left for RTL) */}
-                        <div className="hidden md:flex absolute top-1/2 -left-6 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-2 shadow-sm border border-[var(--theme-border)]">
-                            <ChevronLeft size={14} strokeWidth={3} />
-                        </div>
-                        {/* Mobile Arrow (Pointing Left for RTL flow) */}
-                        <div className="md:hidden absolute -left-1.5 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-1 shadow-sm border border-[var(--theme-border)]">
-                            <ChevronLeft size={8} strokeWidth={3} />
-                        </div>
-                     </>
-                   )}
-
-                   <div className="relative z-10 flex flex-col items-start text-right gap-2 md:gap-4 h-full">
-                      <div className="w-7 h-7 md:w-10 md:h-10 bg-white border border-[var(--theme-border)] md:group-hover:border-black/10 rounded-xl flex items-center justify-center text-black shadow-sm md:group-hover:scale-110 transition-all duration-300">
-                         {item.icon}
-                      </div>
-                      <div className="w-full">
-                         <h3 className="font-normal text-xs md:text-base mb-1 text-black md:group-hover:text-white transition-colors">{item.title}</h3>
-                         <p className="hidden md:block text-zinc-500 text-[9px] md:text-xs leading-relaxed max-w-[180px] md:group-hover:text-white/70 transition-colors">{item.desc}</p>
-                      </div>
-                   </div>
+          <div className="flex md:grid md:grid-cols-3 gap-3 md:gap-6 relative z-10 overflow-x-auto no-scrollbar snap-x snap-mandatory pb-4 md:pb-0 -mx-2 px-2 md:mx-0 md:px-0">
+            {[
+              { icon: <PenTool size={16} />, title: "رفع تصميمك الخاص", desc: "صورة أو تصميم جاهز", onClick: () => setIsUploadDialogOpen(true) },
+              { icon: <LayoutGrid size={16} />, title: "التصفح من الموقع", desc: "موديلات جاهزة بسرعة", onClick: () => navigate(`/products/${selectedAudience === 'male' ? 'men' : 'women'}/all`) },
+            ].map((item, i) => (
+              <button
+                key={i}
+                onClick={item.onClick}
+                className="shrink-0 w-[140px] md:w-auto snap-center group relative bg-[#fcfcfc] border border-dashed border-[var(--theme-border)] p-3 md:p-6 rounded-2xl md:rounded-3xl md:hover:bg-[var(--theme-primary)] transition-all duration-500 md:hover:shadow-xl text-right h-full"
+              >
+                {/* Number watermark */}
+                <div className="absolute top-3 left-3 md:top-5 md:left-6 text-[var(--theme-faint)] md:group-hover:text-white/10 transition-colors text-3xl md:text-5xl font-black select-none font-mono pointer-events-none">
+                  0{i + 1}
                 </div>
-             ))}
+
+                {/* Sequence arrows (between cards) */}
+                <div className="hidden md:flex absolute top-1/2 -left-5 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-2 shadow-sm border border-[var(--theme-border)]">
+                  <ChevronLeft size={14} strokeWidth={3} />
+                </div>
+                <div className="md:hidden absolute -left-1.5 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-1 shadow-sm border border-[var(--theme-border)]">
+                  <ChevronLeft size={8} strokeWidth={3} />
+                </div>
+
+                <div className="relative z-10 flex flex-col items-start text-right gap-2 md:gap-4 h-full">
+                  <div className="w-7 h-7 md:w-10 md:h-10 bg-white border border-[var(--theme-border)] md:group-hover:border-black/10 rounded-xl flex items-center justify-center text-black shadow-sm md:group-hover:scale-110 transition-all duration-300">
+                    {item.icon}
+                  </div>
+                  <div className="w-full">
+                    <h3 className="font-normal text-xs md:text-base mb-1 text-black md:group-hover:text-white transition-colors"><span className="bg-[var(--theme-faint)] md:group-hover:bg-white/15 px-1 rounded transition-colors">{item.title}</span></h3>
+                    <p className="hidden md:block text-zinc-500 text-[9px] md:text-xs leading-relaxed md:group-hover:text-white/70 transition-colors">{item.desc}</p>
+                  </div>
+                </div>
+              </button>
+            ))}
+
+            {/* Card 3 — video background */}
+            <button
+              onClick={() => navigate('/tryon')}
+              className="shrink-0 w-[140px] md:w-auto snap-center group relative overflow-hidden border border-dashed border-[var(--theme-border)] p-3 md:p-6 rounded-2xl md:rounded-3xl md:hover:shadow-xl transition-all duration-500 text-right h-full min-h-[120px] md:min-h-0"
+            >
+              {/* Video background */}
+              <video
+                loop
+                autoPlay
+                muted
+                playsInline
+                className="absolute inset-0 w-full h-full object-cover"
+              >
+                <source src="/videos/designer/designer_comparison02.mp4" type="video/mp4" />
+              </video>
+
+              {/* Dark gradient overlay */}
+              <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-black/15 to-transparent md:group-hover:from-black/40 md:group-hover:via-black/10 md:group-hover:to-transparent transition-all duration-500" />
+
+              {/* Number watermark */}
+              <div className="absolute top-3 left-3 md:top-5 md:left-6 text-white/10 text-3xl md:text-5xl font-black select-none font-mono pointer-events-none">
+                03
+              </div>
+
+              {/* Sequence arrow */}
+              <div className="hidden md:flex absolute top-1/2 -left-5 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-2 shadow-sm border border-[var(--theme-border)]">
+                <ChevronLeft size={14} strokeWidth={3} />
+              </div>
+              <div className="md:hidden absolute -left-1.5 top-1/2 -translate-x-1/2 -translate-y-1/2 z-20 bg-white text-[var(--theme-text-accent)] rounded-full p-1 shadow-sm border border-[var(--theme-border)]">
+                <ChevronLeft size={8} strokeWidth={3} />
+              </div>
+
+              <div className="relative z-10 flex flex-col items-start text-right gap-2 md:gap-4 h-full">
+                <div className="w-7 h-7 md:w-10 md:h-10 bg-white/20 backdrop-blur-sm border border-white/30 md:group-hover:scale-110 rounded-xl flex items-center justify-center text-white shadow-sm transition-all duration-300">
+                  <Palette size={16} />
+                </div>
+                <div className="w-full mt-auto">
+                  <h3 className="font-normal text-xs md:text-base mb-1 text-white"><span className="bg-white/20 backdrop-blur-sm px-1 rounded">جرّب القماش الجديد</span></h3>
+                  <p className="hidden md:block text-white/70 text-[9px] md:text-xs leading-relaxed">عاين على تصاميم مختلفة</p>
+                </div>
+              </div>
+            </button>
           </div>
-
-           {/* Supporting Badges - Bottom of block */}
-           <div className="flex gap-2 overflow-x-auto w-full md:w-auto mt-4 md:mt-8 no-scrollbar">
-              <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border border-dashed border-zinc-200">
-                <Ruler size={12} className="text-[var(--theme-text-accent)]" /> <span>خدمة قياس احترافية</span>
-              </div>
-              <div className="shrink-0 px-3 md:px-4 py-2 bg-[#f4f4f5] rounded-full text-[10px] md:text-xs font-normal flex items-center gap-2 text-zinc-600 border border-dashed border-zinc-200">
-                <Truck size={12} className="text-[var(--theme-text-accent)]" /> <span>توصيل سريع</span>
-              </div>
-           </div>
-
         </div>
       </section>
 
       {/* --- REGIONS STATS --- */}
       <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
-        <div className="bg-theme-surface text-zinc-900 rounded-3xl p-4 md:p-16 relative overflow-hidden" dir="rtl">
+        <div className="text-zinc-900 rounded-3xl p-4 md:p-16 relative overflow-hidden" dir="rtl" style={{ backgroundColor: effectiveTheme.faint }}>
            {/* Pattern Overlay */}
            <div className="absolute inset-0 opacity-10 pointer-events-none" style={{ backgroundImage: 'radial-gradient(circle at 2px 2px, black 1px, transparent 0)', backgroundSize: '32px 32px' }}></div>
            
@@ -894,6 +941,19 @@ const MontLandingPage = () => {
           Copyright © KHUYOOT. All Rights Reserved.
         </div>
       </footer>
+
+      {/* Upload Design Dialog */}
+      <UploadDesignDialog
+        isOpen={isUploadDialogOpen}
+        onClose={() => setIsUploadDialogOpen(false)}
+        onSuccess={(data) => {
+          // Handle successful upload
+          console.log('Design uploaded:', data);
+          // You can store the data in state or navigate with it
+          // navigate('/designer', { state: { uploadedDesign: data } });
+          setIsUploadDialogOpen(false);
+        }}
+      />
     </div>
   );
 };

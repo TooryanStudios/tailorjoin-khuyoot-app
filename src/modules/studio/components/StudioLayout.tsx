@@ -288,7 +288,7 @@ export const StudioLayout: React.FC<StudioLayoutProps> = ({
               <button
                 type="button"
                 onClick={stitchAction.onClick}
-                className="mt-2 w-full h-12 rounded-xl bg-gradient-to-r from-[#63498b] to-[#7a5fa3] text-white font-normal text-[11px] uppercase tracking-widest hover:from-[#7a5fa3] hover:to-[#63498b] transition-all active:scale-95 shadow-sm"
+                className="mt-2 w-full h-12 rounded-xl bg-gradient-to-r from-[var(--theme-primary)] to-[#7a5fa3] text-white font-normal text-[11px] uppercase tracking-widest hover:from-[#7a5fa3] hover:to-[var(--theme-primary)] transition-all active:scale-95 shadow-sm"
               >
                 {stitchAction.label}
               </button>

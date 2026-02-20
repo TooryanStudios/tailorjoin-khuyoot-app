@@ -463,11 +463,11 @@ const MeasurementEditorDialog = ({
                         <button
                           type="button"
                           onClick={() => setIsTypePickerOpen(true)}
-                          className="w-full p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-[#63498b]/50 transition-all text-right"
+                          className="w-full p-3 border-2 border-dashed border-slate-200 rounded-xl hover:border-[var(--theme-primary)]/50 transition-all text-right"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-lg bg-[#63498b]/10 flex items-center justify-center">
-                              <Ruler size={16} className="text-[#63498b]" />
+                            <div className="w-9 h-9 rounded-lg bg-[var(--theme-primary)]/10 flex items-center justify-center">
+                              <Ruler size={16} className="text-[var(--theme-primary)]" />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="text-xs text-slate-500">اختيار نوع الملبس</p>
@@ -476,7 +476,7 @@ const MeasurementEditorDialog = ({
                               </p>
                             </div>
                             {selectedTemplate && (
-                              <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-[#63498b]/10 text-[#63498b]">
+                              <span className="px-2 py-1 rounded-full text-[10px] font-medium bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]">
                                 تم الاختيار
                               </span>
                             )}
@@ -495,7 +495,7 @@ const MeasurementEditorDialog = ({
                       setNameTouched(true);
                       setName(e.target.value);
                     }}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-sm"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all text-sm"
                     placeholder="مثال: قياسي الشخصي"
                     />
                 </div>
@@ -528,7 +528,7 @@ const MeasurementEditorDialog = ({
                                   <select
                                     value={selectedVariationId || ''}
                                     onChange={(e) => setSelectedVariationId(e.target.value || null)}
-                                    className="w-[4.5rem] px-2 py-1 border border-slate-200 rounded-md focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all text-[11px] bg-white/95 shadow-sm"
+                                    className="w-[4.5rem] px-2 py-1 border border-slate-200 rounded-md focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all text-[11px] bg-white/95 shadow-sm"
                                     title={selectedVariation?.name || selectedTemplate.baseImageName || selectedTemplate.name || 'اختر نمط الملبس'}
                                   >
                                     <option value="">{selectedTemplate.baseImageName || selectedTemplate.name || 'الصورة الأساسية'}</option>
@@ -563,7 +563,7 @@ const MeasurementEditorDialog = ({
                 <textarea
                     value={notes}
                     onChange={(e) => setNotes(e.target.value)}
-                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all resize-none text-sm"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all resize-none text-sm"
                     rows={3}
                     placeholder="أي ملاحظات إضافية..."
                 />
@@ -629,7 +629,7 @@ const MeasurementEditorDialog = ({
           <button
               onClick={handleSave}
               disabled={isSaving || !name.trim()}
-              className="flex-1 h-10 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              className="flex-1 h-10 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--theme-primary)]/90 transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
           >
               {isSaving ? (
               <>
@@ -666,7 +666,7 @@ const MeasurementEditorDialog = ({
                 onClick={() => setTypePickerTab('female')}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
                   typePickerTab === 'female'
-                    ? 'bg-[#63498b] text-white border-[#63498b]'
+                    ? 'bg-[var(--theme-primary)] text-white border-[var(--theme-primary)]'
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -677,7 +677,7 @@ const MeasurementEditorDialog = ({
                 onClick={() => setTypePickerTab('male')}
                 className={`flex-1 px-3 py-2 rounded-lg text-xs font-medium border transition-all ${
                   typePickerTab === 'male'
-                    ? 'bg-[#63498b] text-white border-[#63498b]'
+                    ? 'bg-[var(--theme-primary)] text-white border-[var(--theme-primary)]'
                     : 'bg-white text-slate-600 border-slate-200 hover:border-slate-300'
                 }`}
               >
@@ -702,11 +702,11 @@ const MeasurementEditorDialog = ({
                     }}
                     className={`text-right p-3 rounded-xl border transition-all ${
                       selectedTemplateId === t.id
-                        ? 'bg-[#63498b]/10 border-[#63498b]'
+                        ? 'bg-[var(--theme-primary)]/10 border-[var(--theme-primary)]'
                         : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
                     }`}
                   >
-                    <div className={`text-sm font-semibold ${selectedTemplateId === t.id ? 'text-[#63498b]' : 'text-slate-900'}`}>
+                    <div className={`text-sm font-semibold ${selectedTemplateId === t.id ? 'text-[var(--theme-primary)]' : 'text-slate-900'}`}>
                       {t.name}
                     </div>
                     <div className="text-[10px] text-slate-400 mt-1 line-clamp-2">
@@ -1080,8 +1080,8 @@ export const Account = () => {
   if (loading) {
      return (
         <div className="min-h-screen bg-[#ededed] flex flex-col items-center justify-center gap-4">
-           <RefreshCw className="w-12 h-12 text-[#63498b] animate-spin" />
-           <p className="text-[#63498b] font-bold text-lg animate-pulse">جاري تحميل بياناتك...</p>
+           <RefreshCw className="w-12 h-12 text-[var(--theme-primary)] animate-spin" />
+           <p className="text-[var(--theme-primary)] font-bold text-lg animate-pulse">جاري تحميل بياناتك...</p>
         </div>
      );
   }
@@ -1093,7 +1093,7 @@ export const Account = () => {
           
           <div className="flex-1 flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-[32px] overflow-hidden shadow-sm">
-                <div className="bg-[#63498b] p-8 text-center text-white relative">
+                <div className="bg-[var(--theme-primary)] p-8 text-center text-white relative">
                    <div className="absolute top-0 right-0 p-4 opacity-10">
                       <Crown size={80} />
                    </div>
@@ -1108,7 +1108,7 @@ export const Account = () => {
                    <div className="space-y-4">
                       <button
                         onClick={() => navigate('/login')}
-                        className="w-full h-14 bg-[#63498b] text-white rounded-2xl font-bold text-lg hover:bg-[#523d74] transition-all flex items-center justify-center gap-3"
+                        className="w-full h-14 bg-[var(--theme-primary)] text-white rounded-2xl font-bold text-lg hover:bg-[#523d74] transition-all flex items-center justify-center gap-3"
                       >
                          تسجيل الدخول
                          <ArrowRight size={20} />
@@ -1116,7 +1116,7 @@ export const Account = () => {
                       
                       <button
                         onClick={() => navigate('/register')}
-                        className="w-full h-14 bg-white border-2 border-[#63498b] text-[#63498b] rounded-2xl font-bold text-lg hover:bg-[#f8f7faff] transition-all"
+                        className="w-full h-14 bg-white border-2 border-[var(--theme-primary)] text-[var(--theme-primary)] rounded-2xl font-bold text-lg hover:bg-[#f8f7faff] transition-all"
                       >
                          إنشاء حساب جديد
                       </button>
@@ -1125,7 +1125,7 @@ export const Account = () => {
                    <div className="pt-4 text-center">
                       <p className="text-zinc-500 text-sm">
                          بتسجيلك في التطبيق أنت توافق على 
-                         <button className="text-[#63498b] font-medium mx-1">الشروط والأحكام</button>
+                         <button className="text-[var(--theme-primary)] font-medium mx-1">الشروط والأحكام</button>
                       </p>
                    </div>
                 </div>
@@ -1137,7 +1137,7 @@ export const Account = () => {
 
   // --- Authenticated User View ---
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"
@@ -1148,7 +1148,7 @@ export const Account = () => {
       >
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
-          <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+          <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
             <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
             
@@ -1166,7 +1166,7 @@ export const Account = () => {
                     <button
                       onClick={() => fileInputRef.current?.click()}
                       disabled={uploadingImage}
-                      className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center text-[#63498b] hover:bg-slate-50 transition-all shadow-lg"
+                      className="absolute -bottom-1 -right-1 w-6 h-6 bg-white rounded-full flex items-center justify-center text-[var(--theme-primary)] hover:bg-slate-50 transition-all shadow-lg"
                       title="تغيير الصورة"
                     >
                       <Camera size={12} />
@@ -1270,14 +1270,28 @@ export const Account = () => {
                     placeholder="البريد الإلكتروني"
                     className="h-9 bg-white/10 border border-white/20 rounded-lg px-3 text-sm text-white placeholder-white/50 focus:ring-2 focus:ring-white/30 focus:border-transparent transition-all"
                   />
-                  <button
-                    onClick={handleSaveProfile}
-                    disabled={savingProfile}
-                    className="md:col-span-3 h-9 bg-white text-[#63498b] rounded-lg text-sm font-bold hover:bg-white/90 transition-all flex items-center justify-center gap-2"
-                  >
-                    <Save size={14} />
-                    {savingProfile ? 'جاري الحفظ...' : 'حفظ التغييرات'}
-                  </button>
+                  <div className="md:col-span-3 flex gap-2">
+                    <button
+                      onClick={handleSaveProfile}
+                      disabled={savingProfile}
+                      className="flex-1 h-9 bg-white text-[var(--theme-primary)] rounded-lg text-sm font-bold hover:bg-white/90 transition-all flex items-center justify-center gap-2"
+                    >
+                      <Save size={14} />
+                      {savingProfile ? 'جاري الحفظ...' : 'حفظ التغييرات'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setEditName(user.name || '');
+                        setEditPhone(user.phone || '');
+                        setEditEmail(user.email || '');
+                        setIsEditing(false);
+                      }}
+                      disabled={savingProfile}
+                      className="h-9 px-4 bg-white/10 border border-white/20 text-white rounded-lg text-sm font-medium hover:bg-white/20 transition-all"
+                    >
+                      إلغاء
+                    </button>
+                  </div>
                 </div>
               )}
             </div>
@@ -1292,7 +1306,7 @@ export const Account = () => {
                 onClick={() => navigate('/account/measurements')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                   activeTab === 'measurements'
-                    ? 'bg-[#63498b] text-white'
+                    ? 'bg-[var(--theme-primary)] text-white'
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1304,7 +1318,7 @@ export const Account = () => {
                 onClick={() => navigate('/account/family')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                   activeTab === 'family'
-                    ? 'bg-[#63498b] text-white'
+                    ? 'bg-[var(--theme-primary)] text-white'
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1316,7 +1330,7 @@ export const Account = () => {
                 onClick={() => navigate('/account/wallet')}
                 className={`flex-1 px-3 py-2 rounded-lg text-sm font-medium transition-all flex items-center justify-center gap-2 ${
                   activeTab === 'wallet'
-                    ? 'bg-[#63498b] text-white'
+                    ? 'bg-[var(--theme-primary)] text-white'
                     : 'text-slate-600 hover:bg-slate-50'
                 }`}
               >
@@ -1354,7 +1368,7 @@ export const Account = () => {
                    setEditorInitialData(null);
                    setIsEditorOpen(true);
                 }}
-                className="flex items-center gap-2 px-4 py-2 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--theme-primary)]/90 transition-all"
               >
                 <Ruler size={16} />
                 إضافة قياس جديد
@@ -1364,7 +1378,7 @@ export const Account = () => {
             {loadingMeasurements ? (
               <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100">
                 <div className="flex items-center justify-center gap-3">
-                  <RefreshCw size={20} className="text-[#63498b] animate-spin" />
+                  <RefreshCw size={20} className="text-[var(--theme-primary)] animate-spin" />
                   <span className="text-slate-600 text-sm">جاري تحميل القياسات...</span>
                 </div>
               </div>
@@ -1382,7 +1396,7 @@ export const Account = () => {
                      setEditorInitialData(null);
                      setIsEditorOpen(true);
                   }}
-                  className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all inline-flex items-center gap-2"
+                  className="px-6 py-3 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--theme-primary)]/90 transition-all inline-flex items-center gap-2"
                 >
                   <Ruler size={16} />
                   إضافة قياس جديد
@@ -1403,8 +1417,8 @@ export const Account = () => {
                     {/* Header */}
                     <div className="flex items-start justify-between gap-3 mb-3" dir="rtl">
                       <div className="flex items-start gap-3 flex-1">
-                        <div className="w-10 h-10 rounded-lg bg-[#63498b]/10 flex items-center justify-center flex-shrink-0">
-                          <Ruler size={20} className="text-[#63498b]" />
+                        <div className="w-10 h-10 rounded-lg bg-[var(--theme-primary)]/10 flex items-center justify-center flex-shrink-0">
+                          <Ruler size={20} className="text-[var(--theme-primary)]" />
                         </div>
                         <div className="flex-1 min-w-0">
                           <h4 className="text-sm font-bold text-slate-900 truncate">
@@ -1418,7 +1432,7 @@ export const Account = () => {
                       <div className="flex items-center gap-1 flex-shrink-0">
                         <button
                           onClick={() => handleEditMeasurement(measurement)}
-                          className="p-2 text-[#63498b] hover:bg-[#63498b]/10 rounded-lg transition-all"
+                          className="p-2 text-[var(--theme-primary)] hover:bg-[var(--theme-primary)]/10 rounded-lg transition-all"
                           title="تعديل القياسات"
                         >
                           <Edit2 size={16} />
@@ -1477,7 +1491,7 @@ export const Account = () => {
               <h3 className="text-base text-slate-900 font-bold">قياسات العائلة</h3>
               <button
                 onClick={() => setShowFamilyDialog(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-[#63498b] text-white rounded-lg text-sm font-medium hover:bg-[#63498b]/90 transition-all"
+                className="flex items-center gap-2 px-4 py-2 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-medium hover:bg-[var(--theme-primary)]/90 transition-all"
               >
                 <Users size={16} />
                 إضافة فرد
@@ -1495,7 +1509,7 @@ export const Account = () => {
                 </p>
                 <button
                   onClick={() => setShowFamilyDialog(true)}
-                  className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all inline-flex items-center gap-2"
+                  className="px-6 py-3 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--theme-primary)]/90 transition-all inline-flex items-center gap-2"
                 >
                   <Users size={16} />
                   إضافة أول فرد
@@ -1561,7 +1575,7 @@ export const Account = () => {
                 disabled={isRefreshingCredits}
                 className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
                   isRefreshingCredits 
-                    ? 'bg-[#63498b]/10 text-[#63498b]' 
+                    ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' 
                     : 'bg-slate-50 text-slate-500 hover:bg-slate-100'
                 }`}
               >
@@ -1571,10 +1585,10 @@ export const Account = () => {
             </div>
             <div className="bg-white rounded-lg p-8 shadow-sm border border-slate-100">
               <div className="text-center mb-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[#63498b]/10 flex items-center justify-center relative">
-                  <Wallet size={32} className="text-[#63498b]" />
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-[var(--theme-primary)]/10 flex items-center justify-center relative">
+                  <Wallet size={32} className="text-[var(--theme-primary)]" />
                   {isRefreshingCredits && (
-                    <div className="absolute inset-0 rounded-full border-2 border-[#63498b] border-t-transparent animate-spin"></div>
+                    <div className="absolute inset-0 rounded-full border-2 border-[var(--theme-primary)] border-t-transparent animate-spin"></div>
                   )}
                 </div>
                 <h4 className="text-2xl text-slate-900 font-bold mb-2 flex items-center justify-center gap-2">
@@ -1587,7 +1601,7 @@ export const Account = () => {
               <div className="flex gap-3 justify-center">
                 <button
                   onClick={() => setIsUpgradeModalOpen(true)}
-                  className="px-6 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all"
+                  className="px-6 py-3 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--theme-primary)]/90 transition-all"
                 >
                   شراء رصيد
                 </button>
@@ -1657,7 +1671,7 @@ export const Account = () => {
         <div className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4 z-[9999]" onClick={() => setShowLogoutConfirm(false)}>
           <div className="bg-white rounded-xl p-6 max-w-md w-full animate-in zoom-in duration-300" onClick={(e) => e.stopPropagation()} dir="rtl">
             <div className="flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 rounded-lg bg-[#63498b]/10 flex items-center justify-center text-[#63498b]">
+              <div className="w-12 h-12 rounded-lg bg-[var(--theme-primary)]/10 flex items-center justify-center text-[var(--theme-primary)]">
                 <LogOut size={24} />
               </div>
               <div>
@@ -1673,7 +1687,7 @@ export const Account = () => {
             <div className="flex gap-3">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all"
+                className="flex-1 h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all"
               >
                 البقاء مسجلاً
               </button>
@@ -1707,19 +1721,19 @@ export const Account = () => {
             </div>
             
             {/* Alternatives */}
-            <div className="mb-4 p-4 bg-[#63498b]/5 rounded-lg border border-[#63498b]/10">
+            <div className="mb-4 p-4 bg-[var(--theme-primary)]/5 rounded-lg border border-[var(--theme-primary)]/10">
               <h4 className="text-sm font-bold text-slate-900 mb-2">هل تفكر في البدائل؟</h4>
               <ul className="space-y-2 text-xs text-slate-600">
                 <li className="flex items-start gap-2">
-                  <span className="text-[#63498b] mt-0.5">•</span>
+                  <span className="text-[var(--theme-primary)] mt-0.5">•</span>
                   <span>يمكنك تعطيل الحساب مؤقتاً بدلاً من الحذف النهائي</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#63498b] mt-0.5">•</span>
+                  <span className="text-[var(--theme-primary)] mt-0.5">•</span>
                   <span>تواصل معنا إذا كانت لديك أي مشكلة وسنساعدك</span>
                 </li>
                 <li className="flex items-start gap-2">
-                  <span className="text-[#63498b] mt-0.5">•</span>
+                  <span className="text-[var(--theme-primary)] mt-0.5">•</span>
                   <span>ستفقد جميع طلباتك وقياساتك ونقاطك</span>
                 </li>
               </ul>
@@ -1732,7 +1746,7 @@ export const Account = () => {
                 value={deleteReason}
                 onChange={(e) => setDeleteReason(e.target.value)}
                 placeholder="اختياري - ساعدنا على التحسين بمعرفة السبب"
-                className="w-full h-24 px-3 py-2 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-[#63498b] focus:border-transparent transition-all"
+                className="w-full h-24 px-3 py-2 border border-slate-200 rounded-lg text-sm resize-none focus:ring-2 focus:ring-[var(--theme-primary)] focus:border-transparent transition-all"
               />
             </div>
             
@@ -1740,7 +1754,7 @@ export const Account = () => {
               <button
                 onClick={() => setShowDeleteConfirm(false)}
                 disabled={isDeleting}
-                className="w-full h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all"
+                className="w-full h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all"
               >
                 إلغاء والعودة
               </button>
@@ -1780,7 +1794,7 @@ export const Account = () => {
             </p>
             <button
               onClick={() => setShowFamilyDialog(false)}
-              className="w-full h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all"
+              className="w-full h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all"
             >
               إغلاق
             </button>

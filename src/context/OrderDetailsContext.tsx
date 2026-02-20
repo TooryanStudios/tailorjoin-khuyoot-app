@@ -110,7 +110,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
             {/* Fixed Header */}
             <div className="flex items-center justify-between p-6 border-b border-slate-200 shrink-0">
                <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-lg bg-[#63498b]/10 flex items-center justify-center text-[#63498b]">
+                  <div className="w-10 h-10 rounded-lg bg-[var(--theme-primary)]/10 flex items-center justify-center text-[var(--theme-primary)]">
                      <FileText size={20} />
                   </div>
                   <div>
@@ -165,7 +165,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
                 <div className="flex items-center gap-3 mt-3">
                   <div>
                     <p className="text-xs text-slate-500">السعر</p>
-                    <p className="text-xl text-[#63498b]">{order.price?.toFixed(3)} ر.ع</p>
+                    <p className="text-xl text-[var(--theme-primary)]">{order.price?.toFixed(3)} ر.ع</p>
                   </div>
                   <div className="h-10 w-px bg-slate-200"></div>
                   <div>
@@ -189,7 +189,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
                   <span className={`inline-block px-2.5 py-1 text-xs rounded-md ${
                     order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
                     order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
-                    'bg-purple-100 text-[#63498b]'
+                    'bg-purple-100 text-[var(--theme-primary)]'
                   }`}>
                     {getStatusLabel(order.status)}
                   </span>
@@ -228,7 +228,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
                          <div 
                           key={idx}
                           style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
-                          className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[#63498b] shadow-lg border border-white"
+                          className="absolute w-2.5 h-2.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-[var(--theme-primary)] shadow-lg border border-white"
                          ></div>
                        );
                    })}
@@ -282,7 +282,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
               </a>
               <button 
                 onClick={hideOrderDetails}
-                className="flex-1 h-11 bg-[#63498b] text-white rounded-lg text-sm hover:bg-[#63498b]/90 transition-all"
+                className="flex-1 h-11 bg-[var(--theme-primary)] text-white rounded-lg text-sm hover:bg-[var(--theme-primary)]/90 transition-all"
               >
                 إغلاق
               </button>

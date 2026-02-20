@@ -81,8 +81,8 @@ export const Orders: React.FC = () => {
       onClick={() => showOrderDetails(order)}
       className={`group relative rounded-xl overflow-hidden cursor-pointer transition-all duration-300 ${
         featured
-          ? 'bg-white border-2 border-slate-200 hover:border-[#63498b] hover:shadow-2xl'
-          : 'bg-white border border-slate-100 hover:border-[#63498b] hover:shadow-lg'
+          ? 'bg-white border-2 border-slate-200 hover:border-[var(--theme-primary)] hover:shadow-2xl'
+          : 'bg-white border border-slate-100 hover:border-[var(--theme-primary)] hover:shadow-lg'
       }`}
     >
       <div className={`${featured ? 'aspect-[2/1]' : 'aspect-video'} relative overflow-hidden bg-slate-50`}>
@@ -109,7 +109,7 @@ export const Orders: React.FC = () => {
         <div className="absolute top-3 right-3">
           <span className={`px-3 py-1.5 text-xs font-medium rounded-full backdrop-blur-md border ${
             order.status === 'delivered' ? 'bg-green-500/90 text-white border-green-400' :
-            order.status === 'processing' ? 'bg-[#63498b]/90 text-white border-[#63498b]' :
+            order.status === 'processing' ? 'bg-[var(--theme-primary)]/90 text-white border-[var(--theme-primary)]' :
             order.status === 'pending' ? 'bg-amber-500/90 text-white border-amber-400' :
             order.status === 'cancelled' ? 'bg-red-500/90 text-white border-red-400' :
             'bg-slate-500/90 text-white border-slate-400'
@@ -126,7 +126,7 @@ export const Orders: React.FC = () => {
         <h3 className={`${featured ? 'text-xl' : 'text-base'} font-bold text-slate-900 mb-1 line-clamp-1`}>
           {order.items && order.items[0]?.name ? order.items[0].name : order.productName || "طلب تفصيل"}
         </h3>
-        <p className="text-xs text-[#63498b] mb-2">#{order.id.slice(-6).toUpperCase()}</p>
+        <p className="text-xs text-[var(--theme-primary)] mb-2">#{order.id.slice(-6).toUpperCase()}</p>
         
         {(order.tailorShop || order.tailorName) && (
           <p className="text-sm text-slate-600 mb-3 flex items-center gap-1.5">
@@ -164,7 +164,7 @@ export const Orders: React.FC = () => {
     <div
       key={order.id}
       onClick={() => showOrderDetails(order)}
-      className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all group border border-slate-100 hover:border-[#63498b] cursor-pointer flex gap-4"
+      className="bg-white rounded-xl p-4 shadow-sm hover:shadow-md transition-all group border border-slate-100 hover:border-[var(--theme-primary)] cursor-pointer flex gap-4"
       dir="rtl"
     >
       {/* Thumbnail */}
@@ -196,11 +196,11 @@ export const Orders: React.FC = () => {
               <h4 className="text-base font-bold text-slate-900 line-clamp-1">
                 {order.items && order.items[0]?.name ? order.items[0].name : order.productName || "طلب تفصيل"}
               </h4>
-              <p className="text-xs text-[#63498b] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
+              <p className="text-xs text-[var(--theme-primary)] mt-0.5">#{order.id.slice(-6).toUpperCase()}</p>
             </div>
             <span className={`px-2.5 py-1 text-xs font-medium rounded-md shrink-0 ${
               order.status === 'delivered' ? 'bg-green-100 text-green-700' :
-              order.status === 'processing' ? 'bg-[#63498b]/10 text-[#63498b]' :
+              order.status === 'processing' ? 'bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' :
               order.status === 'pending' ? 'bg-amber-100 text-amber-700' :
               order.status === 'cancelled' ? 'bg-red-100 text-red-700' :
               'bg-slate-100 text-slate-700'
@@ -245,10 +245,10 @@ export const Orders: React.FC = () => {
         style={{ height: headerHeight }}
       />
       
-      <div className="bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[#63498b] selection:text-white min-h-screen pb-8">
+      <div className="bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white min-h-screen pb-8">
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
-            <div className="relative rounded-xl bg-[#63498b] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
+            <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">
               <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/2 blur-3xl"></div>
               <div className="absolute bottom-0 left-0 w-96 h-96 bg-black/10 rounded-full translate-y-1/2 -translate-x-1/2 blur-3xl"></div>
               
@@ -301,7 +301,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setStatusFilter('active')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     statusFilter === 'active'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -311,7 +311,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setStatusFilter('pending')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     statusFilter === 'pending'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -321,7 +321,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setStatusFilter('cancelled')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     statusFilter === 'cancelled'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -331,7 +331,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setStatusFilter('completed')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     statusFilter === 'completed'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -341,7 +341,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setStatusFilter('all')}
                   className={`px-3 py-1.5 rounded-md text-xs font-medium transition-all ${
                     statusFilter === 'all'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                 >
@@ -355,7 +355,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setViewMode('list')}
                   className={`px-2 py-1.5 rounded-md transition-all ${
                     viewMode === 'list'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                   title="عرض القائمة"
@@ -366,7 +366,7 @@ export const Orders: React.FC = () => {
                   onClick={() => setViewMode('grid')}
                   className={`px-2 py-1.5 rounded-md transition-all ${
                     viewMode === 'grid'
-                      ? 'bg-[#63498b] text-white'
+                      ? 'bg-[var(--theme-primary)] text-white'
                       : 'text-slate-600 hover:bg-slate-50'
                   }`}
                   title="عرض الشبكة"
@@ -392,7 +392,7 @@ export const Orders: React.FC = () => {
               <p className="text-sm text-slate-400 mt-1">ابدأ التسوق واطلب منتجاتك المفضلة</p>
               <button
                 onClick={() => navigate('/')}
-                className="mt-6 px-8 py-3 bg-[#63498b] text-white rounded-lg text-sm font-bold hover:bg-[#63498b]/90 transition-all shadow-lg hover:shadow-xl"
+                className="mt-6 px-8 py-3 bg-[var(--theme-primary)] text-white rounded-lg text-sm font-bold hover:bg-[var(--theme-primary)]/90 transition-all shadow-lg hover:shadow-xl"
               >
                 تصفح المنتجات
               </button>
@@ -404,7 +404,7 @@ export const Orders: React.FC = () => {
                 activeOrders.length > 0 && (
                   <div className="mb-12">
                     <div className="flex items-center gap-2 mb-6" dir="rtl">
-                      <Clock className="text-[#63498b]" size={24} />
+                      <Clock className="text-[var(--theme-primary)]" size={24} />
                       <h2 className="text-2xl font-bold text-slate-900">
                         الطلبات النشطة
                       </h2>

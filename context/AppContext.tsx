@@ -456,6 +456,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             sessionStorage.clear();
             
             console.log('[AppContext] Complete logout - all state cleared');
+            window.location.href = '/';
             
         } catch {
             console.error('Logout failed');
