@@ -203,12 +203,12 @@ const App: React.FC = () => {
 
   // Check if we're on the main production domain
   const isMaintenanceMode = React.useMemo(() => {
-    const hostname = window.location.hostname;
-    return hostname === 'www.khuyoot.app' || hostname === 'khuyoot.app';
+    // Disabled hardcoded maintenance for production launch
+    return false;
   }, []);
 
-  // If maintenance mode (production domain OR critical error), show maintenance page
-  if (isMaintenanceMode || maintenanceMode) {
+  // If maintenance mode (critical error), show maintenance page
+  if (maintenanceMode) {
     return (
       <HelmetProvider>
         <Maintenance />
