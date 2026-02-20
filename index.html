@@ -71,7 +71,7 @@
     </script>
 
         <!-- If a stale PWA Service Worker is controlling the page, it can serve old cached JS.
-          Redirect to SW cleanup page on khuyoot hosts to recover from stale deployments. -->
+          Run silent one-time cleanup on khuyoot hosts (without redirecting users). -->
     <script>
       (function () {
         try {
@@ -85,23 +85,22 @@
            if (!isDevLike) return;
            if (!('serviceWorker' in navigator)) return;
 
-           // If a SW is currently controlling this page, fix it deterministically (with anti-loop).
-           if (navigator.serviceWorker.controller && !location.pathname.startsWith('/clear-sw.html')) {
-             var returnTo = location.pathname + (location.search || '') + (location.hash || '');
-             var MAX_REDIRECT_ATTEMPTS = 3;
-             var attemptKey = 'khuyoot:sw-redirect-attempts';
-             var attemptStr = localStorage.getItem(attemptKey) || '0';
-             var attempts = parseInt(attemptStr, 10);
-             if (attempts < MAX_REDIRECT_ATTEMPTS) {
-               localStorage.setItem(attemptKey, String(attempts + 1));
-               location.replace('/clear-sw.html?auto=1&return=' + encodeURIComponent(returnTo));
-             } else {
-               localStorage.removeItem(attemptKey);
-               console.warn('[boot] Max SW cleanup redirects reached, continuing');
-             }
-           } else {
-             localStorage.removeItem('khuyoot:sw-redirect-attempts');
-           }
+           // If a SW is currently controlling this page, clean it once silently.
+           var cleanupKey = 'khuyoot:sw-cleaned-once';
+           if (!navigator.serviceWorker.controller || sessionStorage.getItem(cleanupKey) === '1') return;
+
+           sessionStorage.setItem(cleanupKey, '1');
+           navigator.serviceWorker.getRegistrations()
+             .then(function (rs) { return Promise.all(rs.map(function (r) { return r.unregister(); })); })
+             .then(function () {
+               if (!('caches' in window)) return;
+               return caches.keys().then(function (names) {
+                 return Promise.all(names.map(function (name) { return caches.delete(name); }));
+               });
+             })
+             .catch(function (e) {
+               console.warn('[boot] SW silent cleanup failed', e);
+             });
         } catch (e) {
           console.warn('[boot] SW pre-check failed', e);
         }
@@ -244,17 +243,14 @@
           })();
         </script>
 
-    <!-- Remove active Service Workers + caches on khuyoot hosts to prevent stale shell/assets -->
+    <!-- DEV/STAGING only: Remove active Service Workers + caches on development-like hosts -->
     <script>
       (function() {
         try {
           var host = (location.hostname || '').toLowerCase();
           var isDevLike =
             host === 'localhost' ||
-            host === '127.0.0.1' ||
-            host === 'dev.khuyoot.app' ||
-            host === 'www.khuyoot.app' ||
-            host === 'khuyoot.app';
+            host === '127.0.0.1';
           if (!isDevLike) return;
           if ('serviceWorker' in navigator) {
             navigator.serviceWorker.getRegistrations().then((rs) => rs.forEach((r) => r.unregister()));
