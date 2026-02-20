@@ -344,7 +344,13 @@ const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
   // LOGOUT
   if (req.url.startsWith('/api/auth/logout') && req.method === 'POST') {
     setCors(res, req);
-    res.setHeader('Set-Cookie', [`khuyoot_auth=; HttpOnly; Path=/; Max-Age=0`]);
+    const isProd = process.env.NODE_ENV === 'production';
+    console.log('[API] Clearing auth cookie...');
+    // Must match attributes of the login cookie to successfully clear it
+    // We send multiple variations to cover potential domain/path mismatches
+    res.setHeader('Set-Cookie', [
+      `khuyoot_auth=; HttpOnly; ${isProd ? 'Secure; ' : ''}SameSite=Lax; Path=/; Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT`,
+    ]);
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ success: true }));
     return;

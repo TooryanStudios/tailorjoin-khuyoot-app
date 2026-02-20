@@ -17,13 +17,13 @@ Write-Host "Found:" -ForegroundColor Yellow
 $targets | Format-Table -AutoSize | Out-String | Write-Host
 
 $pids = $conns | Select-Object -ExpandProperty OwningProcess -Unique
-foreach ($pid in $pids) {
+foreach ($procId in $pids) {
   try {
-    $proc = Get-Process -Id $pid -ErrorAction Stop
-    Write-Host "Stopping PID $pid ($($proc.ProcessName))" -ForegroundColor Yellow
-    Stop-Process -Id $pid -Force -ErrorAction Stop
+    $proc = Get-Process -Id $procId -ErrorAction Stop
+    Write-Host "Stopping PID $procId ($($proc.ProcessName))" -ForegroundColor Yellow
+    Stop-Process -Id $procId -Force -ErrorAction Stop
   } catch {
-    Write-Host "Failed to stop PID $pid: $($_.Exception.Message)" -ForegroundColor Red
+    Write-Host "Failed to stop PID ${procId}: $($_.Exception.Message)" -ForegroundColor Red
   }
 }
 

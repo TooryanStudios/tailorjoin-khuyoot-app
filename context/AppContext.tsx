@@ -316,6 +316,13 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         const metaUser = serverData.user && serverData.user.uid 
                             ? serverData.user 
                             : serverData;
+
+                        // Critical guard: ignore stale cookie payload that belongs to a different user
+                        if (metaUser?.uid && metaUser.uid !== authUser.uid) {
+                            console.warn('[AppContext] Ignoring /api/auth/me mismatch. Server:', metaUser.uid, 'Auth:', authUser.uid);
+                            setUser(normalizeUser(authUser));
+                            return;
+                        }
                         
                         // Merge all server data into user object, prioritizing server data
                         const mergedUser = { ...authUser, ...metaUser };

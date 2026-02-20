@@ -35,6 +35,8 @@ interface RestSignInError {
   };
 }
 
+type AuthBypassError = Error & { code?: string; originalMessage?: string };
+
 /**
  * Sign in using Firebase Auth REST API directly (bypasses SDK).
  * Includes retry logic with exponential backoff for network failures.
@@ -45,6 +47,9 @@ export async function signInWithEmailPasswordREST(
   password: string,
   retries = 3
 ): Promise<{ success: true; data: RestSignInResponse } | { success: false; error: string; code?: string }> {
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedPassword = password;
+
   for (let attempt = 1; attempt <= retries; attempt++) {
     try {
       const controller = new AbortController();
@@ -56,8 +61,8 @@ export async function signInWithEmailPasswordREST(
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            email,
-            password,
+            email: normalizedEmail,
+            password: normalizedPassword,
             returnSecureToken: true,
           }),
           signal: controller.signal,
@@ -80,16 +85,16 @@ export async function signInWithEmailPasswordREST(
           errorMessage.includes('INVALID_LOGIN_CREDENTIALS') ||
           errorMessage.includes('INVALID_PASSWORD')
         ) {
-          userMessage = '?????? ?????????? ?? ???? ?????? ??? ?????';
+          userMessage = 'The email or password is incorrect.';
           errorCode = 'auth/invalid-credential';
         } else if (errorMessage.includes('EMAIL_NOT_FOUND')) {
-          userMessage = '?? ???? ???? ???? ?????? ??????????';
+          userMessage = 'No account exists for this email.';
           errorCode = 'auth/user-not-found';
         } else if (errorMessage.includes('TOO_MANY_ATTEMPTS')) {
-          userMessage = '?? ????? ??? ????????? ???????. ?????? ???????? ??????';
+          userMessage = 'Too many failed attempts. Please try again later.';
           errorCode = 'auth/too-many-requests';
         } else if (errorMessage.includes('USER_DISABLED')) {
-          userMessage = '??? ?????? ????. ????? ?? ???????';
+          userMessage = 'This account has been disabled. Contact support.';
           errorCode = 'auth/user-disabled';
         }
 
@@ -120,7 +125,7 @@ export async function signInWithEmailPasswordREST(
   // After all retries failed
   return {
     success: false,
-    error: '??? ??????? ????? ????????. ???? ?? ?????? ????????? ????? ?????',
+    error: 'Unable to sign in right now. Please check your connection and try again.',
   };
 }
 
@@ -194,9 +199,15 @@ export async function signInWithRestTokens(idToken: string, refreshToken: string
  * Call this instead of signInWithEmailAndPassword().
  */
 export async function signInWithEmailPasswordBypass(email: string, password: string) {
-  const result = await signInWithEmailPasswordREST(email, password);
+  const normalizedEmail = email.trim().toLowerCase();
+  const normalizedPassword = password;
+
+  const result = await signInWithEmailPasswordREST(normalizedEmail, normalizedPassword);
   if (!result.success) {
-    throw new Error((result as any).error);
+    const authError: AuthBypassError = new Error((result as any).error);
+    authError.code = (result as any).code;
+    authError.originalMessage = (result as any).error;
+    throw authError;
   }
 
   // Store the tokens in SDK-compatible format
@@ -205,16 +216,16 @@ export async function signInWithEmailPasswordBypass(email: string, password: str
 
   const userData = {
     uid: result.data.localId,
-    email: result.data.email,
+    email: result.data.email || normalizedEmail,
     emailVerified: true,
     displayName: result.data.displayName || '',
     isAnonymous: false,
     providerData: [
       {
         providerId: 'password',
-        uid: result.data.email,
+        uid: result.data.email || normalizedEmail,
         displayName: result.data.displayName || '',
-        email: result.data.email,
+        email: result.data.email || normalizedEmail,
         phoneNumber: null,
         photoURL: null,
       },
@@ -237,7 +248,7 @@ export async function signInWithEmailPasswordBypass(email: string, password: str
       try {
         await signInWithCustomToken(auth, customToken);
       } catch {
-        console.warn('?? Firebase SDK sign-in with custom token failed');
+        console.warn('[AuthBypass] Firebase SDK sign-in with custom token failed');
       }
     }
 
@@ -256,7 +267,7 @@ export async function signInWithEmailPasswordBypass(email: string, password: str
   return {
     user: {
       uid: result.data.localId,
-      email: result.data.email,
+      email: result.data.email || normalizedEmail,
       displayName: result.data.displayName || null,
     } as any,
     idToken: result.data.idToken,

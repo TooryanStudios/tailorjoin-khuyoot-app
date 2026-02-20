@@ -53,12 +53,19 @@
     <!-- CRITICAL: Prevent common legacy script crashes -->
     <script>
       window.addEventListener('error', function(e) {
-        if (e.message && (e.message.indexOf('share-modal.js') !== -1 || e.message.indexOf('addEventListener') !== -1)) {
-          if (e.target && (e.target.src || '').indexOf('share-modal.js') !== -1) {
-            console.warn('Caught and suppressed legacy share-modal script error');
-            e.preventDefault();
-            return true;
-          }
+        const filename = String(e.filename || '');
+        const message = String(e.message || '');
+        const targetSrc = String((e.target && e.target.src) || '');
+        const isLegacyShareModalError =
+          filename.indexOf('share-modal.js') !== -1 ||
+          targetSrc.indexOf('share-modal.js') !== -1 ||
+          (message.indexOf('addEventListener') !== -1 && filename.indexOf('share-modal') !== -1);
+
+        if (isLegacyShareModalError) {
+          console.warn('Caught and suppressed legacy share-modal script error');
+          e.preventDefault();
+          e.stopImmediatePropagation();
+          return true;
         }
       }, true);
     </script>
@@ -89,6 +96,14 @@
                localStorage.removeItem(attemptKey);
                console.warn('[boot] Max SW cleanup redirects reached, continuing');
              }
+           } else {
+             localStorage.removeItem('khuyoot:sw-redirect-attempts');
+           }
+        } catch (e) {
+          console.warn('[boot] SW pre-check failed', e);
+        }
+      })();
+    </script>
 
     <!-- CRITICAL: Apply language before React loads to prevent flash -->
     <script>

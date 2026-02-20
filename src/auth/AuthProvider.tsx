@@ -114,6 +114,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
         // Disable internal retry to avoid fighting with AuthProvider state updates
         userData = await apiJson<any>('/api/auth/me', { retryOnUnauthorized: false });
+        
+        // ZOMBIE SESSION CHECK: 
+        // If we have no local evidence of a session (no localStorage, no Firebase User),
+        // but the API returned a user (via stale cookie), we should NOT automatically log them in.
+        const currentSDKUser = firebaseService.auth?.currentUser;
+        if (userData && !hasSessionEvidence && !currentSDKUser && !localStorage.getItem('khuyoot:has_session')) {
+           console.warn('[AuthProvider] Stale cookie detected after restart/logout. Issuing cleanup logout.');
+           // Do not accept this user data
+           await apiFetch('/api/auth/logout', { method: 'POST' });
+           return;
+        }
+
         if (userData) {
           localStorage.setItem('khuyoot:has_session', 'true');
         }
@@ -165,6 +177,51 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
         // Remove the default role marker since we now have real data
         delete (user as any)._isDefaultRole;
+
+        // CRITICAL FIX: Ensure backend identity matches client identity to prevent stale-account loops.
+        const currentClientUser = firebaseService.auth?.currentUser;
+        if (currentClientUser && user.uid !== currentClientUser.uid) {
+          console.warn('[AuthProvider] API identity mismatch blocked. Server:', user.uid, 'Client:', currentClientUser.uid);
+
+          try {
+            const currentToken = await currentClientUser.getIdToken(false);
+            const recoveryUser: AuthUser = {
+              uid: currentClientUser.uid,
+              email: currentClientUser.email || '',
+              displayName: currentClientUser.displayName || 'User',
+              photoURL: currentClientUser.photoURL || '',
+              role: 'customer',
+              billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
+              metadata: { completedOrders: 0 }
+            };
+
+            const recoveryState: AuthState = {
+              status: 'authenticated',
+              user: recoveryUser,
+              idToken: currentToken
+            };
+
+            setState(recoveryState);
+            setAuthStateSnapshot(recoveryState);
+            try {
+              localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user: recoveryUser, idToken: currentToken }));
+            } catch {}
+
+            await apiFetch('/api/auth/login-cookie', {
+              method: 'POST',
+              body: JSON.stringify({ token: currentToken }),
+              headers: { 'Content-Type': 'application/json' }
+            });
+          } catch {
+            localStorage.removeItem(UI_CACHE_KEY);
+            localStorage.removeItem('khuyoot:has_session');
+            const unauthenticated: AuthState = { status: 'unauthenticated', user: null, idToken: null };
+            setState(unauthenticated);
+            setAuthStateSnapshot(unauthenticated);
+          }
+
+          return;
+        }
 
         // ALWAYS update state when we get fresh profile data to ensure UI reflects backend reality
         const next: AuthState = { 

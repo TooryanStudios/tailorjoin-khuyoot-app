@@ -46,9 +46,9 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
   
   const { user: authUser, status: authStatus } = useAuth();
   
-  // Unify UID access
+  // Use canonical UID only; avoid fallback ids that can carry stale profile values.
   const authUid = React.useMemo(() => {
-    return authUser?.uid || (authUser as any)?.id || null;
+    return authUser?.uid || null;
   }, [authUser]);
 
   const [enabled, setEnabled] = React.useState(true);
@@ -88,6 +88,13 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
 
   const refresh = React.useCallback(async () => {
     if (!authUid || authStatus !== 'authenticated') return;
+    const sdkUid = firebaseService.auth?.currentUser?.uid;
+    if (sdkUid && sdkUid !== authUid) {
+      console.warn('[CreditManager] Skipping refresh due to auth mismatch. Context:', authUid, 'SDK:', sdkUid);
+      setProfile(null);
+      setIsLoading(false);
+      return;
+    }
     try {
       setIsLoading(true);
       const data: any = await firebaseService.getUserCreditProfile(authUid);
@@ -153,7 +160,7 @@ export const CreditProvider: React.FC<React.PropsWithChildren> = ({ children }) 
         }
       }
 
-      const uid = authUser?.uid || authUid;
+      const uid = authUser?.uid || null;
       if (!uid) {
         console.log('[CreditManager] No UID, executing without credit check');
         try {

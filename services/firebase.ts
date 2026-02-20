@@ -85,8 +85,9 @@ const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 const UI_AUTH_CACHE_KEY = 'khuyoot:ui:auth_cache';
 const SESSION_RESTORE_BLOCK_UNTIL_KEY = 'khuyoot:session_restore_block_until';
 let lastSessionRestoreFailureAt = 0;
-const SESSION_RESTORE_COOLDOWN_MS = 30_000;
-const SESSION_RESTORE_BLOCK_MS = 10 * 60_000;
+const SESSION_RESTORE_COOLDOWN_MS = 100; // Reset to instant retry
+const SESSION_RESTORE_BLOCK_MS = 60_000; // Reduce block time
+
 
 function getStoredSessionRestoreBlockUntil(): number {
   try {
@@ -1458,11 +1459,14 @@ export const firebaseService = {
   async login(email: string, pass: string): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
 
+    const normalizedEmail = email.trim().toLowerCase();
+    const normalizedPassword = pass;
+
     // NOTE: Using REST API bypass because signInWithEmailAndPassword hangs in some environments.
     // See: src/services/authBypass.ts for detailed explanation.
     try {
       const { signInWithEmailPasswordBypass } = await import('../src/services/authBypass');
-      const result = await signInWithEmailPasswordBypass(email, pass);
+      const result = await signInWithEmailPasswordBypass(normalizedEmail, normalizedPassword);
 
       // Best effort: wait for Firebase SDK auth session, but do not fail login if delayed.
       // AuthProvider listens to auth-bypass-login and can complete session restoration.
@@ -1476,8 +1480,8 @@ export const firebaseService = {
       // The SDK's onAuthStateChanged will fire asynchronously when it picks up the stored tokens
       const user: User = {
         id: sdkUser?.uid || result.user?.uid,
-        name: email.split('@')[0], // Will be updated by Firestore fetch
-        email: email,
+        name: normalizedEmail.split('@')[0], // Will be updated by Firestore fetch
+        email: normalizedEmail,
         avatar: undefined,
         isGuest: false,
         joinDate: new Date().toLocaleDateString('ar-OM'),
@@ -1485,10 +1489,20 @@ export const firebaseService = {
       };
       
       return user;
-    } catch (error) {
+    } catch (error: any) {
+      const authCode = error?.code;
+      if (
+        authCode === 'auth/invalid-credential' ||
+        authCode === 'auth/user-not-found' ||
+        authCode === 'auth/user-disabled' ||
+        authCode === 'auth/too-many-requests'
+      ) {
+        throw error;
+      }
+
       console.error('[Firebase] REST bypass failed, falling back to SDK:', error);
       // Fallback to SDK method (though it may hang)
-      const credential = await signInWithEmailAndPassword(auth, email, pass);
+      const credential = await signInWithEmailAndPassword(auth, normalizedEmail, normalizedPassword);
       return mapFirebaseUser(credential.user);
     }
   },
@@ -1687,14 +1701,32 @@ export const firebaseService = {
     const API_KEY = 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
     const authKey = `firebase:authUser:${API_KEY}:[DEFAULT]`;
     localStorage.removeItem(authKey);
+    localStorage.removeItem('khuyoot:ui:auth_cache');
+    localStorage.removeItem('khuyoot:has_session');
     
+    // Clear server-side cookie - MUST await to ensure it happens before reload/nav
+    try {
+      console.log('🚪 Logout: Calling API to clear cookie...');
+      await fetch('/api/auth/logout', { method: 'POST', cache: 'no-store' });
+    } catch { 
+      // ignore network errors on logout
+      console.warn('🚪 Logout: API call failed');
+    }
+
     console.log('🚪 Logout: localStorage cleared');
     
     // Trigger custom event to notify AuthProvider immediately
     window.dispatchEvent(new Event('auth-bypass-logout'));
     
     // Also call SDK signOut (will run in background)
-    signOut(auth).catch(console.warn);
+    try {
+      await signOut(auth);
+    } catch (e) {
+      console.warn('🚪 Logout: SDK signOut failed', e);
+    }
+    
+    // Force reload to ensure no in-memory state persists
+    window.location.reload();
   },
 
   async getProducts(category?: string): Promise<Product[]> {
