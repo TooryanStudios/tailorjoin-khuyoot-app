@@ -62,6 +62,20 @@ export interface User {
     photoURL?: string;
     credit_balance?: number;
     billing?: { credits?: number; tier?: string; subscriptionStatus?: string };
+    adminAccess?: {
+        mode?: 'full' | 'limited';
+        sections?: string[];
+        deniedSections?: string[];
+        configSections?: string[];
+        deniedConfigSections?: string[];
+    };
+    adminPermissions?: {
+        mode?: 'full' | 'limited';
+        sections?: string[];
+        deniedSections?: string[];
+        configSections?: string[];
+        deniedConfigSections?: string[];
+    };
     disabled?: boolean;
     history?: any[];
     closet?: any[];
@@ -182,7 +196,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
             tier,
             phone: phone || '', // Ensure it's at least an empty string
             phoneNumber: phone || '', // Sync field name
-            metadata: u.metadata || {}
+            metadata: u.metadata || {},
+            adminAccess: (u as any).adminAccess,
+            adminPermissions: (u as any).adminPermissions,
         };
         
         return result;

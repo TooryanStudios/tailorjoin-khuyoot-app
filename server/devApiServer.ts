@@ -1,5 +1,6 @@
 ﻿import 'dotenv/config';
 import http from 'node:http';
+import { Server } from 'socket.io';
 import { handleTryOnFabric } from './tryon/tryonHandler';
 import { handleUpscale } from './upscale/upscaleHandler';
 import { handleFabricSwap } from './fabricSwap/fabricSwapHandler';
@@ -7,6 +8,7 @@ import { getUserGenerations, deleteUserGeneration } from './services/generations
 import { createCustomTokenForUid, getFirestore, verifyFirebaseIdToken } from './tryon/firebaseAdmin';
 import { generateVisualizerImage, saveVisualizerGeneration } from './visualizer/visualizerHandler';
 import { createThawaniSession, handleThawaniWebhook } from './payments/thawaniHandler';
+import { setupOrderTracking } from './socketio/orderTracking';
 
 console.log('Starting Try-On API dev server...');
 console.log('GEMINI_API_KEY:', process.env.GEMINI_API_KEY ? 'SET' : 'NOT SET');
@@ -625,6 +627,21 @@ const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
     } catch (e) {}
   }
 });
+
+// Initialize Socket.IO for real-time order tracking
+const enableSocketIO = process.env.VITE_ENABLE_SOCKETIO !== 'false';
+if (enableSocketIO) {
+  const io = new Server(server, {
+    cors: {
+      origin: '*',
+      methods: ['GET', 'POST'],
+      credentials: true,
+    },
+    transports: ['websocket', 'polling'],
+  });
+  setupOrderTracking(io);
+  console.log('[API] Socket.IO initialized on /orders namespace');
+}
 
 server.listen(port, '0.0.0.0', () => {
   console.log(`Try-On API dev server listening on http://localhost:${port}`);

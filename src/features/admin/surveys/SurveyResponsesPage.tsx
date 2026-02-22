@@ -8,7 +8,6 @@ import { saveSurveyConfigRemote, watchSurveyConfig } from '../../survey/db';
 import { SurveyModal } from '../../survey/SurveyModal';
 import { computeAggregations, type SurveyResponse } from './aggregations';
 
-const ADMIN_EMAILS = ['admin@khuyoot.app', 'master.admin@khuyoot.app'];
 const PAGE_SIZE = 50;
 
 const DATE_RANGE_OPTIONS = [
@@ -130,7 +129,7 @@ export const SurveyResponsesPage: React.FC = () => {
   const [filterPersona, setFilterPersona] = React.useState('all');
   const [dateRangeDays, setDateRangeDays] = React.useState(30);
 
-  const isAllowed = user?.role === 'admin' || (!!user?.email && ADMIN_EMAILS.includes(user.email));
+  const isAllowed = user?.role === 'admin';
 
   const loadResponses = React.useCallback(
     async (reset: boolean) => {

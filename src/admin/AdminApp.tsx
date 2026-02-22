@@ -40,40 +40,47 @@ import { CreditsManagement } from './credits/CreditsManagement';
 import { AdminDevTools } from '../components/AdminDevTools';
 import { SurveyResponsesPage } from '../features/admin/surveys/SurveyResponsesPage';
 import { DebugToolsHub } from './settings/DebugToolsHub';
+import {
+  AdminSection,
+  AdminConfigSection,
+  buildAdminAccessPolicy,
+  canAccessAdminSection,
+  canAccessAdminConfigSection,
+  getFirstAllowedSection,
+  getFirstAllowedConfigSection,
+} from './rbac/accessControl';
 
-type AdminSection = 
-  | 'dashboard' 
-  | 'orders'
-  | 'approvals'
-  | 'users'
-  | 'tailors' 
-  | 'boutiques'
-  | 'shops'
-  | 'products'
-  | 'orphaned-products' 
-  | 'fabrics' 
-  | 'measurements' 
-  | 'family' 
-  | 'ai' 
-  | 'store'
-  | 'images'
-  | 'tryon-templates'
-  | 'notifications'
-  | 'ads'
-  | 'regions'
-  | 'financial'
-  | 'credits'
-  | 'debug-tools'
-  | 'config' 
-  | 'logs';
+const CONFIG_SECTIONS: ReadonlyArray<AdminConfigSection> = ['general', 'homepage', 'landing-page', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page', 'debug-tools'];
 
-type ConfigSection = 'general' | 'homepage' | 'landing-page' | 'texts' | 'social' | 'seo' | 'advanced' | 'product-page';
+const ADMIN_SECTION_ORDER: ReadonlyArray<AdminSection> = [
+  'dashboard',
+  'orders',
+  'approvals',
+  'users',
+  'tailors',
+  'boutiques',
+  'shops',
+  'products',
+  'orphaned-products',
+  'fabrics',
+  'measurements',
+  'family',
+  'ai',
+  'store',
+  'images',
+  'tryon-templates',
+  'notifications',
+  'ads',
+  'regions',
+  'financial',
+  'credits',
+  'settings',
+  'config',
+  'debug-tools',
+  'logs',
+];
 
-type ExtendedConfigSection = ConfigSection | 'designer' | 'debug-tools';
-
-const CONFIG_SECTIONS: ReadonlyArray<ExtendedConfigSection> = ['general', 'homepage', 'landing-page', 'designer', 'texts', 'social', 'seo', 'advanced', 'product-page', 'debug-tools'];
-
-function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
+function getConfigSectionFromPathname(pathname: string): AdminConfigSection {
   // Supported:
   // - /admin/config
   // - /admin/config/
@@ -82,8 +89,15 @@ function getConfigSectionFromPathname(pathname: string): ExtendedConfigSection {
   const parts = String(pathname || '').split('/').filter(Boolean);
   // parts: ['admin', 'config', ':tab?']
   const tab = parts[2];
-  if (CONFIG_SECTIONS.includes(tab as ExtendedConfigSection)) return tab as ExtendedConfigSection;
+  if (CONFIG_SECTIONS.includes(tab as AdminConfigSection)) return tab as AdminConfigSection;
   return 'general';
+}
+
+function toAdminSectionPath(section: AdminSection): string {
+  if (section === 'dashboard') return '/admin/dashboard';
+  if (section === 'settings') return '/admin/settings/surveys/khuyoot-validation';
+  if (section === 'config' || section === 'debug-tools') return '/admin/config/general';
+  return `/admin/${section}`;
 }
 
 export const AdminApp = () => {
@@ -132,6 +146,24 @@ export const AdminApp = () => {
     return (first || 'dashboard') as AdminSection;
   };
   const activeSection = getActiveSectionFromPath();
+    const activeConfigSection = getConfigSectionFromPathname(location.pathname);
+    const accessPolicy = React.useMemo(() => buildAdminAccessPolicy(user), [user]);
+    const firstAllowedSection = React.useMemo(
+      () => getFirstAllowedSection(accessPolicy, ADMIN_SECTION_ORDER),
+      [accessPolicy]
+    );
+    const firstAllowedConfigSection = React.useMemo(
+      () => getFirstAllowedConfigSection(accessPolicy, CONFIG_SECTIONS),
+      [accessPolicy]
+    );
+    const canAccessSection = React.useCallback(
+      (section: string) => canAccessAdminSection(accessPolicy, section),
+      [accessPolicy]
+    );
+    const canAccessConfigSection = React.useCallback(
+      (section: string) => canAccessAdminConfigSection(accessPolicy, section),
+      [accessPolicy]
+    );
   const [localSettings, setLocalSettings] = useState<AppSettings>(appSettings);
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
@@ -214,6 +246,39 @@ export const AdminApp = () => {
       navigate('/admin/config/general', { replace: true });
     }
   }, [location.pathname, navigate]);
+
+  useEffect(() => {
+    if (user?.role !== 'admin') return;
+
+    if (!canAccessSection(activeSection)) {
+      if (firstAllowedSection) {
+        const target = toAdminSectionPath(firstAllowedSection);
+        if (location.pathname !== target) {
+          navigate(target, { replace: true });
+        }
+      }
+      return;
+    }
+
+    if ((activeSection === 'config' || activeSection === 'debug-tools') && !canAccessConfigSection(activeConfigSection)) {
+      if (firstAllowedConfigSection) {
+        const target = `/admin/config/${firstAllowedConfigSection}`;
+        if (location.pathname !== target) {
+          navigate(target, { replace: true });
+        }
+      }
+    }
+  }, [
+    user?.role,
+    activeSection,
+    activeConfigSection,
+    canAccessSection,
+    canAccessConfigSection,
+    firstAllowedSection,
+    firstAllowedConfigSection,
+    location.pathname,
+    navigate,
+  ]);
 
   useEffect(() => {
     setLocalSettings(appSettings);
@@ -415,8 +480,39 @@ export const AdminApp = () => {
     </div>
   );
 
+  const AccessDeniedView = ({ title = 'غير مصرح', description = 'ليس لديك صلاحية للوصول إلى هذه الصفحة.' }: { title?: string; description?: string }) => (
+    <div className="flex flex-col items-center justify-center h-96 text-zinc-400 bg-white dark:bg-zinc-900 rounded-2xl border border-slate-200 dark:border-zinc-800">
+      <div className="w-20 h-20 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+        <Lock size={40} className="opacity-70 text-red-500" />
+      </div>
+      <h3 className="text-lg font-normal text-slate-700 dark:text-zinc-200">{title}</h3>
+      <p className="text-sm text-slate-500 dark:text-zinc-400">{description}</p>
+    </div>
+  );
+
   const ConfigView = () => {
     const configSection = getConfigSectionFromPathname(location.pathname);
+    const configTabs = [
+      { id: 'general' as const, label: 'الإعدادات العامة', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/general' },
+      { id: 'homepage' as const, label: 'الصفحة الرئيسية', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/homepage' },
+      { id: 'landing-page' as const, label: 'صفحة الهبوط (Mont)', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/landing-page' },
+      { id: 'designer' as const, label: 'المصمم', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/designer' },
+      { id: 'product-page' as const, label: 'صفحة المنتج', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/product-page' },
+      { id: 'texts' as const, label: 'نصوص الموقع', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/texts' },
+      { id: 'social' as const, label: 'السوشيال ميديا', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/social' },
+      { id: 'seo' as const, label: 'SEO', selectedClass: 'bg-theme-primary text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/seo' },
+      { id: 'advanced' as const, label: 'إعدادات متقدمة', selectedClass: 'bg-black text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/advanced/orders' },
+      { id: 'debug-tools' as const, label: 'أدوات التشخيص', selectedClass: 'bg-black text-white shadow-sm font-bold', idleClass: 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300', to: '/admin/config/debug-tools' },
+    ];
+    const visibleConfigTabs = configTabs.filter((tab) => canAccessConfigSection(tab.id));
+
+    if (!canAccessConfigSection(configSection)) {
+      return <AccessDeniedView title="صلاحيات غير كافية" description="لا يمكنك الوصول إلى تبويب الإعدادات هذا." />;
+    }
+
+    if (visibleConfigTabs.length === 0) {
+      return <AccessDeniedView title="لا توجد صلاحيات" description="لا توجد تبويبات إعدادات متاحة لهذا الحساب." />;
+    }
 
     return (
       <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
@@ -453,106 +549,17 @@ export const AdminApp = () => {
         {/* Tabs */}
         <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-2">
           <div className="grid grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-1">
-            <button
-              onClick={() => navigate('/admin/config/general')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'general'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              الإعدادات العامة
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/homepage')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'homepage'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              الصفحة الرئيسية
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/landing-page')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'landing-page'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              صفحة الهبوط (Mont)
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/designer')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'designer'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              المصمم
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/product-page')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'product-page'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              صفحة المنتج
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/texts')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'texts'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              نصوص الموقع
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/social')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'social'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              السوشيال ميديا
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/seo')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'seo'
-                  ? 'bg-theme-primary text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              SEO
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/advanced/orders')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'advanced'
-                  ? 'bg-black text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              إعدادات متقدمة
-            </button>
-            <button
-              onClick={() => navigate('/admin/config/debug-tools')}
-              className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
-                configSection === 'debug-tools'
-                  ? 'bg-black text-white shadow-sm font-bold'
-                  : 'text-zinc-500 hover:text-zinc-700 dark:text-zinc-400 dark:hover:text-zinc-300'
-              }`}
-            >
-              أدوات التشخيص
-            </button>
+            {visibleConfigTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => navigate(tab.to)}
+                className={`px-3 py-2 rounded-2xl text-xs font-normal transition-all text-center ${
+                  configSection === tab.id ? tab.selectedClass : tab.idleClass
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -817,6 +824,10 @@ export const AdminApp = () => {
   };
 
   const renderContent = () => {
+    if (!canAccessSection(activeSection)) {
+      return <AccessDeniedView title="صلاحيات غير كافية" description="ليس لديك إذن للوصول إلى هذا القسم." />;
+    }
+
     if (location.pathname.startsWith('/admin/settings/surveys/khuyoot-validation')) {
       return <SurveyResponsesPage />;
     }
@@ -1101,6 +1112,7 @@ export const AdminApp = () => {
         tailorsCount={tailorsCount}
         boutiquesCount={boutiquesCount}
         shopsCount={shopsCount}
+        canAccessSection={canAccessSection}
       />
 
       {isSidebarOpen && (

@@ -12,6 +12,22 @@ import { getAuth, signInWithCustomToken } from 'firebase/auth';
 
 const API_KEY = import.meta.env.VITE_FIREBASE_API_KEY || 'AIzaSyB_SsoGd22clhuuqKHPQ_eyEEB8-YHOJvI';
 
+function shouldUseCustomTokenExchange(): boolean {
+  const explicit = String((import.meta as any)?.env?.VITE_USE_CUSTOM_TOKEN_EXCHANGE || '').trim().toLowerCase();
+  if (explicit === '1' || explicit === 'true' || explicit === 'yes') return true;
+  if (explicit === '0' || explicit === 'false' || explicit === 'no') return false;
+
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = (window.location.hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') return false;
+  } catch {
+    return false;
+  }
+
+  return true;
+}
+
 interface RestSignInResponse {
   kind: string;
   localId: string;
@@ -130,6 +146,10 @@ export async function signInWithEmailPasswordREST(
 }
 
 async function exchangeCustomToken(idToken: string): Promise<string | null> {
+  if (!shouldUseCustomTokenExchange()) {
+    return null;
+  }
+
   try {
     const res = await fetch('/api/auth/custom-token', {
       method: 'POST',

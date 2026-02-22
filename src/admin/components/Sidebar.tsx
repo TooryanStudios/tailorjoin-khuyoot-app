@@ -58,6 +58,7 @@ interface SidebarProps {
   isOpen: boolean;
   setIsOpen: (isOpen: boolean) => void;
   onLogout: () => void;
+  canAccessSection?: (section: string) => boolean;
   theme?: 'light' | 'dark';
   onToggleTheme?: () => void;
   tailorsCount?: number;
@@ -70,6 +71,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isOpen, 
   setIsOpen, 
   onLogout,
+  canAccessSection,
   theme = 'dark',
   onToggleTheme,
   tailorsCount = 0,
@@ -79,6 +81,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   const navigate = useNavigate();
 
   const showDevPrefixes = Boolean((import.meta as any)?.env?.DEV);
+  const canAccess = React.useCallback((section: string) => (canAccessSection ? canAccessSection(section) : true), [canAccessSection]);
 
   const onAfterNavigate = () => {
     // Close the sidebar after navigation on all screen sizes
@@ -120,41 +123,41 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </button>
 
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الرئيسية</p>
-          <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="approvals" icon={CheckCircle} label="موافقات التجار" count={tailorsCount + boutiquesCount + shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('dashboard') && <SidebarItem id="dashboard" icon={Activity} label="لوحة المعلومات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('orders') && <SidebarItem id="orders" icon={ShoppingCart} label="جدول الطلبات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('approvals') && <SidebarItem id="approvals" icon={CheckCircle} label="موافقات التجار" count={tailorsCount + boutiquesCount + shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
           
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">المحلات التجارية</p>
-          <SidebarItem id="tailors" icon={Scissors} label="جميع محلات الخياطة" count={tailorsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="boutiques" icon={Store} label="البوتيكات" count={boutiquesCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="shops" icon={Building2} label="المحلات الأخرى" count={shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('tailors') && <SidebarItem id="tailors" icon={Scissors} label="جميع محلات الخياطة" count={tailorsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('boutiques') && <SidebarItem id="boutiques" icon={Store} label="البوتيكات" count={boutiquesCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('shops') && <SidebarItem id="shops" icon={Building2} label="المحلات الأخرى" count={shopsCount} activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
           
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الإدارة</p>
-          <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="products" icon={Package} label="المنتجات" to="/admin/products/categories" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="store" icon={Store} label="إدارة المتجر" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('users') && <SidebarItem id="users" icon={Users} label="إدارة المستخدمين" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('products') && <SidebarItem id="products" icon={Package} label="المنتجات" to="/admin/products/categories" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('orphaned-products') && <SidebarItem id="orphaned-products" icon={AlertTriangle} label="منتجات يتيمة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('store') && <SidebarItem id="store" icon={Store} label="إدارة المتجر" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
           
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">الأصول</p>
-          <SidebarItem id="images" icon={ImagePlus} label="مكتبة الصور" to="/admin/images/all" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="family" icon={Users} label="ملفات العائلة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('images') && <SidebarItem id="images" icon={ImagePlus} label="مكتبة الصور" to="/admin/images/all" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('fabrics') && <SidebarItem id="fabrics" icon={Layers} label="مكتبة الأقمشة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('measurements') && <SidebarItem id="measurements" icon={Ruler} label="مكتبة المقاسات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('family') && <SidebarItem id="family" icon={Users} label="ملفات العائلة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
           
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">Try-On</p>
-          <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" to="/admin/tryon-templates/templates" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('tryon-templates') && <SidebarItem id="tryon-templates" icon={Star} label="قوالب Try‑On" to="/admin/tryon-templates/templates" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
           
           <p className="px-4 text-xs font-normal text-white/80 mt-6 mb-2 tracking-normal">النظام</p>
-          <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="notifications" icon={Bell} label="إرسال الإشعارات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="ads" icon={Megaphone} label="إدارة الإعلانات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="regions" icon={MapPin} label="المناطق الشائعة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="financial" icon={DollarSign} label="الإدارة المالية" to="/admin/financial/dashboard" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="credits" icon={DollarSign} label="إدارة الرصيد" to="/admin/credits" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="settings" icon={FileText} label="إدارة الاستبيان" to="/admin/settings/surveys/khuyoot-validation" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" to="/admin/config/general" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="debug-tools" icon={Activity} label="أدوات التشخيص" to="/admin/config/debug-tools" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
-          <SidebarItem id="logs" icon={FileText} label="System Logs" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />
+          {canAccess('ai') && <SidebarItem id="ai" icon={Cpu} label="نماذج AI & Prompts" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('notifications') && <SidebarItem id="notifications" icon={Bell} label="إرسال الإشعارات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('ads') && <SidebarItem id="ads" icon={Megaphone} label="إدارة الإعلانات" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('regions') && <SidebarItem id="regions" icon={MapPin} label="المناطق الشائعة" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('financial') && <SidebarItem id="financial" icon={DollarSign} label="الإدارة المالية" to="/admin/financial/dashboard" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('credits') && <SidebarItem id="credits" icon={DollarSign} label="إدارة الرصيد" to="/admin/credits" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('settings') && <SidebarItem id="settings" icon={FileText} label="إدارة الاستبيان" to="/admin/settings/surveys/khuyoot-validation" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('config') && <SidebarItem id="config" icon={Settings} label="الإعدادات العامة" to="/admin/config/general" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('debug-tools') && <SidebarItem id="debug-tools" icon={Activity} label="أدوات التشخيص" to="/admin/config/debug-tools" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
+          {canAccess('logs') && <SidebarItem id="logs" icon={FileText} label="System Logs" activeSection={activeSection} showDevPrefixes={showDevPrefixes} onNavigate={navigate} onAfterNavigate={onAfterNavigate} />}
         </div>
 
         <div className="p-4 border-t border-theme-primary/20 bg-gradient-to-r from-black/70 to-black/50">

@@ -34,6 +34,21 @@ export interface AuthUser {
   billing: BillingInfo;
   metadata: UserProfileMetadata;
 
+  adminAccess?: {
+    mode?: 'full' | 'limited';
+    sections?: string[];
+    deniedSections?: string[];
+    configSections?: string[];
+    deniedConfigSections?: string[];
+  };
+  adminPermissions?: {
+    mode?: 'full' | 'limited';
+    sections?: string[];
+    deniedSections?: string[];
+    configSections?: string[];
+    deniedConfigSections?: string[];
+  };
+
   // Helpers for legacy field mapping
   fullName?: string; // Maps to displayName
   avatar?: string;   // Maps to photoURL

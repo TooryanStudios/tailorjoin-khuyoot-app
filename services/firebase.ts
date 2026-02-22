@@ -83,6 +83,22 @@ function isFirebaseDisabledByDiagnostics(): boolean {
 const FIREBASE_DIAGNOSTIC_DISABLED = isFirebaseDisabledByDiagnostics();
 
 const UI_AUTH_CACHE_KEY = 'khuyoot:ui:auth_cache';
+
+function shouldUseCustomTokenExchange(): boolean {
+  const explicit = String((import.meta as any)?.env?.VITE_USE_CUSTOM_TOKEN_EXCHANGE || '').trim().toLowerCase();
+  if (explicit === '1' || explicit === 'true' || explicit === 'yes') return true;
+  if (explicit === '0' || explicit === 'false' || explicit === 'no') return false;
+
+  try {
+    if (typeof window === 'undefined') return false;
+    const host = (window.location.hostname || '').toLowerCase();
+    if (host === 'localhost' || host === '127.0.0.1') return false;
+  } catch {
+    return false;
+  }
+
+  return true;
+}
 const SESSION_RESTORE_BLOCK_UNTIL_KEY = 'khuyoot:session_restore_block_until';
 let lastSessionRestoreFailureAt = 0;
 const SESSION_RESTORE_COOLDOWN_MS = 100; // Reset to instant retry
@@ -635,6 +651,7 @@ export const firebaseService = {
     async ensureFirebaseSessionFromStoredToken(): Promise<any> {
       if (!isFirebaseInitialized) return null;
       if (auth.currentUser) return auth.currentUser;
+      if (!shouldUseCustomTokenExchange()) return null;
 
       const restoreBlockedUntil = getStoredSessionRestoreBlockUntil();
       if (restoreBlockedUntil > Date.now()) {
