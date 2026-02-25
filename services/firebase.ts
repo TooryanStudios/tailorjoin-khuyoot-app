@@ -1664,10 +1664,10 @@ export const firebaseService = {
           mergedData.createdAt = serverTimestamp();
         }
 
-        await Promise.all([
-          setDoc(userRef, mergedData, { merge: true }),
-          setDoc(profileRef, mergedData, { merge: true }),
-        ]);
+        // Only write to users/{uid}. user_profiles is a billing/wallet collection
+        // with strict create rules — writing general profile data there causes
+        // Permission errors for new users who don't have a wallet doc yet.
+        await setDoc(userRef, mergedData, { merge: true });
 
         if (duplicateUserDocRef) {
           try {
@@ -1679,12 +1679,8 @@ export const firebaseService = {
                 mergedAt: serverTimestamp(),
                 updatedAt: serverTimestamp(),
               }, { merge: true }),
-              setDoc(doc(db, 'user_profiles', duplicateUid), {
-                mergedIntoUid: uid,
-                isMergedDuplicate: true,
-                mergedAt: serverTimestamp(),
-                updatedAt: serverTimestamp(),
-              }, { merge: true }),
+              // Note: intentionally NOT writing to user_profiles/{duplicateUid}
+              // — that collection is billing-only and has strict create rules.
             ]);
           } catch (mergeMarkErr) {
             console.warn('[Firebase] Failed to mark duplicate account as merged', mergeMarkErr);
@@ -1875,11 +1871,9 @@ export const firebaseService = {
         }
         
         const userRef = doc(db, 'users', uid);
-        const profileRef = doc(db, 'user_profiles', uid);
-        await Promise.all([
-          setDoc(userRef, updates, { merge: true }),
-          setDoc(profileRef, updates, { merge: true })
-        ]);
+        // user_profiles is a billing/wallet collection with strict rules — do NOT write
+        // general profile fields there. Only write to users/{uid}.
+        await setDoc(userRef, updates, { merge: true });
         
         // Also update auth profile if name/photo changed
         if (auth.currentUser && (updates.name || updates.profileImage)) {
@@ -2944,7 +2938,7 @@ export const firebaseService = {
     }
   },
 
-  async updateMerchantStatus(merchantId: string, status: 'approved' | 'rejected', reason?: string): Promise<void> {
+  async updateMerchantStatus(merchantId: string, status: 'approved' | 'rejected' | 'suspended', reason?: string): Promise<void> {
     if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
     
     try {
@@ -2958,6 +2952,13 @@ export const firebaseService = {
       if (reason) {
         updateData.rejectionReason = reason;
       }
+
+      // When suspending, also flag so the app hides them from discovery
+      if (status === 'suspended') {
+        updateData.isDisabled = true;
+      } else {
+        updateData.isDisabled = false;
+      }
       
       await setDoc(userRef, updateData, { merge: true });
       
@@ -2965,6 +2966,22 @@ export const firebaseService = {
     } catch (error) {
       console.error("Error updating merchant status:", error);
       throw error;
+    }
+  },
+
+  async getActiveOrdersCountByTailor(tailorId: string): Promise<number> {
+    if (!isFirebaseInitialized) return 0;
+    try {
+      const ordersRef = collection(db, 'orders');
+      const activeStatuses = ['pending', 'confirmed', 'in_progress', 'processing', 'ready'];
+      // Firestore doesn't support 'not-in' easily with 'in' on a different field,
+      // so we query by tailorId and filter active statuses client-side.
+      const q = query(ordersRef, where('tailorId', '==', tailorId));
+      const snapshot = await getDocs(q);
+      const active = snapshot.docs.filter(d => activeStatuses.includes(d.data()?.status));
+      return active.length;
+    } catch {
+      return 0;
     }
   },
 

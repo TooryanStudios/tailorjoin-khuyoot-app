@@ -5,6 +5,7 @@ import { User, AgeGroup, PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
 import { ImagePrepModal } from '../../components/image/ImagePrepModal';
 import { useQueryClient } from '@tanstack/react-query';
+import { useApp } from '../../../context/AppContext';
 
 const ADMIN_SECTION_KEYS = [
   'dashboard',
@@ -117,6 +118,9 @@ const isLimitedAdminUser = (user: any): boolean => {
 
 export const UsersManagement = () => {
   const queryClient = useQueryClient();
+  const { user: currentAdminUser } = useApp();
+  // Restrict destructive/sensitive actions for limited admins
+  const isCurrentAdminLimited = isLimitedAdminUser(currentAdminUser);
   const [users, setUsers] = useState<User[]>([]);
   const [mergedDuplicateUsers, setMergedDuplicateUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
@@ -1157,8 +1161,10 @@ export const UsersManagement = () => {
 
   const stats = {
     total: users.length,
-    regularUsers: users.filter(u => u.role === 'user').length,
-    merchants: users.filter(u => u.role === 'tailor' || u.role === 'shop').length,
+    // 'customer' is the normalized role; also match legacy 'user' for safety
+    regularUsers: users.filter(u => u.role === 'customer' || u.role === 'user').length,
+    // shops/boutiques get normalized to 'tailor' by applyUserDefaults
+    merchants: users.filter(u => u.role === 'tailor' || u.role === 'shop' || u.role === 'boutique').length,
     admins: users.filter(u => u.role === 'admin').length,
     limitedAdmins: users.filter((u: any) => isLimitedAdminUser(u)).length
   };
@@ -1342,13 +1348,18 @@ export const UsersManagement = () => {
                   >
                     <td className="px-2 py-1.5">
                       <div className="flex items-center gap-1.5">
-                        <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
-                          {user.name.charAt(0)}
+                        <div className="relative w-6 h-6 shrink-0">
+                          <div className="w-6 h-6 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center text-white font-bold text-[10px]">
+                            {user.name.charAt(0)}
+                          </div>
+                          {(user.role === 'tailor' || user.role === 'shop') && user.approvalStatus === 'pending' && (
+                            <span
+                              className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 bg-amber-400 border-2 border-white dark:border-slate-800 rounded-full"
+                              title="قيد الانتظار"
+                            />
+                          )}
                         </div>
-                        <div className="flex flex-col">
-                          <span className="font-medium text-slate-900 dark:text-white text-[11px]">{user.name}</span>
-                          <span className="text-[9px] text-slate-400 dark:text-slate-500 font-mono">{user.id}</span>
-                        </div>
+                        <span className="font-medium text-slate-900 dark:text-white text-[11px]">{user.name}</span>
                       </div>
                     </td>
                     <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
@@ -1361,7 +1372,12 @@ export const UsersManagement = () => {
                         )}
                       </div>
                     </td>
-                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.phone || '-'}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                      {isCurrentAdminLimited
+                        ? <span className="tracking-widest text-slate-400 select-none" title="غير متاح لهذا الحساب">••••••••</span>
+                        : (user.phone || '-')
+                      }
+                    </td>
                     <td className="px-2 py-1.5">
                       <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium ${
                         user.role === 'user' 
@@ -1378,14 +1394,6 @@ export const UsersManagement = () => {
                           محدود
                         </span>
                       )}
-                      
-                      {/* Pending Status Icon */}
-                      {(user.role === 'tailor' || user.role === 'shop') && user.approvalStatus === 'pending' && (
-                        <div className="mt-0.5 flex items-center gap-0.5 text-[9px] text-amber-600 font-medium animate-pulse">
-                          <Clock size={9} />
-                          <span>قيد الانتظار</span>
-                        </div>
-                      )}
                     </td>
                     <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.region || user.location || '-'}</td>
                     <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
@@ -1393,45 +1401,55 @@ export const UsersManagement = () => {
                     </td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1">
-                        {/* Upgrade Button (Right in RTL) */}
-                        {user.role === 'user' && (
-                          <button
-                            onClick={() => handleOpenUpgrade(user)}
-                            className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-100 rounded transition-all"
-                            title="ترقية لتاجر"
-                          >
-                            <Store size={13} />
-                          </button>
+                        {/* Upgrade, Promote, Edit, Delete — full admins only */}
+                        {!isCurrentAdminLimited && (
+                          <>
+                            {/* Upgrade Button (Right in RTL) */}
+                            {user.role === 'user' && (
+                              <button
+                                onClick={() => handleOpenUpgrade(user)}
+                                className="p-1.5 bg-purple-50 hover:bg-purple-100 text-purple-600 border border-purple-100 rounded transition-all"
+                                title="ترقية لتاجر"
+                              >
+                                <Store size={13} />
+                              </button>
+                            )}
+
+                            {user.role !== 'admin' && (
+                              <button
+                                onClick={() => handleOpenPromoteAdmin(user)}
+                                className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100 rounded transition-all"
+                                title="تعيين كمدير مع صلاحيات"
+                              >
+                                <Shield size={13} />
+                              </button>
+                            )}
+
+                            {/* Edit Button */}
+                            <button
+                              onClick={() => handleOpenEdit(user)}
+                              className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded transition-all"
+                              title="تعديل البيانات"
+                            >
+                              <Edit2 size={13} />
+                            </button>
+
+                            {/* Delete Button */}
+                            {user.role !== 'admin' && (
+                              <button
+                                onClick={() => handleDeleteClick(user)}
+                                className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded transition-all"
+                                title="حذف المستخدم"
+                              >
+                                <Trash2 size={13} />
+                              </button>
+                            )}
+                          </>
                         )}
 
-                        {user.role !== 'admin' && (
-                          <button
-                            onClick={() => handleOpenPromoteAdmin(user)}
-                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100 rounded transition-all"
-                            title="تعيين كمدير مع صلاحيات"
-                          >
-                            <Shield size={13} />
-                          </button>
-                        )}
-
-                        {/* Edit Button (Middle) */}
-                        <button
-                          onClick={() => handleOpenEdit(user)}
-                          className="p-1.5 bg-blue-50 hover:bg-blue-100 text-blue-600 border border-blue-100 rounded transition-all"
-                          title="تعديل البيانات"
-                        >
-                          <Edit2 size={13} />
-                        </button>
-
-                        {/* Delete Button (Left in RTL) */}
-                        {user.role !== 'admin' && (
-                          <button
-                            onClick={() => handleDeleteClick(user)}
-                            className="p-1.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded transition-all"
-                            title="حذف المستخدم"
-                          >
-                            <Trash2 size={13} />
-                          </button>
+                        {/* Limited admins see a read-only indicator instead */}
+                        {isCurrentAdminLimited && (
+                          <span className="text-[9px] text-slate-400 italic px-1">قراءة فقط</span>
                         )}
                       </div>
                     </td>

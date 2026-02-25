@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Users, ShoppingCart, Scissors, Cpu } from 'lucide-react';
+import { Users, ShoppingCart, Scissors, Cpu, UserCheck } from 'lucide-react';
 import { User, Order, Tailor, SystemLog } from '../../../types';
 
 interface DashboardProps {
@@ -15,6 +15,8 @@ export const DashboardOverview: React.FC<DashboardProps> = ({ users, orders, tai
     (order) => order.status !== 'delivered' && order.status !== 'cancelled' && order.status !== 'rejected'
   ).length;
   const pendingTailorsCount = tailors.filter((tailor) => tailor.approvalStatus === 'pending').length;
+  // 'customer' is the normalized role from applyUserDefaults; also match legacy 'user'
+  const regularUsersCount = users.filter((u: any) => u.role === 'customer' || u.role === 'user').length;
   
   const StatCard = ({ title, value, icon: Icon, color, subtext }: any) => (
     <div className="bg-white dark:bg-slate-800 p-6 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm">
@@ -33,9 +35,10 @@ export const DashboardOverview: React.FC<DashboardProps> = ({ users, orders, tai
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <StatCard title="إجمالي المستخدمين" value={users.length} icon={Users} color="bg-blue-500 text-blue-500" subtext="+12% هذا الشهر" />
-        <StatCard title="الطلبات النشطة" value={activeOrdersCount} icon={ShoppingCart} color="bg-green-500 text-green-500" subtext={`من أصل ${orders.length} طلب`} />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
+        <StatCard title="إجمالي المستخدمين" value={users.length} icon={Users} color="bg-blue-500 text-blue-500" subtext="جميع الحسابات" />
+        <StatCard title="مستخدمون عاديون" value={regularUsersCount} icon={UserCheck} color="bg-green-500 text-green-500" subtext={`${Math.round((regularUsersCount / Math.max(users.length, 1)) * 100)}% من الإجمالي`} />
+        <StatCard title="الطلبات النشطة" value={activeOrdersCount} icon={ShoppingCart} color="bg-orange-500 text-orange-500" subtext={`من أصل ${orders.length} طلب`} />
         <StatCard title="الخياطين" value={tailors.length} icon={Scissors} color="bg-amber-500 text-amber-500" subtext={`${pendingTailorsCount} بانتظار الموافقة`} />
         <StatCard title="حالة الذكاء الاصطناعي" value="Online" icon={Cpu} color="bg-purple-500 text-purple-500" subtext="v2.4.1 Active" />
       </div>

@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Store, CheckCircle2, XCircle, Clock, MapPin, Phone, Mail, Briefcase, Calendar, X, Eye } from 'lucide-react';
+import { Store, CheckCircle2, XCircle, Clock, MapPin, Phone, Mail, Briefcase, X, Eye, AlertTriangle, Ban, RotateCcw } from 'lucide-react';
 import { firebaseService } from '../../../services/firebase';
 import { User, Product } from '../../../types';
 import { getSpecializationLabel } from '../../../utils/specializationHelper';
 
 export const MerchantsApproval = () => {
   const [merchants, setMerchants] = useState<User[]>([]);
-  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected'>('pending');
+  const [filter, setFilter] = useState<'all' | 'pending' | 'approved' | 'rejected' | 'suspended'>('pending');
   const [loading, setLoading] = useState(true);
   const [selectedMerchant, setSelectedMerchant] = useState<User | null>(null);
   const [products, setProducts] = useState<Product[]>([]);
@@ -15,6 +15,8 @@ export const MerchantsApproval = () => {
   // Dialog states
   const [approvalDialog, setApprovalDialog] = useState<{ isOpen: boolean; merchantId?: string; merchantName?: string }>({ isOpen: false });
   const [rejectionDialog, setRejectionDialog] = useState<{ isOpen: boolean; merchantId?: string; merchantName?: string; merchantEmail?: string; merchantPhone?: string }>({ isOpen: false });
+  const [suspendDialog, setSuspendDialog] = useState<{ isOpen: boolean; merchantId?: string; merchantName?: string; activeOrdersCount?: number; checking?: boolean }>({ isOpen: false });
+  const [restoreDialog, setRestoreDialog] = useState<{ isOpen: boolean; merchantId?: string; merchantName?: string }>({ isOpen: false });
   const [selectedReasons, setSelectedReasons] = useState<string[]>([]);
   const [customReason, setCustomReason] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
@@ -56,6 +58,54 @@ export const MerchantsApproval = () => {
       merchantId, 
       merchantName: merchant?.name 
     });
+  };
+
+  const handleSuspend = async (merchantId: string) => {
+    const merchant = merchants.find(m => m.id === merchantId);
+    setSuspendDialog({ isOpen: true, merchantId, merchantName: merchant?.name, activeOrdersCount: undefined, checking: true });
+    try {
+      const count = await (firebaseService as any).getActiveOrdersCountByTailor(merchantId);
+      setSuspendDialog(prev => ({ ...prev, activeOrdersCount: count, checking: false }));
+    } catch {
+      setSuspendDialog(prev => ({ ...prev, activeOrdersCount: 0, checking: false }));
+    }
+  };
+
+  const confirmSuspend = async () => {
+    if (!suspendDialog.merchantId) return;
+    setProcessingId(suspendDialog.merchantId);
+    try {
+      await firebaseService.updateMerchantStatus(suspendDialog.merchantId, 'suspended' as any);
+      setMerchants(prev =>
+        prev.map(m => m.id === suspendDialog.merchantId ? { ...m, approvalStatus: 'suspended' as any } : m)
+      );
+      setSuspendDialog({ isOpen: false });
+    } catch (error) {
+      console.error('Error suspending merchant:', error);
+    } finally {
+      setProcessingId(null);
+    }
+  };
+
+  const handleRestore = (merchantId: string) => {
+    const merchant = merchants.find(m => m.id === merchantId);
+    setRestoreDialog({ isOpen: true, merchantId, merchantName: merchant?.name });
+  };
+
+  const confirmRestore = async () => {
+    if (!restoreDialog.merchantId) return;
+    setProcessingId(restoreDialog.merchantId);
+    try {
+      await firebaseService.updateMerchantStatus(restoreDialog.merchantId, 'approved');
+      setMerchants(prev =>
+        prev.map(m => m.id === restoreDialog.merchantId ? { ...m, approvalStatus: 'approved' as const } : m)
+      );
+      setRestoreDialog({ isOpen: false });
+    } catch (error) {
+      console.error('Error restoring merchant:', error);
+    } finally {
+      setProcessingId(null);
+    }
   };
 
   const confirmApproval = async () => {
@@ -159,13 +209,14 @@ export const MerchantsApproval = () => {
   };
 
   const filteredMerchants = merchants.filter(m => 
-    filter === 'all' ? true : m.approvalStatus === filter
+    filter === 'all' ? true : m.approvalStatus === (filter as any)
   );
 
   const stats = {
     pending: merchants.filter(m => m.approvalStatus === 'pending').length,
     approved: merchants.filter(m => m.approvalStatus === 'approved').length,
     rejected: merchants.filter(m => m.approvalStatus === 'rejected').length,
+    suspended: merchants.filter(m => (m.approvalStatus as any) === 'suspended').length,
   };
 
   if (loading) {
@@ -195,7 +246,7 @@ export const MerchantsApproval = () => {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
         <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-5 hover:shadow-md transition-shadow">
           <div className="flex items-center justify-between">
             <div>
@@ -225,15 +276,26 @@ export const MerchantsApproval = () => {
             <XCircle size={28} className="text-red-600 dark:text-red-400 opacity-50" />
           </div>
         </div>
+
+        <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-5 hover:shadow-md transition-shadow">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs text-zinc-500 font-normal uppercase tracking-widest">موقوفين</p>
+              <p className="text-3xl font-bold text-orange-600 dark:text-orange-400 mt-2">{stats.suspended}</p>
+            </div>
+            <Ban size={28} className="text-orange-600 dark:text-orange-400 opacity-50" />
+          </div>
+        </div>
       </div>
 
       {/* Filter Tabs */}
-      <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-2 flex gap-1 w-fit">
+      <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-2 flex flex-wrap gap-1 w-fit">
         {[
           { value: 'all', label: 'الكل', count: merchants.length },
           { value: 'pending', label: 'قيد الانتظار', count: stats.pending },
           { value: 'approved', label: 'موافق عليهم', count: stats.approved },
           { value: 'rejected', label: 'مرفوضين', count: stats.rejected },
+          { value: 'suspended', label: 'موقوفين', count: stats.suspended },
         ].map(tab => (
           <button
             key={tab.value}
@@ -333,39 +395,74 @@ export const MerchantsApproval = () => {
                     <span>عرض التفاصيل</span>
                   </button>
 
-                  {/* Approval Actions - Only for Pending */}
+                  {/* Approval Actions - Pending */}
                   {merchant.approvalStatus === 'pending' && (
-                    <>
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => handleApprove(merchant.id)}
-                          className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all text-xs"
-                        >
-                          <CheckCircle2 size={14} />
-                          <span>موافقة</span>
-                        </button>
-                        <button
-                          onClick={() => handleReject(merchant.id)}
-                          className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all text-xs"
-                        >
-                          <XCircle size={14} />
-                          <span>رفض</span>
-                        </button>
-                      </div>
-                    </>
-                  )}
-
-                  {/* Status Badges - For Approved/Rejected */}
-                  {merchant.approvalStatus === 'approved' && (
-                    <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-2xl text-xs font-bold border border-green-200 dark:border-green-800 w-full justify-center">
-                      <CheckCircle2 size={14} />
-                      <span>موافق عليه</span>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        onClick={() => handleApprove(merchant.id)}
+                        className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all text-xs"
+                      >
+                        <CheckCircle2 size={14} />
+                        <span>موافقة</span>
+                      </button>
+                      <button
+                        onClick={() => handleReject(merchant.id)}
+                        className="flex-1 min-w-[110px] inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md active:scale-95 transition-all text-xs"
+                      >
+                        <XCircle size={14} />
+                        <span>رفض</span>
+                      </button>
                     </div>
                   )}
+
+                  {/* Approved → can suspend */}
+                  {merchant.approvalStatus === 'approved' && (
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 rounded-2xl text-xs font-bold border border-green-200 dark:border-green-800 w-full justify-center">
+                        <CheckCircle2 size={14} />
+                        <span>موافق عليه</span>
+                      </div>
+                      <button
+                        onClick={() => handleSuspend(merchant.id)}
+                        className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-orange-50 hover:bg-orange-100 dark:bg-orange-900/20 dark:hover:bg-orange-900/40 text-orange-600 dark:text-orange-400 border border-orange-200 dark:border-orange-800 rounded-2xl font-semibold transition-all text-xs"
+                      >
+                        <Ban size={14} />
+                        <span>إيقاف الحساب</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Rejected → can re-approve */}
                   {merchant.approvalStatus === 'rejected' && (
-                    <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-xs font-bold border border-red-200 dark:border-red-800 w-full justify-center">
-                      <XCircle size={14} />
-                      <span>مرفوض</span>
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 rounded-2xl text-xs font-bold border border-red-200 dark:border-red-800 w-full justify-center">
+                        <XCircle size={14} />
+                        <span>مرفوض</span>
+                      </div>
+                      <button
+                        onClick={() => handleRestore(merchant.id)}
+                        className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800 rounded-2xl font-semibold transition-all text-xs"
+                      >
+                        <RotateCcw size={14} />
+                        <span>إعادة الموافقة</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Suspended → can restore */}
+                  {(merchant.approvalStatus as any) === 'suspended' && (
+                    <div className="space-y-2">
+                      <div className="inline-flex items-center gap-2 px-4 py-2.5 bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-400 rounded-2xl text-xs font-bold border border-orange-200 dark:border-orange-800 w-full justify-center">
+                        <Ban size={14} />
+                        <span>موقوف</span>
+                      </div>
+                      <button
+                        onClick={() => handleRestore(merchant.id)}
+                        className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 bg-green-50 hover:bg-green-100 dark:bg-green-900/20 dark:hover:bg-green-900/40 text-green-600 dark:text-green-400 border border-green-200 dark:border-green-800 rounded-2xl font-semibold transition-all text-xs"
+                      >
+                        <RotateCcw size={14} />
+                        <span>إعادة التفعيل</span>
+                      </button>
                     </div>
                   )}
                 </div>
@@ -504,6 +601,112 @@ export const MerchantsApproval = () => {
                   موافقة
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Suspend Confirmation Dialog ── */}
+      {suspendDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-6">
+              <div className="w-16 h-16 bg-orange-100 dark:bg-orange-900/30 rounded-full flex items-center justify-center mx-auto">
+                <Ban size={32} className="text-orange-600 dark:text-orange-400" />
+              </div>
+
+              <div>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">إيقاف الحساب</h3>
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  هل تريد إيقاف حساب <span className="font-bold text-orange-500">{suspendDialog.merchantName}</span>؟
+                </p>
+              </div>
+
+              {suspendDialog.checking ? (
+                <div className="flex items-center justify-center gap-2 text-zinc-500 text-sm">
+                  <div className="animate-spin rounded-full h-4 w-4 border-2 border-zinc-400 border-t-transparent" />
+                  جاري التحقق من الطلبات النشطة...
+                </div>
+              ) : (
+                <div className={`rounded-2xl p-4 text-sm text-right ${
+                  (suspendDialog.activeOrdersCount ?? 0) > 0
+                    ? 'bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-200'
+                    : 'bg-zinc-50 dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 text-zinc-600 dark:text-zinc-400'
+                }`}>
+                  {(suspendDialog.activeOrdersCount ?? 0) > 0 ? (
+                    <div className="flex items-start gap-2">
+                      <AlertTriangle size={16} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+                      <span>
+                        لدى هذا التاجر <strong>{suspendDialog.activeOrdersCount}</strong> طلب نشط.
+                        سيظل مرئيًا لأصحاب الطلبات الحالية فقط، ولن يظهر في نتائج البحث أو للزوار الجدد.
+                      </span>
+                    </div>
+                  ) : (
+                    <span>لا توجد طلبات نشطة. سيتم إخفاء هذا الحساب فورًا من جميع القوائم والبحث.</span>
+                  )}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setSuspendDialog({ isOpen: false })}
+                  disabled={!!processingId || suspendDialog.checking}
+                  className="flex-1 min-w-[120px] px-4 py-3 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white rounded-2xl font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-all disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmSuspend}
+                  disabled={!!processingId || suspendDialog.checking}
+                  className="flex-1 min-w-[120px] px-4 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingId === suspendDialog.merchantId ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />جاري...</>
+                  ) : (
+                    <><Ban size={16} />تأكيد الإيقاف</>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Restore / Re-approve Confirmation Dialog ── */}
+      {restoreDialog.isOpen && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl w-full max-w-md shadow-2xl animate-in fade-in zoom-in-95 duration-200">
+            <div className="p-6 text-center space-y-6">
+              <div className="w-16 h-16 bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center mx-auto">
+                <RotateCcw size={32} className="text-green-600 dark:text-green-400" />
+              </div>
+              <div>
+                <h3 className="text-xl font-bold text-zinc-900 dark:text-white mb-2">إعادة التفعيل</h3>
+                <p className="text-zinc-600 dark:text-zinc-400">
+                  هل تريد إعادة تفعيل حساب <span className="font-bold text-green-500">{restoreDialog.merchantName}</span>؟
+                </p>
+                <p className="text-xs text-zinc-400 mt-2">سيظهر الحساب مجددًا في نتائج البحث وقوائم الخياطين.</p>
+              </div>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  onClick={() => setRestoreDialog({ isOpen: false })}
+                  disabled={!!processingId}
+                  className="flex-1 min-w-[120px] px-4 py-3 bg-zinc-200 dark:bg-zinc-700 text-zinc-900 dark:text-white rounded-2xl font-semibold hover:bg-zinc-300 dark:hover:bg-zinc-600 transition-all disabled:opacity-50"
+                >
+                  إلغاء
+                </button>
+                <button
+                  onClick={confirmRestore}
+                  disabled={!!processingId}
+                  className="flex-1 min-w-[120px] px-4 py-3 bg-green-500 hover:bg-green-600 text-white rounded-2xl font-semibold shadow-sm hover:shadow-md transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {processingId === restoreDialog.merchantId ? (
+                    <><div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />جاري...</>
+                  ) : (
+                    <><CheckCircle2 size={16} />تأكيد التفعيل</>
+                  )}
+                </button>
+              </div>
             </div>
           </div>
         </div>
