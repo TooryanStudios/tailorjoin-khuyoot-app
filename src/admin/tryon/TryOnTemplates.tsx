@@ -1,3 +1,4 @@
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Button } from '../../../components/Button';
 import { Modal } from '../../../components/Modal';
@@ -271,6 +272,7 @@ async function cropFileToAspectJpegBlob(params: { file: File; aspect: number; cx
 }
 
 export const TryOnTemplates: React.FC = () => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = useMemo(() => getTryOnTabFromPathname(location.pathname), [location.pathname]);
@@ -994,7 +996,14 @@ export const TryOnTemplates: React.FC = () => {
   };
 
   const handleDeleteTemplate = async (templateId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا القالب؟')) return;
+    const shouldDelete = await confirm({
+      title: 'حذف القالب',
+      message: 'هل أنت متأكد من حذف هذا القالب؟',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) return;
     
     // Optimistic update - remove immediately
     setTemplates((prev) => prev.filter((t) => t.id !== templateId));
@@ -1012,7 +1021,14 @@ export const TryOnTemplates: React.FC = () => {
 
   const handleBulkDelete = async () => {
     if (selectedTemplateIds.size === 0) return;
-    if (!confirm(`هل أنت متأكد من حذف ${selectedTemplateIds.size} قالب؟`)) return;
+    const shouldDelete = await confirm({
+      title: 'حذف متعدد',
+      message: `هل أنت متأكد من حذف ${selectedTemplateIds.size} قالب؟`,
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) return;
     
     const idsToDelete = Array.from(selectedTemplateIds);
     
@@ -2106,9 +2122,16 @@ export const TryOnTemplates: React.FC = () => {
                 <div className="flex items-center justify-end gap-2">
                   <Button
                     variant="outline"
-                    onClick={() => {
+                    onClick={async () => {
                       if (!editDraft) return;
-                      if (confirm('حذف هذا القالب؟')) {
+                      const shouldDelete = await confirm({
+                        title: 'حذف القالب',
+                        message: 'حذف هذا القالب؟',
+                        confirmText: 'حذف',
+                        cancelText: 'إلغاء',
+                        danger: true,
+                      });
+                      if (shouldDelete) {
                         void handleDeleteTemplate(editDraft.id);
                         // keep modal open; user can close
                       }
@@ -2237,6 +2260,7 @@ export const TryOnTemplates: React.FC = () => {
                         {templatePickerTestImageLoading && (
                           <div className="absolute inset-0 bg-slate-900/50 flex items-center justify-center">
                             <div className="animate-spin rounded-full h-8 w-8 border-2 border-white border-t-transparent"></div>
+                            {confirmDialog}
                           </div>
                         )}
                       </>

@@ -15,6 +15,7 @@ import {
 } from './services';
 import { CategoryForm } from './components/CategoryForm';
 import { ProductTemplateForm } from './components/ProductTemplateForm';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 type TabType = 'categories' | 'templates';
 
@@ -44,6 +45,7 @@ function getProductsTabFromPathname(pathname: string): TabType {
 }
 
 export const ProductsManagement: React.FC = () => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const navigate = useNavigate();
   const location = useLocation();
   const activeTab = getProductsTabFromPathname(location.pathname);
@@ -187,14 +189,22 @@ export const ProductsManagement: React.FC = () => {
       ? `هل أنت متأكد من حذف المنتج "${product.nameAr}" (${product.nameEn})؟\n\nملاحظة: لا يمكن التراجع عن هذا الإجراء.`
       : 'هل أنت متأكد من حذف هذا المنتج؟\n\nملاحظة: لا يمكن التراجع عن هذا الإجراء.';
     
-    if (confirm(confirmMessage)) {
-      try {
-        await deleteProductTemplate(id);
-        await loadData();
-      } catch (error: any) {
-        console.error('خطأ في حذف المنتج:', error);
-        alert(error.message || 'حدث خطأ أثناء حذف المنتج');
-      }
+    const shouldDelete = await confirm({
+      title: 'حذف المنتج',
+      message: confirmMessage,
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+
+    if (!shouldDelete) return;
+
+    try {
+      await deleteProductTemplate(id);
+      await loadData();
+    } catch (error: any) {
+      console.error('خطأ في حذف المنتج:', error);
+      alert(error.message || 'حدث خطأ أثناء حذف المنتج');
     }
   };
 
@@ -569,6 +579,7 @@ export const ProductsManagement: React.FC = () => {
         }
         title={editingProduct ? 'تعديل منتج' : 'إضافة منتج جديد'}
       />
+      {confirmDialog}
     </div>
   );
 };

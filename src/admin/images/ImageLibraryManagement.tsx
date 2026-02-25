@@ -19,6 +19,7 @@ import { AddCategoryModal } from './components/AddCategoryModal';
 import { AddImageModal } from './components/AddImageModal';
 import { ImageViewerModal } from './components/ImageViewerModal';
 import { ImageGrid } from './components/ImageGrid';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 type ImageTab = 'all' | 'female' | 'male';
 
@@ -35,6 +36,7 @@ function getImageTabFromPathname(pathname: string): ImageTab {
 export const ImageLibraryManagement = () => {
   const navigate = useNavigate();
   const location = useLocation();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const { user } = useApp();
   const [categories, setCategories] = useState<ImageLibraryCategory[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<ImageLibraryCategory | null>(null);
@@ -136,7 +138,14 @@ export const ImageLibraryManagement = () => {
 
   const handleSyncCategories = async () => {
     console.log('🔄 بدء المزامنة...');
-    if (!confirm('هل تريد مزامنة الأقسام من تصنيفات المنتجات؟ سيتم إنشاء أقسام جديدة بناءً على التصنيفات الهرمية.')) {
+    const shouldSync = await confirm({
+      title: 'مزامنة الأقسام',
+      message: 'هل تريد مزامنة الأقسام من تصنيفات المنتجات؟ سيتم إنشاء أقسام جديدة بناءً على التصنيفات الهرمية.',
+      confirmText: 'مزامنة',
+      cancelText: 'إلغاء',
+      danger: false,
+    });
+    if (!shouldSync) {
       return;
     }
 
@@ -395,7 +404,14 @@ export const ImageLibraryManagement = () => {
   };
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا القسم؟ سيتم حذف جميع الصور المرتبطة به.')) {
+    const shouldDelete = await confirm({
+      title: 'حذف القسم',
+      message: 'هل أنت متأكد من حذف هذا القسم؟ سيتم حذف جميع الصور المرتبطة به.',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) {
       return;
     }
 
@@ -463,7 +479,14 @@ export const ImageLibraryManagement = () => {
   };
 
   const handleDeleteImage = async (imageId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه الصورة؟')) {
+    const shouldDelete = await confirm({
+      title: 'حذف الصورة',
+      message: 'هل أنت متأكد من حذف هذه الصورة؟',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) {
       return;
     }
 
@@ -687,6 +710,7 @@ export const ImageLibraryManagement = () => {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 };

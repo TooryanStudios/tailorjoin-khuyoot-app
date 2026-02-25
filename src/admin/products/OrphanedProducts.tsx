@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Trash2, RefreshCw, AlertTriangle, Package } from 'lucide-react';
 import { firebaseService } from '../../../services/firebase';
 import { Button } from '../../../components/Button';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 interface OrphanedProduct {
   id: string;
@@ -15,6 +16,7 @@ interface OrphanedProduct {
 }
 
 export const OrphanedProducts: React.FC = () => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [products, setProducts] = useState<OrphanedProduct[]>([]);
   const [loading, setLoading] = useState(false);
   const [deleting, setDeleting] = useState<Record<string, boolean>>({});
@@ -64,7 +66,14 @@ export const OrphanedProducts: React.FC = () => {
   }, []);
 
   const deleteProduct = async (productId: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذا المنتج؟')) return;
+    const shouldDelete = await confirm({
+      title: 'حذف المنتج',
+      message: 'هل أنت متأكد من حذف هذا المنتج؟',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) return;
 
     setDeleting(prev => ({ ...prev, [productId]: true }));
     try {
@@ -81,11 +90,25 @@ export const OrphanedProducts: React.FC = () => {
   };
 
   const deleteAllProducts = async () => {
-    if (!confirm(`هل أنت متأكد من حذف جميع المنتجات اليتيمة (${products.length} منتج)؟\n\nهذا الإجراء لا يمكن التراجع عنه!`)) {
+    const firstConfirm = await confirm({
+      title: 'حذف جماعي',
+      message: `هل أنت متأكد من حذف جميع المنتجات اليتيمة (${products.length} منتج)؟\n\nهذا الإجراء لا يمكن التراجع عنه!`,
+      confirmText: 'متابعة',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!firstConfirm) {
       return;
     }
 
-    if (!confirm('تأكيد نهائي: سيتم حذف جميع المنتجات من المجموعة القديمة. هل تريد المتابعة؟')) {
+    const secondConfirm = await confirm({
+      title: 'تأكيد نهائي',
+      message: 'تأكيد نهائي: سيتم حذف جميع المنتجات من المجموعة القديمة. هل تريد المتابعة؟',
+      confirmText: 'نعم، احذف الكل',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!secondConfirm) {
       return;
     }
 
@@ -244,6 +267,7 @@ export const OrphanedProducts: React.FC = () => {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 };

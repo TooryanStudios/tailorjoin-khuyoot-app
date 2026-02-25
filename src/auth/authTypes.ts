@@ -68,6 +68,7 @@ export interface AuthContextType {
   status: AuthStatus;
   idToken: string | null;
   login: (email: string, pass: string) => Promise<AuthUser>;
+  loginWithGoogle: () => Promise<AuthUser>;
   logout: () => Promise<void>;
   requireAuth: () => AuthUser;
   refreshProfile: () => Promise<void>;

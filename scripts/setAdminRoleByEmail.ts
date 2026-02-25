@@ -32,6 +32,20 @@ async function setAdminRole() {
     // Update 'users' collection
     await db.collection('users').doc(userId).set({ 
       role: 'admin',
+      adminAccess: {
+        mode: 'full',
+        sections: ['*'],
+        deniedSections: [],
+        configSections: ['*'],
+        deniedConfigSections: []
+      },
+      adminPermissions: {
+        mode: 'full',
+        sections: ['*'],
+        deniedSections: [],
+        configSections: ['*'],
+        deniedConfigSections: []
+      },
       email: email, // ensure email matches
       updatedAt: new Date()
     }, { merge: true });
@@ -40,13 +54,27 @@ async function setAdminRole() {
     // Update 'user_profiles' collection
     await db.collection('user_profiles').doc(userId).set({ 
       role: 'admin',
+      adminAccess: {
+        mode: 'full',
+        sections: ['*'],
+        deniedSections: [],
+        configSections: ['*'],
+        deniedConfigSections: []
+      },
+      adminPermissions: {
+        mode: 'full',
+        sections: ['*'],
+        deniedSections: [],
+        configSections: ['*'],
+        deniedConfigSections: []
+      },
       updatedAt: new Date()
     }, { merge: true });
     console.log('✅ Updated user_profiles/role = admin');
 
     // Set Custom Claims
     console.log('🔧 Setting Custom Claims in Auth...');
-    await auth.setCustomUserClaims(userId, { role: 'admin' });
+    await auth.setCustomUserClaims(userId, { role: 'admin', admin: true });
     console.log('✅ Custom Claims set successfully!');
 
     console.log('\n✨ ALL DONE! ✨');

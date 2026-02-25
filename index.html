@@ -373,8 +373,8 @@
         margin: 0 !important;
         padding: 0 !important;
         display: block !important; /* Prevents flex-centering of the whole app */
-        background-color: #0a0a0a;
-        color: white;
+        background-color: #f8fafc;
+        color: #0f172a;
       }
       
       /* Dark mode overrides (في حال استخدمت html.classList.add('dark')) */
@@ -551,9 +551,12 @@
 
     <div id="root" class="min-height-screen bg-inherit text-inherit">
       <!-- Inline splash screen before React loads -->
-      <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-slate-50 dark:bg-[#0a0a0a] z-[9999] transition-opacity duration-300">
+      <div data-splash-screen class="fixed inset-0 flex items-center justify-center bg-gradient-to-b from-slate-50 to-white z-[9999] transition-opacity duration-300">
         <div class="text-center">
-          <img src="/logo_big.png?v=4" alt="خيوط" class="w-[200px] h-[200px] mx-auto object-contain">
+          <div class="w-[176px] h-[176px] mx-auto rounded-3xl bg-white border border-slate-200 shadow-[0_20px_50px_rgba(15,23,42,0.10)] flex items-center justify-center">
+            <img src="/logo.png?v=4" alt="خيوط" class="w-[120px] h-[120px] object-contain" decoding="async" loading="eager">
+          </div>
+          <div class="mt-4 text-sm text-slate-500 font-medium">جاري التحميل...</div>
         </div>
       </div>
     </div>

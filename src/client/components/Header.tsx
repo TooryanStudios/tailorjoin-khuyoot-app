@@ -8,6 +8,7 @@ import { firebaseService } from '../../../services/firebase';
 import { usePWAInstall } from '../../hooks/usePWAInstall';
 import { requestNotificationPermission, showLocalTestNotification, isNotificationSupported } from '../../../utils/notifications';
 import { setLanguage } from '../../i18n/i18n';
+import { UserAvatar } from '../../components/common/UserAvatar';
 
 const HeaderComponent = () => {
   const { i18n, t } = useTranslation('common');
@@ -22,6 +23,14 @@ const HeaderComponent = () => {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const langButtonRef = React.useRef<HTMLButtonElement | null>(null);
   const userMenuRef = React.useRef<HTMLDivElement | null>(null);
+
+  const hasAdminAccess = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const accessMode = user.adminAccess?.mode;
+    const permissionsMode = user.adminPermissions?.mode;
+    return accessMode === 'full' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'limited';
+  }, [user]);
 
   const activeLang = React.useMemo(() => {
     const lower = (i18n.language || 'ar').toLowerCase();
@@ -351,6 +360,7 @@ const HeaderComponent = () => {
                 // Determine role key - handle both legacy roles and new shopType model
                 let role = user?.role ?? (user ? 'user' : 'guest');
                 const shopType = (user as any)?.shopType;
+                if (hasAdminAccess) role = 'admin';
                 
                 // If role is already boutique/shop, use it directly (legacy data)
                 // Otherwise if tailor, check shopType
@@ -596,8 +606,8 @@ const HeaderComponent = () => {
                   aria-haspopup="menu"
                   aria-expanded={userMenuOpen}
                 >
-                  <img 
-                    src={user.profileImage || user.avatar || '/placeholders/avatar.svg'} 
+                  <UserAvatar
+                    src={user.profileImage || user.avatar}
                     alt={user.name}
                     className="w-7 h-7 rounded-full object-cover border border-slate-100 dark:border-white/10"
                   />
@@ -620,7 +630,7 @@ const HeaderComponent = () => {
                     {/* Quick Access Control Panel Link */}
                     <button
                       onClick={() => {
-                        const path = user.role === 'admin' ? '/admin' : 
+                        const path = hasAdminAccess ? '/admin' : 
                                     user.role === 'tailor' ? '/tailor-dashboard' : 
                                     user.role === 'boutique' ? '/boutique-account' :
                                     user.role === 'shop' ? '/shop-account' : '/account';
@@ -630,7 +640,7 @@ const HeaderComponent = () => {
                       className="w-full px-3 py-2 text-xs font-semibold text-right text-slate-700 dark:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors flex items-center gap-2 border-b border-slate-100 dark:border-slate-800"
                     >
                       <Store size={14} className="text-blue-500" />
-                      <span>{user.role === 'admin' ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
+                      <span>{hasAdminAccess ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
                     </button>
 
                     <button
@@ -675,6 +685,7 @@ const HeaderComponent = () => {
               // Determine role key - handle both legacy roles and new shopType model
               let role = user?.role ?? (user ? 'user' : 'guest');
               const shopType = (user as any)?.shopType;
+              if (hasAdminAccess) role = 'admin';
               
               // If role is already boutique/shop, use it directly (legacy data)
               // Otherwise if tailor, check shopType

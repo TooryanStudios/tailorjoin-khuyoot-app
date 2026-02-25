@@ -58,6 +58,10 @@ export interface User {
   boardImage?: string; // صورة اللوحة
   createdByAdmin?: boolean; // تم إنشاؤه بواسطة المدير
   requirePasswordChange?: boolean; // يتطلب تغيير كلمة المرور
+  authProvider?: 'password' | 'google' | 'apple' | string;
+  profileCompleted?: boolean;
+  isMergedDuplicate?: boolean;
+  mergedIntoUid?: string;
 }
 
 // مكتبة الصور - يمكن للأدمن إدارتها

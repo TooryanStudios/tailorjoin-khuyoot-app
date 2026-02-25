@@ -1,3 +1,4 @@
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, Pencil, Trash2 } from 'lucide-react';
@@ -67,6 +68,7 @@ interface FabricLibraryProps {
 }
 
 export const FabricLibrary: React.FC<FabricLibraryProps> = () => {
+   const { confirm, confirmDialog } = useConfirmDialog();
    const [categories, setCategories] = useState<FabricCategory[]>([]);
    const [items, setItems] = useState<FabricItem[]>([]);
    const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null);
@@ -426,7 +428,14 @@ export const FabricLibrary: React.FC<FabricLibraryProps> = () => {
    };
 
    const handleDeleteCategory = async (categoryId: string) => {
-      if (!confirm('هل تريد حذف هذا القسم؟')) return;
+      const shouldDelete = await confirm({
+         title: 'حذف القسم',
+         message: 'هل تريد حذف هذا القسم؟',
+         confirmText: 'حذف',
+         cancelText: 'إلغاء',
+         danger: true,
+      });
+      if (!shouldDelete) return;
       setUiError(null);
       try {
          await deleteDoc(doc(db, 'fabricCategories', categoryId));
@@ -719,7 +728,14 @@ export const FabricLibrary: React.FC<FabricLibraryProps> = () => {
    };
 
    const handleDeleteItem = async (itemId: string) => {
-      if (!confirm('هل تريد حذف هذا القماش؟')) return;
+      const shouldDelete = await confirm({
+         title: 'حذف القماش',
+         message: 'هل تريد حذف هذا القماش؟',
+         confirmText: 'حذف',
+         cancelText: 'إلغاء',
+         danger: true,
+      });
+      if (!shouldDelete) return;
       setUiError(null);
       try {
          await deleteDoc(doc(db, 'fabricItems', itemId));
@@ -1303,6 +1319,7 @@ export const FabricLibrary: React.FC<FabricLibraryProps> = () => {
                </div>
             </Modal>
          )}
+         {confirmDialog}
       </div>
    );
 };

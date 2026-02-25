@@ -1,18 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { db, firebaseService } from '../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
-import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Zap, Eye, EyeOff, Settings } from 'lucide-react';
+import { Shield, Menu, Search, Bell, Activity, Save, PlayCircle, PenTool, ShoppingCart, Users, Lock, Scissors, Package, FileText, Store, Building2, Moon, Sun, CheckCircle, Home, Maximize2, X, Key, Eye, EyeOff, Settings, ChevronDown, LogOut } from 'lucide-react';
 import { Button } from '../../components/Button';
 import { AppSettings, User, Order, SystemLog, Fabric, AIModelConfig, Tailor, Shop, MeasurementProfile } from '../../types';
 import { getTailors, getAllShops } from '../../services/mockService';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { Sidebar } from './components/Sidebar';
-import { DevSectionAnchor } from './components/DevSectionAnchor';
-import { UpgradeModal } from '../components/DesignerV2_1/UpgradeModal';
 import { createPortal } from 'react-dom';
-import { useModalStore } from '../store/useModalStore';
 import { DashboardOverview } from './dashboard/DashboardOverview';
+import { LimitedAdminDashboard } from './dashboard/LimitedAdminDashboard';
 import { OrdersTable } from './orders/OrdersTable';
 import { FabricLibrary } from './fabrics/FabricLibrary';
 import { AIModels } from './ai/AIModels';
@@ -37,7 +35,6 @@ import { FinancialManagement } from './financial/FinancialManagement';
 import { RegionsManagement } from './regions/RegionsManagement';
 import { TryOnTemplates } from './tryon/TryOnTemplates';
 import { CreditsManagement } from './credits/CreditsManagement';
-import { AdminDevTools } from '../components/AdminDevTools';
 import { SurveyResponsesPage } from '../features/admin/surveys/SurveyResponsesPage';
 import { DebugToolsHub } from './settings/DebugToolsHub';
 import {
@@ -107,11 +104,17 @@ export const AdminApp = () => {
 
   // Force refresh user profile when accessing admin panel
   React.useEffect(() => {
-    if (user && user.role !== 'admin') {
+    const hasAdminMode =
+      user?.adminAccess?.mode === 'full' ||
+      user?.adminAccess?.mode === 'limited' ||
+      user?.adminPermissions?.mode === 'full' ||
+      user?.adminPermissions?.mode === 'limited';
+
+    if (user && user.role !== 'admin' && !hasAdminMode) {
       console.log('[AdminApp] Non-admin session detected, forcing profile refresh...');
       refreshUser?.();
     }
-  }, [user?.uid, user?.role]);
+  }, [user?.uid, user?.role, user?.adminAccess?.mode, user?.adminPermissions?.mode, refreshUser]);
 
   const ADMIN_SIDEBAR_OPEN_KEY = 'khuyoot_admin_sidebar_open';
 
@@ -168,7 +171,6 @@ export const AdminApp = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isSidebarOpen, setSidebarOpen] = useState(getDefaultSidebarOpen);
   const [isSmallScreen, setIsSmallScreen] = useState(getIsSmallScreen);
-  const { isUpgradeModalOpen, setIsUpgradeModalOpen } = useModalStore();
   const [isFullScreenMode, setIsFullScreenMode] = useState<boolean>(false);
 
   const setSidebarOpenPersisted = (next: boolean) => {
@@ -188,7 +190,46 @@ export const AdminApp = () => {
   const [loginError, setLoginError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const [hasCompletedInitialCheck, setHasCompletedInitialCheck] = useState(false);
+  const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
+
+  const adminDisplayName = React.useMemo(() => {
+    const fromName = String(user?.name || '').trim();
+    const fromUsername = String(user?.username || '').trim();
+    const fromEmail = String(user?.email || '').trim();
+    if (fromName) return fromName;
+    if (fromUsername) return fromUsername;
+    if (fromEmail.includes('@')) return fromEmail.split('@')[0];
+    return fromEmail || 'Admin';
+  }, [user?.name, user?.username, user?.email]);
+
+  const adminRoleLabel = React.useMemo(() => {
+    const role = String(user?.role || '').toLowerCase();
+    const isLimitedAdmin =
+      user?.adminAccess?.mode === 'limited' ||
+      user?.adminPermissions?.mode === 'limited';
+    
+    if (role === 'admin' && isLimitedAdmin) return 'Admin';
+    if (role === 'admin') return 'Super Admin';
+    if (role) return role;
+    return 'Admin';
+  }, [user?.role, user?.adminAccess?.mode, user?.adminPermissions?.mode]);
+
+  const adminAvatarSrc = user?.profileImage || user?.avatar || '';
+  const adminInitial = (adminDisplayName || 'A').trim().charAt(0).toUpperCase();
+
+  const activeSectionLabel = React.useMemo(() => {
+    const labels: Record<string, string> = {
+      ai: 'AI Configuration',
+      dashboard: 'Dashboard',
+      'debug-tools': 'Debug Tools',
+      settings: 'Settings',
+      config: 'Configuration',
+    };
+    return labels[activeSection] || activeSection;
+  }, [activeSection]);
 
   useEffect(() => {
     const onResize = () => {
@@ -202,6 +243,19 @@ export const AdminApp = () => {
     window.addEventListener('resize', onResize);
     return () => window.removeEventListener('resize', onResize);
   }, []);
+
+  useEffect(() => {
+    if (!isProfileMenuOpen) return;
+
+    const handleClickOutside = (event: MouseEvent) => {
+      if (profileMenuRef.current && !profileMenuRef.current.contains(event.target as Node)) {
+        setIsProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [isProfileMenuOpen]);
 
   // Data States
   const [users, setUsers] = useState<User[]>([]);
@@ -405,21 +459,20 @@ export const AdminApp = () => {
 
   const handleLogout = async () => {
       try {
-        // Show checking state during logout
-        setIsCheckingAuth(true);
-        
-        // Perform logout
+        setIsProfileMenuOpen(false);
+        setIsSigningOut(true);
+
+        // Keep indicator visible briefly for better UX
+        await new Promise(resolve => setTimeout(resolve, 350));
         await logout();
-        
-        // Wait to ensure Firebase auth state is fully cleared
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        
-        // Stay on the admin page (which will show login form) instead of redirecting
-        // Using reload ensures clean state
-        window.location.reload();
+
+        // Move directly to home page after logout
+        navigate('/', { replace: true });
       } catch {
         console.error('Logout error');
-        window.location.reload();
+        navigate('/', { replace: true });
+      } finally {
+        setIsSigningOut(false);
       }
   };
 
@@ -831,8 +884,19 @@ export const AdminApp = () => {
     if (location.pathname.startsWith('/admin/settings/surveys/khuyoot-validation')) {
       return <SurveyResponsesPage />;
     }
+
+    // Check if user is a limited admin to show appropriate dashboard
+    const isLimitedAdminUser =
+      user?.adminAccess?.mode === 'limited' ||
+      user?.adminPermissions?.mode === 'limited';
+
     switch(activeSection) {
-      case 'dashboard': return <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />;
+      case 'dashboard':
+        return isLimitedAdminUser ? (
+          <LimitedAdminDashboard users={users} orders={orders} tailors={tailors} />
+        ) : (
+          <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />
+        );
       case 'orders': return <OrdersTable orders={orders} />;
       case 'approvals': return <MerchantsApproval />;
       case 'users': return <UsersManagement />;
@@ -923,19 +987,48 @@ export const AdminApp = () => {
       case 'debug-tools': return <ConfigView />;
       case 'config': return <ConfigView />;
       case 'logs': return <PlaceholderView title="سجلات النظام" icon={FileText} />;
-      default: return <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />;
+      default:
+        return isLimitedAdminUser ? (
+          <LimitedAdminDashboard users={users} orders={orders} tailors={tailors} />
+        ) : (
+          <DashboardOverview users={users} orders={orders} tailors={tailors} logs={logs} />
+        );
     }
   };
+
+  if (isSigningOut) {
+    return (
+      <div className="h-screen w-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4" dir="rtl">
+        <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white/95 shadow-[0_30px_80px_rgba(15,23,42,0.12)] px-8 py-10 text-center">
+          <Activity className="animate-spin text-theme-primary mx-auto mb-4" size={36} />
+          <p className="text-base font-medium text-slate-800">جاري تسجيل الخروج...</p>
+          <p className="mt-1 text-xs text-slate-500">سيتم تحويلك إلى الصفحة الرئيسية</p>
+        </div>
+      </div>
+    );
+  }
 
   // شاشة تحميل أثناء التحقق من المصادقة
   // Keep this gate time-bound to avoid indefinite spinners if auth is slow.
   // Also show spinner if global loading is active to prevent flashes of restricted area
   if (isCheckingAuth || loading) {
     return (
-      <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center">
-        <div className="text-center">
-          <Activity className="animate-spin text-theme-primary mx-auto mb-4" size={48} />
-          <p className="text-zinc-400">جاري التحقق من الصلاحيات...</p>
+      <div className="h-screen w-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center p-4" dir="rtl">
+        <div className="w-full max-w-sm rounded-3xl border border-slate-200 bg-white/95 shadow-[0_30px_80px_rgba(15,23,42,0.12)] px-8 py-10 text-center">
+          <div className="relative mx-auto mb-5 h-20 w-20">
+            <div className="absolute inset-0 rounded-full border-4 border-slate-200" />
+            <div className="absolute inset-0 rounded-full border-4 border-transparent border-t-theme-primary border-r-theme-primary animate-spin" />
+            <div className="absolute inset-[14px] rounded-full bg-slate-50 border border-slate-200 flex items-center justify-center">
+              <img src="/logo.png?v=4" alt="خيوط" className="h-8 w-8 object-contain" />
+            </div>
+          </div>
+
+          <p className="text-base font-medium text-slate-800">جاري التحقق من الصلاحيات...</p>
+          <p className="mt-1 text-xs text-slate-500">يرجى الانتظار لحظة واحدة</p>
+
+          <div className="mt-5 h-1.5 w-full overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-theme-primary/70 to-theme-primary animate-pulse" />
+          </div>
         </div>
       </div>
     );
@@ -946,18 +1039,23 @@ export const AdminApp = () => {
   const isFirebaseAuthenticated = !!firebaseService.auth.currentUser;
   const hasUserData = !!user;
   const isAdminRole = user?.role === 'admin';
+  const hasAdminMode =
+    user?.adminAccess?.mode === 'full' ||
+    user?.adminAccess?.mode === 'limited' ||
+    user?.adminPermissions?.mode === 'full' ||
+    user?.adminPermissions?.mode === 'limited';
   
-  if (!isFirebaseAuthenticated || !hasUserData || !isAdminRole) {
+  if (!isFirebaseAuthenticated || !hasUserData || (!isAdminRole && !hasAdminMode)) {
      return (
-        <div className="h-screen w-screen bg-zinc-950 flex items-center justify-center text-center p-4" dir="rtl">
+        <div className="h-screen w-screen bg-gradient-to-b from-slate-50 to-white flex items-center justify-center text-center p-4" dir="rtl">
            <div className="max-w-md w-full">
-             <div className="bg-zinc-900/60 backdrop-blur-xl border border-zinc-700/50 rounded-3xl p-8 shadow-2xl">
-               <div className="w-20 h-20 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-6">
+             <div className="bg-white/95 backdrop-blur-xl border border-slate-200 rounded-3xl p-8 shadow-[0_30px_80px_rgba(15,23,42,0.12)]">
+               <div className="w-20 h-20 bg-red-50 rounded-full flex items-center justify-center mx-auto mb-6 border border-red-100">
                  <Shield size={40} className="text-red-500" />
                </div>
                
-               <h1 className="text-3xl font-normal text-white mb-2">منطقة محظورة</h1>
-               <p className="text-zinc-400 mb-8">
+               <h1 className="text-3xl font-normal text-slate-900 mb-2">منطقة محظورة</h1>
+               <p className="text-slate-600 mb-8 leading-relaxed">
                  {showLoginForm 
                    ? 'أدخل بيانات حساب المسؤول للمتابعة' 
                    : 'يجب عليك تسجيل الدخول بحساب مسؤول (Admin) للوصول إلى لوحة التحكم.'
@@ -968,14 +1066,14 @@ export const AdminApp = () => {
                  <div className="space-y-3">
                    <Button 
                      onClick={() => setShowLoginForm(true)} 
-                     className="w-full bg-theme-primary hover:bg-theme-primary/90 shadow-lg shadow-theme-primary/30 hover:shadow-theme-primary/50 flex items-center justify-center gap-2 transition-all"
+                     className="w-full bg-theme-primary hover:bg-theme-primary/90 text-white shadow-lg shadow-theme-primary/20 hover:shadow-theme-primary/35 flex items-center justify-center gap-2 transition-all"
                    >
                      <Lock size={18} />
                      تسجيل دخول كمسؤول
                    </Button>
                    <button 
                      onClick={() => navigate('/')}
-                     className="w-full py-3 px-4 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 font-medium transition-colors"
+                     className="w-full py-3 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-medium transition-colors"
                    >
                      العودة للرئيسية
                    </button>
@@ -983,13 +1081,13 @@ export const AdminApp = () => {
                ) : (
                  <form onSubmit={handleAdminLogin} className="space-y-4">
                    {loginError && (
-                     <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-red-400 text-sm">
+                     <div className="bg-red-50 border border-red-200 rounded-xl p-3 text-red-600 text-sm">
                        {loginError}
                      </div>
                    )}
                    
                    <div className="text-right">
-                     <label className="block text-sm font-medium text-zinc-300 mb-2">
+                     <label className="block text-sm font-medium text-slate-700 mb-2">
                        البريد الإلكتروني
                      </label>
                      <input
@@ -999,19 +1097,19 @@ export const AdminApp = () => {
                        placeholder="admin@example.com"
                        title="البريد الإلكتروني"
                        required
-                       className="w-full px-4 py-3 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-theme-primary/40 focus:border-transparent"
+                       className="w-full px-4 py-3 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-theme-primary/25 focus:border-theme-primary"
                      />
                    </div>
 
                    <div className="text-right">
-                     <label className="block text-sm font-medium text-zinc-300 mb-2">
+                     <label className="block text-sm font-medium text-slate-700 mb-2">
                        كلمة المرور
                      </label>
                      <div className="relative">
                        <button
                          type="button"
                          onClick={() => setShowPassword(!showPassword)}
-                         className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500 hover:text-zinc-300 transition-colors"
+                         className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-700 transition-colors"
                        >
                          {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
                        </button>
@@ -1021,7 +1119,7 @@ export const AdminApp = () => {
                          onChange={(e) => setLoginPassword(e.target.value)}
                          placeholder="••••••••"
                          required
-                         className="w-full px-4 py-3 pl-10 bg-zinc-800/50 border border-zinc-700 rounded-xl text-white placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-theme-primary/40 focus:border-transparent"
+                         className="w-full px-4 py-3 pl-10 bg-white border border-slate-300 rounded-xl text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-theme-primary/25 focus:border-theme-primary"
                        />
                      </div>
                    </div>
@@ -1030,7 +1128,7 @@ export const AdminApp = () => {
                      <Button 
                        type="submit" 
                        disabled={isLoggingIn}
-                       className="w-full bg-theme-primary hover:bg-theme-primary/90 shadow-lg shadow-theme-primary/30 hover:shadow-theme-primary/50 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:bg-zinc-600"
+                       className="w-full bg-theme-primary hover:bg-theme-primary/90 shadow-lg shadow-theme-primary/20 hover:shadow-theme-primary/35 flex items-center justify-center gap-2 transition-all disabled:shadow-none disabled:bg-slate-400"
                      >
                        {isLoggingIn ? (
                          <>
@@ -1053,7 +1151,7 @@ export const AdminApp = () => {
                          setLoginEmail('');
                          setLoginPassword('');
                        }}
-                       className="w-full py-3 px-4 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700 rounded-xl text-zinc-300 font-medium transition-colors"
+                       className="w-full py-3 px-4 bg-slate-50 hover:bg-slate-100 border border-slate-200 rounded-xl text-slate-700 font-medium transition-colors"
                      >
                        إلغاء
                      </button>
@@ -1062,8 +1160,8 @@ export const AdminApp = () => {
                )}
 
                {user && user.role !== 'admin' && (
-                 <div className="mt-6 pt-6 border-t border-zinc-700 space-y-4">
-                   <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-3 text-yellow-400 text-xs">
+                 <div className="mt-6 pt-6 border-t border-slate-200 space-y-4">
+                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-amber-700 text-xs">
                      ⚠️ أنت مسجل دخول كـ "{user.role}" - يجب أن يكون الدور "admin" في Firestore
                      <div className="mt-2 text-[10px] opacity-70">UID: {user.uid}</div>
                      <div className="text-[10px] opacity-70">Email: {user.email}</div>
@@ -1084,8 +1182,8 @@ export const AdminApp = () => {
                    <Button 
                      variant="ghost"
                      size="sm"
-                     className="w-full text-xs text-red-400"
-                     onClick={() => logout()}
+                     className="w-full text-xs text-red-600 hover:bg-red-50"
+                     onClick={handleLogout}
                    >
                      تسجيل الخروج والتبديل
                    </Button>
@@ -1099,9 +1197,6 @@ export const AdminApp = () => {
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-zinc-950 text-slate-900 dark:text-slate-100 font-sans overflow-hidden dir-rtl">
-      {(location.pathname === '/admin/dashboard' || location.pathname === '/admin/dashboard/') && (
-        <AdminDevTools />
-      )}
       <Sidebar 
         activeSection={activeSection} 
         isOpen={isSidebarOpen} 
@@ -1133,46 +1228,21 @@ export const AdminApp = () => {
              >
                <Menu size={24} />
              </button>
+             <button 
+               onClick={() => navigate('/')}
+               className="p-2 text-zinc-600 dark:text-zinc-300 hover:text-black dark:hover:text-white hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-full transition-colors"
+               title="الصفحة الرئيسية"
+             >
+               <Home size={20} />
+             </button>
              <div className="flex items-center gap-3">
                <h2 className="text-lg font-normal text-zinc-900 dark:text-white capitalize">
-                 {activeSection === 'ai'
-                   ? 'AI Configuration'
-                   : activeSection === 'debug-tools'
-                     ? 'Debug Tools'
-                     : activeSection}
+                 {activeSectionLabel}
                </h2>
-               <DevSectionAnchor sectionId={activeSection} />
              </div>
            </div>
 
            <div className="flex items-center gap-4">
-              <button 
-                onClick={() => navigate('/')}
-                className="p-2 bg-black hover:bg-zinc-800 text-white rounded-full transition-colors shadow-sm"
-                title="الصفحة الرئيسية"
-              >
-                <Home size={20} />
-              </button>
-              <button
-                onClick={() => {
-                  console.log('🔘 AdminApp - Show Upgrade Modal clicked');
-                  setIsUpgradeModalOpen(true);
-                }}
-                className="p-2 bg-theme-primary hover:bg-theme-primary/90 text-white rounded-full transition-colors shadow-sm"
-                title="عرض نافذة الترقية"
-              >
-                <Zap size={20} />
-              </button>
-              <button
-                onClick={() => {
-                  console.log('🖥️ AdminApp - Opening visualizer');
-                  window.open('/visualizer', '_blank', 'noopener,noreferrer');
-                }}
-                className="p-2 bg-black hover:bg-zinc-800 text-white rounded-full transition-colors shadow-sm"
-                title="فتح لوحة التحكم في نافذة منفصلة"
-              >
-                <Maximize2 size={20} />
-              </button>
               <div className="relative hidden md:block">
                  <input type="text" placeholder="بحث سريع..." className="pl-4 pr-10 py-1.5 bg-white dark:bg-zinc-800 border border-zinc-200 dark:border-zinc-700 rounded-full text-xs w-64 focus:ring-2 focus:ring-theme-primary/50 focus:border-theme-primary" />
                  <Search size={14} className="absolute top-1/2 -translate-y-1/2 right-3 text-zinc-400" />
@@ -1181,12 +1251,76 @@ export const AdminApp = () => {
                  <Bell size={20} />
                  <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
               </button>
-              <div className="flex items-center gap-2 border-r border-zinc-200 dark:border-zinc-700 pr-4">
-                 <div className="text-left hidden md:block">
-                    <p className="text-xs font-normal text-zinc-900 dark:text-white">Admin User</p>
-                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400">Super Admin</p>
-                 </div>
-                 <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-normal">A</div>
+              <div ref={profileMenuRef} className="relative border-r border-zinc-200 dark:border-zinc-700 pr-4">
+                <button
+                  onClick={() => setIsProfileMenuOpen((prev) => !prev)}
+                  className="flex items-center gap-2 rounded-full px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                  title="قائمة الحساب"
+                >
+                  {adminAvatarSrc ? (
+                    <img
+                      src={adminAvatarSrc}
+                      alt={adminDisplayName}
+                      className="w-8 h-8 rounded-full object-cover border border-zinc-200 dark:border-zinc-700"
+                    />
+                  ) : (
+                    <div className="w-8 h-8 rounded-full bg-black text-white flex items-center justify-center font-normal">
+                      {adminInitial}
+                    </div>
+                  )}
+                  <div className="text-left hidden md:block">
+                    <p className="text-xs font-normal text-zinc-900 dark:text-white leading-tight">{adminDisplayName}</p>
+                    <p className="text-[10px] text-zinc-500 dark:text-zinc-400 leading-tight">{adminRoleLabel}</p>
+                  </div>
+                  <ChevronDown size={14} className="text-zinc-500" />
+                </button>
+
+                {isProfileMenuOpen && (
+                  <div className="absolute left-0 mt-2 w-52 rounded-2xl border border-zinc-200 dark:border-zinc-700 bg-white dark:bg-zinc-900 shadow-xl p-1 z-30">
+                    <button
+                      onClick={() => {
+                        navigate('/admin/config/general');
+                        setIsProfileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <Settings size={15} />
+                      إعدادات النظام
+                    </button>
+                    {canAccessSection('users') && (
+                      <button
+                        onClick={() => {
+                          navigate('/admin/users');
+                          setIsProfileMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                      >
+                        <Users size={15} />
+                        إدارة المستخدمين
+                      </button>
+                    )}
+                    <button
+                      onClick={() => {
+                        navigate('/admin/settings/surveys/khuyoot-validation');
+                        setIsProfileMenuOpen(false);
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-800 transition-colors"
+                    >
+                      <Home size={15} />
+                      الصفحة الرئيسية
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsProfileMenuOpen(false);
+                        handleLogout();
+                      }}
+                      className="w-full flex items-center gap-2 px-3 py-2 rounded-xl text-sm text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 transition-colors"
+                    >
+                      <LogOut size={15} />
+                      تسجيل الخروج
+                    </button>
+                  </div>
+                )}
               </div>
            </div>
         </header>

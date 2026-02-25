@@ -6,6 +6,7 @@ import { db } from '../../../services/firebase';
 import { getAllShops } from '../../../services/mockService';
 import { Shop } from '../../../types';
 import { uploadSettingsImage } from '../../../services/storageService';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 interface Advertisement {
   id: string;
@@ -42,6 +43,7 @@ const AD_DIMENSIONS = {
 
 export const AdsManagement: React.FC = () => {
   const { appSettings } = useApp();
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [ads, setAds] = useState<Advertisement[]>([]);
   const [allShops, setAllShops] = useState<Shop[]>([]);
   const [filteredShops, setFilteredShops] = useState<Shop[]>([]);
@@ -192,13 +194,20 @@ export const AdsManagement: React.FC = () => {
   };
 
   const handleDeleteAd = async (id: string) => {
-    if (confirm('هل أنت متأكد من حذف هذا الإعلان؟')) {
-      try {
-        await deleteDoc(doc(db, 'advertisements', id));
-        await loadAds();
-      } catch (error) {
-        console.error('Error deleting ad:', error);
-      }
+    const shouldDelete = await confirm({
+      title: 'حذف الإعلان',
+      message: 'هل أنت متأكد من حذف هذا الإعلان؟',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) return;
+
+    try {
+      await deleteDoc(doc(db, 'advertisements', id));
+      await loadAds();
+    } catch (error) {
+      console.error('Error deleting ad:', error);
     }
   };
 
@@ -1032,6 +1041,7 @@ export const AdsManagement: React.FC = () => {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 };

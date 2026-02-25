@@ -327,6 +327,17 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     };
   }, [refreshProfile]);
 
+  // Handle Google sign-in redirect result (fires once on page load after redirect)
+  React.useEffect(() => {
+    firebaseService.checkGoogleRedirectResult().then((redirectUser) => {
+      if (!redirectUser) return;
+      // A redirect result was found — refreshProfile will pick up the authenticated user
+      localStorage.setItem('khuyoot:has_session', 'true');
+      refreshProfile(true);
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   React.useEffect(() => {
     refreshProfile(false);
   }, [refreshProfile]);
@@ -503,6 +514,33 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
     return user as AuthUser;
   }, [refreshProfile]);
 
+  const loginWithGoogle = React.useCallback(async () => {
+    await firebaseService.loginWithGoogle();
+    const sdkUser = await firebaseService.waitForAuth(5000);
+    if (!sdkUser) {
+      throw new Error('SESSION_SYNC_FAILED');
+    }
+    const user: any = {
+      uid: sdkUser.uid,
+      email: sdkUser.email || '',
+      displayName: sdkUser.displayName || sdkUser.email?.split('@')[0] || 'User',
+      photoURL: sdkUser.photoURL || '',
+      role: 'customer',
+      _isDefaultRole: true,
+      billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
+      metadata: { completedOrders: 0 }
+    };
+
+    const token = await sdkUser.getIdToken(false);
+    setState({ status: 'authenticated', user, idToken: token });
+    setAuthStateSnapshot({ status: 'authenticated', user, idToken: token });
+    try { localStorage.setItem(UI_CACHE_KEY, JSON.stringify({ user, idToken: token })); } catch {}
+    localStorage.setItem('khuyoot:has_session', 'true');
+
+    refreshProfile(true);
+    return user as AuthUser;
+  }, [refreshProfile]);
+
   const logout = React.useCallback(async () => {
     localStorage.removeItem(UI_CACHE_KEY);
     try { await apiFetch('/api/auth/logout', { method: 'POST' }); } catch {}
@@ -519,10 +557,11 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
   const value = React.useMemo<AuthContextType>(() => ({
     ...state,
     login,
+    loginWithGoogle,
     logout,
     requireAuth,
     refreshProfile
-  }), [state, login, logout, requireAuth, refreshProfile]);
+  }), [state, login, loginWithGoogle, logout, requireAuth, refreshProfile]);
 
   if (state.status === 'loading' && !state.user) {
     return <LoadingShell />;

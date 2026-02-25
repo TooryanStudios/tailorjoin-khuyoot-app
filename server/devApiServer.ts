@@ -288,7 +288,9 @@ const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
       }
 
       // Fetch additional profile data (Credits) from Firestore
-              let profile: any = {};
+      let profile: any = {};
+      let userData: any = {};
+      let profileData: any = {};
         try {
           const db = getFirestore();
           // Fetch from both 'users' and 'user_profiles'
@@ -298,10 +300,32 @@ const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
           ]);
           
           if (userDoc.exists) {
-            profile = { ...profile, ...userDoc.data() };
+            userData = userDoc.data() || {};
+            profile = { ...profile, ...userData };
           }
           if (profileDoc.exists) {
-            profile = { ...profile, ...profileDoc.data() };
+            profileData = profileDoc.data() || {};
+            profile = { ...profile, ...profileData };
+          }
+
+          // Never let stale user_profiles role/admin permissions override canonical users values.
+          if (userData && Object.keys(userData).length > 0) {
+            if (userData.role) {
+              profile.role = userData.role;
+            }
+            if (userData.adminAccess && typeof userData.adminAccess === 'object') {
+              profile.adminAccess = userData.adminAccess;
+            }
+            if (userData.adminPermissions && typeof userData.adminPermissions === 'object') {
+              profile.adminPermissions = userData.adminPermissions;
+            }
+          } else {
+            if (profileData?.adminAccess && typeof profileData.adminAccess === 'object') {
+              profile.adminAccess = profileData.adminAccess;
+            }
+            if (profileData?.adminPermissions && typeof profileData.adminPermissions === 'object') {
+              profile.adminPermissions = profileData.adminPermissions;
+            }
           }
         } catch (dbErr) {
           console.warn('[API] Failed to fetch profile from Firestore:', dbErr);
@@ -325,6 +349,8 @@ const server = http.createServer({ maxHeaderSize: 32768 }, async (req, res) => {
         phoneNumber: profile.phoneNumber || profile.phone || profile.contactNumber || null,
         contactNumber: profile.contactNumber || profile.phone || null,
         role: role,
+        adminAccess: profile.adminAccess || null,
+        adminPermissions: profile.adminPermissions || null,
         billing: {
           credits: profile.credit_balance ?? profile.credits ?? 0,
           tier: (profile.tier || 'free').toLowerCase(),

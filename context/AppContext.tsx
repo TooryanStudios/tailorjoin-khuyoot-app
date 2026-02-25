@@ -60,6 +60,8 @@ export interface User {
     avatar?: string;
     displayName?: string;
     photoURL?: string;
+    authProvider?: string;
+    profileCompleted?: boolean;
     credit_balance?: number;
     billing?: { credits?: number; tier?: string; subscriptionStatus?: string };
     adminAccess?: {
@@ -99,6 +101,7 @@ interface AppContextType {
     theme: Theme;
     appSettings: AppSettings;
     login: (email: string, password: string) => Promise<void>;
+    loginWithGoogle: () => Promise<User>;
     register: (email: string, password: string, name: string, role: UserRole, merchantInfo?: MerchantInfo) => Promise<void>;
     logout: () => Promise<void>;
     refreshUser: () => Promise<void>;
@@ -128,6 +131,11 @@ const getFirebaseErrorMessage = (error: any) => {
         return 'انتهت مهلة الاتصال. يرجى التحقق من اتصالك بالإنترنت والمحاولة مرة أخرى.';
     }
     switch (code) {
+        case 'auth/popup-blocked': return 'تم حظر نافذة تسجيل الدخول. يرجى السماح بالنوافذ المنبثقة ثم إعادة المحاولة.';
+        case 'auth/popup-closed-by-user': return 'تم إغلاق نافذة تسجيل الدخول قبل الإكمال.';
+        case 'auth/cancelled-popup-request': return 'تم إلغاء محاولة تسجيل الدخول لأن نافذة أخرى كانت قيد الفتح.';
+        case 'auth/operation-not-allowed': return 'تسجيل الدخول بواسطة Google غير مفعّل في Firebase. فعّل Google Provider من لوحة Firebase Authentication.';
+        case 'auth/unauthorized-domain': return 'هذا النطاق غير مصرح به في Firebase Authentication. أضف localhost إلى Authorized domains.';
         case 'auth/email-already-in-use': return 'البريد الإلكتروني مستخدم بالفعل بحساب آخر.';
         case 'auth/invalid-email': return 'صيغة البريد الإلكتروني غير صحيحة.';
         case 'auth/weak-password': return 'كلمة المرور ضعيفة جداً. يجب أن تكون 6 أحرف على الأقل.';
@@ -143,6 +151,7 @@ const getFirebaseErrorMessage = (error: any) => {
 export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppSettings }>> = ({ children, initialAppSettings }) => {
     const { status: authStatus, user: authUser, refreshProfile } = useAuth();
     const isOnline = useOnlineStatus();
+    const isAuthUserPlaceholder = authStatus === 'authenticated' && !!(authUser as any)?._isDefaultRole;
     
     const normalizeUser = (u: any): User | null => {
         if (!u) return null;
@@ -154,14 +163,27 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
         // Shared role mapping logic
         let role = typeof u.role === 'string' ? u.role.toLowerCase() : u.role;
+        const accessMode = String((u as any)?.adminAccess?.mode || '').toLowerCase();
+        const permissionsMode = String((u as any)?.adminPermissions?.mode || '').toLowerCase();
+        const hasAdminMode =
+            accessMode === 'full' ||
+            accessMode === 'limited' ||
+            permissionsMode === 'full' ||
+            permissionsMode === 'limited';
+        if (role !== 'admin' && hasAdminMode) {
+            role = 'admin';
+        }
         const shopType = (u as any).shopType ? String((u as any).shopType).toLowerCase() : null;
-        
-        if (shopType === 'boutique' || shopType === 'بوتيك' || role === 'بوتيك' || role === 'boutique') {
-            role = 'boutique';
-        } else if (shopType === 'tailor' || shopType === 'خياط' || role === 'خياط' || role === 'tailor') {
-            role = 'tailor';
-        } else if (shopType === 'fabric_shop' || shopType === 'fabric_store' || shopType === 'shop' || role === 'shop' || role === 'fabric_shop') {
-            role = 'shop';
+
+        // CRITICAL: never downgrade explicit admin role based on merchant/shopType metadata.
+        if (role !== 'admin') {
+            if (shopType === 'boutique' || shopType === 'بوتيك' || role === 'بوتيك' || role === 'boutique') {
+                role = 'boutique';
+            } else if (shopType === 'tailor' || shopType === 'خياط' || role === 'خياط' || role === 'tailor') {
+                role = 'tailor';
+            } else if (shopType === 'fabric_shop' || shopType === 'fabric_store' || shopType === 'shop' || role === 'shop' || role === 'fabric_shop') {
+                role = 'shop';
+            }
         }
         
         if (!role) role = 'customer';
@@ -265,7 +287,12 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
     // loading is true if auth is loading, OR if a profile sync is in progress,
     // OR if we are authenticated but the "rich" user state hasn't been populated yet.
-    const loading = authStatus === 'loading' || authActionLoading || profileLoading || (authStatus === 'authenticated' && !user);
+    const loading =
+        authStatus === 'loading' ||
+        authActionLoading ||
+        profileLoading ||
+        isAuthUserPlaceholder ||
+        (authStatus === 'authenticated' && !user);
 
     useEffect(() => {
         const root = window.document.documentElement;
@@ -300,8 +327,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
         if (!authUser?.uid) return;
 
-        // If authUser already has rich data (from backend refresh) AND IT'S NOT A PLACEHOLDER, use it immediately
-        if ((authUser as any).billing && !(authUser as any)._isDefaultRole) {
+        // If authUser is resolved (not placeholder), trust it immediately.
+        // This avoids waiting for uid change and prevents stale-role flicker.
+        if (!(authUser as any)._isDefaultRole) {
             const normalized = normalizeUser(authUser);
             
             setUser(normalized);
@@ -336,7 +364,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                         // Critical guard: ignore stale cookie payload that belongs to a different user
                         if (metaUser?.uid && metaUser.uid !== authUser.uid) {
                             console.warn('[AppContext] Ignoring /api/auth/me mismatch. Server:', metaUser.uid, 'Auth:', authUser.uid);
-                            setUser(normalizeUser(authUser));
+                            if (!(authUser as any)._isDefaultRole) {
+                                setUser(normalizeUser(authUser));
+                            }
                             return;
                         }
                         
@@ -364,7 +394,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                     const isUnauthorized = (apiError as any)?.status === 401;
                     if (isUnauthorized) {
                         console.warn('[AppContext] /api/auth/me returned 401, using auth snapshot fallback for this cycle');
-                        if (!cancelled) {
+                        if (!cancelled && !(authUser as any)._isDefaultRole) {
                             setUser(normalizeUser(authUser));
                         }
                         return;
@@ -374,7 +404,9 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
 
                 // FALLBACK: If /api/auth/me fails and Firebase is available, use it
                 if (!firebaseService?.isInitialized?.()) {
-                    setUser(normalizeUser(authUser));
+                    if (!(authUser as any)._isDefaultRole) {
+                        setUser(normalizeUser(authUser));
+                    }
                     return;
                 }
 
@@ -392,19 +424,29 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
                     
                     setUser(normalized);
                     localStorage.setItem(cacheKey, JSON.stringify(normalized));
-                } else if (!user) {
+                } else if (!user && !(authUser as any)._isDefaultRole) {
                     setUser(normalizeUser(authUser));
                 }
             } catch {
                 console.warn('[AppContext] Profile sync failed');
-                if (!user) setUser(normalizeUser(authUser));
+                if (!user && !(authUser as any)._isDefaultRole) setUser(normalizeUser(authUser));
             } finally {
                 if (!cancelled) setProfileLoading(false);
             }
         };
         syncProfile();
         return () => { cancelled = true; };
-    }, [authStatus, authUser?.uid]);
+    }, [
+        authStatus,
+        authUser?.uid,
+        (authUser as any)?._isDefaultRole,
+        authUser?.role,
+        authUser?.displayName,
+        authUser?.photoURL,
+        authUser?.email,
+        (authUser as any)?.adminAccess?.mode,
+        (authUser as any)?.adminPermissions?.mode,
+    ]);
 
     // Listen for data refresh events (from mutations in Designer or other components)
     useEffect(() => {
@@ -426,6 +468,21 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         try {
             await firebaseService.login(email, password);
             setIsAuthModalOpen(false);
+        } catch (error: any) {
+            error.message = getFirebaseErrorMessage(error);
+            throw error;
+        } finally {
+            setAuthActionLoading(false);
+        }
+    };
+
+    const loginWithGoogle = async (): Promise<User> => {
+        setAuthActionLoading(true);
+        try {
+            const signedInUser = await firebaseService.loginWithGoogle();
+            // NOTE: Do NOT close the modal here — AuthModal checks profileCompleted
+            // and decides whether to close or show the completion step.
+            return signedInUser as User;
         } catch (error: any) {
             error.message = getFirebaseErrorMessage(error);
             throw error;
@@ -501,6 +558,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         theme,
         appSettings,
         login,
+        loginWithGoogle,
         register,
         logout,
         refreshUser: refreshProfile,
@@ -532,7 +590,7 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
     }), [
         user, loading, cart, ordersCount, isAuthModalOpen, authModalMode,
         isPrivacyModalOpen, isTermsModalOpen, isReturnPolicyModalOpen,
-        theme, appSettings, login, register, logout, refreshProfile,
+        theme, appSettings, login, loginWithGoogle, register, logout, refreshProfile,
         addToCart, clearCart, toggleTheme, setTheme
     ]);
 

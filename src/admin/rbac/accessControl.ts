@@ -81,7 +81,15 @@ const readAccessConfig = (user: any): AdminAccessConfig | null => {
 
 export function buildAdminAccessPolicy(user: any): AdminAccessPolicy {
   const role = String(user?.role || '').toLowerCase();
-  if (role !== 'admin') {
+  const accessMode = String(user?.adminAccess?.mode || '').toLowerCase();
+  const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
+  const hasAdminMode =
+    accessMode === 'full' ||
+    accessMode === 'limited' ||
+    permissionsMode === 'full' ||
+    permissionsMode === 'limited';
+
+  if (role !== 'admin' && !hasAdminMode) {
     return {
       mode: 'none',
       allowedSections: new Set(),
@@ -115,6 +123,25 @@ export function buildAdminAccessPolicy(user: any): AdminAccessPolicy {
 
   if (allowedConfigSections.has('*') || mode === 'full') {
     allowedConfigSections.add('*');
+  }
+
+  if (mode === 'limited') {
+    const hasWildcardConfigAccess = allowedConfigSections.has('*');
+    const hasAnySpecificConfigAccess = Array.from(allowedConfigSections).some(
+      (section) => section !== '*' && !deniedConfigSections.has(section)
+    );
+
+    if ((hasWildcardConfigAccess || hasAnySpecificConfigAccess) && !deniedSections.has('config')) {
+      allowedSections.add('config');
+    }
+
+    if (
+      (hasWildcardConfigAccess || allowedConfigSections.has('debug-tools')) &&
+      !deniedSections.has('debug-tools') &&
+      !deniedConfigSections.has('debug-tools')
+    ) {
+      allowedSections.add('debug-tools');
+    }
   }
 
   return {

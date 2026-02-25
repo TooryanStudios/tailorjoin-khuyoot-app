@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff } from 'lucide-react';
+import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff, Shield } from 'lucide-react';
 import { User, AgeGroup, PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
 import { ImagePrepModal } from '../../components/image/ImagePrepModal';
@@ -34,6 +34,42 @@ const ADMIN_SECTION_KEYS = [
   'logs',
 ] as const;
 
+const ADMIN_SECTION_LABELS: Record<string, string> = {
+  dashboard: 'لوحة المعلومات',
+  orders: 'الطلبات',
+  approvals: 'الموافقات',
+  users: 'المستخدمون',
+  tailors: 'الخياطون',
+  boutiques: 'البوتيكات',
+  shops: 'المتاجر',
+  products: 'المنتجات',
+  'orphaned-products': 'المنتجات اليتيمة',
+  fabrics: 'الأقمشة',
+  measurements: 'القياسات',
+  family: 'العائلة',
+  ai: 'الذكاء الاصطناعي',
+  store: 'المتجر',
+  images: 'الصور',
+  'tryon-templates': 'قوالب التجربة',
+  notifications: 'الإشعارات',
+  ads: 'الإعلانات',
+  regions: 'المناطق',
+  financial: 'المالية',
+  credits: 'الأرصدة',
+  settings: 'إدارة الاستبيان',
+  config: 'الإعدادات العامة',
+  'debug-tools': 'أدوات التشخيص',
+  logs: 'السجلات',
+};
+
+const ADMIN_SECTION_GROUPS: Array<{ title: string; keys: ReadonlyArray<(typeof ADMIN_SECTION_KEYS)[number]> }> = [
+  { title: 'عام', keys: ['dashboard', 'orders', 'approvals', 'notifications'] },
+  { title: 'المستخدمون والمتاجر', keys: ['users', 'tailors', 'boutiques', 'shops', 'family'] },
+  { title: 'الكتالوج والمنتجات', keys: ['products', 'orphaned-products', 'fabrics', 'measurements', 'images', 'tryon-templates'] },
+  { title: 'التسويق والتشغيل', keys: ['ads', 'regions', 'financial', 'credits'] },
+  { title: 'النظام', keys: ['ai', 'store', 'settings', 'config', 'debug-tools', 'logs'] },
+];
+
 const ADMIN_CONFIG_KEYS = [
   'general',
   'homepage',
@@ -46,6 +82,25 @@ const ADMIN_CONFIG_KEYS = [
   'advanced',
   'debug-tools',
 ] as const;
+
+const ADMIN_CONFIG_LABELS: Record<string, string> = {
+  general: 'عام',
+  homepage: 'الصفحة الرئيسية',
+  'landing-page': 'صفحة الهبوط',
+  designer: 'المصمم',
+  'product-page': 'صفحة المنتج',
+  texts: 'النصوص',
+  social: 'السوشيال',
+  seo: 'SEO',
+  advanced: 'متقدم',
+  'debug-tools': 'أدوات التشخيص',
+};
+
+const ADMIN_CONFIG_GROUPS: Array<{ title: string; keys: ReadonlyArray<(typeof ADMIN_CONFIG_KEYS)[number]> }> = [
+  { title: 'الواجهة والمحتوى', keys: ['general', 'homepage', 'landing-page', 'designer', 'product-page', 'texts'] },
+  { title: 'التسويق والتحسين', keys: ['social', 'seo'] },
+  { title: 'متقدم', keys: ['advanced', 'debug-tools'] },
+];
 
 const splitCsv = (value: string): string[] =>
   String(value || '')
@@ -63,6 +118,7 @@ const isLimitedAdminUser = (user: any): boolean => {
 export const UsersManagement = () => {
   const queryClient = useQueryClient();
   const [users, setUsers] = useState<User[]>([]);
+  const [mergedDuplicateUsers, setMergedDuplicateUsers] = useState<User[]>([]);
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
@@ -92,6 +148,12 @@ export const UsersManagement = () => {
   const [specialization, setSpecialization] = useState('');
   const [experience, setExperience] = useState('');
   const [upgrading, setUpgrading] = useState(false);
+  const [showPromoteAdminModal, setShowPromoteAdminModal] = useState(false);
+  const [promoteTargetUser, setPromoteTargetUser] = useState<User | null>(null);
+  const [promotingAdmin, setPromotingAdmin] = useState(false);
+  const [promoteAdminMode, setPromoteAdminMode] = useState<'full' | 'limited'>('limited');
+  const [promoteAdminSections, setPromoteAdminSections] = useState<string[]>([]);
+  const [promoteAdminConfigSections, setPromoteAdminConfigSections] = useState<string[]>([]);
 
   // Form state for edit
   const [editForm, setEditForm] = useState({
@@ -184,11 +246,14 @@ export const UsersManagement = () => {
 
   useEffect(() => {
     // Filter users based on search and role filter
-    let filtered = users;
+    const sourceUsers = roleFilter === 'merged_duplicates' ? mergedDuplicateUsers : users;
+    let filtered = sourceUsers;
     
     // Apply role filter
     if (roleFilter !== 'all') {
-      if (roleFilter === 'limited_admin') {
+      if (roleFilter === 'merged_duplicates') {
+        // already switched sourceUsers above
+      } else if (roleFilter === 'limited_admin') {
         filtered = filtered.filter((u: any) => isLimitedAdminUser(u));
       } else {
         filtered = filtered.filter(u => u.role === roleFilter);
@@ -205,7 +270,7 @@ export const UsersManagement = () => {
     }
     
     setFilteredUsers(filtered);
-  }, [searchTerm, roleFilter, users]);
+  }, [searchTerm, roleFilter, users, mergedDuplicateUsers]);
 
   const loadRegions = async () => {
     try {
@@ -219,13 +284,19 @@ export const UsersManagement = () => {
   const loadUsers = async () => {
     setLoading(true);
     try {
-      // Load from Firebase
-      const data = await firebaseService.getAllUsers();
+      // Load active + merged duplicates from Firebase
+      const [data, mergedData] = await Promise.all([
+        firebaseService.getAllUsers(),
+        typeof (firebaseService as any).getMergedDuplicateUsers === 'function'
+          ? (firebaseService as any).getMergedDuplicateUsers()
+          : Promise.resolve([]),
+      ]);
       
       console.log(`📥 Loaded ${data.length} users from Firestore`);
       
       setUsers(data);
-      setFilteredUsers(data);
+      setMergedDuplicateUsers(mergedData);
+      setFilteredUsers(roleFilter === 'merged_duplicates' ? mergedData : data);
     } catch {
       console.error('Error loading users');
     } finally {
@@ -247,6 +318,25 @@ export const UsersManagement = () => {
     setSelectedUser(user);
     const userAny = user as any;
     const adminAccess = userAny.adminAccess || userAny.adminPermissions || {};
+    const adminAccessMode = adminAccess.mode === 'limited' ? 'limited' : 'full';
+    const allowedSectionsFromData = Array.isArray(adminAccess.sections) ? adminAccess.sections : [];
+    const deniedSectionsFromData = Array.isArray(adminAccess.deniedSections) ? adminAccess.deniedSections : [];
+    const allowedConfigFromData = Array.isArray(adminAccess.configSections) ? adminAccess.configSections : [];
+    const deniedConfigFromData = Array.isArray(adminAccess.deniedConfigSections) ? adminAccess.deniedConfigSections : [];
+
+    const normalizedAllowedSections =
+      adminAccessMode === 'limited'
+        ? (allowedSectionsFromData.length > 0
+            ? allowedSectionsFromData
+            : ADMIN_SECTION_KEYS.filter((section) => !deniedSectionsFromData.includes(section)))
+        : [];
+
+    const normalizedAllowedConfigSections =
+      adminAccessMode === 'limited'
+        ? (allowedConfigFromData.length > 0
+            ? allowedConfigFromData
+            : ADMIN_CONFIG_KEYS.filter((section) => !deniedConfigFromData.includes(section)))
+        : [];
     setEditForm({
       name: user.name || '',
       shopName: (user as any).shopName || user.name || '',
@@ -266,11 +356,11 @@ export const UsersManagement = () => {
       requirePasswordChange: Boolean((user as any).requirePasswordChange),
       approvalStatus: user.approvalStatus || 'pending',
       isFeatured: Boolean((user as any).isFeatured),
-      adminAccessMode: adminAccess.mode === 'limited' ? 'limited' : 'full',
-      adminSections: Array.isArray(adminAccess.sections) ? adminAccess.sections.join(', ') : '',
-      adminDeniedSections: Array.isArray(adminAccess.deniedSections) ? adminAccess.deniedSections.join(', ') : '',
-      adminConfigSections: Array.isArray(adminAccess.configSections) ? adminAccess.configSections.join(', ') : '',
-      adminDeniedConfigSections: Array.isArray(adminAccess.deniedConfigSections) ? adminAccess.deniedConfigSections.join(', ') : ''
+      adminAccessMode,
+      adminSections: normalizedAllowedSections.join(', '),
+      adminDeniedSections: ADMIN_SECTION_KEYS.filter((section) => !normalizedAllowedSections.includes(section)).join(', '),
+      adminConfigSections: normalizedAllowedConfigSections.join(', '),
+      adminDeniedConfigSections: ADMIN_CONFIG_KEYS.filter((section) => !normalizedAllowedConfigSections.includes(section)).join(', ')
     });
     setShowEditModal(true);
     setShowManageProducts(false);
@@ -927,6 +1017,87 @@ export const UsersManagement = () => {
     }
   };
 
+  const toggleSelection = (value: string, list: string[], setter: (next: string[]) => void) => {
+    if (list.includes(value)) {
+      setter(list.filter((item) => item !== value));
+      return;
+    }
+    setter([...list, value]);
+  };
+
+  const setEditAllowedAdminSections = (allowed: string[]) => {
+    setEditForm((prev) => ({
+      ...prev,
+      adminSections: allowed.join(', '),
+      adminDeniedSections: ADMIN_SECTION_KEYS.filter((section) => !allowed.includes(section)).join(', '),
+    }));
+  };
+
+  const setEditAllowedConfigSections = (allowed: string[]) => {
+    setEditForm((prev) => ({
+      ...prev,
+      adminConfigSections: allowed.join(', '),
+      adminDeniedConfigSections: ADMIN_CONFIG_KEYS.filter((section) => !allowed.includes(section)).join(', '),
+    }));
+  };
+
+  const handleOpenPromoteAdmin = (user: User) => {
+    setPromoteTargetUser(user);
+    setPromoteAdminMode('limited');
+    setPromoteAdminSections(['dashboard', 'orders', 'products', 'users']);
+    setPromoteAdminConfigSections(['general']);
+    setShowPromoteAdminModal(true);
+  };
+
+  const handlePromoteToAdmin = async () => {
+    if (!promoteTargetUser) return;
+    if (promoteAdminMode === 'limited' && promoteAdminSections.length === 0) {
+      showToast('⚠️ اختر صفحة واحدة على الأقل للوصول المحدود', 'error');
+      return;
+    }
+
+    setPromotingAdmin(true);
+    try {
+      const nextAdminAccess =
+        promoteAdminMode === 'full'
+          ? {
+              mode: 'full',
+              sections: ['*'],
+              deniedSections: [],
+              configSections: ['*'],
+              deniedConfigSections: [],
+            }
+          : {
+              mode: 'limited',
+              sections: promoteAdminSections,
+              deniedSections: ADMIN_SECTION_KEYS.filter((section) => !promoteAdminSections.includes(section)),
+              configSections: promoteAdminConfigSections,
+              deniedConfigSections: ADMIN_CONFIG_KEYS.filter((section) => !promoteAdminConfigSections.includes(section)),
+            };
+
+      await firebaseService.updateUser(promoteTargetUser.id, {
+        role: 'admin',
+        ...(nextAdminAccess as any ? { adminAccess: nextAdminAccess as any, adminPermissions: nextAdminAccess as any } : {}),
+      } as any);
+
+      setUsers((prev) =>
+        prev.map((u: any) =>
+          u.id === promoteTargetUser.id
+            ? { ...u, role: 'admin', adminAccess: nextAdminAccess, adminPermissions: nextAdminAccess }
+            : u
+        )
+      );
+      setShowPromoteAdminModal(false);
+      setPromoteTargetUser(null);
+      showToast('✅ تم تعيين المستخدم كمدير مع الصلاحيات المحددة', 'success');
+    } catch (error) {
+      console.error('Error promoting user to admin:', error);
+      showToast('❌ تعذر تعيين المستخدم كمدير', 'error');
+    } finally {
+      setPromotingAdmin(false);
+    }
+  };
+
   // =====================
   // Debug Panel State
   // =====================
@@ -1127,6 +1298,7 @@ export const UsersManagement = () => {
             <option value="shop">محلات تجارية</option>
             <option value="admin">مدراء</option>
             <option value="limited_admin">مدراء بصلاحيات محدودة</option>
+            <option value="merged_duplicates">سجلات مدمجة (مكررة)</option>
           </select>
         </div>
       </div>
@@ -1173,7 +1345,16 @@ export const UsersManagement = () => {
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.email}</td>
+                    <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
+                      <div className="flex flex-col">
+                        <span>{user.email}</span>
+                        {(user as any).isMergedDuplicate && (user as any).mergedIntoUid && (
+                          <span className="text-[9px] text-amber-600 dark:text-amber-400 font-mono">
+                            merged → {(user as any).mergedIntoUid}
+                          </span>
+                        )}
+                      </div>
+                    </td>
                     <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">{user.phone || '-'}</td>
                     <td className="px-2 py-1.5">
                       <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-medium ${
@@ -1217,6 +1398,16 @@ export const UsersManagement = () => {
                           </button>
                         )}
 
+                        {user.role !== 'admin' && (
+                          <button
+                            onClick={() => handleOpenPromoteAdmin(user)}
+                            className="p-1.5 bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-100 rounded transition-all"
+                            title="تعيين كمدير مع صلاحيات"
+                          >
+                            <Shield size={13} />
+                          </button>
+                        )}
+
                         {/* Edit Button (Middle) */}
                         <button
                           onClick={() => handleOpenEdit(user)}
@@ -1246,7 +1437,7 @@ export const UsersManagement = () => {
               <tr className="bg-slate-100 dark:bg-slate-800">
                 <td colSpan={7} className="px-2 py-1 text-[10px] text-slate-700 dark:text-slate-300 text-right">
                   عرض <span className="font-semibold text-slate-900 dark:text-white">{filteredUsers.length}</span> من
-                  {' '}<span className="font-semibold text-slate-900 dark:text-white">{users.length}</span> مستخدمًا
+                  {' '}<span className="font-semibold text-slate-900 dark:text-white">{roleFilter === 'merged_duplicates' ? mergedDuplicateUsers.length : users.length}</span> مستخدمًا
                 </td>
               </tr>
             </tfoot>
@@ -1458,6 +1649,144 @@ export const UsersManagement = () => {
         </div>
       )}
 
+      {showPromoteAdminModal && promoteTargetUser && (
+        <div className="fixed inset-0 z-[75] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !promotingAdmin && setShowPromoteAdminModal(false)}
+          />
+
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-3xl rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200 max-h-[90vh] overflow-y-auto">
+            <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-1">
+              تعيين كمدير: {promoteTargetUser.name}
+            </h3>
+            <p className="text-sm text-slate-600 dark:text-slate-400 mb-5">
+              اختر الصفحات التي يمكن لهذا المدير الوصول إليها. الصفحات غير المحددة لن تظهر له في الشريط الجانبي.
+            </p>
+
+            <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50/70 dark:bg-amber-900/20 p-3 mb-4">
+              <p className="text-xs text-amber-800 dark:text-amber-300">
+                سيتم الحفظ في الحقول: adminAccess / adminPermissions
+              </p>
+            </div>
+
+            <div className="mb-4 flex items-center gap-3">
+              <button
+                type="button"
+                onClick={() => setPromoteAdminMode('full')}
+                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                  promoteAdminMode === 'full'
+                    ? 'bg-emerald-600 text-white border-emerald-600'
+                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                Full Access
+              </button>
+              <button
+                type="button"
+                onClick={() => setPromoteAdminMode('limited')}
+                className={`px-4 py-2 rounded-lg text-sm border transition-colors ${
+                  promoteAdminMode === 'limited'
+                    ? 'bg-blue-600 text-white border-blue-600'
+                    : 'bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                Limited Access
+              </button>
+            </div>
+
+            {promoteAdminMode === 'limited' && (
+              <>
+                <div className="mb-4">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2">صفحات الإدارة</p>
+                  <div className="space-y-3">
+                    {ADMIN_SECTION_GROUPS.map((group) => (
+                      <div key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white/70 dark:bg-slate-900/50">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">{group.title}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {group.keys.map((section) => {
+                            const checked = promoteAdminSections.includes(section);
+                            return (
+                              <label key={section} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${checked ? 'bg-blue-50 dark:bg-blue-900/20 border-blue-300 dark:border-blue-700 text-blue-800 dark:text-blue-300' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSelection(section, promoteAdminSections, setPromoteAdminSections)}
+                                  title={`صلاحية ${ADMIN_SECTION_LABELS[section] || section}`}
+                                  aria-label={`صلاحية ${ADMIN_SECTION_LABELS[section] || section}`}
+                                  className="rounded border-slate-300"
+                                />
+                                <span>{ADMIN_SECTION_LABELS[section] || section}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mb-2">
+                  <p className="text-sm font-bold text-slate-800 dark:text-slate-200 mb-2">تبويبات الإعدادات</p>
+                  <div className="space-y-3">
+                    {ADMIN_CONFIG_GROUPS.map((group) => (
+                      <div key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white/70 dark:bg-slate-900/50">
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">{group.title}</p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {group.keys.map((section) => {
+                            const checked = promoteAdminConfigSections.includes(section);
+                            return (
+                              <label key={section} className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${checked ? 'bg-indigo-50 dark:bg-indigo-900/20 border-indigo-300 dark:border-indigo-700 text-indigo-800 dark:text-indigo-300' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}>
+                                <input
+                                  type="checkbox"
+                                  checked={checked}
+                                  onChange={() => toggleSelection(section, promoteAdminConfigSections, setPromoteAdminConfigSections)}
+                                  title={`صلاحية إعدادات ${ADMIN_CONFIG_LABELS[section] || section}`}
+                                  aria-label={`صلاحية إعدادات ${ADMIN_CONFIG_LABELS[section] || section}`}
+                                  className="rounded border-slate-300"
+                                />
+                                <span>{ADMIN_CONFIG_LABELS[section] || section}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
+            <div className="flex gap-3 mt-6">
+              <button
+                onClick={handlePromoteToAdmin}
+                disabled={promotingAdmin}
+                className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-700 hover:to-emerald-800 disabled:from-slate-400 disabled:to-slate-400 text-white rounded-lg font-medium transition-all"
+              >
+                {promotingAdmin ? (
+                  <>
+                    <RefreshCw size={18} className="animate-spin" />
+                    جاري الحفظ...
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} />
+                    تأكيد تعيين المدير
+                  </>
+                )}
+              </button>
+              <button
+                onClick={() => setShowPromoteAdminModal(false)}
+                disabled={promotingAdmin}
+                className="px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+              >
+                إلغاء
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit User Modal */}
       {showEditModal && selectedUser && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
@@ -1560,6 +1889,7 @@ export const UsersManagement = () => {
                     value={editForm.name}
                     onChange={(e) => setEditForm({...editForm, name: e.target.value})}
                     required
+                    title="اسم المستخدم"
                     className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   />
                 </div>
@@ -1572,6 +1902,7 @@ export const UsersManagement = () => {
                     value={editForm.email}
                     onChange={(e) => setEditForm({...editForm, email: e.target.value})}
                     required
+                    title="البريد الإلكتروني"
                     className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   />
                 </div>
@@ -1583,6 +1914,7 @@ export const UsersManagement = () => {
                     type="tel"
                     value={editForm.phone}
                     onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+                    title="رقم الهاتف"
                     className="w-full px-3 py-2 text-sm bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   />
                 </div>
@@ -1697,6 +2029,7 @@ export const UsersManagement = () => {
                         location: (!editForm.location || editForm.location === oldRegion) ? newRegion : editForm.location
                       });
                     }}
+                    title="المنطقة أو الولاية"
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   >
                     <option value="">اختر المنطقة</option>
@@ -1766,7 +2099,35 @@ export const UsersManagement = () => {
                     </div>
                     <select
                       value={editForm.adminAccessMode}
-                      onChange={(e) => setEditForm({ ...editForm, adminAccessMode: e.target.value as 'full' | 'limited' })}
+                      onChange={(e) => {
+                        const mode = e.target.value as 'full' | 'limited';
+                        if (mode === 'full') {
+                          setEditForm((prev) => ({
+                            ...prev,
+                            adminAccessMode: 'full',
+                            adminSections: '',
+                            adminDeniedSections: '',
+                            adminConfigSections: '',
+                            adminDeniedConfigSections: '',
+                          }));
+                        } else {
+                          const defaultAllowedSections = splitCsv(editForm.adminSections).length
+                            ? splitCsv(editForm.adminSections)
+                            : ['dashboard', 'orders', 'products', 'users'];
+                          const defaultAllowedConfig = splitCsv(editForm.adminConfigSections).length
+                            ? splitCsv(editForm.adminConfigSections)
+                            : ['general'];
+                          setEditForm((prev) => ({
+                            ...prev,
+                            adminAccessMode: 'limited',
+                            adminSections: defaultAllowedSections.join(', '),
+                            adminDeniedSections: ADMIN_SECTION_KEYS.filter((section) => !defaultAllowedSections.includes(section)).join(', '),
+                            adminConfigSections: defaultAllowedConfig.join(', '),
+                            adminDeniedConfigSections: ADMIN_CONFIG_KEYS.filter((section) => !defaultAllowedConfig.includes(section)).join(', '),
+                          }));
+                        }
+                      }}
+                      title="وضع صلاحيات المدير"
                       className="px-3 py-1.5 text-sm rounded-lg border border-amber-300 dark:border-amber-700 bg-white dark:bg-slate-900 text-slate-900 dark:text-white"
                     >
                       <option value="full">Full Access</option>
@@ -1774,48 +2135,87 @@ export const UsersManagement = () => {
                     </select>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">sections (comma-separated)</label>
-                      <textarea
-                        rows={2}
-                        value={editForm.adminSections}
-                        onChange={(e) => setEditForm({ ...editForm, adminSections: e.target.value })}
-                        placeholder="dashboard, products, measurements"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-white resize-y"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">deniedSections (comma-separated)</label>
-                      <textarea
-                        rows={2}
-                        value={editForm.adminDeniedSections}
-                        onChange={(e) => setEditForm({ ...editForm, adminDeniedSections: e.target.value })}
-                        placeholder="users, financial, config"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-white resize-y"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">configSections (comma-separated)</label>
-                      <textarea
-                        rows={2}
-                        value={editForm.adminConfigSections}
-                        onChange={(e) => setEditForm({ ...editForm, adminConfigSections: e.target.value })}
-                        placeholder="general, product-page"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-white resize-y"
-                      />
-                    </div>
-                    <div>
-                      <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">deniedConfigSections (comma-separated)</label>
-                      <textarea
-                        rows={2}
-                        value={editForm.adminDeniedConfigSections}
-                        onChange={(e) => setEditForm({ ...editForm, adminDeniedConfigSections: e.target.value })}
-                        placeholder="advanced, debug-tools"
-                        className="w-full px-3 py-2 text-sm bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 text-slate-900 dark:text-white resize-y"
-                      />
-                    </div>
-                  </div>
+                  {editForm.adminAccessMode === 'limited' && (
+                    <>
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">صفحات الإدارة</p>
+                        <div className="space-y-3">
+                          {ADMIN_SECTION_GROUPS.map((group) => (
+                            <div key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white/70 dark:bg-slate-900/50">
+                              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2">{group.title}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {group.keys.map((section) => {
+                                  const selected = splitCsv(editForm.adminSections).includes(section);
+                                  return (
+                                    <label
+                                      key={section}
+                                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${selected ? 'bg-amber-100 dark:bg-amber-900/30 border-amber-300 dark:border-amber-700 text-amber-900 dark:text-amber-200' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        title={`صلاحية ${ADMIN_SECTION_LABELS[section] || section}`}
+                                        aria-label={`صلاحية ${ADMIN_SECTION_LABELS[section] || section}`}
+                                        onChange={() => {
+                                          const next = splitCsv(editForm.adminSections);
+                                          if (next.includes(section)) {
+                                            setEditAllowedAdminSections(next.filter((item) => item !== section));
+                                          } else {
+                                            setEditAllowedAdminSections([...next, section]);
+                                          }
+                                        }}
+                                        className="rounded border-slate-300"
+                                      />
+                                      <span>{ADMIN_SECTION_LABELS[section] || section}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">تبويبات الإعدادات</p>
+                        <div className="space-y-3">
+                          {ADMIN_CONFIG_GROUPS.map((group) => (
+                            <div key={group.title} className="rounded-xl border border-slate-200 dark:border-slate-700 p-3 bg-white/70 dark:bg-slate-900/50">
+                              <p className="text-[11px] font-bold text-slate-700 dark:text-slate-300 mb-2">{group.title}</p>
+                              <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                                {group.keys.map((section) => {
+                                  const selected = splitCsv(editForm.adminConfigSections).includes(section);
+                                  return (
+                                    <label
+                                      key={section}
+                                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs cursor-pointer transition-colors ${selected ? 'bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700 text-blue-900 dark:text-blue-200' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'}`}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={selected}
+                                        title={`صلاحية إعدادات ${ADMIN_CONFIG_LABELS[section] || section}`}
+                                        aria-label={`صلاحية إعدادات ${ADMIN_CONFIG_LABELS[section] || section}`}
+                                        onChange={() => {
+                                          const next = splitCsv(editForm.adminConfigSections);
+                                          if (next.includes(section)) {
+                                            setEditAllowedConfigSections(next.filter((item) => item !== section));
+                                          } else {
+                                            setEditAllowedConfigSections([...next, section]);
+                                          }
+                                        }}
+                                        className="rounded border-slate-300"
+                                      />
+                                      <span>{ADMIN_CONFIG_LABELS[section] || section}</span>
+                                    </label>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </>
+                  )}
 
                   <div className="flex flex-wrap items-center gap-2">
                     <button
@@ -1825,9 +2225,9 @@ export const UsersManagement = () => {
                           ...prev,
                           adminAccessMode: 'limited',
                           adminSections: 'dashboard, products, measurements, fabrics',
-                          adminDeniedSections: 'users, financial, config, settings, logs',
-                          adminConfigSections: '',
-                          adminDeniedConfigSections: 'advanced, debug-tools',
+                          adminDeniedSections: ADMIN_SECTION_KEYS.filter((section) => !['dashboard', 'products', 'measurements', 'fabrics'].includes(section)).join(', '),
+                          adminConfigSections: 'general',
+                          adminDeniedConfigSections: ADMIN_CONFIG_KEYS.filter((section) => !['general'].includes(section)).join(', '),
                         }))
                       }
                       className="px-3 py-1.5 text-xs rounded-lg border border-amber-400/70 bg-amber-100 hover:bg-amber-200 text-amber-900"
@@ -1853,8 +2253,8 @@ export const UsersManagement = () => {
                   </div>
 
                   <div className="text-[11px] text-slate-600 dark:text-slate-400 space-y-1">
-                    <p>القيم المتاحة للأقسام: {ADMIN_SECTION_KEYS.join(', ')}</p>
-                    <p>القيم المتاحة لتبويبات الإعدادات: {ADMIN_CONFIG_KEYS.join(', ')}</p>
+                    <p>الصفحات غير المحددة لن تظهر في الشريط الجانبي لهذا المدير.</p>
+                    <p>عند اختيار Full Access سيتم منح الوصول الكامل لكل الصفحات.</p>
                   </div>
                 </div>
               )}
@@ -1869,6 +2269,7 @@ export const UsersManagement = () => {
                   <select
                     value={editForm.ageGroup}
                     onChange={(e) => setEditForm({...editForm, ageGroup: e.target.value as AgeGroup})}
+                    title="الفئة العمرية"
                     className="w-full px-4 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-slate-900 dark:text-white"
                   >
                     <option value="">اختر الفئة العمرية</option>
@@ -2155,6 +2556,7 @@ export const UsersManagement = () => {
                               <select
                                 value={p.categoryId || ''}
                                 onChange={(e)=> updateProduct(p, { categoryId: e.target.value })}
+                                title="تصنيف المنتج"
                                 className="w-full px-2 py-1.5 text-xs border border-slate-200 dark:border-slate-700 rounded bg-slate-50 dark:bg-slate-900 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                               >
                                 <option value="">— التصنيف —</option>

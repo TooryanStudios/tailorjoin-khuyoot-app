@@ -3,8 +3,10 @@ import { MapPin, Plus, Trash2, GripVertical, Edit2, Save, X } from 'lucide-react
 import { Button } from '../../../components/Button';
 import { PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 export const RegionsManagement = () => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [regions, setRegions] = useState<PopularRegion[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -60,7 +62,14 @@ export const RegionsManagement = () => {
   };
 
   const handleDeleteRegion = async (id: string) => {
-    if (!confirm('هل أنت متأكد من حذف هذه المنطقة؟')) return;
+    const shouldDelete = await confirm({
+      title: 'حذف المنطقة',
+      message: 'هل أنت متأكد من حذف هذه المنطقة؟',
+      confirmText: 'حذف',
+      cancelText: 'إلغاء',
+      danger: true,
+    });
+    if (!shouldDelete) return;
 
     try {
       await firebaseService.deletePopularRegion(id);
@@ -366,6 +375,7 @@ export const RegionsManagement = () => {
           </div>
         </div>
       </div>
+      {confirmDialog}
     </div>
   );
 };

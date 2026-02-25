@@ -306,8 +306,19 @@ const MontLandingPage = () => {
   // Show loading state - only if we don't even have a cached config
   if (!config) {
     return (
-      <div className="min-h-screen bg-[#ededed] flex items-center justify-center">
-        <div className="text-zinc-400 text-sm animate-pulse">جاري التحميل...</div>
+      <div className="fixed inset-0 z-[10020] bg-gradient-to-b from-slate-50 to-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="mx-auto h-44 w-44 rounded-3xl bg-white border border-slate-200 shadow-[0_20px_50px_rgba(15,23,42,0.10)] flex items-center justify-center">
+            <img
+              src="/logo.png?v=4"
+              alt="خيوط"
+              className="w-[120px] h-[120px] object-contain"
+              decoding="async"
+              loading="eager"
+            />
+          </div>
+          <div className="mt-4 text-sm text-slate-500 font-medium animate-pulse">جاري التحميل...</div>
+        </div>
       </div>
     );
   }

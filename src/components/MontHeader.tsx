@@ -2,6 +2,7 @@ import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package, Home, Palette } from 'lucide-react';
 import { AdminColorPicker, restoreAdminPrimaryColor } from './AdminColorPicker';
+import { UserAvatar } from './common/UserAvatar';
 import { useApp } from '../../context/AppContext';
 
 const MONT_HEADER_ID = 'khuyoot-mont-header';
@@ -14,6 +15,14 @@ export const MontHeader = React.memo(function MontHeader() {
   const [showColorPicker, setShowColorPicker] = useState(false);
   const { user, loading, logout, toggleAuthModal, cartCount, ordersCount } = useApp();
   const userMenuRef = useRef<HTMLDivElement>(null);
+
+  const hasAdminAccess = useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    const accessMode = user.adminAccess?.mode;
+    const permissionsMode = user.adminPermissions?.mode;
+    return accessMode === 'full' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'limited';
+  }, [user]);
 
   // Restore admin-selected primary color on mount
   useEffect(() => { restoreAdminPrimaryColor(); }, []);
@@ -36,7 +45,7 @@ export const MontHeader = React.memo(function MontHeader() {
       return [];
     }
     
-    let role = user.role;
+    let role = hasAdminAccess ? 'admin' : user.role;
     const shopType = (user as any).shopType;
     
     if (role === 'tailor' && shopType) {
@@ -176,8 +185,8 @@ export const MontHeader = React.memo(function MontHeader() {
                   onClick={() => setUserMenuOpen(!userMenuOpen)}
                   className="flex items-center gap-2 p-1 pr-3 bg-white border border-zinc-200 rounded-full hover:bg-zinc-50 transition-colors"
                 >
-                  <img 
-                    src={user.profileImage || user.avatar || '/placeholders/avatar.svg'} 
+                  <UserAvatar
+                    src={user.profileImage || user.avatar}
                     alt={user.name}
                     className="w-6 h-6 rounded-full object-cover border border-zinc-100"
                   />
@@ -191,7 +200,7 @@ export const MontHeader = React.memo(function MontHeader() {
                       <p className="text-[10px] text-zinc-500 truncate">{user.email}</p>
                     </div>
                     
-                    {user.role === 'admin' && (
+                    {hasAdminAccess && (
                       <button
                         onClick={() => {
                           navigate('/account');
@@ -206,7 +215,7 @@ export const MontHeader = React.memo(function MontHeader() {
 
                     <button
                       onClick={() => {
-                        const path = user.role === 'admin' ? '/admin' : 
+                        const path = hasAdminAccess ? '/admin' : 
                                     user.role === 'boutique' ? '/boutique-account' :
                                     user.role === 'shop' ? '/shop-account' : '/account';
                         navigate(path);
@@ -215,11 +224,11 @@ export const MontHeader = React.memo(function MontHeader() {
                       className="w-full px-4 py-2.5 text-[11px] font-bold text-left text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center gap-2"
                     >
                       <LayoutDashboard size={14} className="text-blue-500" />
-                      <span>{user.role === 'admin' ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
+                      <span>{hasAdminAccess ? 'لوحة تحكم المسؤول' : 'لوحة التحكم'}</span>
                     </button>
 
                     {/* ── Admin: Primary Colour Picker ── */}
-                    {user.role === 'admin' && (
+                    {hasAdminAccess && (
                       <button
                         onClick={() => setShowColorPicker(p => !p)}
                         className="w-full px-4 py-2.5 text-[11px] font-bold text-left text-zinc-700 hover:bg-zinc-50 transition-colors flex items-center gap-2"

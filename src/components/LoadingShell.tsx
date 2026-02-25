@@ -11,22 +11,20 @@ import React from 'react';
  */
 export const LoadingShell: React.FC = () => {
   return (
-    <div 
-      className="min-h-screen w-full bg-slate-50 dark:bg-[#050817] text-slate-900 dark:text-slate-100 font-sans"
-      style={{ height: 'var(--app-height, 100vh)' }}
-    >
-      {/* Animated gradient skeleton - subtly different from background */}
-      <div className="w-full h-full relative animate-pulse bg-gradient-to-b from-slate-100 to-slate-50 dark:from-slate-900 dark:to-[#050817]">
+    <div className="w-full min-h-[var(--app-height,100vh)] bg-slate-50 text-slate-900 font-sans">
+      <div className="w-full h-full relative bg-gradient-to-b from-slate-50 to-white">
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="text-center">
-            <div className="mx-auto rounded-lg overflow-hidden" style={{height: '200px', width: '200px'}}>
+            <div className="mx-auto h-44 w-44 rounded-3xl bg-white border border-slate-200 shadow-[0_20px_50px_rgba(15,23,42,0.10)] flex items-center justify-center">
               <img 
-                src="/logo_big.png?v=4" 
+                src="/logo.png?v=4" 
                 alt="خيوط"
-                className="w-full h-full object-contain"
+                className="w-[120px] h-[120px] object-contain"
+                decoding="async"
+                loading="eager"
               />
             </div>
-            <div className="mt-4 text-sm text-slate-500 dark:text-slate-400">
+            <div className="mt-4 text-sm text-slate-500 font-medium">
               جاري التحميل...
             </div>
           </div>

@@ -1,0 +1,469 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket.IO Connection Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 700px;
+      width: 100%;
+      padding: 2rem;
+    }
+    
+    h1 {
+      color: #1f2937;
+      margin-bottom: 1.5rem;
+      font-size: 1.875rem;
+    }
+    
+    .status-box {
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1.5rem;
+      border: 2px solid;
+      transition: all 0.3s;
+    }
+    
+    .status-box.connecting {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #78350f;
+    }
+    
+    .status-box.connected {
+      background: #d1fae5;
+      border-color: #10b981;
+      color: #065f46;
+    }
+    
+    .status-box.disconnected {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #7f1d1d;
+    }
+    
+    .status-box h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-radius: 50%;
+      border-top-color: currentColor;
+      animation: spin 1s linear infinite;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .pulse {
+      display: inline-block;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: currentColor;
+      animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+    
+    .info-grid {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .info-item {
+      background: #f9fafb;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      border-left: 4px solid #3b82f6;
+    }
+    
+    .info-item label {
+      font-size: 0.875rem;
+      color: #6b7280;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    
+    .info-item value {
+      font-family: 'Courier New', monospace;
+      color: #1f2937;
+      font-weight: 600;
+    }
+    
+    .test-section {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #e5e7eb;
+    }
+    
+    .test-section h3 {
+      color: #374151;
+      margin-bottom: 1rem;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .btn-primary {
+      background: #3b82f6;
+      color: white;
+    }
+    
+    .btn-success {
+      background: #10b981;
+      color: white;
+    }
+    
+    .btn-danger {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-warning {
+      background: #f59e0b;
+      color: white;
+    }
+    
+    .log-box {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 1rem;
+    }
+    
+    .log-entry {
+      padding: 0.25rem 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    
+    .log-entry:last-child {
+      border-bottom: none;
+    }
+    
+    .log-time {
+      color: #9ca3af;
+      margin-right: 0.5rem;
+    }
+    
+    .log-event {
+      color: #60a5fa;
+      margin-right: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔌 Socket.IO Connection Test</h1>
+    
+    <!-- Status Box -->
+    <div id="statusBox" class="status-box connecting">
+      <h2>
+        <span class="spinner"></span>
+        <span id="statusText">Connecting...</span>
+      </h2>
+      <p id="statusDetail">Initializing Socket.IO client...</p>
+    </div>
+    
+    <!-- Connection Info -->
+    <div class="info-grid">
+      <div class="info-item">
+        <label>API Server URL</label>
+        <value id="serverUrl">http://localhost:8788</value>
+      </div>
+      <div class="info-item">
+        <label>Socket ID</label>
+        <value id="socketId">Not connected</value>
+      </div>
+      <div class="info-item">
+        <label>Transport</label>
+        <value id="transport">—</value>
+      </div>
+      <div class="info-item">
+        <label>Auth Token</label>
+        <value id="authStatus">Checking...</value>
+      </div>
+    </div>
+    
+    <!-- Test Actions -->
+    <div class="test-section">
+      <h3>🧪 Test Actions</h3>
+      <div class="button-group">
+        <button class="btn-primary" onclick="reconnect()">
+          🔄 Reconnect
+        </button>
+        <button class="btn-success" onclick="testOrderJoin()">
+          🎯 Test Order Join
+        </button>
+        <button class="btn-warning" onclick="testNotification()">
+          🔔 Test Notification
+        </button>
+        <button class="btn-danger" onclick="disconnect()">
+          ❌ Disconnect
+        </button>
+      </div>
+    </div>
+    
+    <!-- Event Log -->
+    <div class="test-section">
+      <h3>📋 Event Log</h3>
+      <div id="logBox" class="log-box"></div>
+    </div>
+  </div>
+
+  <script src="https://cdn.socket.io/4.8.1/socket.io.min.js"></script>
+  <script>
+    let socket = null;
+    const serverUrl = 'http://localhost:8788';
+    
+    // UI Elements
+    const statusBox = document.getElementById('statusBox');
+    const statusText = document.getElementById('statusText');
+    const statusDetail = document.getElementById('statusDetail');
+    const socketIdEl = document.getElementById('socketId');
+    const transportEl = document.getElementById('transport');
+    const authStatusEl = document.getElementById('authStatus');
+    const logBox = document.getElementById('logBox');
+    
+    // Logger
+    function log(event, message, data) {
+      const time = new Date().toLocaleTimeString();
+      const entry = document.createElement('div');
+      entry.className = 'log-entry';
+      entry.innerHTML = `
+        <span class="log-time">${time}</span>
+        <span class="log-event">[${event}]</span>
+        ${message}
+        ${data ? `<br>    ${JSON.stringify(data, null, 2)}` : ''}
+      `;
+      logBox.insertBefore(entry, logBox.firstChild);
+    }
+    
+    // Update UI Status
+    function updateStatus(state, text, detail) {
+      statusBox.className = `status-box ${state}`;
+      
+      if (state === 'connecting') {
+        statusText.innerHTML = '<span class="spinner"></span> ' + text;
+      } else if (state === 'connected') {
+        statusText.innerHTML = '<span class="pulse"></span> ' + text;
+      } else {
+        statusText.textContent = text;
+      }
+      
+      statusDetail.textContent = detail;
+    }
+    
+    // Check Auth Token
+    function checkAuthToken() {
+      const token = localStorage.getItem('firebaseAuthToken') || 
+                    localStorage.getItem('firebase_authToken') ||
+                    sessionStorage.getItem('firebaseAuthToken');
+      
+      if (token) {
+        authStatusEl.textContent = '✅ Token found';
+        authStatusEl.style.color = '#10b981';
+        return token;
+      } else {
+        authStatusEl.textContent = '❌ No token (you need to login first)';
+        authStatusEl.style.color = '#ef4444';
+        return null;
+      }
+    }
+    
+    // Initialize Socket.IO
+    function initSocket() {
+      const token = checkAuthToken();
+      
+      if (!token) {
+        updateStatus('disconnected', 'No Auth Token', 
+          'Please login via Google first, then refresh this page');
+        log('ERROR', 'No Firebase auth token found in localStorage');
+        return;
+      }
+      
+      log('INIT', 'Creating Socket.IO connection to /orders namespace');
+      
+      socket = io(`${serverUrl}/orders`, {
+        auth: { token },
+        reconnection: true,
+        reconnectionDelay: 1000,
+        reconnectionDelayMax: 5000,
+        reconnectionAttempts: 5,
+        transports: ['websocket', 'polling'],
+      });
+      
+      // Connection Events
+      socket.on('connect', () => {
+        updateStatus('connected', 'Connected!', 
+          `Socket.IO connection established to ${serverUrl}/orders`);
+        socketIdEl.textContent = socket.id;
+        transportEl.textContent = socket.io.engine.transport.name;
+        log('CONNECT', 'Successfully connected', { socketId: socket.id });
+      });
+      
+      socket.on('disconnect', (reason) => {
+        updateStatus('disconnected', 'Disconnected', `Reason: ${reason}`);
+        socketIdEl.textContent = 'Not connected';
+        transportEl.textContent = '—';
+        log('DISCONNECT', `Connection lost: ${reason}`);
+      });
+      
+      socket.on('connect_error', (error) => {
+        updateStatus('disconnected', 'Connection Error', error.message);
+        log('ERROR', 'Connection error', { error: error.message });
+      });
+      
+      socket.io.engine.on('upgrade', (transport) => {
+        transportEl.textContent = transport.name;
+        log('UPGRADE', `Transport upgraded to ${transport.name}`);
+      });
+      
+      // Order Events
+      socket.on('order:current', (data) => {
+        log('ORDER:CURRENT', 'Received current order snapshot', data);
+      });
+      
+      socket.on('order:status-changed', (data) => {
+        log('ORDER:STATUS-CHANGED', 'Order status changed', data);
+      });
+      
+      socket.on('order:updated', (data) => {
+        log('ORDER:UPDATED', 'Order data updated', data);
+      });
+      
+      socket.on('order:assigned', (data) => {
+        log('ORDER:ASSIGNED', 'New order assignment', data);
+      });
+      
+      socket.on('notification', (data) => {
+        log('NOTIFICATION', 'Received notification', data);
+      });
+      
+      // Generic error handler
+      socket.on('error', (error) => {
+        log('ERROR', 'Socket error', error);
+      });
+      
+      // Log all events (debug mode)
+      socket.onAny((eventName, ...args) => {
+        if (!eventName.startsWith('order:') && eventName !== 'notification') {
+          log('EVENT', eventName, args);
+        }
+      });
+    }
+    
+    // Test Actions
+    function reconnect() {
+      log('ACTION', 'Manually reconnecting...');
+      if (socket) {
+        socket.disconnect();
+        setTimeout(() => socket.connect(), 500);
+      } else {
+        initSocket();
+      }
+    }
+    
+    function disconnect() {
+      log('ACTION', 'Manually disconnecting...');
+      if (socket) {
+        socket.disconnect();
+      }
+    }
+    
+    function testOrderJoin() {
+      if (!socket || !socket.connected) {
+        alert('Not connected! Click Reconnect first.');
+        return;
+      }
+      
+      const testOrderId = 'test-order-' + Date.now();
+      log('TEST', `Emitting order:join for ${testOrderId}`);
+      socket.emit('order:join', { orderId: testOrderId });
+      
+      alert(`Sent order:join event for ${testOrderId}\nCheck the event log below for response.`);
+    }
+    
+    function testNotification() {
+      if (!socket || !socket.connected) {
+        alert('Not connected! Click Reconnect first.');
+        return;
+      }
+      
+      log('TEST', 'Emitting test notification read event');
+      socket.emit('notification:read', { notificationId: 'test-' + Date.now() });
+      
+      alert('Sent notification:read event\nCheck server logs for confirmation.');
+    }
+    
+    // Initialize on load
+    window.addEventListener('DOMContentLoaded', () => {
+      log('INFO', 'Socket.IO Test Page Loaded');
+      log('INFO', `Target server: ${serverUrl}`);
+      initSocket();
+    });
+  </script>
+</body>
+</html>

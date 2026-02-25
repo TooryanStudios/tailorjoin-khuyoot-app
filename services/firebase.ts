@@ -3,6 +3,7 @@ console.log('🔥 [Firebase Service] Initializing root service...');
 import {
   getAuth,
   initializeAuth,
+  browserPopupRedirectResolver,
   browserLocalPersistence,
   browserSessionPersistence,
   inMemoryPersistence,
@@ -14,6 +15,10 @@ import {
   updatePassword,
   reauthenticateWithCredential,
   EmailAuthProvider,
+  GoogleAuthProvider,
+  signInWithPopup,
+  signInWithRedirect,
+  getRedirectResult,
   onAuthStateChanged,
   signInWithCustomToken,
   User as FirebaseUser,
@@ -393,7 +398,10 @@ try {
     try {
       const persistence = getAuthPersistence();
       // IMPORTANT: pass as array to avoid SDK defaulting to IndexedDB persistence.
-      auth = initializeAuth(app, { persistence: [persistence] }); 
+      auth = initializeAuth(app, {
+        persistence: [persistence],
+        popupRedirectResolver: browserPopupRedirectResolver,
+      });
       if (!import.meta.env.PROD) {
         console.log('[Firebase] Auth persistence:', getAuthPersistenceMode());
       }
@@ -1524,6 +1532,185 @@ export const firebaseService = {
     }
   },
 
+  async checkGoogleRedirectResult(): Promise<User | null> {
+    if (!isFirebaseInitialized || !auth) return null;
+    try {
+      const result = await getRedirectResult(auth);
+      if (!result) return null;
+      // Reuse the same profile-merge logic by delegating to loginWithGoogle flow via the credential user
+      const fbUser = result.user;
+      return mapFirebaseUser(fbUser) as User;
+    } catch {
+      return null;
+    }
+  },
+
+  async loginWithGoogle(): Promise<User> {
+    if (!isFirebaseInitialized) throw new Error('Firebase not configured');
+
+    const provider = new GoogleAuthProvider();
+    provider.setCustomParameters({ prompt: 'select_account' });
+
+    try {
+      let credential;
+      try {
+        credential = await signInWithPopup(auth, provider);
+      } catch (popupErr: any) {
+        if (popupErr?.code === 'auth/popup-blocked') {
+          // Popup was blocked by the browser — fall back to full-page redirect
+          await signInWithRedirect(auth, provider);
+          // This line is never reached; page navigates away
+          throw Object.assign(new Error('REDIRECT_INITIATED'), { code: 'auth/redirect-initiated' });
+        }
+        // User closed the popup themselves — just re-throw, don't redirect
+        throw popupErr;
+      }
+      if (!credential) throw new Error('No credential returned');
+      const fbUser = credential.user;
+      const uid = fbUser.uid;
+      const userRef = doc(db, 'users', uid);
+      const profileRef = doc(db, 'user_profiles', uid);
+      const normalizedEmail = String(fbUser.email || '').trim().toLowerCase();
+
+      let resolvedRole: UserRole = 'user';
+      let normalizedPhone = '';
+      let profileCompleted = false;
+
+      try {
+        const [userSnap, profileSnap] = await Promise.all([
+          getDoc(userRef),
+          getDoc(profileRef),
+        ]);
+
+        const userData: any = userSnap.exists() ? userSnap.data() : {};
+        const profileData: any = profileSnap.exists() ? profileSnap.data() : {};
+
+        // Resolve same-email duplicates across different UIDs (e.g., password account + Google account).
+        // Prefer the richest/most privileged record as source of truth, then mark old docs as merged.
+        let duplicateUserDocRef: any = null;
+        let duplicateData: any = null;
+        if (normalizedEmail) {
+          try {
+            const usersRef = collection(db, 'users');
+            const byEmail = query(usersRef, where('email', '==', normalizedEmail));
+            const byEmailSnap = await getDocs(byEmail);
+
+            const candidates = byEmailSnap.docs.filter((d) => d.id !== uid);
+            if (candidates.length > 0) {
+              const score = (raw: any): number => {
+                const role = String(raw?.role || '').toLowerCase();
+                let points = 0;
+                if (role === 'admin') points += 100;
+                if (role === 'tailor' || role === 'shop' || role === 'boutique') points += 40;
+                if (raw?.phone || raw?.phoneNumber || raw?.contactNumber) points += 20;
+                if (raw?.profileCompleted) points += 10;
+                if (raw?.createdByAdmin) points += 5;
+                return points;
+              };
+
+              const picked = candidates
+                .map((d) => ({ ref: d.ref, data: d.data() as any, score: score(d.data()) }))
+                .sort((a, b) => b.score - a.score)[0];
+
+              duplicateUserDocRef = picked?.ref || null;
+              duplicateData = picked?.data || null;
+            }
+          } catch (dupErr) {
+            console.warn('[Firebase] Duplicate-by-email lookup failed', dupErr);
+          }
+        }
+
+        const mergedSource = { ...(duplicateData || {}), ...userData, ...profileData };
+
+        const rawRole = String(mergedSource.role || '').toLowerCase();
+        const validRoles: UserRole[] = ['guest', 'user', 'tailor', 'admin', 'shop', 'boutique', 'fabric_store', 'customer', 'fabric_shop'];
+        if (validRoles.includes(rawRole as UserRole)) {
+          resolvedRole = rawRole as UserRole;
+        }
+
+        normalizedPhone = String(
+          mergedSource.phone ||
+            mergedSource.phoneNumber ||
+            mergedSource.contactNumber ||
+            fbUser.phoneNumber ||
+            ''
+        )
+          .replace(/\s+/g, '')
+          .trim();
+
+        profileCompleted = Boolean(normalizedPhone && resolvedRole);
+
+        const mergedData: any = {
+          id: uid,
+          uid,
+          name: mergedSource.name || fbUser.displayName || fbUser.email?.split('@')[0] || 'User',
+          displayName: mergedSource.displayName || fbUser.displayName || '',
+          email: normalizedEmail || mergedSource.email || '',
+          role: resolvedRole,
+          phone: normalizedPhone,
+          phoneNumber: normalizedPhone,
+          contactNumber: normalizedPhone,
+          profileImage: fbUser.photoURL || mergedSource.profileImage || '',
+          avatar: fbUser.photoURL || mergedSource.avatar || '',
+          photoURL: fbUser.photoURL || mergedSource.photoURL || '',
+          authProvider: 'google',
+          profileCompleted,
+          isGuest: false,
+          joinDate: mergedSource.joinDate || new Date().toISOString(),
+          updatedAt: serverTimestamp(),
+        };
+
+        if (!userSnap.exists()) {
+          mergedData.createdAt = serverTimestamp();
+        }
+
+        await Promise.all([
+          setDoc(userRef, mergedData, { merge: true }),
+          setDoc(profileRef, mergedData, { merge: true }),
+        ]);
+
+        if (duplicateUserDocRef) {
+          try {
+            const duplicateUid = duplicateUserDocRef.id;
+            await Promise.all([
+              setDoc(duplicateUserDocRef, {
+                mergedIntoUid: uid,
+                isMergedDuplicate: true,
+                mergedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }, { merge: true }),
+              setDoc(doc(db, 'user_profiles', duplicateUid), {
+                mergedIntoUid: uid,
+                isMergedDuplicate: true,
+                mergedAt: serverTimestamp(),
+                updatedAt: serverTimestamp(),
+              }, { merge: true }),
+            ]);
+          } catch (mergeMarkErr) {
+            console.warn('[Firebase] Failed to mark duplicate account as merged', mergeMarkErr);
+          }
+        }
+      } catch (profileError) {
+        console.warn('[Firebase] Google login profile merge failed', profileError);
+      }
+
+      const mapped = mapFirebaseUser(fbUser) as User;
+      mapped.role = resolvedRole;
+      if (normalizedPhone) {
+        mapped.phone = normalizedPhone;
+        mapped.phoneNumber = normalizedPhone;
+      }
+      (mapped as any).authProvider = 'google';
+      (mapped as any).profileCompleted = profileCompleted;
+      return mapped;
+    } catch (error: any) {
+      if (error?.code === 'auth/popup-closed-by-user') {
+        throw error;
+      }
+      throw error;
+    }
+  },
+
   async register(email: string, pass: string, name: string, role: UserRole, merchantInfo?: any): Promise<User> {
     if (!isFirebaseInitialized) throw new Error("Firebase not configured");
     
@@ -2490,14 +2677,66 @@ export const firebaseService = {
       const users: User[] = [];
       querySnapshot.forEach((docSnap) => {
         const rawData = docSnap.data();
+        if ((rawData as any)?.mergedIntoUid || (rawData as any)?.isMergedDuplicate) {
+          return;
+        }
         // Apply defaults to ensure all fields exist
         const normalizedUser = applyUserDefaults(rawData, docSnap.id);
         users.push(normalizedUser as any);
       });
-      
-      return users;
+
+      // Deduplicate by normalized email (keep best candidate: admin > tailor/shop > richer profile).
+      const byEmail = new Map<string, User>();
+      const scoreUser = (u: any): number => {
+        const role = String(u?.role || '').toLowerCase();
+        let score = 0;
+        if (role === 'admin') score += 100;
+        if (role === 'tailor' || role === 'shop' || role === 'boutique') score += 40;
+        if (u?.phone || u?.phoneNumber || u?.contactNumber) score += 20;
+        if ((u as any)?.profileCompleted) score += 10;
+        if ((u as any)?.createdByAdmin) score += 5;
+        return score;
+      };
+
+      for (const user of users) {
+        const key = String((user as any)?.email || '').trim().toLowerCase();
+        if (!key) {
+          byEmail.set(`uid:${String((user as any).id || (user as any).uid || '')}`, user);
+          continue;
+        }
+        const existing = byEmail.get(key);
+        if (!existing || scoreUser(user) > scoreUser(existing)) {
+          byEmail.set(key, user);
+        }
+      }
+
+      return Array.from(byEmail.values());
     } catch (error) {
       console.error("Error getting all users:", error);
+      throw error;
+    }
+  },
+
+  async getMergedDuplicateUsers(): Promise<User[]> {
+    if (!isFirebaseInitialized) throw new Error("Firebase not initialized");
+
+    try {
+      const usersRef = collection(db, 'users');
+      const mergedQuery = query(usersRef, where('isMergedDuplicate', '==', true));
+      const querySnapshot = await getDocs(mergedQuery);
+
+      const users: User[] = [];
+      querySnapshot.forEach((docSnap) => {
+        const rawData = docSnap.data();
+        const normalizedUser = applyUserDefaults(rawData, docSnap.id) as any;
+        normalizedUser.isMergedDuplicate = true;
+        normalizedUser.mergedIntoUid = (rawData as any).mergedIntoUid || '';
+        users.push(normalizedUser as User);
+      });
+
+      return users;
+    } catch (error) {
+      console.error('Error getting merged duplicate users:', error);
       throw error;
     }
   },

@@ -7,8 +7,10 @@ import {
   toggleRecommendation
 } from '@/services/recommendationService';
 import { Button } from '@/components/Button';
+import { useConfirmDialog } from '../hooks/useConfirmDialog';
 
 export const RecommendationsManagement = () => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [recommendations, setRecommendations] = useState<DesignRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -258,8 +260,15 @@ export const RecommendationsManagement = () => {
                       {rec.ruleType === 'manual' && (
                         <button
                           className="text-red-500 hover:text-red-600 transition-colors"
-                          onClick={() => {
-                            if (confirm('هل تريد حذف هذه التوصية؟')) {
+                          onClick={async () => {
+                            const shouldDelete = await confirm({
+                              title: 'حذف التوصية',
+                              message: 'هل تريد حذف هذه التوصية؟',
+                              confirmText: 'حذف',
+                              cancelText: 'إلغاء',
+                              danger: true,
+                            });
+                            if (shouldDelete) {
                               // Implement delete
                             }
                           }}
@@ -375,6 +384,7 @@ export const RecommendationsManagement = () => {
           </div>
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 };

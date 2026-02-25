@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Google Auth Test</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
+      background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 2rem;
+    }
+    
+    .container {
+      background: white;
+      border-radius: 1rem;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      max-width: 600px;
+      width: 100%;
+      padding: 2rem;
+    }
+    
+    h1 {
+      color: #1f2937;
+      margin-bottom: 1.5rem;
+      font-size: 1.875rem;
+    }
+    
+    .status-box {
+      padding: 1.5rem;
+      border-radius: 0.5rem;
+      margin-bottom: 1.5rem;
+      border: 2px solid;
+      transition: all 0.3s;
+    }
+    
+    .status-box.logged-out {
+      background: #fef3c7;
+      border-color: #f59e0b;
+      color: #78350f;
+    }
+    
+    .status-box.logged-in {
+      background: #d1fae5;
+      border-color: #10b981;
+      color: #065f46;
+    }
+    
+    .status-box.error {
+      background: #fee2e2;
+      border-color: #ef4444;
+      color: #7f1d1d;
+    }
+    
+    .status-box h2 {
+      font-size: 1.25rem;
+      margin-bottom: 0.5rem;
+    }
+    
+    .user-info {
+      display: grid;
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    
+    .info-card {
+      background: #f9fafb;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      border-left: 4px solid #3b82f6;
+    }
+    
+    .info-card label {
+      font-size: 0.875rem;
+      color: #6b7280;
+      display: block;
+      margin-bottom: 0.25rem;
+    }
+    
+    .info-card value {
+      font-family: 'Courier New', monospace;
+      color: #1f2937;
+      font-weight: 600;
+      word-break: break-all;
+    }
+    
+    .user-avatar {
+      text-align: center;
+      margin-bottom: 1.5rem;
+    }
+    
+    .user-avatar img {
+      width: 80px;
+      height: 80px;
+      border-radius: 50%;
+      border: 4px solid #3b82f6;
+      margin-bottom: 0.5rem;
+    }
+    
+    .user-avatar h3 {
+      color: #1f2937;
+      margin-bottom: 0.25rem;
+    }
+    
+    .user-avatar p {
+      color: #6b7280;
+      font-size: 0.875rem;
+    }
+    
+    .button-group {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+    
+    button {
+      padding: 0.75rem 1.5rem;
+      border: none;
+      border-radius: 0.5rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-size: 0.875rem;
+      flex: 1;
+      min-width: 150px;
+    }
+    
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+    
+    .btn-google {
+      background: #4285f4;
+      color: white;
+    }
+    
+    .btn-logout {
+      background: #ef4444;
+      color: white;
+    }
+    
+    .btn-check {
+      background: #10b981;
+      color: white;
+    }
+    
+    .token-section {
+      margin-top: 2rem;
+      padding-top: 2rem;
+      border-top: 2px solid #e5e7eb;
+    }
+    
+    .token-section h3 {
+      color: #374151;
+      margin-bottom: 1rem;
+    }
+    
+    .token-box {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 1rem;
+      border-radius: 0.5rem;
+      font-family: 'Courier New', monospace;
+      font-size: 0.75rem;
+      max-height: 200px;
+      overflow-y: auto;
+      word-break: break-all;
+    }
+    
+    .spinner {
+      display: inline-block;
+      width: 20px;
+      height: 20px;
+      border: 3px solid rgba(0,0,0,0.1);
+      border-radius: 50%;
+      border-top-color: currentColor;
+      animation: spin 1s linear infinite;
+      vertical-align: middle;
+      margin-right: 0.5rem;
+    }
+    
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+    
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🔐 Google Auth Test</h1>
+    
+    <!-- Status Box -->
+    <div id="statusBox" class="status-box logged-out">
+      <h2 id="statusTitle">Not Logged In</h2>
+      <p id="statusDetail">Click "Login with Google" to test authentication</p>
+    </div>
+    
+    <!-- User Info (hidden by default) -->
+    <div id="userInfo" class="user-info hidden">
+      <div class="user-avatar">
+        <img id="userAvatar" src="" alt="User Avatar">
+        <h3 id="userName">—</h3>
+        <p id="userEmail">—</p>
+      </div>
+      
+      <div class="info-card">
+        <label>User ID (UID)</label>
+        <value id="userUid">—</value>
+      </div>
+      
+      <div class="info-card">
+        <label>Email Verified</label>
+        <value id="emailVerified">—</value>
+      </div>
+      
+      <div class="info-card">
+        <label>Provider</label>
+        <value id="provider">—</value>
+      </div>
+      
+      <div class="info-card">
+        <label>Account Created</label>
+        <value id="createdAt">—</value>
+      </div>
+      
+      <div class="info-card">
+        <label>Last Sign In</label>
+        <value id="lastSignIn">—</value>
+      </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="button-group">
+      <button id="loginBtn" class="btn-google" onclick="loginWithGoogle()">
+        🔑 Login with Google
+      </button>
+      <button id="logoutBtn" class="btn-logout hidden" onclick="logout()">
+        🚪 Logout
+      </button>
+      <button class="btn-check" onclick="checkAuthState()">
+        🔍 Check Auth State
+      </button>
+    </div>
+    
+    <!-- Token Display -->
+    <div class="token-section">
+      <h3>🎫 Firebase ID Token (JWT)</h3>
+      <div id="tokenBox" class="token-box">
+        No token yet. Login first.
+      </div>
+    </div>
+  </div>
+
+  <!-- Firebase SDK -->
+  <script type="module">
+    import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js';
+    import { 
+      getAuth, 
+      signInWithPopup, 
+      GoogleAuthProvider, 
+      signOut,
+      onAuthStateChanged 
+    } from 'https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js';
+    
+    // Firebase Config
+    // This test file reads from the same environment variables as your app
+    // Make sure you have a .env file with VITE_FIREBASE_* variables
+    //
+    // TO TEST: Copy the values from your .env file into this object:
+    // (Never commit real credentials to git!)
+    const firebaseConfig = {
+      apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY_HERE",
+      authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "YOUR_PROJECT_ID.firebaseapp.com",
+      projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "YOUR_PROJECT_ID",
+      storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "YOUR_PROJECT_ID.appspot.com",
+      messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+      appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID"
+    };
+    
+    // Check if config is loaded
+    if (firebaseConfig.apiKey === "YOUR_API_KEY_HERE") {
+      console.error('❌ Firebase config not loaded! Update firebaseConfig in test-google-auth.html');
+      alert('Error: Firebase credentials not configured. See browser console for details.');
+    }
+    
+    // Initialize Firebase
+    const app = initializeApp(firebaseConfig);
+    const auth = getAuth(app);
+    const provider = new GoogleAuthProvider();
+    
+    // UI Elements
+    const statusBox = document.getElementById('statusBox');
+    const statusTitle = document.getElementById('statusTitle');
+    const statusDetail = document.getElementById('statusDetail');
+    const userInfo = document.getElementById('userInfo');
+    const loginBtn = document.getElementById('loginBtn');
+    const logoutBtn = document.getElementById('logoutBtn');
+    const tokenBox = document.getElementById('tokenBox');
+    
+    // Update UI based on auth state
+    function updateUI(user) {
+      if (user) {
+        // User is logged in
+        statusBox.className = 'status-box logged-in';
+        statusTitle.textContent = '✅ Logged In Successfully';
+        statusDetail.textContent = `Signed in as ${user.email}`;
+        
+        // Show user info
+        userInfo.classList.remove('hidden');
+        document.getElementById('userAvatar').src = user.photoURL || 'https://via.placeholder.com/80';
+        document.getElementById('userName').textContent = user.displayName || 'Anonymous';
+        document.getElementById('userEmail').textContent = user.email || 'No email';
+        document.getElementById('userUid').textContent = user.uid;
+        document.getElementById('emailVerified').textContent = user.emailVerified ? '✅ Yes' : '❌ No';
+        document.getElementById('provider').textContent = user.providerData[0]?.providerId || 'Unknown';
+        document.getElementById('createdAt').textContent = new Date(user.metadata.creationTime).toLocaleString();
+        document.getElementById('lastSignIn').textContent = new Date(user.metadata.lastSignInTime).toLocaleString();
+        
+        // Toggle buttons
+        loginBtn.classList.add('hidden');
+        logoutBtn.classList.remove('hidden');
+        
+        // Get and display token
+        user.getIdToken().then(token => {
+          tokenBox.textContent = token;
+          localStorage.setItem('firebaseAuthToken', token);
+          console.log('✅ Firebase ID Token:', token);
+        }).catch(error => {
+          tokenBox.textContent = `Error getting token: ${error.message}`;
+          console.error('❌ Token error:', error);
+        });
+        
+      } else {
+        // User is logged out
+        statusBox.className = 'status-box logged-out';
+        statusTitle.textContent = 'Not Logged In';
+        statusDetail.textContent = 'Click "Login with Google" to test authentication';
+        
+        // Hide user info
+        userInfo.classList.add('hidden');
+        
+        // Toggle buttons
+        loginBtn.classList.remove('hidden');
+        logoutBtn.classList.add('hidden');
+        
+        // Clear token
+        tokenBox.textContent = 'No token yet. Login first.';
+        localStorage.removeItem('firebaseAuthToken');
+      }
+    }
+    
+    // Login with Google
+    window.loginWithGoogle = async function() {
+      loginBtn.disabled = true;
+      loginBtn.innerHTML = '<span class="spinner"></span> Logging in...';
+      
+      try {
+        const result = await signInWithPopup(auth, provider);
+        const user = result.user;
+        console.log('✅ Login successful:', user);
+        
+        // Get credential if needed
+        const credential = GoogleAuthProvider.credentialFromResult(result);
+        console.log('✅ Google credential:', credential);
+        
+      } catch (error) {
+        console.error('❌ Login error:', error);
+        statusBox.className = 'status-box error';
+        statusTitle.textContent = '❌ Login Failed';
+        statusDetail.textContent = error.message;
+        
+        loginBtn.disabled = false;
+        loginBtn.textContent = '🔑 Login with Google';
+      }
+    };
+    
+    // Logout
+    window.logout = async function() {
+      try {
+        await signOut(auth);
+        console.log('✅ Logged out successfully');
+      } catch (error) {
+        console.error('❌ Logout error:', error);
+        alert(`Logout error: ${error.message}`);
+      }
+    };
+    
+    // Check current auth state
+    window.checkAuthState = function() {
+      const user = auth.currentUser;
+      if (user) {
+        console.log('✅ Current user:', user);
+        alert(`Logged in as: ${user.email}\nUID: ${user.uid}`);
+      } else {
+        console.log('❌ No user logged in');
+        alert('No user currently logged in');
+      }
+    };
+    
+    // Listen for auth state changes
+    onAuthStateChanged(auth, (user) => {
+      console.log('Auth state changed:', user ? user.email : 'logged out');
+      updateUI(user);
+      loginBtn.disabled = false;
+      loginBtn.textContent = '🔑 Login with Google';
+    });
+    
+    // Initial check
+    console.log('🔥 Firebase initialized');
+    console.log('📍 Project ID:', firebaseConfig.projectId);
+  </script>
+</body>
+</html>

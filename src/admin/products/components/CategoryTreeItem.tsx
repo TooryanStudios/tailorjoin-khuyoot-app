@@ -1,6 +1,7 @@
 import React from 'react';
 import { ChevronRight, Edit, Trash2, Plus, MoreVertical } from 'lucide-react';
 import { CategoryTreeNode } from '../types';
+import { useConfirmDialog } from '../../hooks/useConfirmDialog';
 
 interface CategoryTreeItemProps {
   node: CategoryTreeNode;
@@ -17,6 +18,7 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
   onDelete,
   onAddChild,
 }) => {
+  const { confirm, confirmDialog } = useConfirmDialog();
   const [isExpanded, setIsExpanded] = React.useState(true);
   const [showMenu, setShowMenu] = React.useState(false);
 
@@ -144,12 +146,19 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
                   إضافة تصنيف فرعي
                 </button>
                 <button
-                  onClick={(e) => {
+                  onClick={async (e) => {
                     e.stopPropagation();
                     setShowMenu(false);
                     
                     const confirmMessage = `هل أنت متأكد من حذف التصنيف "${node.nameAr}" (${node.nameEn})؟\n\nملاحظة: لا يمكن التراجع عن هذا الإجراء.`;
-                    if (confirm(confirmMessage)) {
+                    const shouldDelete = await confirm({
+                      title: 'حذف التصنيف',
+                      message: confirmMessage,
+                      confirmText: 'حذف',
+                      cancelText: 'إلغاء',
+                      danger: true,
+                    });
+                    if (shouldDelete) {
                       onDelete(node.id);
                     }
                   }}
@@ -180,6 +189,7 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
           ))}
         </div>
       )}
+      {confirmDialog}
     </div>
   );
 };
