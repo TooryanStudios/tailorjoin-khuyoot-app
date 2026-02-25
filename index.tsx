@@ -46,11 +46,15 @@ function shouldForceSwCleanupHost(): boolean {
   }
 }
 
-async function clearServiceWorkersAndCachesSafely(): Promise<void> {
+async function clearServiceWorkersAndCachesSafely(): Promise<boolean> {
+  let hadRegistrations = false;
   try {
     if ('serviceWorker' in navigator) {
       const regs = await navigator.serviceWorker.getRegistrations();
-      await Promise.all(regs.map((reg) => reg.unregister().catch(() => false)));
+      if (regs.length > 0) {
+        hadRegistrations = true;
+        await Promise.all(regs.map((reg) => reg.unregister().catch(() => false)));
+      }
     }
   } catch {
     // ignore
@@ -59,11 +63,16 @@ async function clearServiceWorkersAndCachesSafely(): Promise<void> {
   try {
     if ('caches' in window) {
       const names = await caches.keys();
-      await Promise.all(names.map((name) => caches.delete(name)));
+      if (names.length > 0) {
+        hadRegistrations = true;
+        await Promise.all(names.map((name) => caches.delete(name)));
+      }
     }
   } catch {
     // ignore
   }
+
+  return hadRegistrations;
 }
 
 // PWA Service Worker registration (production only)
@@ -73,7 +82,23 @@ async function clearServiceWorkersAndCachesSafely(): Promise<void> {
 if (import.meta.env.PROD && 'serviceWorker' in navigator) {
   try {
     if (shouldForceSwCleanupHost()) {
-      void clearServiceWorkersAndCachesSafely();
+      // If an old SW was controlling this page, clear it now and reload once so
+      // the next page load gets fully fresh content from the network.
+      // We use sessionStorage so we only reload ONCE per session (avoids reload loops).
+      const swReloadKey = 'khuyoot:sw-reload-done';
+      const alreadyReloaded = sessionStorage.getItem(swReloadKey);
+      if (!alreadyReloaded) {
+        clearServiceWorkersAndCachesSafely().then((hadSW) => {
+          if (hadSW) {
+            sessionStorage.setItem(swReloadKey, '1');
+            window.location.reload();
+          }
+        }).catch(() => {});
+      } else {
+        // Already reloaded this session — just ensure SW stays cleared
+        // (fire-and-forget, no reload needed)
+        void clearServiceWorkersAndCachesSafely();
+      }
     } else {
     // IMPORTANT: Do NOT import `virtual:pwa-register` from here.
     // Vite will try to resolve it during dev transforms and throw 500s.

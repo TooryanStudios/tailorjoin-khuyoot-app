@@ -566,28 +566,9 @@ const MontLandingPage = () => {
         </div>
       </section>
 
-      {/* --- TRY-ON & BEST TAILORS SECTION --- */}
+      {/* --- BEST TAILORS SECTION --- */}
       <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
-          
-          {/* Try-On Feature Block - 30% */}
-          <div className="w-full md:w-[30%] bg-white rounded-3xl p-6 md:p-16 flex flex-col justify-center border-2 border-dashed border-[var(--theme-border)]">
-            <div className="space-y-4 md:space-y-8 text-center md:text-right">
-              <h2 className="text-xl md:text-3xl uppercase leading-[0.85] tracking-tighter" dir="rtl">
-                {config?.promotion?.title || "جرب أقمشتك المفضلة في تصاميمك المحبوبة"}
-              </h2>
-              <button 
-                onClick={() => navigate('/tryon')}
-                className="bg-[var(--theme-primary)] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 md:hover:scale-105 transition-transform w-fit cursor-pointer mx-auto md:mx-0"
-              >
-                {config?.promotion?.buttonText || "جرب الآن"}
-                <ArrowUpRight size={14} className="md:w-4 md:h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Best Tailors Block - 70% */}
-          <div className="w-full md:w-[70%] bg-white rounded-3xl p-6 md:p-16">
+        <div className="bg-white rounded-3xl p-6 md:p-16">
             <div className="space-y-4 md:space-y-6">
               <div className="flex justify-between items-end dir-rtl" dir="rtl">
                 <div>
@@ -603,7 +584,8 @@ const MontLandingPage = () => {
                     { name: 'أحمد العماني', location: 'صلالة', imageUrl: "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400" },
                     { name: 'علي حسن', location: 'صحار', imageUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400" },
                     { name: 'خالد سعيد', location: 'نزوى', imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400" }
-                  ]).slice(0, 4).map((tailor: any, idx: number) => (
+                  ]
+                ).filter((t: any) => t.enabled !== false).slice(0, 4).map((tailor: any, idx: number) => (
                   <div key={`${genderFilter}-${idx}`} className="aspect-[4/5] md:aspect-square bg-zinc-100 rounded-2xl overflow-hidden cursor-pointer relative group">
                     <img 
                       src={tailor.imageUrl || tailor.image} 
@@ -620,8 +602,6 @@ const MontLandingPage = () => {
               </div>
             </div>
           </div>
-
-        </div>
       </section>
 
       {/* --- REGIONS STATS --- */}
@@ -708,7 +688,7 @@ const MontLandingPage = () => {
             </div>
             
             <div className="flex-1 grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
-              {(genderFilter === 'female' ? config?.female?.categories?.largeCat1?.imageUrl : config?.male?.categories?.largeCat1?.imageUrl) && (
+              {(genderFilter === 'female' ? config?.female?.categories?.largeCat1?.imageUrl : config?.male?.categories?.largeCat1?.imageUrl) && (genderFilter === 'female' ? config?.female?.categories?.largeCat1?.enabled : config?.male?.categories?.largeCat1?.enabled) !== false && (
                 <div className="relative md:col-span-2 h-[200px] md:h-[300px] rounded-2xl overflow-hidden group cursor-pointer" onClick={() => handleCategoryClick(
                   (genderFilter === 'female' ? config?.female?.categories?.largeCat1?.label : config?.male?.categories?.largeCat1?.label),
                   (genderFilter === 'female' ? config?.female?.categories?.largeCat1?.path : config?.male?.categories?.largeCat1?.path)
@@ -724,7 +704,7 @@ const MontLandingPage = () => {
                   </div>
                 </div>
               )}
-              {(genderFilter === 'female' ? config?.female?.categories?.largeCat2?.imageUrl : config?.male?.categories?.largeCat2?.imageUrl) && (
+              {(genderFilter === 'female' ? config?.female?.categories?.largeCat2?.imageUrl : config?.male?.categories?.largeCat2?.imageUrl) && (genderFilter === 'female' ? config?.female?.categories?.largeCat2?.enabled : config?.male?.categories?.largeCat2?.enabled) !== false && (
                 <div className="h-[200px] md:h-[300px] rounded-2xl overflow-hidden relative group cursor-pointer" onClick={() => handleCategoryClick(
                   (genderFilter === 'female' ? config?.female?.categories?.largeCat2?.label : config?.male?.categories?.largeCat2?.label),
                   (genderFilter === 'female' ? config?.female?.categories?.largeCat2?.path : config?.male?.categories?.largeCat2?.path)
@@ -744,7 +724,7 @@ const MontLandingPage = () => {
           {/* --- MORE CATEGORIES --- */}
           <div className="flex md:grid md:grid-cols-4 gap-3 md:gap-4 overflow-x-auto no-scrollbar snap-x snap-mandatory -mx-6 px-6 md:mx-0 md:px-0">
             {((genderFilter === 'female' ? config?.female?.categories?.smallCats : config?.male?.categories?.smallCats) || [])
-              .filter((cat: any) => cat.imageUrl || cat.image)
+              .filter((cat: any) => (cat.imageUrl || cat.image) && cat.enabled !== false)
               .map((cat: any, idx: number) => (
                 <div key={`${genderFilter}-smcat-${idx}`} className="shrink-0 w-[140px] md:w-auto snap-center relative h-[140px] md:h-[200px] rounded-2xl overflow-hidden group cursor-pointer" onClick={() => handleCategoryClick(cat.label, cat.path)}>
                   <img src={cat.imageUrl || cat.image} className="w-full h-full object-cover md:group-hover:scale-110 transition-transform duration-500" alt={cat.label} />

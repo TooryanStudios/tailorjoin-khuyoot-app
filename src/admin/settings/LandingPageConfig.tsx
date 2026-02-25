@@ -28,12 +28,14 @@ interface TailorInfo {
   name: string;
   location: string;
   imageUrl: string;
+  enabled?: boolean;
 }
 
 interface CategoryCard {
   label: string;
   imageUrl: string;
   path?: string;
+  enabled?: boolean;
 }
 
 interface PromotionSection {
@@ -478,6 +480,62 @@ export const LandingPageConfig: React.FC = () => {
     });
   };
 
+  const addTailor = () => {
+    const newTailor: TailorInfo = { tailorId: '', name: 'خياط جديد', location: '', imageUrl: '', enabled: true };
+    setConfig(prev => ({
+      ...prev,
+      [activeGender]: {
+        ...prev[activeGender],
+        bestTailors: [...prev[activeGender].bestTailors, newTailor]
+      }
+    }));
+  };
+
+  const removeTailor = (index: number) => {
+    setConfig(prev => ({
+      ...prev,
+      [activeGender]: {
+        ...prev[activeGender],
+        bestTailors: prev[activeGender].bestTailors.filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const toggleTailorEnabled = (index: number) => {
+    const updated = [...config[activeGender].bestTailors];
+    updated[index] = { ...updated[index], enabled: !(updated[index].enabled ?? true) };
+    setConfig(prev => ({
+      ...prev,
+      [activeGender]: { ...prev[activeGender], bestTailors: updated }
+    }));
+  };
+
+  const toggleLargeCatEnabled = (key: 'largeCat1' | 'largeCat2') => {
+    const cat = config[activeGender].categories[key];
+    setConfig(prev => ({
+      ...prev,
+      [activeGender]: {
+        ...prev[activeGender],
+        categories: {
+          ...prev[activeGender].categories,
+          [key]: { ...cat, enabled: !(cat.enabled ?? true) }
+        }
+      }
+    }));
+  };
+
+  const toggleSmallCatEnabled = (index: number) => {
+    const newCats = [...config[activeGender].categories.smallCats];
+    newCats[index] = { ...newCats[index], enabled: !(newCats[index].enabled ?? true) };
+    setConfig(prev => ({
+      ...prev,
+      [activeGender]: {
+        ...prev[activeGender],
+        categories: { ...prev[activeGender].categories, smallCats: newCats }
+      }
+    }));
+  };
+
   const handleCategorySelect = (catKey: 'largeCat1' | 'largeCat2', categoryId: string) => {
     const category = productCategories.find(c => c.id === categoryId);
     if (!category) return;
@@ -769,14 +827,27 @@ export const LandingPageConfig: React.FC = () => {
             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-4 duration-500">
               {/* Best Tailors - Compact */}
               <div className="bg-white dark:bg-zinc-900 rounded-3xl p-8 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-3">
-                <div className="flex items-center gap-2 border-b border-zinc-50 dark:border-zinc-800 pb-4">
-                  <span className="w-1.5 h-1.5 rounded-full bg-theme-primary"></span>
-                  <h3 className="text-sm font-normal uppercase tracking-tighter">أفضل الخياطين المرشحين</h3>
+                <div className="flex items-center justify-between border-b border-zinc-50 dark:border-zinc-800 pb-4">
+                  <div className="flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 rounded-full bg-theme-primary"></span>
+                    <h3 className="text-sm font-normal uppercase tracking-tighter">أفضل الخياطين المرشحين</h3>
+                  </div>
+                  <button
+                    onClick={addTailor}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-theme-primary text-white rounded-xl text-[10px] font-normal hover:opacity-90 transition-opacity"
+                  >
+                    <Plus size={12} />
+                    إضافة خياط
+                  </button>
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {config[activeGender].bestTailors.map((tailor, index) => (
-                    <div key={index} className="flex items-center gap-4 p-4 rounded-3xl bg-zinc-50 dark:bg-zinc-800/50 border-[1.5px] border-black/10 dark:border-white/10 group hover:border-theme-primary/30 transition-all">
+                    <div key={index} className={`flex items-center gap-4 p-4 rounded-3xl border-[1.5px] transition-all ${
+                      (tailor.enabled ?? true)
+                        ? 'bg-zinc-50 dark:bg-zinc-800/50 border-black/10 dark:border-white/10 hover:border-theme-primary/30'
+                        : 'bg-zinc-100/50 dark:bg-zinc-800/20 border-dashed border-black/10 dark:border-white/10 opacity-50'
+                    }`}>
                       <CompactImage 
                         url={tailor.imageUrl}
                         onClear={() => {
@@ -814,6 +885,27 @@ export const LandingPageConfig: React.FC = () => {
                            </button>
                         </div>
                       </div>
+                      {/* Actions */}
+                      <div className="flex flex-col gap-1.5 shrink-0">
+                        <button
+                          onClick={() => toggleTailorEnabled(index)}
+                          title={(tailor.enabled ?? true) ? 'تعطيل' : 'تفعيل'}
+                          className={`p-1.5 rounded-lg transition-colors ${
+                            (tailor.enabled ?? true)
+                              ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200'
+                              : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 hover:bg-zinc-300'
+                          }`}
+                        >
+                          {(tailor.enabled ?? true) ? <Eye size={12} /> : <EyeOff size={12} />}
+                        </button>
+                        <button
+                          onClick={() => removeTailor(index)}
+                          title="حذف"
+                          className="p-1.5 rounded-lg bg-red-100 dark:bg-red-900/30 text-red-500 dark:text-red-400 hover:bg-red-200 transition-colors"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -829,10 +921,15 @@ export const LandingPageConfig: React.FC = () => {
                 <div className="space-y-3">
                   {/* Large Categories */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                     {['largeCat1', 'largeCat2'].map((key) => {
-                       const cat = config[activeGender].categories[key as 'largeCat1' | 'largeCat2'];
+                     {(['largeCat1', 'largeCat2'] as const).map((key) => {
+                       const cat = config[activeGender].categories[key];
+                       const isEnabled = cat.enabled ?? true;
                        return (
-                        <div key={key} className="flex items-center gap-4 p-3 bg-zinc-50 dark:bg-zinc-800/50 rounded-2xl border-[1.5px] border-black/10 dark:border-white/10">
+                        <div key={key} className={`flex items-center gap-4 p-3 rounded-2xl border-[1.5px] transition-all ${
+                          isEnabled
+                            ? 'bg-zinc-50 dark:bg-zinc-800/50 border-black/10 dark:border-white/10'
+                            : 'bg-zinc-100/50 dark:bg-zinc-800/20 border-dashed border-black/10 dark:border-white/10 opacity-50'
+                        }`}>
                           <CompactImage 
                             url={cat.imageUrl}
                             onClear={() => clearImage(`${activeGender}.categories.${key}`)}
@@ -841,7 +938,7 @@ export const LandingPageConfig: React.FC = () => {
                           />
                           <div className="flex-1 space-y-1">
                             <select
-                              onChange={(e) => handleCategorySelect(key as 'largeCat1' | 'largeCat2', e.target.value)}
+                              onChange={(e) => handleCategorySelect(key, e.target.value)}
                               className="w-full bg-transparent border-none text-[10px] font-normal uppercase text-zinc-400 focus:ring-0 cursor-pointer"
                             >
                               <option value="">تغيير التصنيف ({cat.label})</option>
@@ -857,6 +954,17 @@ export const LandingPageConfig: React.FC = () => {
                               className="w-full bg-white dark:bg-zinc-900 rounded-lg px-2 py-1 text-xs font-normal border-none outline-none"
                             />
                           </div>
+                          <button
+                            onClick={() => toggleLargeCatEnabled(key)}
+                            title={isEnabled ? 'تعطيل' : 'تفعيل'}
+                            className={`p-1.5 rounded-lg shrink-0 transition-colors ${
+                              isEnabled
+                                ? 'bg-green-100 dark:bg-green-900/30 text-green-600 dark:text-green-400 hover:bg-green-200'
+                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 hover:bg-zinc-300'
+                            }`}
+                          >
+                            {isEnabled ? <Eye size={12} /> : <EyeOff size={12} />}
+                          </button>
                         </div>
                        )
                      })}
@@ -864,15 +972,35 @@ export const LandingPageConfig: React.FC = () => {
 
                   {/* Small Categories Grid */}
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                    {config[activeGender].categories.smallCats.map((cat, index) => (
-                      <div key={index} className="flex flex-col items-center p-3 bg-zinc-50 dark:bg-zinc-800 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 space-y-3">
-                        <CompactImage 
-                          url={cat.imageUrl}
-                          onClear={() => clearImage(`${activeGender}.categories.smallCats.${index}`)}
-                          onUpload={(file) => handleImageUpload(file, `${activeGender}.categories.smallCats.${index}`)}
-                          uploading={uploadingImage === `${activeGender}.categories.smallCats.${index}`}
-                          className="w-full aspect-square h-auto"
-                        />
+                    {config[activeGender].categories.smallCats.map((cat, index) => {
+                      const isEnabled = cat.enabled ?? true;
+                      return (
+                      <div key={index} className={`flex flex-col items-center p-3 rounded-3xl border-[1.5px] space-y-3 transition-all ${
+                        isEnabled
+                          ? 'bg-zinc-50 dark:bg-zinc-800 border-black/10 dark:border-white/10'
+                          : 'bg-zinc-100/50 dark:bg-zinc-800/20 border-dashed border-black/10 dark:border-white/10 opacity-50'
+                      }`}>
+                        <div className="relative w-full">
+                          <CompactImage 
+                            url={cat.imageUrl}
+                            onClear={() => clearImage(`${activeGender}.categories.smallCats.${index}`)}
+                            onUpload={(file) => handleImageUpload(file, `${activeGender}.categories.smallCats.${index}`)}
+                            uploading={uploadingImage === `${activeGender}.categories.smallCats.${index}`}
+                            className="w-full aspect-square h-auto"
+                          />
+                          {/* Enable/disable badge on image */}
+                          <button
+                            onClick={() => toggleSmallCatEnabled(index)}
+                            title={isEnabled ? 'تعطيل' : 'تفعيل'}
+                            className={`absolute top-1 right-1 p-1 rounded-lg transition-colors shadow-sm ${
+                              isEnabled
+                                ? 'bg-green-100 dark:bg-green-900/60 text-green-600 dark:text-green-400 hover:bg-green-200'
+                                : 'bg-zinc-200 dark:bg-zinc-700 text-zinc-400 hover:bg-zinc-300'
+                            }`}
+                          >
+                            {isEnabled ? <Eye size={10} /> : <EyeOff size={10} />}
+                          </button>
+                        </div>
                         <div className="w-full space-y-1">
                           <select
                             onChange={(e) => handleSmallCategorySelect(index, e.target.value)}
@@ -893,7 +1021,7 @@ export const LandingPageConfig: React.FC = () => {
                           />
                         </div>
                       </div>
-                    ))}
+                    )})}
                   </div>
                 </div>
               </div>
