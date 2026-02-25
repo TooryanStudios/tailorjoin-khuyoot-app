@@ -567,8 +567,8 @@ const MontLandingPage = () => {
       </section>
 
       {/* --- BEST TAILORS SECTION --- */}
-      <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
-        <div className="bg-white rounded-3xl p-6 md:p-16">
+      <section className="px-2 md:px-8 py-1 max-w-[1400px] mx-auto">
+        <div className="bg-white rounded-3xl px-6 py-4 md:px-16 md:py-8">
             <div className="space-y-4 md:space-y-6">
               <div className="flex justify-between items-end dir-rtl" dir="rtl">
                 <div>
