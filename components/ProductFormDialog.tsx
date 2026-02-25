@@ -575,6 +575,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
             )}
           </div>
 
+          </div>
           <LightboxPortal />
 
           {/* Footer - Sticky */}

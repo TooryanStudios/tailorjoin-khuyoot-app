@@ -483,6 +483,13 @@ export const UsersManagement = () => {
       
       // Save to database in background
       await firebaseService.updateUser(selectedUser.id, cleanedData);
+
+      // Bust the localStorage profile cache for this user so updated
+      // adminAccess/adminPermissions are reflected on their next page load
+      // without requiring a full logout-login cycle.
+      try {
+        localStorage.removeItem(`khuyoot:user-profile:${selectedUser.id}`);
+      } catch (_) {}
       
       // Invalidate React Query caches for home page data
       queryClient.invalidateQueries({ queryKey: ['home-popular-regions'] });

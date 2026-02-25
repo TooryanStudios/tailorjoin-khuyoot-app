@@ -566,6 +566,64 @@ const MontLandingPage = () => {
         </div>
       </section>
 
+      {/* --- TRY-ON & BEST TAILORS SECTION --- */}
+      <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
+        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
+          
+          {/* Try-On Feature Block - 30% */}
+          <div className="w-full md:w-[30%] bg-white rounded-3xl p-6 md:p-16 flex flex-col justify-center border-2 border-dashed border-[var(--theme-border)]">
+            <div className="space-y-4 md:space-y-8 text-center md:text-right">
+              <h2 className="text-xl md:text-3xl uppercase leading-[0.85] tracking-tighter" dir="rtl">
+                {config?.promotion?.title || "جرب أقمشتك المفضلة في تصاميمك المحبوبة"}
+              </h2>
+              <button 
+                onClick={() => navigate('/tryon')}
+                className="bg-[var(--theme-primary)] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 md:hover:scale-105 transition-transform w-fit cursor-pointer mx-auto md:mx-0"
+              >
+                {config?.promotion?.buttonText || "جرب الآن"}
+                <ArrowUpRight size={14} className="md:w-4 md:h-4" />
+              </button>
+            </div>
+          </div>
+
+          {/* Best Tailors Block - 70% */}
+          <div className="w-full md:w-[70%] bg-white rounded-3xl p-6 md:p-16">
+            <div className="space-y-4 md:space-y-6">
+              <div className="flex justify-between items-end dir-rtl" dir="rtl">
+                <div>
+                  <h2 className="text-xl md:text-2xl uppercase mb-1">أفضل الخياطين</h2>
+                  <p className="hidden md:block text-zinc-400 text-xs md:text-sm font-medium">بناءً على تقييمات المستخدمين</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-4 md:grid-cols-4 gap-2 md:gap-4 min-h-[80px] md:min-h-[150px]">
+                {(genderFilter === 'all' ? config?.male?.bestTailors || config?.bestTailors : 
+                  genderFilter === 'male' ? config?.male?.bestTailors : config?.female?.bestTailors || 
+                  [
+                    { name: 'محمد الخياط', location: 'مسقط', imageUrl: "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=400" },
+                    { name: 'أحمد العماني', location: 'صلالة', imageUrl: "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400" },
+                    { name: 'علي حسن', location: 'صحار', imageUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400" },
+                    { name: 'خالد سعيد', location: 'نزوى', imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400" }
+                  ]).slice(0, 4).map((tailor: any, idx: number) => (
+                  <div key={`${genderFilter}-${idx}`} className="aspect-[4/5] md:aspect-square bg-zinc-100 rounded-2xl overflow-hidden cursor-pointer relative group">
+                    <img 
+                      src={tailor.imageUrl || tailor.image} 
+                      className="w-full h-full object-cover md:group-hover:scale-110 transition-transform duration-300" 
+                      alt={tailor.name}
+                      loading="eager"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-2 md:p-4">
+                      <h3 className="text-white text-[10px] md:text-sm truncate">{tailor.name}</h3>
+                      <p className="text-white/70 text-[8px] md:text-xs truncate">{tailor.location}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </section>
+
       {/* --- REGIONS STATS --- */}
       <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
         <div className="text-zinc-900 rounded-3xl p-4 md:p-16 relative overflow-hidden" dir="rtl" style={{ backgroundColor: effectiveTheme.faint }}>
@@ -623,64 +681,6 @@ const MontLandingPage = () => {
                  ))}
               </div>
            </div>
-        </div>
-      </section>
-
-      {/* --- TRY-ON & BEST TAILORS SECTION --- */}
-      <section className="px-2 md:px-8 py-2 max-w-[1400px] mx-auto">
-        <div className="flex flex-col md:flex-row gap-3 md:gap-4">
-          
-          {/* Try-On Feature Block - 30% */}
-          <div className="w-full md:w-[30%] bg-white rounded-3xl p-6 md:p-16 flex flex-col justify-center border-2 border-dashed border-[var(--theme-border)]">
-            <div className="space-y-4 md:space-y-8 text-center md:text-right">
-              <h2 className="text-xl md:text-3xl uppercase leading-[0.85] tracking-tighter" dir="rtl">
-                {config?.promotion?.title || "جرب أقمشتك المفضلة في تصاميمك المحبوبة"}
-              </h2>
-              <button 
-                onClick={() => navigate('/tryon')}
-                className="bg-[var(--theme-primary)] text-white px-6 md:px-8 py-2.5 md:py-3 rounded-full text-xs md:text-sm uppercase tracking-widest flex items-center gap-2 md:hover:scale-105 transition-transform w-fit cursor-pointer mx-auto md:mx-0"
-              >
-                {config?.promotion?.buttonText || "جرب الآن"}
-                <ArrowUpRight size={14} className="md:w-4 md:h-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Best Tailors Block - 70% */}
-          <div className="w-full md:w-[70%] bg-white rounded-3xl p-6 md:p-16">
-            <div className="space-y-4 md:space-y-6">
-              <div className="flex justify-between items-end dir-rtl" dir="rtl">
-                <div>
-                  <h2 className="text-xl md:text-2xl uppercase mb-1">أفضل الخياطين</h2>
-                  <p className="hidden md:block text-zinc-400 text-xs md:text-sm font-medium">بناءً على تقييمات المستخدمين</p>
-                </div>
-              </div>
-              <div className="grid grid-cols-4 md:grid-cols-4 gap-2 md:gap-4 min-h-[80px] md:min-h-[150px]">
-                {(genderFilter === 'all' ? config?.male?.bestTailors || config?.bestTailors : 
-                  genderFilter === 'male' ? config?.male?.bestTailors : config?.female?.bestTailors || 
-                  [
-                    { name: 'محمد الخياط', location: 'مسقط', imageUrl: "https://images.unsplash.com/photo-1507680434567-5739c80be1ac?w=400" },
-                    { name: 'أحمد العماني', location: 'صلالة', imageUrl: "https://images.unsplash.com/photo-1515372039744-b8f02a3ae446?w=400" },
-                    { name: 'علي حسن', location: 'صحار', imageUrl: "https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?w=400" },
-                    { name: 'خالد سعيد', location: 'نزوى', imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400" }
-                  ]).slice(0, 4).map((tailor: any, idx: number) => (
-                  <div key={`${genderFilter}-${idx}`} className="aspect-[4/5] md:aspect-square bg-zinc-100 rounded-2xl overflow-hidden cursor-pointer relative group">
-                    <img 
-                      src={tailor.imageUrl || tailor.image} 
-                      className="w-full h-full object-cover md:group-hover:scale-110 transition-transform duration-300" 
-                      alt={tailor.name}
-                      loading="eager"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent flex flex-col justify-end p-2 md:p-4">
-                      <h3 className="text-white text-[10px] md:text-sm truncate">{tailor.name}</h3>
-                      <p className="text-white/70 text-[8px] md:text-xs truncate">{tailor.location}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
         </div>
       </section>
 
