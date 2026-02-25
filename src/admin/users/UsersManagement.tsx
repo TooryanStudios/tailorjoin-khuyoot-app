@@ -255,6 +255,12 @@ export const UsersManagement = () => {
         // already switched sourceUsers above
       } else if (roleFilter === 'limited_admin') {
         filtered = filtered.filter((u: any) => isLimitedAdminUser(u));
+      } else if (roleFilter === 'customer') {
+        // 'customer' is the normalized role; also match legacy 'user' role
+        filtered = filtered.filter(u => u.role === 'customer' || u.role === 'user');
+      } else if (roleFilter === 'shop') {
+        // 'shop' role gets normalized to 'tailor' by applyUserDefaults; use shopType to distinguish
+        filtered = filtered.filter((u: any) => u.role === 'shop' || (u.role === 'tailor' && (u.shopType === 'shop' || u.shopType === 'boutique')));
       } else {
         filtered = filtered.filter(u => u.role === roleFilter);
       }
@@ -1293,7 +1299,7 @@ export const UsersManagement = () => {
             title="تصفية المستخدمين حسب الدور"
           >
             <option value="all">جميع المستخدمين</option>
-            <option value="user">مستخدمين عاديين</option>
+            <option value="customer">مستخدمين عاديين</option>
             <option value="tailor">خياطين</option>
             <option value="shop">محلات تجارية</option>
             <option value="admin">مدراء</option>
