@@ -3,6 +3,7 @@ import { Order, Tailor } from '../../types';
 import { X, FileText, Ruler, ExternalLink, Eye, ArrowRight } from 'lucide-react';
 import { TailorSelectionModal } from './TailorSelectionModal';
 import { firebaseService } from '../../services/firebase';
+import { useImageLightbox } from '../../components/ImageLightbox';
 
 interface OrderDetailsContextType {
   showOrderDetails: (order: Order) => void;
@@ -29,6 +30,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
   const [order, setOrder] = useState<Order | null>(null);
   const [isOpen, setIsOpen] = useState(false);
   const [showTailorSelection, setShowTailorSelection] = useState(false);
+  const { openLightbox, LightboxPortal } = useImageLightbox();
 
   const showOrderDetails = (orderData: Order) => {
     setOrder(orderData);
@@ -153,10 +155,13 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
             <>
             {/* Product Info */}
             <div className="mb-6 flex gap-4 p-4 bg-slate-50 rounded-lg">
-              <div className="w-24 h-28 bg-white rounded-lg border border-slate-200 overflow-hidden shrink-0">
+              <div
+                className="w-24 h-28 bg-white rounded-lg border border-slate-200 overflow-hidden shrink-0 cursor-pointer"
+                onClick={() => order.productImage && openLightbox([order.productImage], 0)}
+              >
                 <img 
                   src={order.productImage} 
-                  className="w-full h-full object-cover" 
+                  className="w-full h-full object-cover hover:scale-105 transition-transform duration-200" 
                   alt={order.productName} 
                 />
               </div>
@@ -291,6 +296,7 @@ export const OrderDetailsProvider: React.FC<OrderDetailsProviderProps> = ({ chil
           </div>
         </div>
       )}
+      <LightboxPortal />
     </OrderDetailsContext.Provider>
   );
 };
