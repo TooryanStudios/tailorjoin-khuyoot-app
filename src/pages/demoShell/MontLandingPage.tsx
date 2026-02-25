@@ -586,7 +586,7 @@ const MontLandingPage = () => {
                     { name: 'خالد سعيد', location: 'نزوى', imageUrl: "https://images.unsplash.com/photo-1500648767791-00dcc994a43e?w=400" }
                   ]
                 ).filter((t: any) => t.enabled !== false).slice(0, 4).map((tailor: any, idx: number) => (
-                  <div key={`${genderFilter}-${idx}`} className="aspect-[4/5] md:aspect-square bg-zinc-100 rounded-2xl overflow-hidden cursor-pointer relative group">
+                  <div key={`${genderFilter}-${idx}`} onClick={() => tailor.tailorId && navigate(`/tailor/${tailor.tailorId}`)} className="aspect-[4/5] md:aspect-square bg-zinc-100 rounded-2xl overflow-hidden cursor-pointer relative group">
                     <img 
                       src={tailor.imageUrl || tailor.image} 
                       className="w-full h-full object-cover md:group-hover:scale-110 transition-transform duration-300" 
