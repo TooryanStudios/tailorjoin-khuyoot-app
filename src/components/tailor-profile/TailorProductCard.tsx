@@ -127,6 +127,7 @@ export const TailorProductCard = React.memo(function TailorProductCard({
 
    // Grid / Compact View - Matches Home Page "Trends" Design
    return (
+      <>
       <div 
         className="cursor-pointer group h-full flex flex-col" 
         onClick={onClick}
@@ -233,5 +234,6 @@ export const TailorProductCard = React.memo(function TailorProductCard({
       </div>
 
       <LightboxPortal />
+      </>
    );
 });
