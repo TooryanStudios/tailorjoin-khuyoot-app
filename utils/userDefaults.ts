@@ -89,7 +89,13 @@ export function applyUserDefaults(rawUser: any, docId: string): UserProfile {
     role === 'tailor'
       ? applyTailorDefaults(rawUser, base as any)
       : role === 'admin'
-        ? (base as any)
+        ? {
+            ...(base as any),
+            // Preserve admin access/permission fields — these are NOT in UserBase
+            // and must be forwarded from raw Firestore data so isLimitedAdminUser() works
+            ...(rawUser.adminAccess !== undefined ? { adminAccess: rawUser.adminAccess } : {}),
+            ...(rawUser.adminPermissions !== undefined ? { adminPermissions: rawUser.adminPermissions } : {}),
+          }
         : applyCustomerDefaults(rawUser, base as any);
 
   const billingTier =
