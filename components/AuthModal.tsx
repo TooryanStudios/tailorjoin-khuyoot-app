@@ -1,21 +1,30 @@
 ﻿import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { X, Mail, Lock, Phone, Eye, EyeOff, CheckCircle } from 'lucide-react';
+import { X, Mail, Lock, Phone, Eye, EyeOff, CheckCircle, User as UserIcon } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { UserRole } from '../types';
 import { firebaseService } from '../services/firebase';
 import { getAuthPromptEventName } from '../src/auth/authEvents';
 
-//  helpers 
+// ─── helpers ────────────────────────────────────────────────────────────────
 
-type View = 'sign-in' | 'complete-profile';
+type View = 'sign-in' | 'register' | 'complete-profile';
 
+/**
+ * Only show the completion step for genuinely new/incomplete users.
+ * Respect the `profileCompleted` flag that loginWithGoogle already computed
+ * from Firestore — so existing users with orders are never interrupted.
+ */
 const needsProfileCompletion = (u: any): boolean => {
-  const phone = String(u?.phone || u?.phoneNumber || '').trim();
-  const gender = String(u?.gender || '').toLowerCase();
-  return !phone || !gender || gender === 'not_specified';
+  // Firebase service sets this after reading Firestore data
+  if (u?.profileCompleted === true) return false;
+  if (u?.profileCompleted === false) return true;
+  // Fallback for cases where flag is absent: only require phone
+  const phone = String(u?.phone || u?.phoneNumber || u?.contactNumber || '').trim();
+  return !phone;
 };
 
-//  component 
+// ─── component ──────────────────────────────────────────────────────────────
 
 export const AuthModal = () => {
   const {
@@ -23,62 +32,74 @@ export const AuthModal = () => {
     toggleAuthModal,
     login,
     loginWithGoogle,
+    register,
     refreshUser,
     user,
+    appSettings,
   } = useApp();
+
+  const allowRegistrations = (appSettings as any)?.allowNewRegistrations !== false;
 
   const [view, setView] = useState<View>('sign-in');
 
-  // Sign-in form
+  // ── sign-in state ──
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [isRedirecting, setIsRedirecting] = useState(false);
 
-  // Complete-profile form
-  const [gender, setGender] = useState<'male' | 'female' | ''>('');
-  const [role, setRole] = useState<'user' | 'tailor'>('user');
-  const [phone, setPhone] = useState('');
-  const [profileLoading, setProfileLoading] = useState(false);
-  const [profileError, setProfileError] = useState('');
+  // ── register state ──
+  const [regName, setRegName] = useState('');
+  const [regEmail, setRegEmail] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [regShowPassword, setRegShowPassword] = useState(false);
+  const [regRole, setRegRole] = useState<'user' | 'tailor'>('user');
+  const [regGender, setRegGender] = useState<'male' | 'female' | ''>('');
+  const [regPhone, setRegPhone] = useState('');
+  const [regLoading, setRegLoading] = useState(false);
+  const [regError, setRegError] = useState('');
 
-  // After email login, watch user changes to decide whether to show completion step
+  // ── complete-profile state ──
+  const [cpGender, setCpGender] = useState<'male' | 'female' | ''>('');
+  const [cpRole, setCpRole] = useState<'user' | 'tailor'>('user');
+  const [cpPhone, setCpPhone] = useState('');
+  const [cpLoading, setCpLoading] = useState(false);
+  const [cpError, setCpError] = useState('');
+
+  // After email login, watch user to decide whether to show completion step
   const [pendingCheck, setPendingCheck] = useState(false);
 
   const isOpenRef = React.useRef(false);
   useEffect(() => { isOpenRef.current = isAuthModalOpen; }, [isAuthModalOpen]);
 
-  // Reset when modal closes
+  // Reset everything when modal closes
   useEffect(() => {
     if (!isAuthModalOpen) {
       setView('sign-in');
-      setEmail('');
-      setPassword('');
-      setError('');
-      setLoading(false);
-      setGender('');
-      setRole('user');
-      setPhone('');
-      setProfileError('');
+      setEmail(''); setPassword(''); setError(''); setLoading(false); setIsRedirecting(false);
+      setRegName(''); setRegEmail(''); setRegPassword(''); setRegRole('user');
+      setRegGender(''); setRegPhone(''); setRegLoading(false); setRegError('');
+      setCpGender(''); setCpRole('user'); setCpPhone(''); setCpLoading(false); setCpError('');
       setPendingCheck(false);
     }
   }, [isAuthModalOpen]);
 
-  // After email login, check profile once user is populated
+  // After email login completes, check if profile is needed
   useEffect(() => {
     if (!pendingCheck || !user) return;
     setPendingCheck(false);
     if (needsProfileCompletion(user)) {
-      const existing = (user as any)?.phone || (user as any)?.phoneNumber || '';
-      if (existing) setPhone(String(existing));
+      const existing = String((user as any)?.phone || (user as any)?.phoneNumber || '');
+      if (existing) setCpPhone(existing);
       setView('complete-profile');
     } else {
       toggleAuthModal(false);
     }
   }, [user, pendingCheck, toggleAuthModal]);
 
-  // Listen for programmatic open events (from other parts of the app)
+  // Listen for programmatic open events
   useEffect(() => {
     const handle = (e: Event) => {
       const reason = String((e as CustomEvent)?.detail?.reason || '').toLowerCase();
@@ -93,7 +114,7 @@ export const AuthModal = () => {
     };
   }, [toggleAuthModal]);
 
-  //  handlers 
+  // ── handlers ──────────────────────────────────────────────────────────────
 
   const handleEmailLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -107,9 +128,9 @@ export const AuthModal = () => {
       if (code === 'auth/user-not-found' || code === 'auth/invalid-credential' || code === 'auth/wrong-password') {
         setError('البريد الإلكتروني أو كلمة المرور غير صحيحة.');
       } else if (code === 'auth/too-many-requests') {
-        setError('تم تعليق الحساب مؤقتا بسبب المحاولات المتكررة. حاول لاحقا.');
+        setError('تم تعليق الحساب مؤقتاً. حاول لاحقاً.');
       } else if (code === 'auth/network-request-failed') {
-        setError('تعذر الاتصال. تحقق من إعدادات الشبكة أو مانع الإعلانات.');
+        setError('تعذر الاتصال. تحقق من الشبكة أو مانع الإعلانات.');
       } else {
         setError(err?.message || 'فشل تسجيل الدخول.');
       }
@@ -118,8 +139,6 @@ export const AuthModal = () => {
     }
   };
 
-  const [isRedirecting, setIsRedirecting] = React.useState(false);
-
   const handleGoogleLogin = async () => {
     if (loading) return;
     setError('');
@@ -127,8 +146,8 @@ export const AuthModal = () => {
     try {
       const googleUser = await loginWithGoogle();
       if (needsProfileCompletion(googleUser)) {
-        const existing = (googleUser as any)?.phone || (googleUser as any)?.phoneNumber || '';
-        if (existing) setPhone(String(existing));
+        const existing = String((googleUser as any)?.phone || (googleUser as any)?.phoneNumber || '');
+        if (existing) setCpPhone(existing);
         setView('complete-profile');
       } else {
         toggleAuthModal(false);
@@ -136,66 +155,88 @@ export const AuthModal = () => {
     } catch (err: any) {
       const code = String(err?.code || '');
       if (code === 'auth/redirect-initiated') {
-        // Page is about to navigate away for redirect auth — show loading state
-        // Don't reset loading so the spinner stays while page transitions
         setIsRedirecting(true);
         return;
       } else if (code === 'auth/popup-blocked') {
-        // Shouldn't reach here (redirect fallback handles it), but just in case
-        setError('يتم تحويلك إلى Google لإتمام تسجيل الدخول...');
+        setError('يتم تحويلك إلى Google...');
       } else if (code !== 'auth/popup-closed-by-user' && code !== 'auth/cancelled-popup-request') {
         setError(err?.message || 'فشل تسجيل الدخول بواسطة Google.');
       }
     } finally {
-      // Don't clear loading if redirect is in progress
-      setLoading((prev) => prev && document.visibilityState === 'hidden' ? prev : false);
+      if (!isRedirecting) setLoading(false);
+    }
+  };
+
+  const handleRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!regGender) { setRegError('يرجى اختيار الجنس.'); return; }
+    setRegError('');
+    setRegLoading(true);
+    try {
+      const merchantInfo: any = {
+        phone: regPhone.replace(/\s+/g, '').trim(),
+        gender: regGender,
+      };
+      await register(regEmail, regPassword, regName, regRole as UserRole, merchantInfo);
+      toggleAuthModal(false);
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      if (code === 'auth/email-already-in-use') {
+        setRegError('هذا البريد الإلكتروني مسجّل مسبقاً. سجّل دخولك بدلاً من ذلك.');
+      } else if (code === 'auth/weak-password') {
+        setRegError('كلمة المرور ضعيفة جداً. استخدم 6 أحرف على الأقل.');
+      } else {
+        setRegError(err?.message || 'فشل إنشاء الحساب.');
+      }
+    } finally {
+      setRegLoading(false);
     }
   };
 
   const handleSaveProfile = async () => {
-    if (!gender) { setProfileError('يرجى اختيار الجنس.'); return; }
-    if (!phone.trim()) { setProfileError('يرجى إدخال رقم الهاتف.'); return; }
-
-    setProfileLoading(true);
-    setProfileError('');
+    if (!cpGender) { setCpError('يرجى اختيار الجنس.'); return; }
+    if (!cpPhone.trim()) { setCpError('يرجى إدخال رقم الهاتف.'); return; }
+    setCpLoading(true);
+    setCpError('');
     try {
       const uid = (user as any)?.uid || (user as any)?.id;
       if (!uid) throw new Error('No user ID');
-
-      const normalizedPhone = phone.replace(/\s+/g, '').trim();
+      const normalizedPhone = cpPhone.replace(/\s+/g, '').trim();
       await firebaseService.updateUserProfile(uid, {
         phone: normalizedPhone,
         phoneNumber: normalizedPhone,
         contactNumber: normalizedPhone,
-        gender,
-        role: role as any,
+        gender: cpGender,
+        role: cpRole as any,
         profileCompleted: true,
       } as any);
-
       await refreshUser();
       toggleAuthModal(false);
     } catch (err: any) {
-      setProfileError(err?.message || 'فشل حفظ البيانات. حاول مرة أخرى.');
+      setCpError(err?.message || 'فشل حفظ البيانات. حاول مرة أخرى.');
     } finally {
-      setProfileLoading(false);
+      setCpLoading(false);
     }
   };
 
-  //  render 
+  // ── render ─────────────────────────────────────────────────────────────────
 
   if (!isAuthModalOpen) return null;
 
+  const primaryBtn = 'w-full py-3 bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] active:opacity-90 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2';
+
+  const headers: Record<View, { title: string; sub: string }> = {
+    'sign-in':          { title: 'مرحباً بك في خيوط', sub: 'سجّل دخولك للمتابعة' },
+    'register':         { title: 'إنشاء حساب جديد',   sub: 'أنشئ حسابك مجاناً' },
+    'complete-profile': { title: 'أكمل ملفك الشخصي',  sub: 'خطوة أخيرة لإتمام حسابك' },
+  };
+
   return createPortal(
     <div className="fixed inset-0 z-[10000] flex items-center justify-center p-4">
-      {/* backdrop */}
-      <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
-        onClick={() => toggleAuthModal(false)}
-      />
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => toggleAuthModal(false)} />
 
-      {/* card */}
       <div
-        className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200 max-h-[92vh] flex flex-col"
         dir="rtl"
         onClick={(e) => e.stopPropagation()}
       >
@@ -209,37 +250,23 @@ export const AuthModal = () => {
         </button>
 
         {/* header */}
-        <div className="px-6 pt-6 pb-4 text-center border-b border-slate-100 dark:border-slate-800">
+        <div className="px-6 pt-6 pb-4 text-center border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <img src="/logo_big.png" alt="خيوط" className="w-12 h-12 mx-auto mb-3 object-contain" />
-          {view === 'sign-in' ? (
-            <>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                مرحبا بك في خيوط
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                سجل دخولك للمتابعة
-              </p>
-            </>
-          ) : (
-            <>
-              <h2 className="text-lg font-black text-slate-900 dark:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                أكمل ملفك الشخصي
-              </h2>
-              <p className="text-xs text-slate-500 mt-0.5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
-                خطوة أخيرة لإتمام إنشاء حسابك
-              </p>
-            </>
-          )}
+          <h2 className="text-lg font-black text-slate-900 dark:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            {headers[view].title}
+          </h2>
+          <p className="text-xs text-slate-500 mt-0.5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+            {headers[view].sub}
+          </p>
         </div>
 
-        {/* body */}
-        <div className="p-6" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+        {/* scrollable body */}
+        <div className="flex-1 overflow-y-auto p-6" style={{ fontFamily: 'Tajawal, sans-serif' }}>
 
-          {/*  SIGN-IN VIEW  */}
+          {/* ════ SIGN-IN ════ */}
           {view === 'sign-in' && (
             <div className="space-y-4">
-
-              {/* Google button */}
+              {/* Google */}
               <button
                 type="button"
                 onClick={handleGoogleLogin}
@@ -260,114 +287,102 @@ export const AuthModal = () => {
                 ) : 'المتابعة بواسطة Google'}
               </button>
 
-              {/* divider */}
               <div className="flex items-center gap-3">
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
                 <span className="text-xs text-slate-400 font-medium">أو بالبريد الإلكتروني</span>
                 <div className="flex-1 h-px bg-slate-200 dark:bg-slate-700" />
               </div>
 
-              {/* Email / password */}
               <form onSubmit={handleEmailLogin} className="space-y-3">
                 <div className="relative">
                   <Mail className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="البريد الإلكتروني"
-                    required
-                    disabled={loading}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50"
-                  />
+                  <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                    placeholder="البريد الإلكتروني" required disabled={loading}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
                 </div>
-
                 <div className="relative">
                   <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="كلمة المرور"
-                    required
-                    disabled={loading}
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-10 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(v => !v)}
-                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    tabIndex={-1}
-                  >
+                  <input type={showPassword ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+                    placeholder="كلمة المرور" required disabled={loading}
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-10 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
+                  <button type="button" onClick={() => setShowPassword(v => !v)} tabIndex={-1}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
                     {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                   </button>
                 </div>
-
-                {error && (
-                  <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-right">
-                    {error}
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="w-full py-3 bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] active:opacity-90 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                >
-                  {loading && (
-                    <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                  )}
+                {error && <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{error}</div>}
+                <button type="submit" disabled={loading} className={primaryBtn}>
+                  {loading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
                   تسجيل الدخول
                 </button>
               </form>
+
+              {allowRegistrations && (
+                <p className="text-center text-xs text-slate-500">
+                  ليس لديك حساب؟{' '}
+                  <button type="button" onClick={() => setView('register')}
+                    className="font-bold text-[var(--theme-primary)] hover:underline">
+                    أنشئ حساباً
+                  </button>
+                </p>
+              )}
             </div>
           )}
 
-          {/*  COMPLETE PROFILE VIEW  */}
-          {view === 'complete-profile' && (
-            <div className="space-y-5">
-
+          {/* ════ REGISTER ════ */}
+          {view === 'register' && allowRegistrations && (
+            <form onSubmit={handleRegister} className="space-y-3">
+              {/* Name */}
+              <div className="relative">
+                <UserIcon className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                <input type="text" value={regName} onChange={(e) => setRegName(e.target.value)}
+                  placeholder="الاسم الكامل" required disabled={regLoading}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
+              </div>
+              {/* Email */}
+              <div className="relative">
+                <Mail className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                <input type="email" value={regEmail} onChange={(e) => setRegEmail(e.target.value)}
+                  placeholder="البريد الإلكتروني" required disabled={regLoading}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
+              </div>
+              {/* Password */}
+              <div className="relative">
+                <Lock className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                <input type={regShowPassword ? 'text' : 'password'} value={regPassword} onChange={(e) => setRegPassword(e.target.value)}
+                  placeholder="كلمة المرور (6 أحرف على الأقل)" required minLength={6} disabled={regLoading}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-10 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
+                <button type="button" onClick={() => setRegShowPassword(v => !v)} tabIndex={-1}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors">
+                  {regShowPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                </button>
+              </div>
+              {/* Phone */}
+              <div className="relative">
+                <Phone className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
+                <input type="tel" value={regPhone} onChange={(e) => setRegPhone(e.target.value)}
+                  placeholder="رقم الهاتف (اختياري)" disabled={regLoading}
+                  className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all disabled:opacity-50" />
+              </div>
               {/* Gender */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  الجنس <span className="text-red-500">*</span>
-                </label>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">الجنس <span className="text-red-500">*</span></p>
                 <div className="grid grid-cols-2 gap-2">
                   {(['male', 'female'] as const).map((g) => (
-                    <button
-                      key={g}
-                      type="button"
-                      onClick={() => setGender(g)}
-                      className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${
-                        gender === g
-                          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                      }`}
-                    >
-                      {g === 'male' ? ' ذكر' : ' أنثى'}
+                    <button key={g} type="button" onClick={() => setRegGender(g)}
+                      className={`py-2.5 rounded-xl text-sm font-bold border-2 transition-all ${regGender === g ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {g === 'male' ? '👨 ذكر' : '👩 أنثى'}
                     </button>
                   ))}
                 </div>
               </div>
-
               {/* Role */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">أنت</label>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 mb-2">أنت</p>
                 <div className="grid grid-cols-2 gap-2">
-                  {([
-                    { value: 'user', label: ' عميل', desc: 'أبحث عن خياط' },
-                    { value: 'tailor', label: ' خياط', desc: 'أقدم خدمات الخياطة' },
-                  ] as const).map((r) => (
-                    <button
-                      key={r.value}
-                      type="button"
-                      onClick={() => setRole(r.value)}
-                      className={`py-3 px-2 rounded-xl border-2 transition-all text-center ${
-                        role === r.value
-                          ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)] dark:text-[var(--theme-primary)]'
-                          : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'
-                      }`}
-                    >
+                  {([{ value: 'user', label: '🛍️ عميل', desc: 'أبحث عن خياط' }, { value: 'tailor', label: '✂️ خياط', desc: 'أقدّم خدمات الخياطة' }] as const).map((r) => (
+                    <button key={r.value} type="button" onClick={() => setRegRole(r.value)}
+                      className={`py-2.5 px-2 rounded-xl border-2 transition-all text-center ${regRole === r.value ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
                       <div className="text-sm font-bold">{r.label}</div>
                       <div className="text-[10px] opacity-60 mt-0.5">{r.desc}</div>
                     </button>
@@ -375,47 +390,69 @@ export const AuthModal = () => {
                 </div>
               </div>
 
+              {regError && <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{regError}</div>}
+
+              <button type="submit" disabled={regLoading} className={primaryBtn}>
+                {regLoading && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+                <CheckCircle size={16} /> إنشاء الحساب
+              </button>
+
+              <p className="text-center text-xs text-slate-500">
+                لديك حساب بالفعل؟{' '}
+                <button type="button" onClick={() => setView('sign-in')}
+                  className="font-bold text-[var(--theme-primary)] hover:underline">
+                  سجّل دخولك
+                </button>
+              </p>
+            </form>
+          )}
+
+          {/* ════ COMPLETE PROFILE (new Google users only) ════ */}
+          {view === 'complete-profile' && (
+            <div className="space-y-4">
+              {/* Gender */}
+              <div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">الجنس <span className="text-red-500">*</span></p>
+                <div className="grid grid-cols-2 gap-2">
+                  {(['male', 'female'] as const).map((g) => (
+                    <button key={g} type="button" onClick={() => setCpGender(g)}
+                      className={`py-3 rounded-xl text-sm font-bold border-2 transition-all ${cpGender === g ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                      {g === 'male' ? '👨 ذكر' : '👩 أنثى'}
+                    </button>
+                  ))}
+                </div>
+              </div>
+              {/* Role */}
+              <div>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">أنت</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {([{ value: 'user', label: '🛍️ عميل', desc: 'أبحث عن خياط' }, { value: 'tailor', label: '✂️ خياط', desc: 'أقدّم خدمات الخياطة' }] as const).map((r) => (
+                    <button key={r.value} type="button" onClick={() => setCpRole(r.value)}
+                      className={`py-3 px-2 rounded-xl border-2 transition-all text-center ${cpRole === r.value ? 'border-[var(--theme-primary)] bg-[var(--theme-primary)]/10 text-[var(--theme-primary)]' : 'border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400 hover:border-slate-300'}`}>
+                      <div className="text-sm font-bold">{r.label}</div>
+                      <div className="text-[10px] opacity-60 mt-0.5">{r.desc}</div>
+                    </button>
+                  ))}
+                </div>
+              </div>
               {/* Phone */}
               <div>
-                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">
-                  رقم الهاتف <span className="text-red-500">*</span>
-                </label>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-300 mb-2">رقم الهاتف <span className="text-red-500">*</span></p>
                 <div className="relative">
                   <Phone className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" size={16} />
-                  <input
-                    type="tel"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                  <input type="tel" value={cpPhone} onChange={(e) => setCpPhone(e.target.value)}
                     placeholder="+968 XXXX XXXX"
-                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all"
-                  />
+                    className="w-full border border-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl py-3 pr-10 pl-4 text-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-[var(--theme-primary)]/30 focus:border-[var(--theme-primary)] transition-all" />
                 </div>
               </div>
 
-              {profileError && (
-                <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2 text-right">
-                  {profileError}
-                </div>
-              )}
+              {cpError && <div className="text-xs text-red-600 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg px-3 py-2">{cpError}</div>}
 
-              <button
-                type="button"
-                onClick={handleSaveProfile}
-                disabled={profileLoading}
-                className="w-full py-3 bg-[var(--theme-primary)] hover:bg-[var(--theme-primary-dark)] active:opacity-90 text-white rounded-xl text-sm font-bold transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {profileLoading ? (
-                  <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                ) : (
-                  <><CheckCircle size={16} /> حفظ ومتابعة</>
-                )}
+              <button type="button" onClick={handleSaveProfile} disabled={cpLoading} className={primaryBtn}>
+                {cpLoading ? <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <><CheckCircle size={16} /> حفظ ومتابعة</>}
               </button>
-
-              <button
-                type="button"
-                onClick={() => toggleAuthModal(false)}
-                className="w-full text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1"
-              >
+              <button type="button" onClick={() => toggleAuthModal(false)}
+                className="w-full text-xs text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors py-1">
                 تخطي الآن
               </button>
             </div>
