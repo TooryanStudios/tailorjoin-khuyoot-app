@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { 
   Save, Loader2, Upload, X, Plus, Trash2, Image as ImageIcon, Check, 
   ArrowUp, ArrowDown, Layout, Users, Map, Flag, Sparkles, Monitor, 
@@ -632,7 +632,7 @@ export const LandingPageConfig: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col md:flex-row gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950" dir="rtl">
+    <div className="flex flex-col md:flex-row gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Cairo'] bg-[#ededed] dark:bg-zinc-950" dir="rtl">
       {/* Sidebar Navigation */}
       <div className="w-full md:w-64 space-y-4 shrink-0">
         <div className="bg-white dark:bg-zinc-900 rounded-3xl p-4 border-[1.5px] border-black/10 dark:border-white/10 shadow-sm space-y-2 sticky top-24">

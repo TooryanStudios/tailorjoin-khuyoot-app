@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate, useParams, useLocation } from 'react-router-dom';
 import { Search, ShoppingBag, ArrowUpRight, ArrowRight, Star, ChevronLeft, ChevronRight, MessageSquare, Instagram, Twitter, Facebook, Mail, Phone, MapPin, LayoutGrid, Tag, ScanFace, Scissors, Truck, Ruler, Palette, PenTool, Menu, X } from 'lucide-react';
 import { doc, getDoc, collection, query, where, getDocs, collectionGroup } from 'firebase/firestore';
@@ -323,7 +323,7 @@ const MontLandingPage = () => {
     );
   }
   return (
-    <div className="bg-[#ededed] text-[#1a1a1a] font-['Tajawal'] overflow-x-hidden selection:bg-[var(--theme-primary)] selection:text-white" style={{
+    <div className="bg-[#ededed] text-[#1a1a1a] font-['Cairo'] overflow-x-hidden selection:bg-[var(--theme-primary)] selection:text-white" style={{
         '--theme-primary': effectiveTheme.primary,
         '--theme-secondary': effectiveTheme.secondary,
         '--theme-border': effectiveTheme.border,

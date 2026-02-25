@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { Store, CheckCircle2, XCircle, Clock, MapPin, Phone, Mail, Briefcase, X, Eye, AlertTriangle, Ban, RotateCcw } from 'lucide-react';
 import { firebaseService } from '../../../services/firebase';
 import { User, Product } from '../../../types';
@@ -231,7 +231,7 @@ export const MerchantsApproval = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Cairo'] bg-[#ededed] dark:bg-zinc-950">
       {/* Header with icon */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6 space-y-2">
         <div className="flex items-end gap-3">

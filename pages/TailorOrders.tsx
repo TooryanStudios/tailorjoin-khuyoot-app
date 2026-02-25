@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect } from 'react';
+﻿import React, { useState, useEffect, useLayoutEffect } from 'react';
 import { Order, OrderStatus } from '../types';
 import { 
   Check, 
@@ -432,7 +432,7 @@ export const TailorOrders = () => {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"

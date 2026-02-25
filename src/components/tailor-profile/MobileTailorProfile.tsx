@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ArrowRight, MoreVertical, Play, Headphones, MapPin, Clock, Star, MessageCircle, ShoppingBag, CheckCircle2, Share2, Heart, Bookmark } from 'lucide-react';
 import { Tailor, Product, Review } from '../../../types';
 import { StableImage } from '../../../components/StableImage';
@@ -52,7 +52,7 @@ export const MobileTailorProfile: React.FC<MobileTailorProfileProps> = ({
     const mainImage = tailor.image || tailor.coverImage || (products.length > 0 ? products[0].image : null);
 
     return (
-        <div className="min-h-screen bg-[#ededed] pb-20 relative font-['Tajawal'] text-right" dir="rtl">
+        <div className="min-h-screen bg-[#ededed] pb-20 relative font-['Cairo'] text-right" dir="rtl">
             
             {/* Standard Profile Header (Matches App Theme) */}
             <div className="bg-white pb-4 mb-4 shadow-sm border-b border-zinc-200">

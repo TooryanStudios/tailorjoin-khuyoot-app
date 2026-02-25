@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactCrop, {
   type Crop,
@@ -455,7 +455,7 @@ export function ImagePrepModal(props: ImagePrepModalProps) {
       maxWidth="max-w-[540px]"
       containerClassName={`rounded-xl mx-auto max-h-[85vh] ${isDesignerTheme ? 'bg-white border-slate-200 text-black' : ''}`}
       headerClassName={isDesignerTheme ? 'border-slate-200 bg-white/95 py-2' : 'py-2'}
-      titleClassName={isDesignerTheme ? 'text-black text-sm font-["Tajawal"]' : 'text-base'}
+      titleClassName={isDesignerTheme ? 'text-black text-sm font-["Cairo"]' : 'text-base'}
       contentClassName={isDesignerTheme ? 'bg-white text-black' : undefined}
       footerClassName={isDesignerTheme ? 'border-slate-200 bg-white' : undefined}
       closeButtonClassName={isDesignerTheme ? 'hidden' : undefined}

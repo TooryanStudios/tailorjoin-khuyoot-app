@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAuth } from '../../auth/useAuth';
 import { createPortal } from 'react-dom';
@@ -114,7 +114,7 @@ export const UpgradeModal: React.FC<UpgradeModalProps> = ({
   if (!isOpen) return null;
 
   return createPortal(
-    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+    <div data-overlay="khuyoot-modal" className="fixed inset-0 z-[10000] flex items-center justify-center" style={{ fontFamily: 'Cairo, sans-serif' }}>
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-md"

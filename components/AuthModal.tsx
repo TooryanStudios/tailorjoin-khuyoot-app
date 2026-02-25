@@ -252,16 +252,16 @@ export const AuthModal = () => {
         {/* header */}
         <div className="px-6 pt-6 pb-4 text-center border-b border-slate-100 dark:border-slate-800 flex-shrink-0">
           <img src="/logo_big.png" alt="خيوط" className="w-12 h-12 mx-auto mb-3 object-contain" />
-          <h2 className="text-lg font-black text-slate-900 dark:text-white" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <h2 className="text-lg font-black text-slate-900 dark:text-white" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {headers[view].title}
           </h2>
-          <p className="text-xs text-slate-500 mt-0.5" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+          <p className="text-xs text-slate-500 mt-0.5" style={{ fontFamily: 'Cairo, sans-serif' }}>
             {headers[view].sub}
           </p>
         </div>
 
         {/* scrollable body */}
-        <div className="flex-1 overflow-y-auto p-6" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+        <div className="flex-1 overflow-y-auto p-6" style={{ fontFamily: 'Cairo, sans-serif' }}>
 
           {/* ════ SIGN-IN ════ */}
           {view === 'sign-in' && (

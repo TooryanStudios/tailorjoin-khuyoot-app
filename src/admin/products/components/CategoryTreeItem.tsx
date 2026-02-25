@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { ChevronRight, Edit, Trash2, Plus, MoreVertical } from 'lucide-react';
 import { CategoryTreeNode } from '../types';
 import { useConfirmDialog } from '../../hooks/useConfirmDialog';
@@ -25,7 +25,7 @@ export const CategoryTreeItem: React.FC<CategoryTreeItemProps> = ({
   const hasChildren = node.children && node.children.length > 0;
 
   return (
-    <div className="select-none relative font-['Tajawal'] font-normal">
+    <div className="select-none relative font-['Cairo'] font-normal">
       {/* خط التفرع الرأسي */}
       {level > 0 && (
         <div 

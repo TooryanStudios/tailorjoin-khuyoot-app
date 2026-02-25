@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
+﻿import React, { useEffect, useLayoutEffect, useState, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useModalStore } from '../src/store/useModalStore';
@@ -1137,7 +1137,7 @@ export const Account = () => {
 
   // --- Authenticated User View ---
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"

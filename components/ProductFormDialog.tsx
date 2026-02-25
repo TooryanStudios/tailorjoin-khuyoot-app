@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video, ZoomIn } from 'lucide-react';
 import { useImageLightbox } from './ImageLightbox';
 import { Product } from '../types';
@@ -149,7 +149,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         }
       }}
     >
-      <div className="bg-white dark:bg-slate-50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col font-['Tajawal',sans-serif]">
+      <div className="bg-white dark:bg-slate-50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col font-['Cairo']">
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-slate-50 border-b border-slate-200 dark:border-slate-200 p-3 md:p-4 flex items-center justify-between shrink-0">
           <div>

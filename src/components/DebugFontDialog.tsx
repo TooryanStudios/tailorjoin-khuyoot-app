@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 
 // Lightweight debug-only font switcher. Safe to remove when no longer needed.
 const FONTS: { label: string; value: string }[] = [
@@ -17,8 +17,7 @@ const FONTS: { label: string; value: string }[] = [
   // Arabic-friendly options (browser-safe fallbacks included)
   { label: 'Arial (Arabic)', value: "'Arial', 'Segoe UI', Tahoma, sans-serif" },
   { label: 'Tahoma (Arabic)', value: "'Tahoma', 'Segoe UI', Arial, sans-serif" },
-  { label: 'Cairo', value: "'Cairo', 'Segoe UI', Arial, sans-serif" },
-  { label: 'Tajawal', value: "'Tajawal', 'Segoe UI', Arial, sans-serif" },
+  { label: 'Cairo', value: "'Cairo', sans-serif" },
   { label: 'Almarai', value: "'Almarai', 'Segoe UI', Arial, sans-serif" },
   { label: 'IBM Plex Arabic', value: "'IBM Plex Sans Arabic', 'Segoe UI', Arial, sans-serif" },
   { label: 'Noto Sans Arabic', value: "'Noto Sans Arabic', 'Segoe UI', Arial, sans-serif" },
@@ -35,8 +34,8 @@ export function DebugFontDialog() {
 
   React.useEffect(() => {
     const saved = typeof window !== 'undefined' ? window.localStorage.getItem(STORAGE_KEY) : null;
-    const tajawal = FONTS.find((f) => f.label === 'Tajawal')?.value;
-    const initial = saved || tajawal;
+    const defaultFont = FONTS.find((f) => f.label === 'Cairo')?.value;
+    const initial = saved || defaultFont;
     if (initial) {
       applyFont(initial);
     }

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+﻿import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../../context/AppContext';
 import { db, firebaseService } from '../services/firebase';
 import { collection, getDocs } from 'firebase/firestore';
@@ -589,7 +589,7 @@ export const AdminApp = () => {
     }
 
     return (
-      <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
+      <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Cairo'] bg-[#ededed] dark:bg-zinc-950">
         {/* Header Section */}
         <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
           <div className="flex justify-between items-start gap-3">

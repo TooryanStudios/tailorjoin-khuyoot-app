@@ -1,4 +1,4 @@
-import React, { useMemo } from 'react';
+﻿import React, { useMemo } from 'react';
 import { Save, Loader2, LayoutGrid, RefreshCcw } from 'lucide-react';
 import { Button } from '../../../components/Button';
 import { useMeasurementTemplates } from './useMeasurementTemplates';
@@ -174,7 +174,7 @@ export const MeasurementTemplatesPage: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950" dir="rtl">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Cairo'] bg-[#ededed] dark:bg-zinc-950" dir="rtl">
       {/* Header Bar */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6 space-y-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-2">

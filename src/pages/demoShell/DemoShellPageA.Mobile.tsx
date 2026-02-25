@@ -1,4 +1,4 @@
-import React from 'react';
+﻿import React from 'react';
 import { useNavigate, useOutletContext } from 'react-router-dom';
 import { Mail, Phone, Instagram, Twitter, BadgeCheck, Sparkles, User2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
@@ -102,7 +102,7 @@ const TailorCard = React.memo(function TailorCard({
         )}
 
         {/* Content - Professional RTL Layout */}
-        <div className="absolute inset-0 p-4 flex flex-col justify-end" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+        <div className="absolute inset-0 p-4 flex flex-col justify-end" style={{ fontFamily: 'Cairo, sans-serif' }}>
           {/* Bottom Section: Region and Icon on left, Name on right */}
           <div className="flex justify-between items-end">
             {/* Region and Gender Icon stacked on left */}
@@ -246,7 +246,7 @@ export function DemoShellPageAMobile() {
   }, [user?.id]);
 
   return (
-    <div className="space-y-6 pb-24" style={{ fontFamily: 'Tajawal, sans-serif' }}>
+    <div className="space-y-6 pb-24" style={{ fontFamily: 'Cairo, sans-serif' }}>
       {/* Header with User Info and Search */}
       <div className="px-4">
         <HomeHeader />

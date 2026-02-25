@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowRight, MapPin, Star, CheckCircle2, Search, Filter, Grid, List } from 'lucide-react';
 import { Tailor, Region } from '../types';
@@ -106,7 +106,7 @@ export const TailorList = () => {
   const displayedTailors = filteredTailors.slice(0, displayCount);
 
   return (
-    <div className="h-full flex flex-col bg-[#ededed] font-['Tajawal'] text-[#1a1a1a] selection:bg-[var(--theme-primary)] selection:text-white">
+    <div className="h-full flex flex-col bg-[#ededed] font-['Cairo'] text-[#1a1a1a] selection:bg-[var(--theme-primary)] selection:text-white">
       <div className="flex-1 overflow-y-auto pb-24 custom-scrollbar pt-4" dir="rtl">
       <div className="max-w-[1400px] mx-auto px-2 md:px-8">
       {/* Header */}

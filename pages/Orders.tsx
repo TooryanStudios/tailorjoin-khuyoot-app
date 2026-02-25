@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { useOrderDetails } from '../src/context/OrderDetailsContext';
@@ -278,7 +278,7 @@ export const Orders: React.FC = () => {
         style={{ height: headerHeight }}
       />
       
-      <div className="bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white min-h-screen pb-8">
+      <div className="bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white min-h-screen pb-8">
         {/* Hero Banner */}
         <section className="px-4 md:px-8 py-3 max-w-[1400px] mx-auto">
             <div className="relative rounded-xl bg-[var(--theme-primary)] p-6 md:p-8 overflow-hidden min-h-[140px] flex flex-col justify-center">

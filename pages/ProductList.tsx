@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+﻿import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Tag, ShoppingBag, ChevronDown, Heart } from 'lucide-react';
 import { Product, Tailor } from '../types';
@@ -474,7 +474,7 @@ export const ProductList = () => {
   };
 
   return (
-    <div className="h-full flex flex-col font-['Tajawal'] bg-[#ededed]">
+    <div className="h-full flex flex-col font-['Cairo'] bg-[#ededed]">
       <MontHeader />
       
       {/* Scrollable Content Container */}

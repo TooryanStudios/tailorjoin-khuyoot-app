@@ -1,4 +1,4 @@
-
+﻿
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
@@ -1266,7 +1266,7 @@ export const TailorCollections = () => {
   }, [filteredProducts]);
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-[var(--theme-primary)] selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"

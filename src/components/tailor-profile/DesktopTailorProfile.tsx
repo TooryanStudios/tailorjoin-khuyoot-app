@@ -1,4 +1,4 @@
-import React, { useRef, useEffect, useState } from 'react';
+﻿import React, { useRef, useEffect, useState } from 'react';
 import { ArrowRight, MapPin, Star, MessageCircle, Clock, CheckCircle2, ShoppingBag, Grid3x3, LayoutGrid, List, User, RefreshCw, Trash2, Heart } from 'lucide-react';
 import { Tailor, Product, Review } from '../../../types';
 import { StableImage } from '../../../components/StableImage';
@@ -74,7 +74,7 @@ export const DesktopTailorProfile: React.FC<DesktopTailorProfileProps> = ({
     const [reviewHover, setReviewHover] = useState(0);
 
     return (
-        <div className="min-h-screen bg-[#ededed] font-['Tajawal'] pb-20 pt-8">
+        <div className="min-h-screen bg-[#ededed] font-['Cairo'] pb-20 pt-8">
              {/* Profile Header Card */}
              <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 mb-8">
                 {/* Back Button */}

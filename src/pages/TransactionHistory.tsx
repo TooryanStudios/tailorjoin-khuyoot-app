@@ -1,4 +1,4 @@
-import React, { useLayoutEffect } from 'react';
+﻿import React, { useLayoutEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, CreditCard, Package, Receipt, Loader2 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
@@ -188,7 +188,7 @@ export const TransactionHistory: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
+      <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
         <MontHeader />
         <div
           aria-hidden="true"
@@ -221,7 +221,7 @@ export const TransactionHistory: React.FC = () => {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 selection:bg-theme-primary selection:text-white flex flex-col">
       <MontHeader />
       <div
         aria-hidden="true"

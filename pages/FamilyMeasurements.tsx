@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+﻿import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useApp } from '../context/AppContext';
 import { 
@@ -206,7 +206,7 @@ export const FamilyMeasurements = () => {
   }
 
   return (
-    <div className="h-screen overflow-hidden bg-[#ededed] font-['Tajawal'] text-slate-900 flex flex-col">
+    <div className="h-screen overflow-hidden bg-[#ededed] font-['Cairo'] text-slate-900 flex flex-col">
       <div className="sticky top-0 z-50">
         <MontHeader />
       </div>

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useRef, useEffect } from 'react';
+﻿import React, { useState, useMemo, useRef, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Search, ShoppingBag, Menu, X, Instagram, Twitter, Facebook, User, ChevronDown, LogOut, Scissors, ClipboardList, Store, LayoutDashboard, Package, Home, Palette } from 'lucide-react';
 import { AdminColorPicker, restoreAdminPrimaryColor } from './AdminColorPicker';
@@ -101,7 +101,7 @@ export const MontHeader = React.memo(function MontHeader() {
 
   return (
     <>
-      <nav id={MONT_HEADER_ID} className="fixed top-0 left-0 right-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-[#ededed] border-b border-black/5 z-[10000] font-['Tajawal']">
+      <nav id={MONT_HEADER_ID} className="fixed top-0 left-0 right-0 flex items-center justify-between px-4 md:px-6 py-3 md:py-4 bg-[#ededed] border-b border-black/5 z-[10000] font-['Cairo']">
         <div className="max-w-[1400px] mx-auto w-full flex items-center justify-between">
           <div className="flex items-center gap-4 md:gap-8">
             <button className="md:hidden text-black/80 hover:text-black transition-colors" onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}>

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+﻿import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Plus, Search, Loader2, RefreshCw, Package } from 'lucide-react';
 import { Category, ProductTemplate, CategoryTreeNode, CategoryFormData, ProductTemplateFormData } from './types';
@@ -227,7 +227,7 @@ export const ProductsManagement: React.FC = () => {
   }
 
   return (
-    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Tajawal'] bg-[#ededed] dark:bg-zinc-950">
+    <div className="flex flex-col gap-4 max-w-[1600px] mx-auto p-4 md:p-6 min-h-[85vh] font-['Cairo'] bg-[#ededed] dark:bg-zinc-950">
       {/* الرأس */}
       <div className="bg-white dark:bg-zinc-900 rounded-3xl border-[1.5px] border-black/10 dark:border-white/10 shadow-sm p-6">
         <div className="flex items-end justify-between gap-4 flex-wrap">

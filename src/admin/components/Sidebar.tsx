@@ -1,4 +1,4 @@
-
+﻿
 import React from 'react';
 import { Shield, Activity, ShoppingCart, Scissors, Package, Layers, Ruler, Users, Cpu, Settings, FileText, LogOut, X, Store, Building2, Moon, Sun, CheckCircle, ImagePlus, Bell, Megaphone, DollarSign, MapPin, AlertTriangle, Star, Home } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
@@ -90,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   return (
     <aside
-      className={`fixed top-0 right-0 h-full w-64 bg-gradient-to-b from-black/70 to-black/60 backdrop-blur-md text-white flex flex-col border-l border-theme-primary/20 z-[999] transition-transform duration-300 font-['Tajawal'] ${
+      className={`fixed top-0 right-0 h-full w-64 bg-gradient-to-b from-black/70 to-black/60 backdrop-blur-md text-white flex flex-col border-l border-theme-primary/20 z-[999] transition-transform duration-300 font-['Cairo'] ${
         isOpen ? 'translate-x-0' : 'translate-x-full'
       }`}
       role="complementary"

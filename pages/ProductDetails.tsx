@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+﻿import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { createPortal } from 'react-dom';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
@@ -319,7 +319,7 @@ export const MeasurementEditDialog = React.memo(({
       onClick={onClose}
     >
       <div 
-        className="relative w-full max-w-3xl bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Tajawal']"
+        className="relative w-full max-w-3xl bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Cairo']"
         onClick={(e) => e.stopPropagation()}
         dir="rtl"
       >
@@ -460,7 +460,7 @@ const MeasurementInstructionsCollapsible = React.memo(({
           onClick={toggle}
           className="flex items-center gap-2 text-sm font-bold text-gray-500 uppercase tracking-widest hover:text-gray-900 transition-colors"
         >
-          <span className="font-bold font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</span>
+          <span className="font-bold font-['Cairo']" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة القياسات</span>
           <Ruler size={14} className="text-emerald-500" />
         </button>
       </div>
@@ -727,7 +727,7 @@ const MeasurementTemplatePreview = React.memo(({
   return (
     <div className="mt-8 pt-8 border-t border-gray-200">
        <div className="flex items-center justify-between mb-6">
-         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest font-['Tajawal']" style={{ fontFamily: 'Tajawal, sans-serif' }}>إدارة القياسات</h3>
+         <h3 className="text-sm font-bold text-gray-500 uppercase tracking-widest font-['Cairo']" style={{ fontFamily: 'Cairo, sans-serif' }}>إدارة القياسات</h3>
           <div className="flex items-center gap-2">
              <Ruler size={14} className="text-emerald-500" />
              <span className="text-xs font-bold text-emerald-500 bg-emerald-50 px-3 py-1 rounded-full">{template.name}</span>
@@ -901,7 +901,7 @@ const ProductSummaryDialog = React.memo(({
             onClick={onClose}
         >
             <div 
-                className="relative w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Tajawal']"
+                className="relative w-full max-w-md bg-white rounded-2xl overflow-hidden shadow-2xl border border-gray-100 flex flex-col max-h-[90vh] font-['Cairo']"
                 onClick={(e) => e.stopPropagation()}
                 dir="rtl"
             >
