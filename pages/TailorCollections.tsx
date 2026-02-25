@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef, useLayoutEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { useNavigate } from 'react-router-dom';
-import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus } from 'lucide-react';
+import { Package, Plus, DollarSign, Clock, Image as ImageIcon, Trash2, RefreshCw, Edit, Save, X, Grid, List, LayoutGrid, Star, ImagePlus, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from '../components/Button';
 import { ProductFormDialog } from '../components/ProductFormDialog';
 import { firebaseService } from '../services/firebase';
@@ -19,6 +19,7 @@ import { preloadImages } from '../src/utils/imagePreloader';
 import { StableImage } from '../components/StableImage';
 import { MontHeader } from '../src/components/MontHeader';
 import { DeleteConfirmModal } from '../src/pages/DesignerV2_1/components/DeleteConfirmModal';
+import { useImageLightbox } from '../components/ImageLightbox';
 
 type UploadItemStatus = 'queued' | 'compressing' | 'uploading' | 'done' | 'error';
 type SaveJobStatus = 'uploading' | 'saving' | 'done' | 'error';
@@ -43,6 +44,155 @@ type SaveJob = {
 const MONT_HEADER_ID = 'khuyoot-mont-header';
 const DEFAULT_HEADER_SPACER_HEIGHT = 72;
 
+
+// ── Standalone grid card with its own per-image carousel state ──────────────
+interface GridProductCardProps {
+  product: Product;
+  startEditProduct: (p: Product) => void;
+  removeProduct: (id: string) => void;
+  openLightbox: (images: string[], startIndex?: number) => void;
+}
+const GridProductCard = React.memo(function GridProductCard({
+  product,
+  startEditProduct,
+  removeProduct,
+  openLightbox,
+}: GridProductCardProps) {
+  const images: string[] = product.images?.length
+    ? product.images
+    : product.image
+    ? [product.image]
+    : [];
+  const [imgIdx, setImgIdx] = React.useState(0);
+  const hasMultiple = images.length > 1;
+  const currentSrc = images[imgIdx] || product.image;
+
+  const prevImg = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImgIdx((i) => (i - 1 + images.length) % images.length);
+  };
+  const nextImg = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setImgIdx((i) => (i + 1) % images.length);
+  };
+
+  return (
+    <div className="bg-white rounded-xl overflow-hidden group hover:shadow-xl transition-all duration-300 border border-slate-100">
+      {/* Image Area */}
+      <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
+        {/* Current image — no scale on hover so arrows stay accessible */}
+        <img
+          src={currentSrc}
+          alt={product.name}
+          className="absolute inset-0 w-full h-full object-cover transition-opacity duration-300"
+          loading="lazy"
+          decoding="async"
+        />
+
+        {/* Gradient */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
+
+        {/* Prev / Next arrows — always visible when multiple images */}
+        {hasMultiple && (
+          <>
+            <button
+              onClick={prevImg}
+              aria-label="الصورة السابقة"
+              className="absolute right-2 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition shadow-lg"
+            >
+              <ChevronRight size={16} />
+            </button>
+            <button
+              onClick={nextImg}
+              aria-label="الصورة التالية"
+              className="absolute left-2 top-1/2 -translate-y-1/2 z-10 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition shadow-lg"
+            >
+              <ChevronLeft size={16} />
+            </button>
+          </>
+        )}
+
+        {/* Dot indicators */}
+        {hasMultiple && (
+          <div className="absolute bottom-10 left-1/2 -translate-x-1/2 flex gap-1 z-10">
+            {images.map((_, i) => (
+              <button
+                key={i}
+                aria-label={`صورة ${i + 1}`}
+                onClick={(e) => { e.stopPropagation(); setImgIdx(i); }}
+                className={`w-1.5 h-1.5 rounded-full transition-all ${
+                  i === imgIdx ? 'bg-white scale-125' : 'bg-white/50'
+                }`}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Badges */}
+        <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {product.isDraft && (
+            <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
+              مسودة
+            </span>
+          )}
+          {hasMultiple && (
+            <span className="bg-black/50 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+              <ImageIcon size={10} /> {imgIdx + 1}/{images.length}
+            </span>
+          )}
+        </div>
+
+        {/* Action Buttons (slide in on hover) */}
+        <div className="absolute top-2 right-2 flex flex-col gap-2 translate-x-10 group-hover:translate-x-0 transition-transform duration-300">
+          <button
+            onClick={(e) => { e.stopPropagation(); openLightbox(images, imgIdx); }}
+            className="bg-white/90 backdrop-blur p-2 rounded-lg text-slate-600 hover:bg-white transition shadow-lg"
+            title="معاينة الصور"
+          >
+            <ZoomIn size={14} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); startEditProduct(product); }}
+            className="bg-white/90 backdrop-blur p-2 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white transition shadow-lg"
+            title="تعديل"
+          >
+            <Edit size={14} />
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); removeProduct(product.id); }}
+            className="bg-white/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition shadow-lg"
+            title="حذف"
+          >
+            <Trash2 size={14} />
+          </button>
+        </div>
+
+        {/* Name & duration overlay */}
+        <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
+          <div>
+            <h4 className="font-bold text-sm leading-tight mb-0.5 line-clamp-2">{product.name}</h4>
+            <div className="flex items-center gap-2 text-[10px] text-slate-200">
+              <span className="flex items-center gap-0.5"><Clock size={10} /> {product.duration}</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Footer */}
+      <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
+        <p className="font-bold text-[var(--theme-primary)] text-sm">
+          {product.price.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">ر.ع</span>
+        </p>
+        {product.likes > 0 && (
+          <div className="flex items-center gap-1 text-xs text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded">
+            <span className="text-[10px]">♥</span> {product.likes}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+});
+// ─────────────────────────────────────────────────────────────────────────────
 
 export const TailorCollections = () => {
   const { user } = useApp();
@@ -121,6 +271,9 @@ export const TailorCollections = () => {
   const [pendingVideoUrl, setPendingVideoUrl] = useState<string>(''); // Blob URL or existing video URL
   const [uploadError, setUploadError] = useState<string>('');
   const [coverImageIndex, setCoverImageIndex] = useState<number>(0); // index صورة الغلاف
+
+  // ── Universal image lightbox ──────────────────────────────────
+  const { openLightbox, LightboxPortal } = useImageLightbox();
   const [showDefaultImagesModal, setShowDefaultImagesModal] = useState(false); // modal الصور الافتراضية
   const [libraryImages, setLibraryImages] = useState<DefaultImageOption[]>([]); // صور المكتبة
   const [loadingLibrary, setLoadingLibrary] = useState(false); // تحميل صور المكتبة
@@ -1327,13 +1480,20 @@ export const TailorCollections = () => {
               <div className="space-y-4">
                 {filteredProducts.map((product) => (
                   <div key={product.id} className="bg-white rounded-xl p-4 border border-slate-200 flex gap-4 group hover:shadow-md transition">
-                    <div className="relative w-20 aspect-square bg-slate-100 rounded-lg overflow-hidden shrink-0">
+                    <div
+                      className="relative w-20 aspect-square bg-slate-100 rounded-lg overflow-hidden shrink-0 cursor-pointer group/thumb"
+                      onClick={() => openLightbox(product.images?.length ? product.images : (product.image ? [product.image] : []))}
+                      title="معاينة الصور"
+                    >
                       <StableImage src={product.image} alt={product.name} aspectClass="h-full" className="absolute inset-0" />
                       {product.images && product.images.length > 1 && (
                         <div className="absolute bottom-1 right-1 bg-black/70 text-white text-[10px] px-1.5 py-0.5 rounded font-bold">
                           {product.images.length}/10
                         </div>
                       )}
+                      <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/40 transition flex items-center justify-center">
+                        <ZoomIn size={18} className="text-white opacity-0 group-hover/thumb:opacity-100 transition" />
+                      </div>
                     </div>
                     <div className="flex-1">
                       <div className="flex justify-between items-start">
@@ -1415,74 +1575,13 @@ export const TailorCollections = () => {
                       {/* Horizontal Scrolling List */}
                       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                         {products.map((product) => (
-                           <div key={product.id} className="bg-white rounded-xl overflow-hidden group hover:shadow-xl transition-all duration-300 border border-slate-100">
-                             {/* Image Area */}
-                             <div className="relative aspect-[4/5] overflow-hidden bg-slate-100">
-                               <StableImage 
-                                 src={product.image} 
-                                 alt={product.name} 
-                                 aspectClass="h-full w-full" 
-                                 className="absolute inset-0 w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" 
-                               />
-                               
-                               {/* Gradient Overlay */}
-                               <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent opacity-60 group-hover:opacity-80 transition-opacity" />
-                               
-                               {/* Badges */}
-                               <div className="absolute top-2 left-2 flex flex-col gap-1">
-                                 {product.isDraft && (
-                                   <span className="bg-amber-500 text-white text-[10px] px-2 py-0.5 rounded-full font-bold shadow-sm">
-                                     مسودة
-                                   </span>
-                                 )}
-                                  {product.images && product.images.length > 1 && (
-                                   <span className="bg-black/50 backdrop-blur-md text-white text-[10px] px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
-                                     <ImageIcon size={10} /> {product.images.length}
-                                   </span>
-                                 )}
-                               </div>
-
-                               {/* Action Buttons (visible on hover) */}
-                               <div className="absolute top-2 right-2 flex flex-col gap-2 translate-x-10 group-hover:translate-x-0 transition-transform duration-300">
-                                 <button 
-                                   onClick={(e) => { e.stopPropagation(); startEditProduct(product); }} 
-                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white transition shadow-lg"
-                                   title="تعديل"
-                                 >
-                                   <Edit size={14} />
-                                 </button>
-                                 <button 
-                                   onClick={(e) => { e.stopPropagation(); removeProduct(product.id); }} 
-                                   className="bg-white/90 backdrop-blur p-2 rounded-lg text-red-600 hover:bg-red-600 hover:text-white transition shadow-lg"
-                                   title="حذف"
-                                 >
-                                   <Trash2 size={14} />
-                                 </button>
-                               </div>
-
-                               {/* Price Tag & Likes */}
-                               <div className="absolute bottom-3 left-3 right-3 flex items-end justify-between text-white">
-                                  <div>
-                                    <h4 className="font-bold text-sm leading-tight mb-0.5 line-clamp-2 text-shadow-sm">{product.name}</h4>
-                                    <div className="flex items-center gap-2 text-[10px] text-slate-200">
-                                      <span className="flex items-center gap-0.5"><Clock size={10} /> {product.duration}</span>
-                                    </div>
-                                  </div>
-                               </div>
-                             </div>
-                             
-                             {/* Footer Clean */}
-                             <div className="p-3 flex items-center justify-between bg-white border-t border-slate-100">
-                               <p className="font-bold text-[var(--theme-primary)] text-sm">
-                                 {product.price.toFixed(3)} <span className="text-[10px] text-slate-400 font-normal">ر.ع</span>
-                               </p>
-                               {product.likes > 0 && (
-                                 <div className="flex items-center gap-1 text-xs text-red-500 font-medium bg-red-50 px-1.5 py-0.5 rounded">
-                                   <span className="text-[10px]">♥</span> {product.likes}
-                                 </div>
-                               )}
-                             </div>
-                           </div>
+                          <GridProductCard
+                            key={product.id}
+                            product={product}
+                            startEditProduct={startEditProduct}
+                            removeProduct={removeProduct}
+                            openLightbox={openLightbox}
+                          />
                         ))}
                       </div>
                    </div>
@@ -1508,6 +1607,13 @@ export const TailorCollections = () => {
                         </div>
                       )}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/60 transition flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+                        <button 
+                          onClick={(e) => { e.stopPropagation(); openLightbox(product.images?.length ? product.images : (product.image ? [product.image] : [])); }}
+                          className="bg-white p-2 rounded-lg text-slate-600 hover:bg-slate-700 hover:text-white transition"
+                          title="معاينة الصور"
+                        >
+                          <ZoomIn size={14} />
+                        </button>
                         <button 
                           onClick={() => startEditProduct(product)} 
                           className="bg-white p-2 rounded-lg text-[var(--theme-primary)] hover:bg-[var(--theme-primary)] hover:text-white transition"
@@ -1682,6 +1788,9 @@ export const TailorCollections = () => {
       )}
 
       </main>
+
+      <LightboxPortal />
+
       </div>
     </div>
   );

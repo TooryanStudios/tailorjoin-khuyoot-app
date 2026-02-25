@@ -1447,10 +1447,7 @@ export const UsersManagement = () => {
                           </>
                         )}
 
-                        {/* Limited admins see a read-only indicator instead */}
-                        {isCurrentAdminLimited && (
-                          <span className="text-[9px] text-slate-400 italic px-1">قراءة فقط</span>
-                        )}
+
                       </div>
                     </td>
                   </tr>

@@ -4,11 +4,12 @@ import { useApp } from '../context/AppContext';
 import { useOrderDetails } from '../src/context/OrderDetailsContext';
 import { 
    ShoppingBag, Package, Calendar, LayoutGrid, List, Scissors, User as UserIcon, 
-   Clock, CheckCircle2, AlertCircle, XCircle, Sparkles
+   Clock, CheckCircle2, AlertCircle, XCircle, Sparkles, ZoomIn
 } from 'lucide-react';
 import { Order } from '../types';
 import { getUserOrders } from '../services/orderService';
 import { MontHeader } from '../src/components/MontHeader';
+import { useImageLightbox } from '../components/ImageLightbox';
 
 const MONT_HEADER_ID = 'khuyoot-mont-header';
 
@@ -16,6 +17,14 @@ export const Orders: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useApp();
   const { showOrderDetails } = useOrderDetails();
+  const { openLightbox, LightboxPortal } = useImageLightbox();
+
+  const getOrderImages = (order: Order): string[] => {
+    const imgs: string[] = [];
+    if (order.items) order.items.forEach((it: any) => { if (it.image) imgs.push(it.image); });
+    if (!imgs.length && order.productImage) imgs.push(order.productImage);
+    return imgs;
+  };
   
   const [orders, setOrders] = useState<Order[]>([]);
   const [statusFilter, setStatusFilter] = useState<'active' | 'pending' | 'cancelled' | 'completed' | 'all'>('all');
@@ -103,6 +112,17 @@ export const Orders: React.FC = () => {
             <Package size={featured ? 48 : 32} />
           </div>
         )}
+        {/* Zoom button — opens lightbox without triggering card click */}
+        {getOrderImages(order).length > 0 && (
+          <button
+            onClick={(e) => { e.stopPropagation(); openLightbox(getOrderImages(order)); }}
+            className="absolute bottom-3 left-3 bg-black/50 hover:bg-black/80 text-white p-1.5 rounded-full backdrop-blur-sm transition opacity-0 group-hover:opacity-100 z-10"
+            title="معاينة الصورة"
+            aria-label="معاينة الصورة"
+          >
+            <ZoomIn size={14} />
+          </button>
+        )}
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent"></div>
         
         {/* Status Badge */}
@@ -168,22 +188,35 @@ export const Orders: React.FC = () => {
       dir="rtl"
     >
       {/* Thumbnail */}
-      <div className="w-24 h-28 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden shrink-0">
+      <div
+        className="relative w-24 h-28 bg-slate-50 rounded-lg border border-slate-200 overflow-hidden shrink-0 group/thumb cursor-zoom-in"
+        onClick={(e) => {
+          const imgs = getOrderImages(order);
+          if (imgs.length) { e.stopPropagation(); openLightbox(imgs); }
+        }}
+        title="معاينة الصورة"
+      >
         {order.items && order.items[0]?.image ? (
           <img
             src={order.items[0].image}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
             alt={order.items[0].name || order.productName}
           />
         ) : order.productImage ? (
           <img
             src={order.productImage}
-            className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+            className="w-full h-full object-cover group-hover/thumb:scale-105 transition-transform duration-300"
             alt={order.productName}
           />
         ) : (
           <div className="w-full h-full flex items-center justify-center text-slate-300">
             <Package size={28} />
+          </div>
+        )}
+        {/* Zoom overlay */}
+        {getOrderImages(order).length > 0 && (
+          <div className="absolute inset-0 bg-black/0 group-hover/thumb:bg-black/40 transition flex items-center justify-center">
+            <ZoomIn size={16} className="text-white opacity-0 group-hover/thumb:opacity-100 transition" />
           </div>
         )}
       </div>
@@ -513,6 +546,7 @@ export const Orders: React.FC = () => {
           )}
         </main>
       </div>
+      <LightboxPortal />
     </>
   );
 };

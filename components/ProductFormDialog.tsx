@@ -1,5 +1,6 @@
 import React from 'react';
-import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video } from 'lucide-react';
+import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video, ZoomIn } from 'lucide-react';
+import { useImageLightbox } from './ImageLightbox';
 import { Product } from '../types';
 import imageCompression from 'browser-image-compression';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -82,6 +83,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     () => groupedCategoryOptions[0]?.groupName ?? ''
   );
   const [imageToDelete, setImageToDelete] = React.useState<number | null>(null);
+  const { openLightbox, LightboxPortal } = useImageLightbox();
 
   React.useEffect(() => {
     if (!activeCategoryGroup && groupedCategoryOptions.length > 0) {
@@ -551,6 +553,14 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         )}
                         <button
                           type="button"
+                          onClick={() => openLightbox(formState.allProductImages, index)}
+                          className="bg-white/95 hover:bg-white text-slate-700 p-2 rounded-lg"
+                          title="عرض مكبّر"
+                        >
+                          <ZoomIn size={16} />
+                        </button>
+                        <button
+                          type="button"
                           onClick={() => setImageToDelete(index)}
                           className="bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg"
                           title="حذف"
@@ -564,7 +574,8 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </div>
             )}
           </div>
-          </div>
+
+          <LightboxPortal />
 
           {/* Footer - Sticky */}
           <div className="sticky bottom-0 border-t border-slate-100 bg-white/95 backdrop-blur-sm px-4 md:px-5 py-3 flex gap-2 shrink-0">
