@@ -51,6 +51,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
 
             // Fetch additional profile data (Credits) from Firestore
             let profile: any = {};
+            let userData: any = {};
+            let profileData: any = {};
             try {
                 const db = getFirestore();
                 const [userDoc, profileDoc] = await Promise.all([
@@ -59,10 +61,81 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 ]);
 
                 if (userDoc.exists) {
-                    profile = { ...profile, ...userDoc.data() };
+                    userData = userDoc.data() || {};
+                    profile = { ...profile, ...userData };
                 }
                 if (profileDoc.exists) {
-                    profile = { ...profile, ...profileDoc.data() };
+                    profileData = profileDoc.data() || {};
+                    profile = { ...profile, ...profileData };
+                }
+
+                const currentRole = String(profile.role || (decoded as any).role || 'customer').toLowerCase();
+                const currentAccessMode = String(profile.adminAccess?.mode || '').toLowerCase();
+                const currentPermissionsMode = String(profile.adminPermissions?.mode || '').toLowerCase();
+                const hasCurrentAdminMode =
+                    currentAccessMode === 'full' ||
+                    currentAccessMode === 'limited' ||
+                    currentAccessMode === 'unlimited' ||
+                    currentPermissionsMode === 'full' ||
+                    currentPermissionsMode === 'limited' ||
+                    currentPermissionsMode === 'unlimited';
+
+                // Fallback for migrated/duplicate users: if current UID doc is not admin,
+                // look up by verified email and recover admin role/access from best candidate.
+                if (currentRole !== 'admin' && !hasCurrentAdminMode && (decoded as any)?.email) {
+                    const email = String((decoded as any).email || '').trim().toLowerCase();
+                    if (email) {
+                        const candidatesSnap = await db.collection('users').where('email', '==', email).get();
+                        let bestAdminCandidate: any = null;
+                        let bestScore = -1;
+
+                        candidatesSnap.forEach((docSnap) => {
+                            const data = docSnap.data() || {};
+                            const role = String(data.role || '').toLowerCase();
+                            const accessMode = String(data.adminAccess?.mode || '').toLowerCase();
+                            const permissionsMode = String(data.adminPermissions?.mode || '').toLowerCase();
+                            const hasAdminMode =
+                                accessMode === 'full' ||
+                                accessMode === 'limited' ||
+                                accessMode === 'unlimited' ||
+                                permissionsMode === 'full' ||
+                                permissionsMode === 'limited' ||
+                                permissionsMode === 'unlimited';
+                            const isAdminRole = role === 'admin';
+                            if (!isAdminRole && !hasAdminMode) return;
+
+                            let score = 0;
+                            if (isAdminRole) score += 100;
+                            if (hasAdminMode) score += 80;
+                            if (accessMode === 'full' || permissionsMode === 'full' || accessMode === 'unlimited' || permissionsMode === 'unlimited') score += 20;
+                            if (docSnap.id === decoded.uid) score += 5;
+
+                            if (score > bestScore) {
+                                bestScore = score;
+                                bestAdminCandidate = data;
+                            }
+                        });
+
+                        if (bestAdminCandidate) {
+                            profile = {
+                                ...profile,
+                                role: bestAdminCandidate.role || profile.role || 'admin',
+                                adminAccess: bestAdminCandidate.adminAccess || profile.adminAccess,
+                                adminPermissions: bestAdminCandidate.adminPermissions || profile.adminPermissions,
+                            };
+                        }
+                    }
+                }
+
+                // Canonical precedence: values from users should override stale user_profiles values.
+                if (userData && Object.keys(userData).length > 0) {
+                    if (userData.role) profile.role = userData.role;
+                    if (userData.adminAccess && typeof userData.adminAccess === 'object') {
+                        profile.adminAccess = userData.adminAccess;
+                    }
+                    if (userData.adminPermissions && typeof userData.adminPermissions === 'object') {
+                        profile.adminPermissions = userData.adminPermissions;
+                    }
                 }
             } catch (dbErr) {
                 console.warn('[API] Failed to fetch profile from Firestore:', dbErr);
@@ -80,6 +153,8 @@ export default async function handler(req: IncomingMessage, res: ServerResponse)
                 phoneNumber: profile.phoneNumber || profile.phone || profile.contactNumber || null,
                 contactNumber: profile.contactNumber || profile.phone || null,
                 role: role,
+                adminAccess: profile.adminAccess || null,
+                adminPermissions: profile.adminPermissions || null,
                 isAdmin: role === 'admin' || role === 'super_admin' || (decoded as any).admin === true,
                 isSubscribed: profile.isSubscribed || false,
                 billing: {
