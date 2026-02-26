@@ -110,10 +110,15 @@ const splitCsv = (value: string): string[] =>
     .filter(Boolean);
 
 const isLimitedAdminUser = (user: any): boolean => {
-  if (!user || user.role !== 'admin') return false;
-  const accessMode = user?.adminAccess?.mode;
-  const permissionsMode = user?.adminPermissions?.mode;
-  return accessMode === 'limited' || permissionsMode === 'limited';
+  if (!user || String(user.role || '').toLowerCase() !== 'admin') return false;
+  const accessMode = String(user?.adminAccess?.mode || '').toLowerCase();
+  const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
+  const isExplicitSuperAdmin =
+    accessMode === 'full' ||
+    accessMode === 'unlimited' ||
+    permissionsMode === 'full' ||
+    permissionsMode === 'unlimited';
+  return !isExplicitSuperAdmin;
 };
 
 export const UsersManagement = () => {
@@ -315,6 +320,10 @@ export const UsersManagement = () => {
   };
 
   const handleOpenUpgrade = (user: User) => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك ترقية المستخدمين', 'error');
+      return;
+    }
     setSelectedUser(user);
     setLocation('');
     setSpecialization('');
@@ -325,6 +334,10 @@ export const UsersManagement = () => {
   };
 
   const handleOpenEdit = (user: User) => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك تعديل بيانات المستخدمين', 'error');
+      return;
+    }
     setSelectedUser(user);
     const userAny = user as any;
     const adminAccess = userAny.adminAccess || userAny.adminPermissions || {};
@@ -378,6 +391,10 @@ export const UsersManagement = () => {
   };
 
   const handleSaveEdit = async () => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك حفظ تعديلات المستخدمين', 'error');
+      return;
+    }
     if (!selectedUser || !editForm.name.trim() || !editForm.email.trim()) {
       showToast('⚠️ الاسم والبريد الإلكتروني مطلوبان', 'error');
       return;
@@ -955,6 +972,10 @@ export const UsersManagement = () => {
   };
 
   const handleDeleteClick = (user: User) => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك حذف المستخدمين', 'error');
+      return;
+    }
     if (user.role === 'admin') {
       showToast('⚠️ لا يمكن حذف حساب المدير', 'error');
       return;
@@ -964,6 +985,10 @@ export const UsersManagement = () => {
   };
 
   const confirmDelete = async () => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك حذف المستخدمين', 'error');
+      return;
+    }
     if (!userToDelete) return;
     
     setDeleting(true);
@@ -1059,6 +1084,10 @@ export const UsersManagement = () => {
   };
 
   const handleOpenPromoteAdmin = (user: User) => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك تعديل صلاحيات المدراء', 'error');
+      return;
+    }
     setPromoteTargetUser(user);
     setPromoteAdminMode('limited');
     setPromoteAdminSections(['dashboard', 'orders', 'products', 'users']);
@@ -1067,6 +1096,10 @@ export const UsersManagement = () => {
   };
 
   const handlePromoteToAdmin = async () => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك تعديل صلاحيات المدراء', 'error');
+      return;
+    }
     if (!promoteTargetUser) return;
     if (promoteAdminMode === 'limited' && promoteAdminSections.length === 0) {
       showToast('⚠️ اختر صفحة واحدة على الأقل للوصول المحدود', 'error');

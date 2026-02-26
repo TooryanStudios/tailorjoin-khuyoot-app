@@ -213,9 +213,14 @@ export const AdminApp = () => {
 
   const adminRoleLabel = React.useMemo(() => {
     const role = String(user?.role || '').toLowerCase();
-    const isLimitedAdmin =
-      (user as any)?.adminAccess?.mode === 'limited' ||
-      (user as any)?.adminPermissions?.mode === 'limited';
+    const accessMode = String((user as any)?.adminAccess?.mode || '').toLowerCase();
+    const permissionsMode = String((user as any)?.adminPermissions?.mode || '').toLowerCase();
+    const isExplicitSuperAdmin =
+      accessMode === 'full' ||
+      accessMode === 'unlimited' ||
+      permissionsMode === 'full' ||
+      permissionsMode === 'unlimited';
+    const isLimitedAdmin = role === 'admin' && !isExplicitSuperAdmin;
     
     if (role === 'admin' && isLimitedAdmin) return 'Limited Admin';
     if (role === 'admin') return 'Super Admin';
@@ -913,9 +918,14 @@ export const AdminApp = () => {
     }
 
     // Check if user is a limited admin to show appropriate dashboard
-    const isLimitedAdminUser =
-      user?.adminAccess?.mode === 'limited' ||
-      user?.adminPermissions?.mode === 'limited';
+    const accessMode = String(user?.adminAccess?.mode || '').toLowerCase();
+    const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
+    const isExplicitSuperAdmin =
+      accessMode === 'full' ||
+      accessMode === 'unlimited' ||
+      permissionsMode === 'full' ||
+      permissionsMode === 'unlimited';
+    const isLimitedAdminUser = String(user?.role || '').toLowerCase() === 'admin' && !isExplicitSuperAdmin;
 
     switch(activeSection) {
       case 'dashboard':
