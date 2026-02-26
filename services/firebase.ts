@@ -2677,6 +2677,8 @@ export const firebaseService = {
         // Apply defaults to ensure all fields exist
         const normalizedUser = applyUserDefaults(rawData, docSnap.id);
         (normalizedUser as any)._dbRole = (rawData as any)?.role;
+        (normalizedUser as any)._dbAdminAccessMode = (rawData as any)?.adminAccess?.mode;
+        (normalizedUser as any)._dbAdminPermissionsMode = (rawData as any)?.adminPermissions?.mode;
         users.push(normalizedUser as any);
       });
 
@@ -2725,6 +2727,8 @@ export const firebaseService = {
         const rawData = docSnap.data();
         const normalizedUser = applyUserDefaults(rawData, docSnap.id) as any;
         normalizedUser._dbRole = rawData?.role;
+        normalizedUser._dbAdminAccessMode = (rawData as any)?.adminAccess?.mode;
+        normalizedUser._dbAdminPermissionsMode = (rawData as any)?.adminPermissions?.mode;
         normalizedUser.isMergedDuplicate = true;
         normalizedUser.mergedIntoUid = (rawData as any).mergedIntoUid || '';
         users.push(normalizedUser as User);
