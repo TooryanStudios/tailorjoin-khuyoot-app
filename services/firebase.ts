@@ -2676,6 +2676,7 @@ export const firebaseService = {
         }
         // Apply defaults to ensure all fields exist
         const normalizedUser = applyUserDefaults(rawData, docSnap.id);
+        (normalizedUser as any)._dbRole = (rawData as any)?.role;
         users.push(normalizedUser as any);
       });
 
@@ -2723,6 +2724,7 @@ export const firebaseService = {
       querySnapshot.forEach((docSnap) => {
         const rawData = docSnap.data();
         const normalizedUser = applyUserDefaults(rawData, docSnap.id) as any;
+        normalizedUser._dbRole = rawData?.role;
         normalizedUser.isMergedDuplicate = true;
         normalizedUser.mergedIntoUid = (rawData as any).mergedIntoUid || '';
         users.push(normalizedUser as User);

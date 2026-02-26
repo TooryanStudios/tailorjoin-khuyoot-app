@@ -1396,6 +1396,9 @@ export const UsersManagement = () => {
                         {getRoleLabel(user.role)}
                         {user.shopType && ` (${getShopTypeLabel(user.shopType)})`}
                       </span>
+                      <span className="mr-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-mono bg-slate-100 dark:bg-slate-800/60 text-slate-700 dark:text-slate-300">
+                        DB: {String((user as any)?._dbRole ?? 'undefined')}
+                      </span>
                       {isLimitedAdminUser(user as any) && (
                         <span className="mr-1 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-300">
                           محدود
