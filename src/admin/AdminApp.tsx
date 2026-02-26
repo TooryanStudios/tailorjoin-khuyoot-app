@@ -110,8 +110,10 @@ export const AdminApp = () => {
 
     const hasAdminMode =
       accessMode === 'full' ||
+      accessMode === 'unlimited' ||
       accessMode === 'limited' ||
       permissionsMode === 'full' ||
+      permissionsMode === 'unlimited' ||
       permissionsMode === 'limited';
 
     if (user && role !== 'admin' && !hasAdminMode) {
@@ -1070,8 +1072,10 @@ export const AdminApp = () => {
 
   const hasAdminMode =
     accessMode === 'full' ||
+    accessMode === 'unlimited' ||
     accessMode === 'limited' ||
     permissionsMode === 'full' ||
+    permissionsMode === 'unlimited' ||
     permissionsMode === 'limited';
   
   if (!isFirebaseAuthenticated || !hasUserData || (!isAdminRole && !hasAdminMode)) {

@@ -27,9 +27,9 @@ const HeaderComponent = () => {
   const hasAdminAccess = useMemo(() => {
     if (!user) return false;
     if (user.role === 'admin') return true;
-    const accessMode = user.adminAccess?.mode;
-    const permissionsMode = user.adminPermissions?.mode;
-    return accessMode === 'full' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'limited';
+    const accessMode = String(user.adminAccess?.mode || '').toLowerCase();
+    const permissionsMode = String(user.adminPermissions?.mode || '').toLowerCase();
+    return accessMode === 'full' || accessMode === 'unlimited' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'unlimited' || permissionsMode === 'limited';
   }, [user]);
 
   const activeLang = React.useMemo(() => {

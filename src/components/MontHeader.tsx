@@ -22,7 +22,7 @@ export const MontHeader = React.memo(function MontHeader() {
     if (role === 'admin') return true;
     const accessMode = String(user.adminAccess?.mode || '').toLowerCase();
     const permissionsMode = String(user.adminPermissions?.mode || '').toLowerCase();
-    return accessMode === 'full' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'limited';
+    return accessMode === 'full' || accessMode === 'unlimited' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'unlimited' || permissionsMode === 'limited';
   }, [user]);
 
   // Restore admin-selected primary color on mount

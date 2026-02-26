@@ -167,8 +167,10 @@ export const AppProvider: React.FC<PropsWithChildren<{ initialAppSettings?: AppS
         const permissionsMode = String((u as any)?.adminPermissions?.mode || '').toLowerCase();
         const hasAdminMode =
             accessMode === 'full' ||
+            accessMode === 'unlimited' ||
             accessMode === 'limited' ||
             permissionsMode === 'full' ||
+            permissionsMode === 'unlimited' ||
             permissionsMode === 'limited';
         if (role !== 'admin' && hasAdminMode) {
             role = 'admin';

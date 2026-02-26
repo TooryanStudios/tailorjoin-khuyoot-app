@@ -85,8 +85,10 @@ export function buildAdminAccessPolicy(user: any): AdminAccessPolicy {
   const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
   const hasAdminMode =
     accessMode === 'full' ||
+    accessMode === 'unlimited' ||
     accessMode === 'limited' ||
     permissionsMode === 'full' ||
+    permissionsMode === 'unlimited' ||
     permissionsMode === 'limited';
 
   if (role !== 'admin' && !hasAdminMode) {
@@ -111,7 +113,8 @@ export function buildAdminAccessPolicy(user: any): AdminAccessPolicy {
     };
   }
 
-  const mode = config.mode === 'limited' ? 'limited' : 'full';
+  const rawMode = String(config.mode || '').toLowerCase();
+  const mode = rawMode === 'limited' ? 'limited' : 'full';
   const allowedSections = toSet(config.sections);
   const deniedSections = toSet(config.deniedSections);
   const allowedConfigSections = toSet(config.configSections);
