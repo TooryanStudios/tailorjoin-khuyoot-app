@@ -104,13 +104,17 @@ export const AdminApp = () => {
 
   // Force refresh user profile when accessing admin panel
   React.useEffect(() => {
-    const hasAdminMode =
-      user?.adminAccess?.mode === 'full' ||
-      user?.adminAccess?.mode === 'limited' ||
-      user?.adminPermissions?.mode === 'full' ||
-      user?.adminPermissions?.mode === 'limited';
+    const role = String(user?.role || '').toLowerCase();
+    const accessMode = String(user?.adminAccess?.mode || '').toLowerCase();
+    const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
 
-    if (user && user.role !== 'admin' && !hasAdminMode) {
+    const hasAdminMode =
+      accessMode === 'full' ||
+      accessMode === 'limited' ||
+      permissionsMode === 'full' ||
+      permissionsMode === 'limited';
+
+    if (user && role !== 'admin' && !hasAdminMode) {
       console.log('[AdminApp] Non-admin session detected, forcing profile refresh...');
       refreshUser?.();
     }
@@ -1059,12 +1063,16 @@ export const AdminApp = () => {
   // CRITICAL: Check Firebase auth state first to prevent cached access
   const isFirebaseAuthenticated = !!firebaseService.auth.currentUser;
   const hasUserData = !!user;
-  const isAdminRole = user?.role === 'admin';
+  const role = String(user?.role || '').toLowerCase();
+  const isAdminRole = role === 'admin';
+  const accessMode = String(user?.adminAccess?.mode || '').toLowerCase();
+  const permissionsMode = String(user?.adminPermissions?.mode || '').toLowerCase();
+
   const hasAdminMode =
-    user?.adminAccess?.mode === 'full' ||
-    user?.adminAccess?.mode === 'limited' ||
-    user?.adminPermissions?.mode === 'full' ||
-    user?.adminPermissions?.mode === 'limited';
+    accessMode === 'full' ||
+    accessMode === 'limited' ||
+    permissionsMode === 'full' ||
+    permissionsMode === 'limited';
   
   if (!isFirebaseAuthenticated || !hasUserData || (!isAdminRole && !hasAdminMode)) {
      return (

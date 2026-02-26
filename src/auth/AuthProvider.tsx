@@ -408,14 +408,18 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
 
                 // Try to recover any persisted role from localStorage cache to prevent role-flicker
                 let initialRole = 'customer';
+                let initialAdminAccess = undefined;
+                let initialAdminPermissions = undefined;
                 try {
                   const cached = localStorage.getItem(UI_CACHE_KEY);
                   if (cached) {
                     const parsed = JSON.parse(cached);
                     // Handle both root user and nested user structure in cache
                     const cachedUser = parsed.user?.user || parsed.user;
-                    if (cachedUser?.uid === fbUser.uid && cachedUser?.role) {
-                      initialRole = cachedUser.role;
+                    if (cachedUser?.uid === fbUser.uid) {
+                       if (cachedUser.role) initialRole = cachedUser.role;
+                       if (cachedUser.adminAccess) initialAdminAccess = cachedUser.adminAccess;
+                       if (cachedUser.adminPermissions) initialAdminPermissions = cachedUser.adminPermissions;
                     }
                   }
                 } catch {}
@@ -426,6 +430,8 @@ export const AuthProvider: React.FC<React.PropsWithChildren> = ({ children }) =>
                   displayName: fbUser.displayName || 'User',
                   photoURL: fbUser.photoURL || '',
                   role: initialRole,
+                  adminAccess: initialAdminAccess,
+                  adminPermissions: initialAdminPermissions,
                   billing: { credits: 0, tier: 'free', subscriptionStatus: 'none' },
                   metadata: { completedOrders: 0 }
                 };

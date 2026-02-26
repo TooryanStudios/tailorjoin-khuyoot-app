@@ -18,9 +18,10 @@ export const MontHeader = React.memo(function MontHeader() {
 
   const hasAdminAccess = useMemo(() => {
     if (!user) return false;
-    if (user.role === 'admin') return true;
-    const accessMode = user.adminAccess?.mode;
-    const permissionsMode = user.adminPermissions?.mode;
+    const role = String(user.role || '').toLowerCase();
+    if (role === 'admin') return true;
+    const accessMode = String(user.adminAccess?.mode || '').toLowerCase();
+    const permissionsMode = String(user.adminPermissions?.mode || '').toLowerCase();
     return accessMode === 'full' || accessMode === 'limited' || permissionsMode === 'full' || permissionsMode === 'limited';
   }, [user]);
 
@@ -45,7 +46,10 @@ export const MontHeader = React.memo(function MontHeader() {
       return [];
     }
     
-    let role = hasAdminAccess ? 'admin' : user.role;
+    // Normalize role and admin status
+    const userRole = String(user.role || '' || 'customer').toLowerCase();
+    const isActuallyAdmin = hasAdminAccess || userRole === 'admin';
+    let role = isActuallyAdmin ? 'admin' : userRole;
     const shopType = (user as any).shopType;
     
     if (role === 'tailor' && shopType) {
@@ -57,6 +61,7 @@ export const MontHeader = React.memo(function MontHeader() {
 
     const links = {
       admin: [
+        { id: 'admin-dash', label: 'لوحة الإدارة', path: '/admin', icon: LayoutDashboard },
         { id: 'shop', label: 'المنتجات', path: '/tailor/collections', icon: ShoppingBag },
         { id: 'orders', label: 'طلباتي', path: '/orders', icon: Package, badge: ordersCount },
         { id: 'account', label: 'حسابي', path: '/account', icon: User },
