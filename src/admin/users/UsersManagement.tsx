@@ -248,6 +248,31 @@ export const UsersManagement = () => {
     }, duration);
   };
 
+  const getUserSortTimestamp = (user: any): number => {
+    const rawDate =
+      user?.createdAt ||
+      user?.joinDate ||
+      user?.updatedAt ||
+      user?.metadata?.joinDate ||
+      null;
+
+    if (!rawDate) return 0;
+    const ts = new Date(rawDate).getTime();
+    return Number.isFinite(ts) ? ts : 0;
+  };
+
+  const sortUsersByDateThenName = React.useCallback((list: User[]): User[] => {
+    return [...list].sort((a: any, b: any) => {
+      const dateDiff = getUserSortTimestamp(b) - getUserSortTimestamp(a);
+      if (dateDiff !== 0) return dateDiff;
+
+      return String(a?.name || '').localeCompare(String(b?.name || ''), 'ar', {
+        sensitivity: 'base',
+        numeric: true,
+      });
+    });
+  }, []);
+
   useEffect(() => {
     loadUsers();
     loadRegions();
@@ -284,8 +309,8 @@ export const UsersManagement = () => {
       );
     }
     
-    setFilteredUsers(filtered);
-  }, [searchTerm, roleFilter, users, mergedDuplicateUsers]);
+    setFilteredUsers(sortUsersByDateThenName(filtered));
+  }, [searchTerm, roleFilter, users, mergedDuplicateUsers, sortUsersByDateThenName]);
 
   const loadRegions = async () => {
     try {
@@ -309,9 +334,12 @@ export const UsersManagement = () => {
       
       console.log(`📥 Loaded ${data.length} users from Firestore`);
       
-      setUsers(data);
-      setMergedDuplicateUsers(mergedData);
-      setFilteredUsers(roleFilter === 'merged_duplicates' ? mergedData : data);
+      const sortedUsers = sortUsersByDateThenName(data as User[]);
+      const sortedMergedUsers = sortUsersByDateThenName(mergedData as User[]);
+
+      setUsers(sortedUsers);
+      setMergedDuplicateUsers(sortedMergedUsers);
+      setFilteredUsers(roleFilter === 'merged_duplicates' ? sortedMergedUsers : sortedUsers);
     } catch {
       console.error('Error loading users');
     } finally {
