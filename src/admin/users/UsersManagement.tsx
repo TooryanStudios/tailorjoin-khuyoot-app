@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import imageCompression from 'browser-image-compression';
-import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff, Shield } from 'lucide-react';
+import { Users, RefreshCw, ChevronRight, ChevronLeft, ChevronRight as ChevronR, ChevronUp, ChevronDown, Store, Scissors, Package, CheckCircle2, AlertCircle, Search, Edit2, X, Filter, Trash2, Clock, Star, ExternalLink, Upload, ImagePlus, Image as ImageIcon, ArrowLeft, ArrowRight, Eye, EyeOff, Shield } from 'lucide-react';
 import { User, AgeGroup, PopularRegion } from '../../../types';
 import { firebaseService } from '../../../services/firebase';
 import { ImagePrepModal } from '../../components/image/ImagePrepModal';
@@ -131,12 +131,16 @@ export const UsersManagement = () => {
   const [filteredUsers, setFilteredUsers] = useState<User[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
+  const [sortDateOrder, setSortDateOrder] = useState<'asc' | 'desc'>('desc');
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showUpgradeModal, setShowUpgradeModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
   const [loading, setLoading] = useState(true);
   const [regions, setRegions] = useState<PopularRegion[]>([]);
   const [migrating, setMigrating] = useState(false);
@@ -263,7 +267,9 @@ export const UsersManagement = () => {
 
   const sortUsersByDateThenName = React.useCallback((list: User[]): User[] => {
     return [...list].sort((a: any, b: any) => {
-      const dateDiff = getUserSortTimestamp(b) - getUserSortTimestamp(a);
+      const tsA = getUserSortTimestamp(a);
+      const tsB = getUserSortTimestamp(b);
+      const dateDiff = sortDateOrder === 'desc' ? tsB - tsA : tsA - tsB;
       if (dateDiff !== 0) return dateDiff;
 
       return String(a?.name || '').localeCompare(String(b?.name || ''), 'ar', {
@@ -271,7 +277,7 @@ export const UsersManagement = () => {
         numeric: true,
       });
     });
-  }, []);
+  }, [sortDateOrder]);
 
   useEffect(() => {
     loadUsers();
@@ -309,8 +315,9 @@ export const UsersManagement = () => {
       );
     }
     
+    setSelectedUserIds(new Set());
     setFilteredUsers(sortUsersByDateThenName(filtered));
-  }, [searchTerm, roleFilter, users, mergedDuplicateUsers, sortUsersByDateThenName]);
+  }, [searchTerm, roleFilter, sortDateOrder, users, mergedDuplicateUsers, sortUsersByDateThenName]);
 
   const loadRegions = async () => {
     try {
@@ -1044,6 +1051,36 @@ export const UsersManagement = () => {
     }
   };
 
+  const confirmBulkDelete = async () => {
+    if (isCurrentAdminLimited) {
+      showToast('⚠️ صلاحيات محدودة: لا يمكنك حذف المستخدمين', 'error');
+      return;
+    }
+    setBulkDeleting(true);
+    let successCount = 0;
+    let failCount = 0;
+    const idsToDelete = Array.from(selectedUserIds);
+    for (const uid of idsToDelete) {
+      try {
+        await firebaseService.deleteUser(uid);
+        setUsers(prev => prev.filter(u => u.id !== uid));
+        setFilteredUsers(prev => prev.filter(u => u.id !== uid));
+        successCount++;
+      } catch (err) {
+        console.error('Bulk delete error for', uid, err);
+        failCount++;
+      }
+    }
+    setBulkDeleting(false);
+    setShowBulkDeleteModal(false);
+    setSelectedUserIds(new Set());
+    if (failCount === 0) {
+      showToast(`✅ تم حذف ${successCount} مستخدم بنجاح`, 'success');
+    } else {
+      showToast(`⚠️ تم حذف ${successCount} وفشل ${failCount}`, 'error');
+    }
+  };
+
   const handleUpgradeUser = async () => {
     if (!selectedUser || !location.trim()) {
       showToast('⚠️ الموقع مطلوب', 'error');
@@ -1351,6 +1388,30 @@ export const UsersManagement = () => {
         </div>
       </div>
 
+      {/* Bulk Action Toolbar */}
+      {selectedUserIds.size > 0 && !isCurrentAdminLimited && (
+        <div className="flex items-center justify-between gap-3 px-4 py-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-xl">
+          <span className="text-sm font-medium text-red-700 dark:text-red-300">
+            تم تحديد <span className="font-bold">{selectedUserIds.size}</span> مستخدم
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setSelectedUserIds(new Set())}
+              className="px-3 py-1.5 text-xs rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-50 transition-colors"
+            >
+              إلغاء التحديد
+            </button>
+            <button
+              onClick={() => setShowBulkDeleteModal(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg bg-red-600 hover:bg-red-700 text-white font-medium transition-colors"
+            >
+              <Trash2 size={13} />
+              حذف المحدد ({selectedUserIds.size})
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Search Bar and Role Filter */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
         <div className="relative">
@@ -1389,19 +1450,47 @@ export const UsersManagement = () => {
           <table className="w-full text-sm">
             <thead className="bg-gradient-to-r from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-800 border-b border-slate-200 dark:border-slate-700 shadow-sm">
               <tr>
+                {!isCurrentAdminLimited && (
+                  <th className="px-2 py-1.5 w-7">
+                    <input
+                      type="checkbox"
+                      className="rounded border-slate-300 text-red-600 cursor-pointer"
+                      checked={filteredUsers.length > 0 && filteredUsers.filter(u => u.role !== 'admin').every(u => selectedUserIds.has(u.id))}
+                      onChange={(e) => {
+                        const eligible = filteredUsers.filter(u => u.role !== 'admin');
+                        if (e.target.checked) {
+                          setSelectedUserIds(new Set(eligible.map(u => u.id)));
+                        } else {
+                          setSelectedUserIds(new Set());
+                        }
+                      }}
+                      title="تحديد الكل"
+                    />
+                  </th>
+                )}
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الاسم</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">البريد</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الهاتف</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الدور</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">المنطقة</th>
                 <th className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">الفئة</th>
+                <th
+                  className="text-right px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider cursor-pointer select-none hover:bg-slate-200 dark:hover:bg-slate-700 transition-colors"
+                  onClick={() => setSortDateOrder(o => o === 'desc' ? 'asc' : 'desc')}
+                  title="ترتيب حسب تاريخ الانضمام"
+                >
+                  <span className="flex items-center gap-0.5">
+                    تاريخ الانضمام
+                    {sortDateOrder === 'desc' ? <ChevronDown size={11} /> : <ChevronUp size={11} />}
+                  </span>
+                </th>
                 <th className="text-center px-2 py-1.5 text-[9px] font-bold text-slate-700 dark:text-slate-200 uppercase tracking-wider">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-200 dark:divide-slate-700">
               {filteredUsers.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-2 py-4 text-center text-slate-400 text-xs">
+                  <td colSpan={9} className="px-2 py-4 text-center text-slate-400 text-xs">
                     {searchTerm || roleFilter !== 'all' ? 'لا توجد نتائج' : 'لا يوجد مستخدمين'}
                   </td>
                 </tr>
@@ -1411,9 +1500,31 @@ export const UsersManagement = () => {
                     key={user.id}
                     className={
                       `transition-colors hover:bg-slate-50 dark:hover:bg-slate-700/50 ` +
+                      (selectedUserIds.has(user.id) ? 'bg-red-50 dark:bg-red-900/10 ' : '') +
                       (idx % 2 === 0 ? 'bg-white dark:bg-slate-800' : 'bg-slate-50 dark:bg-slate-900')
                     }
                   >
+                    {!isCurrentAdminLimited && (
+                      <td className="px-2 py-1.5 w-7">
+                        {user.role !== 'admin' && (
+                          <input
+                            type="checkbox"
+                            className="rounded border-slate-300 text-red-600 cursor-pointer"
+                            checked={selectedUserIds.has(user.id)}
+                            title={`تحديد ${user.name}`}
+                            aria-label={`تحديد ${user.name}`}
+                            onChange={(e) => {
+                              setSelectedUserIds(prev => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(user.id);
+                                else next.delete(user.id);
+                                return next;
+                              });
+                            }}
+                          />
+                        )}
+                      </td>
+                    )}
                     <td className="px-2 py-1.5">
                       <div className="flex items-center gap-1.5">
                         <div className="relative w-6 h-6 shrink-0">
@@ -1476,6 +1587,14 @@ export const UsersManagement = () => {
                     <td className="px-2 py-1.5 text-[11px] text-slate-600 dark:text-slate-400">
                       {user.role === 'user' ? getAgeGroupLabel(user.ageGroup) : '-'}
                     </td>
+                    <td className="px-2 py-1.5 text-[11px] text-slate-500 dark:text-slate-400 whitespace-nowrap">
+                      {(() => {
+                        const ts = getUserSortTimestamp(user as any);
+                        if (!ts) return <span className="text-slate-300 dark:text-slate-600">—</span>;
+                        const d = new Date(ts);
+                        return <span title={d.toLocaleString('ar-SA')}>{d.toLocaleDateString('ar-SA', { year: 'numeric', month: 'short', day: 'numeric' })}</span>;
+                      })()}
+                    </td>
                     <td className="px-2 py-1.5">
                       <div className="flex items-center justify-end gap-1">
                         {/* Upgrade, Promote, Edit, Delete — full admins only */}
@@ -1533,7 +1652,7 @@ export const UsersManagement = () => {
             </tbody>
             <tfoot>
               <tr className="bg-slate-100 dark:bg-slate-800">
-                <td colSpan={7} className="px-2 py-1 text-[10px] text-slate-700 dark:text-slate-300 text-right">
+                <td colSpan={9} className="px-2 py-1 text-[10px] text-slate-700 dark:text-slate-300 text-right">
                   عرض <span className="font-semibold text-slate-900 dark:text-white">{filteredUsers.length}</span> من
                   {' '}<span className="font-semibold text-slate-900 dark:text-white">{roleFilter === 'merged_duplicates' ? mergedDuplicateUsers.length : users.length}</span> مستخدمًا
                 </td>
@@ -3108,6 +3227,50 @@ export const UsersManagement = () => {
               </div>
               )}
             </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center p-4">
+          <div
+            className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+            onClick={() => !bulkDeleting && setShowBulkDeleteModal(false)}
+          />
+          <div className="relative bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 w-full max-w-md rounded-2xl shadow-2xl p-6 animate-in fade-in zoom-in duration-200">
+            <div className="flex flex-col items-center text-center">
+              <div className="w-12 h-12 bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center mb-4">
+                <Trash2 size={24} className="text-red-600 dark:text-red-400" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-900 dark:text-white mb-2">حذف المستخدمين المحددين</h3>
+              <p className="text-slate-600 dark:text-slate-400 mb-2">
+                هل أنت متأكد من رغبتك في حذف{' '}
+                <span className="font-bold text-slate-900 dark:text-white">{selectedUserIds.size}</span>{' '}
+                مستخدم؟
+              </p>
+              <span className="text-red-500 text-xs mb-6 block">لا يمكن التراجع عن هذا الإجراء.</span>
+              <div className="flex gap-3 w-full">
+                <button
+                  onClick={confirmBulkDelete}
+                  disabled={bulkDeleting}
+                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-lg font-medium transition-colors shadow-lg shadow-red-500/30 disabled:opacity-50 disabled:shadow-none"
+                >
+                  {bulkDeleting ? (
+                    <><RefreshCw size={18} className="animate-spin" />جاري الحذف...</>
+                  ) : (
+                    <><Trash2 size={18} />تأكيد حذف {selectedUserIds.size}</>
+                  )}
+                </button>
+                <button
+                  onClick={() => setShowBulkDeleteModal(false)}
+                  disabled={bulkDeleting}
+                  className="flex-1 px-4 py-2.5 bg-slate-200 dark:bg-slate-700 hover:bg-slate-300 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-lg font-medium transition-colors"
+                >
+                  إلغاء
+                </button>
+              </div>
             </div>
           </div>
         </div>

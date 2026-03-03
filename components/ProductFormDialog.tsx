@@ -1,6 +1,5 @@
-﻿import React from 'react';
-import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video, ZoomIn } from 'lucide-react';
-import { useImageLightbox } from './ImageLightbox';
+import React from 'react';
+import { X, DollarSign, Clock, LayoutGrid, ChevronDown, ChevronUp, ImageIcon, ImagePlus, Star, RefreshCw, Trash2, Video, ZoomIn, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Product } from '../types';
 import imageCompression from 'browser-image-compression';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -83,7 +82,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
     () => groupedCategoryOptions[0]?.groupName ?? ''
   );
   const [imageToDelete, setImageToDelete] = React.useState<number | null>(null);
-  const { openLightbox, LightboxPortal } = useImageLightbox();
+  const [previewImageIndex, setPreviewImageIndex] = React.useState<number | null>(null);
 
   React.useEffect(() => {
     if (!activeCategoryGroup && groupedCategoryOptions.length > 0) {
@@ -149,7 +148,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
         }
       }}
     >
-      <div className="bg-white dark:bg-slate-50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col font-['Cairo']">
+      <div className="bg-white dark:bg-slate-50 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col font-['Tajawal',sans-serif]">
         {/* Header */}
         <div className="sticky top-0 bg-white dark:bg-slate-50 border-b border-slate-200 dark:border-slate-200 p-3 md:p-4 flex items-center justify-between shrink-0">
           <div>
@@ -553,7 +552,7 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
                         )}
                         <button
                           type="button"
-                          onClick={() => openLightbox(formState.allProductImages, index)}
+                          onClick={() => setPreviewImageIndex(index)}
                           className="bg-white/95 hover:bg-white text-slate-700 p-2 rounded-lg"
                           title="عرض مكبّر"
                         >
@@ -574,9 +573,81 @@ export const ProductFormDialog: React.FC<ProductFormDialogProps> = ({
               </div>
             )}
           </div>
-
           </div>
-          <LightboxPortal />
+
+          {/* Image Lightbox inside dialog */}
+          {previewImageIndex !== null && formState.allProductImages.length > 0 && (
+            <div
+              className="fixed inset-0 z-[10200] bg-black/92 flex items-center justify-center"
+              onClick={() => setPreviewImageIndex(null)}
+            >
+              {/* Close */}
+              <button
+                className="absolute top-4 left-4 bg-white/10 hover:bg-white/25 text-white p-2 rounded-full transition z-10"
+                onClick={() => setPreviewImageIndex(null)}
+                aria-label="إغلاق"
+              >
+                <X size={22} />
+              </button>
+
+              {/* Counter */}
+              {formState.allProductImages.length > 1 && (
+                <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-black/60 text-white text-sm px-4 py-1 rounded-full select-none">
+                  {previewImageIndex + 1} / {formState.allProductImages.length}
+                </div>
+              )}
+
+              {/* Prev (RTL) */}
+              {formState.allProductImages.length > 1 && (
+                <button
+                  className="absolute right-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/25 text-white p-3 rounded-full transition z-10"
+                  onClick={(e) => { e.stopPropagation(); setPreviewImageIndex((i) => ((i ?? 0) - 1 + formState.allProductImages.length) % formState.allProductImages.length); }}
+                  aria-label="السابق"
+                >
+                  <ChevronRight size={26} />
+                </button>
+              )}
+
+              {/* Next */}
+              {formState.allProductImages.length > 1 && (
+                <button
+                  className="absolute left-4 top-1/2 -translate-y-1/2 bg-white/10 hover:bg-white/25 text-white p-3 rounded-full transition z-10"
+                  onClick={(e) => { e.stopPropagation(); setPreviewImageIndex((i) => ((i ?? 0) + 1) % formState.allProductImages.length); }}
+                  aria-label="التالي"
+                >
+                  <ChevronLeft size={26} />
+                </button>
+              )}
+
+              {/* Main image */}
+              <img
+                src={formState.allProductImages[previewImageIndex]}
+                alt={`صورة ${previewImageIndex + 1}`}
+                className="max-h-[85vh] max-w-[88vw] object-contain rounded-xl shadow-2xl"
+                onClick={(e) => e.stopPropagation()}
+              />
+
+              {/* Thumbnail strip */}
+              {formState.allProductImages.length > 1 && (
+                <div
+                  className="absolute bottom-5 left-1/2 -translate-x-1/2 flex gap-2 flex-wrap justify-center max-w-[90vw]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {formState.allProductImages.map((img, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setPreviewImageIndex(i)}
+                      className={`w-12 h-12 rounded-lg overflow-hidden border-2 transition ${
+                        i === previewImageIndex ? 'border-white scale-110 shadow-lg' : 'border-white/30 opacity-55 hover:opacity-90'
+                      }`}
+                    >
+                      <img src={img} alt="" className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Footer - Sticky */}
           <div className="sticky bottom-0 border-t border-slate-100 bg-white/95 backdrop-blur-sm px-4 md:px-5 py-3 flex gap-2 shrink-0">
